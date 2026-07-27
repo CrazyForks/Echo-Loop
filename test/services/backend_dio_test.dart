@@ -46,6 +46,14 @@ void main() {
       dio.close();
     });
 
+    test('默认超时为连接 15 秒、接收 30 秒', () {
+      final dio = createBackendDio(baseUrl: 'https://api.example.com');
+
+      expect(dio.options.connectTimeout, const Duration(seconds: 15));
+      expect(dio.options.receiveTimeout, const Duration(seconds: 30));
+      dio.close();
+    });
+
     test('默认安装一个后端 API 日志拦截器并支持自定义 tag', () {
       final logs = <String>[];
       final dio = createBackendDio(

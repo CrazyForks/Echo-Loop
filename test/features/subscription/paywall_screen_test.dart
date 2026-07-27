@@ -119,6 +119,9 @@ class _SpyRemoteConfigService implements RemoteConfigService {
 
   @override
   Future<RemoteConfig> load() async => fetchRemote();
+
+  @override
+  RemoteConfig loadInitialFromCache() => RemoteConfig.defaults;
 }
 
 /// 记录 Web checkout 打开参数的假 url_launcher 平台实现。
@@ -620,6 +623,7 @@ void main() {
     expect(find.text('More AI word explanation'), findsOneWidget);
     expect(find.text('More AI sentence breakdown'), findsOneWidget);
     expect(find.text('More AI assistant conversations'), findsOneWidget);
+    expect(find.text('Priority support'), findsOneWidget);
     expect(find.text('More AI sentence chunking'), findsOneWidget);
     expect(find.text('Special offer:'), findsNothing);
     expect(find.byKey(const ValueKey('paywall_header_logo')), findsOneWidget);
@@ -645,6 +649,11 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.text('More AI assistant conversations')).dy <
+          tester.getTopLeft(find.text('Priority support')).dy,
+      isTrue,
+    );
+    expect(
+      tester.getTopLeft(find.text('Priority support')).dy <
           tester.getTopLeft(find.text('More AI sentence chunking')).dy,
       isTrue,
     );
@@ -687,7 +696,7 @@ void main() {
     );
   });
 
-  testWidgets('中文 Paywall 权益列表展示更多 AI 助手对话次数', (tester) async {
+  testWidgets('中文 Paywall 权益列表展示 AI 助手和优先客户支持', (tester) async {
     await tester.pumpWidget(
       _harness(
         state: const EntitlementState.free(),
@@ -697,6 +706,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('更多 AI 助手对话次数'), findsOneWidget);
+    expect(find.text('优先客户支持'), findsOneWidget);
   });
 
   testWidgets('选中月付套餐后 CTA 变为订阅', (tester) async {

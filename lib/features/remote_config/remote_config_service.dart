@@ -32,8 +32,6 @@ class RemoteConfigService {
          dio: createBackendDio(
            baseUrl: baseUrl,
            appVersion: appVersion,
-           connectTimeout: const Duration(seconds: 3),
-           receiveTimeout: const Duration(seconds: 5),
            apiLogTag: 'REMOTE-CONFIG',
          ),
          store: RemoteConfigStore(prefs),
@@ -45,6 +43,28 @@ class RemoteConfigService {
 
   /// 最近一次成功获取远程配置的时间，用于统一刷新节流。
   DateTime? get lastFetchedAt => _store.readFetchedAt();
+
+  /// 启动期同步读取本地初始配置，不触发网络请求。
+  ///
+  /// 远程配置失败时允许沿用过期缓存，避免配置服务短暂不可用导致入口抖动；
+  /// 真正的远端刷新由 App 首帧后的 [fetchRemote] 后台任务完成。
+  RemoteConfig loadInitialFromCache() {
+    try {
+      final cached = _store.readCached(now: _now(), allowExpired: true);
+      if (cached != null) {
+        AppLogger.log(
+          _logTag,
+          'initial cache country=${cached.context.countryCode}',
+        );
+        return cached;
+      }
+    } catch (e) {
+      AppLogger.log(_logTag, 'initial cache parse failed: $e');
+    }
+
+    AppLogger.log(_logTag, 'initial fallback to local defaults');
+    return RemoteConfig.defaults;
+  }
 
   /// 加载启动配置；任何异常都降级为缓存或本地默认，不能中断 App 启动。
   Future<RemoteConfig> load() async {
@@ -93,7 +113,7 @@ class RemoteConfigService {
       '/api/v1/client/config',
       queryParameters: {'platform': clientPlatformName()},
     );
-    final config = RemoteConfig.fromJson(response.data);
+    final config = RemoteConfig.fromRemoteJson(response.data);
     await _store.write(config, now: _now());
     AppLogger.log(
       _logTag,

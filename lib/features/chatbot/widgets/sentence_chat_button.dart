@@ -16,12 +16,38 @@ import '../chatbot_sheet.dart';
 import '../models/chatbot_config.dart';
 
 /// AI 聊天入口显示规则：编译期开关负责硬停，远程开关负责运行期全球隐藏。
-@visibleForTesting
 bool shouldShowAiChatAssistantEntry({
   required bool chatbotEnabled,
   required bool remoteEnabled,
 }) {
   return chatbotEnabled && remoteEnabled;
+}
+
+/// 构造句子级聊天配置；AppBar 与文本选区入口必须复用同一会话身份。
+ChatbotConfig sentenceChatbotConfig(BuildContext context, String sentenceText) {
+  final l10n = AppLocalizations.of(context)!;
+  return ChatbotConfig(
+    // 用完整句子做内存会话 key，避免 hash 碰撞，也让同句跨页面复用会话。
+    sessionId: 'sentence:$sentenceText',
+    endpoint: '/api/v1/stream/chat/sentence',
+    context: {'sentence': sentenceText},
+    title: l10n.chatSentenceTitle,
+    inputPlaceholder: l10n.chatInputPlaceholder,
+    contextSummary: sentenceText,
+  );
+}
+
+/// 打开句子级 AI Sheet；[initialQuote] 只进入引用待发送区，不自动提问。
+Future<void> showSentenceChatbotSheet({
+  required BuildContext context,
+  required String sentenceText,
+  String? initialQuote,
+}) {
+  return showChatbotSheet(
+    context: context,
+    config: sentenceChatbotConfig(context, sentenceText),
+    initialQuote: initialQuote,
+  );
 }
 
 /// 句子 AI 助手入口按钮。
@@ -53,7 +79,6 @@ class SentenceChatButton extends ConsumerWidget {
     );
     if (!show || sentenceText.isEmpty) return const SizedBox.shrink();
 
-    final l10n = AppLocalizations.of(context)!;
     // 右侧留白：让 action 按钮不贴相邻控件/屏幕右缘，与左侧图标边距对称。
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -64,22 +89,12 @@ class SentenceChatButton extends ConsumerWidget {
           width: 24,
           height: 24,
         ),
-        tooltip: l10n.chatOpenTooltip,
+        tooltip: AppLocalizations.of(context)!.chatOpenTooltip,
         onPressed: () {
           onBeforeOpen?.call();
-          showChatbotSheet(
+          showSentenceChatbotSheet(
             context: context,
-            config: ChatbotConfig(
-              // 会话按句子内容归属：相同句子无论出现在哪都复用同一会话
-              // （context 只传 sentenceText，位置无关）。用完整 text 而非
-              // hashCode，避免 hash 碰撞导致不同句子串会话；sessionId 仅内存 key，长度无妨。
-              sessionId: 'sentence:$sentenceText',
-              endpoint: '/api/v1/stream/chat/sentence',
-              context: {'sentence': sentenceText},
-              title: l10n.chatSentenceTitle,
-              inputPlaceholder: l10n.chatInputPlaceholder,
-              contextSummary: sentenceText,
-            ),
+            sentenceText: sentenceText,
           );
         },
       ),

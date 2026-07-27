@@ -352,6 +352,30 @@ void main() {
         expect(find.textContaining('Audio too long'), findsNothing);
       });
 
+      testWidgets('大文件预压缩时显示音频压缩中状态', (tester) async {
+        final item = createTestAudioItem();
+        await tester.pumpWidget(
+          buildSheet(
+            item,
+            extraOverrides: [
+              transcriptionTaskManagerProvider.overrideWith(
+                () => TestTranscriptionTaskManager({
+                  item.id: const TranscriptionCompressing(),
+                }),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open'));
+        // 压缩态的进度条是不定态动画，不能等待 settle。
+        await tester.pump();
+
+        expect(find.text('Compressing audio...'), findsOneWidget);
+        expect(find.byIcon(Icons.compress), findsOneWidget);
+      });
+
       testWidgets('本地上传失败时完整显示错误并写入日志', (tester) async {
         const failurePath =
             '/private/var/mobile/Containers/Shared/AppGroup/subtitle.srt';

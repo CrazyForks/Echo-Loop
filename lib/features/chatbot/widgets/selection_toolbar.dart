@@ -1,12 +1,12 @@
-/// 选区气泡操作条：三端一致的横向灰色圆角胶囊，浮在选区上方（空间不足翻到下方）。
+/// 选区操作条：三端一致的横向灰色圆角胶囊，浮在选区上方（空间不足翻到下方）。
 ///
 /// 独立、可复用：不与「聊天/markdown」耦合，任何走 Flutter 文本选择（`SelectionArea`
 /// / `SelectableRegion` 的 `contextMenuBuilder`）的场景都可复用。传入选区锚点
 /// （[TextSelectionToolbarAnchors]）与若干动作项（[SelectionToolbarAction]）即可。
 ///
 /// 为何用 [CupertinoTextSelectionToolbar] 而非 [AdaptiveTextSelectionToolbar]：
-/// 后者在 macOS 桌面自适应为纵向下拉菜单；前者三端一致渲染为横向胶囊（气泡感，带竖
-/// 分隔线、自动明暗适配、自动处理锚点上/下溢出），即目标样式。
+/// 后者在 macOS 桌面自适应为纵向下拉菜单；前者可稳定复用横向布局、竖分隔线、
+/// 溢出分页与上下避让。外壳由本组件替换为无箭头圆角胶囊，保持简洁一致。
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -37,17 +37,15 @@ class SelectionToolbar extends StatelessWidget {
   final TextSelectionToolbarAnchors anchors;
   final List<SelectionToolbarAction> actions;
 
-  /// 气泡与选中文字的间隔微调（像素）：把锚点朝文字方向收拢，让箭头更贴近选区。
-  ///
-  /// [CupertinoTextSelectionToolbar] 在锚点外还有固定内距 + 箭头，默认间隔偏大；
-  /// 这里把上方锚点下移、下方锚点上移各 [_kAnchorInset] 像素以收紧观感。
-  static const double _kAnchorInset = 8;
   static const double _kButtonHorizontalPadding = 16;
-  static const double _kButtonVerticalPadding = 9;
+  static const double _kButtonVerticalPadding = 4;
   static const double _kButtonFontSize = 15;
   static const double _kButtonMinWidth = 72;
+  static const BorderRadius _kToolbarBorderRadius = BorderRadius.all(
+    Radius.circular(10),
+  );
 
-  /// 按「选区几何」计算锚点：气泡居中浮在选区上方（间隔已收紧，见 [_kAnchorInset]）。
+  /// 按「选区几何」计算锚点：操作条居中浮在选区上方，并保留 Flutter 默认间距。
   ///
   /// 不直接用 [SelectableRegionState.contextMenuAnchors]——后者在**右键**触发时返回
   /// 鼠标点击位置（导致气泡贴在点击处而非选区中间）；这里始终从选区端点几何算出，
@@ -57,16 +55,34 @@ class SelectionToolbar extends StatelessWidget {
   ) {
     final renderObject = state.context.findRenderObject();
     if (renderObject is! RenderBox) return state.contextMenuAnchors;
-    final anchors = TextSelectionToolbarAnchors.fromSelection(
+    return TextSelectionToolbarAnchors.fromSelection(
       renderBox: renderObject,
       startGlyphHeight: state.startGlyphHeight,
       endGlyphHeight: state.endGlyphHeight,
       selectionEndpoints: state.selectionEndpoints,
     );
-    // 上方锚点下移、下方锚点上移，收紧气泡与文字的间隔。
-    return TextSelectionToolbarAnchors(
-      primaryAnchor: anchors.primaryAnchor.translate(0, _kAnchorInset),
-      secondaryAnchor: anchors.secondaryAnchor?.translate(0, -_kAnchorInset),
+  }
+
+  /// 按只读 [EditableTextState] 的真实选区几何计算锚点。
+  ///
+  /// `EditableTextState.contextMenuAnchors` 在桌面右键时会退化为鼠标位置；
+  /// 句子选区需要始终把气泡放在选区中间，因此与 [anchorsForSelection] 一样，
+  /// 直接从文字端点和首尾字形高度重建锚点。
+  static TextSelectionToolbarAnchors anchorsForEditableText(
+    EditableTextState state,
+  ) {
+    final selection = state.textEditingValue.selection;
+    if (!selection.isValid || selection.isCollapsed) {
+      return state.contextMenuAnchors;
+    }
+    final heights = state.getGlyphHeights();
+    return TextSelectionToolbarAnchors.fromSelection(
+      renderBox: state.renderEditable,
+      startGlyphHeight: heights.startGlyphHeight,
+      endGlyphHeight: heights.endGlyphHeight,
+      selectionEndpoints: state.renderEditable.getEndpointsForSelection(
+        selection,
+      ),
     );
   }
 
@@ -76,6 +92,7 @@ class SelectionToolbar extends StatelessWidget {
     return CupertinoTextSelectionToolbar(
       anchorAbove: anchors.primaryAnchor,
       anchorBelow: anchors.secondaryAnchor ?? anchors.primaryAnchor,
+      toolbarBuilder: _buildPlainToolbar,
       children: [
         for (final action in actions)
           _SelectionToolbarButton(
@@ -85,6 +102,36 @@ class SelectionToolbar extends StatelessWidget {
             onPressed: action.onPressed,
           ),
       ],
+    );
+  }
+
+  /// 无箭头工具条外壳；定位和分页仍交给 Flutter 官方组件处理。
+  static Widget _buildPlainToolbar(
+    BuildContext context,
+    Offset anchorAbove,
+    Offset anchorBelow,
+    Widget child,
+  ) {
+    final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
+    final background = isDark
+        ? const Color(0xFF222222)
+        : const Color(0xFFF6F6F6);
+    return DecoratedBox(
+      key: const ValueKey('selection_toolbar_surface'),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: _kToolbarBorderRadius,
+        boxShadow: isDark
+            ? const []
+            : [
+                BoxShadow(
+                  color: CupertinoColors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: ClipRRect(borderRadius: _kToolbarBorderRadius, child: child),
     );
   }
 
@@ -114,9 +161,8 @@ class SelectionToolbar extends StatelessWidget {
 
 /// 选区操作条按钮：矮身 + 悬浮/按压背景反馈（桌面鼠标 + 移动点按皆适用）。
 ///
-/// 竖直内边距 9（比原生 18 更矮、更贴气泡感）；悬浮/按压时叠加半透明底色，色随明暗
-/// 主题取黑或白。父级 [CupertinoTextSelectionToolbar] 胶囊已裁剪圆角，首末按钮高亮
-/// 自动跟随圆角。
+/// 竖直内边距 4（比原生 18 更矮、更贴气泡感）；悬浮/按压时叠加半透明底色，色随明暗
+/// 主题取黑或白。父级无箭头胶囊已裁剪圆角，首末按钮高亮自动跟随圆角。
 class _SelectionToolbarButton extends StatefulWidget {
   const _SelectionToolbarButton({
     super.key,
@@ -167,6 +213,8 @@ class _SelectionToolbarButtonState extends State<_SelectionToolbarButton> {
           ),
           child: Text(
             widget.text,
+            maxLines: 1,
+            softWrap: false,
             style: TextStyle(
               fontSize: SelectionToolbar._kButtonFontSize,
               color: tint,

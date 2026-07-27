@@ -65,8 +65,11 @@ void main() {
         createTestApp(SentenceAnnotationCard(text: 'Hello world')),
       );
 
-      // 句子文本通过 RichText 渲染
-      expect(find.byType(RichText), findsWidgets);
+      // 句子正文使用系统标准可选文本。
+      final sentence = tester.widget<SelectableText>(
+        find.byType(SelectableText),
+      );
+      expect(sentence.textSpan?.toPlainText(), 'Hello world');
     });
   });
 

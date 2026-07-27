@@ -184,6 +184,23 @@ void main() {
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
+  testWidgets('closeIfOwnedBy 只关闭同一 owner 发起的面板', (tester) async {
+    final owner = Object();
+    final otherOwner = Object();
+    await tester.pumpWidget(wrap());
+    hostKey.currentState!.show(
+      const DictionaryPanelQuery(word: 'run'),
+      owner: owner,
+    );
+    await tester.pumpAndSettle();
+
+    expect(hostKey.currentState!.closeIfOwnedBy(otherOwner), isFalse);
+    expect(hostKey.currentState!.isOpen, isTrue);
+    expect(hostKey.currentState!.closeIfOwnedBy(owner), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
+  });
+
   testWidgets('openStateListener 在打开和关闭时通知', (tester) async {
     final states = <bool>[];
     await tester.pumpWidget(wrap());

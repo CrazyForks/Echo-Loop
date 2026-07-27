@@ -8,6 +8,7 @@ import 'package:echo_loop/features/chatbot/chatbot_sheet.dart';
 import 'package:echo_loop/features/chatbot/models/chat_message.dart';
 import 'package:echo_loop/features/chatbot/models/chatbot_config.dart';
 import 'package:echo_loop/features/chatbot/providers/chat_api_client_provider.dart';
+import 'package:echo_loop/features/chatbot/providers/chat_session_controller.dart';
 import 'package:echo_loop/features/chatbot/screens/chat_screen.dart';
 import 'package:echo_loop/features/chatbot/services/chat_api_client.dart';
 import 'package:echo_loop/features/chatbot/services/ndjson_text_stream.dart';
@@ -104,6 +105,37 @@ void main() {
     await tester.tapAt(const Offset(400, 10));
     await tester.pumpAndSettle();
     expect(find.byType(ChatView), findsNothing);
+  });
+
+  testWidgets('初始引用进入引用条并聚焦输入框，不自动发送消息', (tester) async {
+    await pumpChatWidget(
+      tester,
+      Builder(
+        builder: (context) => ElevatedButton(
+          onPressed: () => showChatbotSheet(
+            context: context,
+            config: _config,
+            initialQuote: 'pretty busy tomorrow',
+          ),
+          child: const Text('open quote'),
+        ),
+      ),
+      overrides: overrides(),
+    );
+    await tester.tap(find.text('open quote'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('pretty busy tomorrow'), findsOneWidget);
+    final composer = tester.widget<ChatComposer>(find.byType(ChatComposer));
+    expect(composer.focusNode?.hasFocus, isTrue);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatView)),
+      listen: false,
+    );
+    expect(
+      container.read(chatSessionControllerProvider(_config)).messages,
+      isEmpty,
+    );
   });
 
   // 屏高（逻辑像素）：从测试视图算，避免硬编码默认 800x600。

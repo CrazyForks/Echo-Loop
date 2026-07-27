@@ -808,6 +808,53 @@ void main() {
       audioEngine.disposeController();
     });
 
+    testWidgets('缩放滑杆圆点在左右端点时仍可从外侧容易拖动', (tester) async {
+      final audioItem = createTestAudioItem(totalDuration: 10);
+      final audioEngine = _ScreenTestAudioEngine(
+        duration: const Duration(seconds: 10),
+        sentences: _sentences(),
+      );
+
+      await tester.pumpWidget(
+        createTestScreen(
+          SubtitleSimpleEditorScreen(audioItem: audioItem),
+          overrides: [audioEngineProvider.overrideWith(() => audioEngine)],
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final sliderFinder = find.byKey(
+        const ValueKey('subtitle-waveform-zoom-slider'),
+      );
+      final sliderRect = tester.getRect(sliderFinder);
+
+      // 圆点在最左端时，从控件左边缘向内 4px 按下也应能拖动。
+      final leftGesture = await tester.startGesture(
+        Offset(sliderRect.left + 4, sliderRect.center.dy),
+      );
+      await leftGesture.moveBy(const Offset(80, 0));
+      await leftGesture.up();
+      await tester.pump();
+      expect(tester.widget<Slider>(sliderFinder).value, greaterThan(1.0));
+
+      // 先把圆点移到最右端，再验证右边缘外侧命中区可向内拖动。
+      await tester.drag(sliderFinder, const Offset(1000, 0));
+      await tester.pump();
+      final maxValue = tester.widget<Slider>(sliderFinder).max;
+      expect(tester.widget<Slider>(sliderFinder).value, maxValue);
+
+      final rightGesture = await tester.startGesture(
+        Offset(sliderRect.right - 4, sliderRect.center.dy),
+      );
+      await rightGesture.moveBy(const Offset(-80, 0));
+      await rightGesture.up();
+      await tester.pump();
+      expect(tester.widget<Slider>(sliderFinder).value, lessThan(maxValue));
+
+      audioEngine.disposeController();
+    });
+
     testWidgets('保存按钮激活时使用更深的主色背景', (tester) async {
       final audioItem = createTestAudioItem();
       final audioEngine = _ScreenTestAudioEngine(

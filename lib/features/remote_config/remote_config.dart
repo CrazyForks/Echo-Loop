@@ -114,8 +114,8 @@ class RemoteTranscriptionLimits {
   /// 默认允许 30 分钟音频发起云端转录。
   static const defaultMaxDurationSeconds = 30 * 60;
 
-  /// 默认允许最大 50MB 音频发起云端转录。
-  static const defaultMaxUploadBytes = 50 * 1024 * 1024;
+  /// 默认允许最大 25MB 音频发起云端转录。
+  static const defaultMaxUploadBytes = 25 * 1024 * 1024;
 
   static const defaults = RemoteTranscriptionLimits();
 
@@ -170,6 +170,24 @@ class RemoteConfig {
   final RemoteConfigContext context;
   final RemoteConfigFeatures features;
   final RemoteTranscriptionLimits transcriptionLimits;
+
+  /// 解析后端 `/api/v1/client/config` 的完整响应。
+  ///
+  /// 远端响应的根结构和 schema 版本必须可用；否则抛出 [FormatException]，
+  /// 由调用方记录日志并保留旧配置，避免把本地默认值误当作成功远端配置写入缓存。
+  factory RemoteConfig.fromRemoteJson(Object? json) {
+    if (json is! Map) {
+      throw const FormatException('remote config payload must be an object');
+    }
+    final version = _readInt(json, 'version');
+    if (version == null) {
+      throw const FormatException('remote config version missing');
+    }
+    if (version != currentVersion) {
+      throw FormatException('unsupported remote config version: $version');
+    }
+    return RemoteConfig.fromJson(json);
+  }
 
   factory RemoteConfig.fromJson(Object? json) {
     if (json is! Map) return defaults;

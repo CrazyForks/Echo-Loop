@@ -26,9 +26,12 @@ import 'message_list.dart';
 ///   select isStreaming（composer）与 gate（banner）；消息渲染的重建控制在
 ///   ChatMessageList。
 class ChatView extends ConsumerStatefulWidget {
-  const ChatView({super.key, required this.config});
+  const ChatView({super.key, required this.config, this.initialQuote});
 
   final ChatbotConfig config;
+
+  /// 打开载体时预置的引用；仅进入待发送区，不自动发起请求。
+  final String? initialQuote;
 
   @override
   ConsumerState<ChatView> createState() => _ChatViewState();
@@ -45,6 +48,13 @@ class _ChatViewState extends ConsumerState<ChatView> {
   final FocusNode _composerFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    _pendingQuote = _normalizedQuote(widget.initialQuote);
+    if (_pendingQuote != null) _focusComposerAfterFrame();
+  }
+
+  @override
   void dispose() {
     _composerFocusNode.dispose();
     super.dispose();
@@ -54,6 +64,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
   void _startFollowUp(String selectedText) {
     setState(() => _pendingQuote = selectedText);
     _composerFocusNode.requestFocus();
+  }
+
+  String? _normalizedQuote(String? value) {
+    final quote = value?.trim();
+    return quote == null || quote.isEmpty ? null : quote;
+  }
+
+  /// Sheet 首帧布局完成后再聚焦，保证键盘避让读取到稳定的载体尺寸。
+  void _focusComposerAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _composerFocusNode.requestFocus();
+    });
   }
 
   @override

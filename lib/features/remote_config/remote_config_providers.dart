@@ -1,7 +1,8 @@
 /// 远程配置 Riverpod 入口。
 ///
-/// main() 在启动期完成一次加载，并通过 [initialRemoteConfigProvider] 注入。
-/// 业务代码只读取 feature 级 provider，不直接依赖 HTTP 或缓存细节。
+/// main() 在启动期只读取本地初始值，并通过 [initialRemoteConfigProvider] 注入。
+/// 业务代码只读取 feature 级 provider，不直接依赖 HTTP 或缓存细节；
+/// 远端刷新由 [RemoteConfigController] 在首帧后后台执行。
 library;
 
 import 'dart:async';

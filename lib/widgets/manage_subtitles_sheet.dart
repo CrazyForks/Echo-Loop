@@ -227,6 +227,7 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
     // 是否有进行中的任务
     final isTaskActive =
         taskState is TranscriptionHashing ||
+        taskState is TranscriptionCompressing ||
         taskState is TranscriptionUploading ||
         taskState is TranscriptionProcessing ||
         isLocalTaskActive;
@@ -462,6 +463,10 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       icon = Icons.fingerprint;
       text = l10n.transcriptionUploading; // 对用户统一显示"上传中"
       iconColor = theme.colorScheme.primary;
+    } else if (taskState is TranscriptionCompressing) {
+      icon = Icons.compress;
+      text = l10n.transcriptionCompressing;
+      iconColor = theme.colorScheme.primary;
     } else if (taskState is TranscriptionUploading) {
       icon = Icons.cloud_upload;
       text = l10n.transcriptionUploading;
@@ -589,6 +594,8 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       'connection' => l10n.transcriptionErrorConnection,
       'timeout' => l10n.transcriptionErrorTimeout,
       'server' => l10n.transcriptionErrorServer,
+      'compression' => l10n.transcriptionErrorCompression,
+      'fileTooLarge' => l10n.transcriptionErrorCompressedFileTooLarge,
       _ => l10n.transcriptionErrorUnknown,
     };
   }
@@ -1805,7 +1812,7 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       return;
     }
 
-    // 检查文件大小限制
+    // 读取文件只确认路径可用；体积判断由任务层处理，超过 25MiB 时会先压缩。
     final fullPath = await audioItem.getFullAudioPath();
     if (fullPath == null) {
       if (!mounted) return;
@@ -1814,20 +1821,6 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       );
       return;
     }
-    final fileSize = await File(fullPath).length();
-    if (!mounted) return;
-    if (fileSize > limits.maxUploadBytes) {
-      _showInlineError(
-        _InlineError(
-          _UploadErrorKind.generic,
-          l10n.transcriptionErrorFileTooLarge(
-            limits.maxUploadMegabytesForDisplay,
-          ),
-        ),
-      );
-      return;
-    }
-
     // 内容异常（损坏 / 静音）确认：用确认而非硬拦截，给用户保留继续转录入口。
     if (audioItem.contentStatus case final status?
         when status != AudioContentStatus.ok) {

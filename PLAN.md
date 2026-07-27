@@ -1,6 +1,6 @@
 # Echo Loop 项目规划
 
-> 最后更新：2026-07-12（文档压缩整理）
+> 最后更新：2026-07-26（登记通用记忆调度基础设施实施计划）
 > 当前焦点：录音 + 识别功能；首要阻塞为 Android 离线 ASR 结束录音闪退
 
 ## 产品目标
@@ -88,6 +88,7 @@ Echo Loop 是一个围绕“音频输入 + 句子级学习 + 间隔复习 + AI �
 - 统一 TTS 架构：合成 → 文件 → 缓存 → 播放，支持平台 TTS 与 Kokoro 本地 TTS。
 - 离线转录与本地模型：复用统一音频处理与模型下载能力。
 - 平台 + 渠道统一识别：`platform + distribution` 决定支付实现和后端配额策略。
+- 通用记忆调度基础设施：以独立调度快照与只追加复习事件建模；上层依赖应用自有接口，FSRS 仅限 adapter 内部，按逐项固定 Profile 保障可迁移与可审计性（见 [memory-scheduler-infrastructure-plan.md](./docs/memory-scheduler-infrastructure-plan.md)）。
 
 详细历史与旧版长文档已归档：
 

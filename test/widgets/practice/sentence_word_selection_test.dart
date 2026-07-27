@@ -46,31 +46,6 @@ void main() {
     });
   });
 
-  group('snapToWordToken', () {
-    final tokens = tokenizeSentence('Hello, — world!');
-    // tokens: [Hello,(0-6)] [ (6-7)] [—(7-8)] [ (8-9)] [world!(9-15)]
-
-    test('命中词内返回该词', () {
-      expect(snapToWordToken(tokens, 2), 0);
-      expect(snapToWordToken(tokens, 10), 4);
-    });
-
-    test('落在空白/纯标点吸附到最近词', () {
-      expect(snapToWordToken(tokens, 6), 0); // 紧邻 Hello,
-      expect(snapToWordToken(tokens, 8), 4); // 紧邻 world!（距离 1 < 到 Hello, 的 3）
-    });
-
-    test('越界 clamp 到首/末词', () {
-      expect(snapToWordToken(tokens, -5), 0);
-      expect(snapToWordToken(tokens, 99), 4);
-    });
-
-    test('无 word token 返回 -1', () {
-      expect(snapToWordToken(tokenizeSentence('— …'), 1), -1);
-      expect(snapToWordToken(const [], 0), -1);
-    });
-  });
-
   group('wordTokenAtChar', () {
     final tokens = tokenizeSentence('go stop');
 
@@ -83,22 +58,6 @@ void main() {
     test('越界返回 -1', () {
       expect(wordTokenAtChar(tokens, 7), -1);
       expect(wordTokenAtChar(tokens, -1), -1);
-    });
-  });
-
-  group('WordSelection', () {
-    test('textOf 截取选区覆盖的原文（含中间标点空白）', () {
-      const text = 'give up, on it';
-      final tokens = tokenizeSentence(text);
-      // tokens: [give(0)] [ ] [up,(2)] [ ] [on(4)] [ ] [it(6)]
-      expect(const WordSelection(0, 4).textOf(text, tokens), 'give up, on');
-      expect(const WordSelection(2, 2).textOf(text, tokens), 'up,');
-    });
-
-    test('charRangeOf 返回字符区间', () {
-      const text = 'a bc d';
-      final tokens = tokenizeSentence(text);
-      expect(const WordSelection(0, 2).charRangeOf(tokens), (0, 4));
     });
   });
 

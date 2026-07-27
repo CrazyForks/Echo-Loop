@@ -63,6 +63,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumBenefitAiAssistant => '更多 AI 助手对话次数';
 
   @override
+  String get premiumBenefitPrioritySupport => '优先客户支持';
+
+  @override
   String get premiumBenefitSenseGroups => '更多 AI 句子意群拆分';
 
   @override
@@ -1964,6 +1967,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get transcriptionUploading => '上传中…';
 
   @override
+  String get transcriptionCompressing => '音频压缩中…';
+
+  @override
   String get transcriptionProcessing => '转录中…';
 
   @override
@@ -1983,6 +1989,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get transcriptionErrorUnknown => '请检查音频是否正常，稍后再试';
+
+  @override
+  String get transcriptionErrorCompression => '音频压缩失败，请检查音频后重试';
+
+  @override
+  String get transcriptionErrorCompressedFileTooLarge => '压缩后文件仍超过 25MB';
 
   @override
   String get transcriptionEmptyResult => '未检测到语音';

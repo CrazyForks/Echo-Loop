@@ -3,9 +3,12 @@
 // keepAlive: 弹窗关闭后任务继续在后台运行。
 // 管理各音频的 AI 转录任务生命周期：
 // 上传 → 转录 → 完成（或失败）。
+import 'dart:math' show min;
+
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider, Ref;
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import '../analytics/models/event_names.dart';
 import '../features/usage/usage_event.dart';
 import '../features/usage/usage_providers.dart';
@@ -15,6 +18,8 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../database/providers.dart';
 import '../features/audio_import/audio_finalization_service.dart';
+import '../features/audio_import/audio_transcode_service.dart';
+import '../features/remote_config/remote_config_providers.dart';
 import '../features/subscription/providers/subscription_controller.dart'
     show entitlementQuotaDivergenceHandlerProvider;
 import '../models/audio_item.dart';
@@ -56,6 +61,10 @@ TranscriptionFileOps transcriptionFileOps(Ref ref) =>
 AudioFinalizationService transcriptionFinalizationService(Ref ref) =>
     AudioFinalizationService();
 
+/// 云端转录上传前的临时音频压缩服务（测试时可覆盖）。
+final transcriptionUploadTranscodeServiceProvider =
+    Provider<AudioTranscodeService>((ref) => AudioTranscodeService());
+
 // ─── 转录任务状态 ──────────────────────────────────────────
 
 /// 转录任务状态基类
@@ -78,6 +87,11 @@ class TranscriptionUploading extends TranscriptionTaskState {
   /// 上传进度 0.0 ~ 1.0
   final double progress;
   const TranscriptionUploading({this.progress = 0});
+}
+
+/// 正在将过大的原始音频压缩为上传用临时文件。
+class TranscriptionCompressing extends TranscriptionTaskState {
+  const TranscriptionCompressing();
 }
 
 /// 转录处理中（已提交到 Deepgram）
@@ -117,8 +131,11 @@ class TranscriptionQuotaExceeded extends TranscriptionTaskState {
 /// state: `Map<String, TranscriptionTaskState>`（audioId -> state）
 @Riverpod(keepAlive: true)
 class TranscriptionTaskManager extends _$TranscriptionTaskManager {
+  static const _appMaxUploadBytes = 25 * 1024 * 1024;
+
   /// 各任务的 CancelToken
   final Map<String, CancelToken> _cancelTokens = {};
+  final _uuid = const Uuid();
 
   @override
   Map<String, TranscriptionTaskState> build() => {};
@@ -146,6 +163,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
     // 防止重复发起
     final current = state[audioId];
     if (current is TranscriptionHashing ||
+        current is TranscriptionCompressing ||
         current is TranscriptionUploading ||
         current is TranscriptionProcessing) {
       return;
@@ -154,6 +172,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
     final cancelToken = CancelToken();
     _cancelTokens[audioId] = cancelToken;
 
+    File? temporaryUploadFile;
     try {
       final api = ref.read(transcriptionApiClientProvider);
       final fileOps = ref.read(transcriptionFileOpsProvider);
@@ -164,7 +183,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       final fullPath = p.join(docDir.path, audioItem.audioPath);
       final finalAudioSha256 =
           audioItem.audioSha256 ?? await fileOps.computeSha256(fullPath);
-      final transcriptionSha256 =
+      var transcriptionSha256 =
           audioItem.originalAudioSha256 ?? finalAudioSha256;
 
       if (cancelToken.isCancelled) return;
@@ -176,10 +195,52 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
             .updateAudioItem(audioItem.copyWith(audioSha256: finalAudioSha256));
       }
 
-      // ── 步骤 2: 获取上传 URL + 上传 ──
+      // ── 步骤 2: 对超过 App 上限的文件先压缩，再获取上传 URL + 上传 ──
+      // 后端远程限制可进一步收紧，但 App 永不上传超过 25MiB 的文件。
+      final remoteMaxUploadBytes = ref
+          .read(remoteTranscriptionLimitsProvider)
+          .maxUploadBytes;
+      final maxUploadBytes = min(remoteMaxUploadBytes, _appMaxUploadBytes);
+      var uploadPath = fullPath;
+      var mimeType = _getMimeType(uploadPath);
+      var fileSize = await fileOps.getFileSize(uploadPath);
+      if (fileSize > maxUploadBytes) {
+        _updateState(audioId, const TranscriptionCompressing());
+        final tempDir = Directory(
+          p.join(docDir.path, 'tmp', 'transcription_upload'),
+        );
+        await tempDir.create(recursive: true);
+        temporaryUploadFile = File(p.join(tempDir.path, '${_uuid.v4()}.m4a'));
+        final compressed = await ref
+            .read(transcriptionUploadTranscodeServiceProvider)
+            .transcodeForTranscriptionUpload(
+              source: File(fullPath),
+              output: temporaryUploadFile,
+            );
+        if (cancelToken.isCancelled) return;
+        if (!compressed) {
+          _updateState(
+            audioId,
+            const TranscriptionFailed(message: 'compression'),
+          );
+          return;
+        }
+
+        uploadPath = temporaryUploadFile.path;
+        fileSize = await fileOps.getFileSize(uploadPath);
+        if (fileSize > maxUploadBytes) {
+          _updateState(
+            audioId,
+            const TranscriptionFailed(message: 'fileTooLarge'),
+          );
+          return;
+        }
+        // 上传对象的内容已改变，必须使用临时文件的指纹作为缓存与对象键。
+        transcriptionSha256 = await fileOps.computeSha256(uploadPath);
+        mimeType = 'audio/mp4';
+      }
+
       _updateState(audioId, const TranscriptionUploading());
-      final mimeType = _getMimeType(fullPath);
-      final fileSize = await fileOps.getFileSize(fullPath);
       AppLogger.log(
         'Transcription',
         'Step 2 上传 | sha256=$transcriptionSha256 size=$fileSize mime=$mimeType',
@@ -198,7 +259,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       if (!uploadResp.audioExists && uploadResp.uploadUrl != null) {
         await api.uploadToR2(
           uploadUrl: uploadResp.uploadUrl!,
-          filePath: fullPath,
+          filePath: uploadPath,
           contentType: mimeType,
           cancelToken: cancelToken,
           onProgress: (sent, total) {
@@ -219,7 +280,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
 
       final submitResp = await api.submitTranscription(
         sha256: transcriptionSha256,
-        fileName: _displayFileNameForTranscription(audioItem, fullPath),
+        fileName: _displayFileNameForTranscription(audioItem, uploadPath),
         objectName: uploadResp.objectName,
         publicUrl: uploadResp.publicUrl,
         mimeType: mimeType,
@@ -282,6 +343,14 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
     } catch (e, st) {
       AppLogger.log('Transcription', '❌ 转录失败(非网络) | $e\n$st');
       _updateState(audioId, const TranscriptionFailed(message: 'unknown'));
+    } finally {
+      if (temporaryUploadFile != null && await temporaryUploadFile.exists()) {
+        try {
+          await temporaryUploadFile.delete();
+        } catch (e) {
+          AppLogger.log('Transcription', '临时压缩文件清理失败: $e');
+        }
+      }
     }
   }
 

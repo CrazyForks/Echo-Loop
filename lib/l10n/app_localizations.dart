@@ -206,6 +206,12 @@ abstract class AppLocalizations {
   /// **'More AI assistant conversations'**
   String get premiumBenefitAiAssistant;
 
+  /// No description provided for @premiumBenefitPrioritySupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority support'**
+  String get premiumBenefitPrioritySupport;
+
   /// No description provided for @premiumBenefitSenseGroups.
   ///
   /// In en, this message translates to:
@@ -3608,6 +3614,12 @@ abstract class AppLocalizations {
   /// **'Uploading...'**
   String get transcriptionUploading;
 
+  /// No description provided for @transcriptionCompressing.
+  ///
+  /// In en, this message translates to:
+  /// **'Compressing audio...'**
+  String get transcriptionCompressing;
+
   /// No description provided for @transcriptionProcessing.
   ///
   /// In en, this message translates to:
@@ -3649,6 +3661,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please check the audio and try again later'**
   String get transcriptionErrorUnknown;
+
+  /// No description provided for @transcriptionErrorCompression.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio compression failed. Please check the audio and try again.'**
+  String get transcriptionErrorCompression;
+
+  /// No description provided for @transcriptionErrorCompressedFileTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Compressed file still exceeds 25MB'**
+  String get transcriptionErrorCompressedFileTooLarge;
 
   /// No description provided for @transcriptionEmptyResult.
   ///

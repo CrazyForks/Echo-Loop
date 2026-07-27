@@ -1,6 +1,6 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-07-23（版本号升级到 1.0.27）
+> 最后更新：2026-07-27（修复字幕缩放滑杆端点触摸死区）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）——仍未解决
 
 ## 当前优先级
@@ -34,12 +34,14 @@
   - 决策：此前自定义实现（`AppleTextSelectionControls` + `ImmediateMultiDrag` 自驱端点 + 放大镜 + 桌面分支）bug 反复，已整体删除，回到干净基线，改走官方标准方案。
   - 已完成（清理）：删除全部旧自定义选择文本代码与测试（3 widget + 3 test）。**完成时间**: 2026-07-20
   - 已完成（步骤 1 · 选择）：AI 回答用 `SelectionArea` 可选中任意连续文本（跨 markdown 块、含行内代码 `` `code` ``）；`_InlineCodeMd` 半透明底色让选中高亮透出。**完成时间**: 2026-07-20
-  - 已完成（步骤 2 · 操作条）：`SelectableAssistantMarkdown` 用 `contextMenuBuilder` 在选区上方弹出「复制 / 问 AI」气泡；抽出可复用组件 `SelectionToolbar`（横向 `CupertinoTextSelectionToolbar` 胶囊，三端一致，非 macOS 纵向下拉）；`SelectionToolbar.anchorsForSelection` 始终按选区几何算锚点（修右键弹在鼠标处），并收紧气泡与文字间隔（`_kAnchorInset`）；问 AI 接回 `onFollowUp` 链路。**完成时间**: 2026-07-20
+  - 已完成（步骤 2 · 操作条）：`SelectableAssistantMarkdown` 用 `contextMenuBuilder` 在选区上方弹出「复制 / 问 AI」气泡；抽出可复用组件 `SelectionToolbar`（横向 `CupertinoTextSelectionToolbar` 胶囊，三端一致，非 macOS 纵向下拉）；`SelectionToolbar.anchorsForSelection` 始终按选区几何算锚点（修右键弹在鼠标处），并保留 Flutter 默认文字间距；问 AI 接回 `onFollowUp` 链路。**完成时间**: 2026-07-20
   - 已确认（平台默认行为）：移动端按 Flutter 原生长按/拖拽结束弹出；桌面端回到 Flutter 默认交互，仅右键/上下文菜单触发同一套 `SelectionToolbar`，不做选区完成自动弹出；同时打开 `kChatbotUseFakeApi` 方便本地假流数据验收。**确认时间**: 2026-07-20
   - 已完成（步骤 4 · 气泡按钮等宽）：`SelectionToolbar` 按最长本地化文案统一按钮宽度，修复中文「复制 / 问 AI」分割线不居中的问题，并补中文等宽 widget 回归。**完成时间**: 2026-07-20
 - [x] T13 学习任务页接入 AI 助手入口：抽出共享按钮 `SentenceChatButton`（`lib/features/chatbot/widgets/sentence_chat_button.dart`，显隐开关 + ChatbotConfig 组装单一来源），句子详情页改用共享组件；逐句精听 / 难句跟读 / 难句复习 / 收藏复习 4 个句子级页面 AppBar 挂入口，打开前复用各页设置按钮的「暂停自动推进」逻辑；同句跨页面复用同一会话。全文盲听 / 段落复述维持现状（讲解走句子详情页）。**完成时间**: 2026-07-23
 - [x] T14 流式中后端 401（token 过期/服务端判未登录）→ 气泡 inline 登录引导：新增 `ChatMessageStatus.authRequired`，`_mapRunError` 识别 `ChatAuthRequiredException`，气泡 inline「需要登录」入口（onSignIn → ensureSignedInForAction，对齐 quotaBlocked 模式）；发送前未登录仍走既有 gate banner。同时修正 `chatbot_flags.dart` 过期注释（后端端点 2026-07-21 已上线，`kChatbotEnabled=true` 为有意发布态）。**完成时间**: 2026-07-23
 - [x] T15 学习计划页复习轮次标题左侧图标改为固定 SVG：新增通用 `assets/icon/refresh.svg`（来自 `readable-svg-icons/icons/refresh.svg`），替换 `LearningPlanScreen` 中的 `🔁` emoji，避免不同平台 emoji 字体渲染成蓝色圆角方块；图标颜色跟随轮次状态（完成绿、当前正文色、未来弱化）；完成态 `✅` emoji 改为 `assets/icon/check-circle-3.svg`，当前到期态 `📖` emoji 改为 `assets/icon/calendar-2.svg`，锁定态 `🔒` emoji 改为 `assets/icon/lock.svg`；「立即解锁」按钮新增 `assets/icon/unlock.svg`；补充 widget 回归断言。**完成时间**: 2026-07-23
+- [x] T16 修复 AI 回答流结束时 Flutter 文本选择调度抛 `ConcurrentModificationError`：流式生成期间使用不可选中的 Markdown，避免动态 selectable 子节点在帧末更新时重入；回答完成、停止或进入错误终态后再挂载 `SelectionArea`，恢复局部复制与「问 AI」；补充 streaming → done 选择能力切换 widget 回归。**完成时间**: 2026-07-27
+- [x] T17 AI 回答与句子正文移动选区体验对齐：两套官方选区补齐为相同的“选择轻反馈 + 平台长按反馈”，修复 iOS 句子首次未聚焦长按无反馈；AI 回答在长按新选区阶段使用 Flutter 自适应放大镜，松手/取消即清理，已有手柄拖动仍交给框架，保留跨 Markdown 块选择和句子查词。句子继续使用 `BoxHeightStyle.tight`；Flutter 3.41.5 的 `SelectionArea` 高亮高度硬编码为 `max`，稳定方案不 fork framework。**完成时间**: 2026-07-27
 - [x] 2026-07-23 22:19：设置页 SVG viewBox 规范化。将设置页实际使用的 18 个 SVG 根 `viewBox` 统一为 `0 0 24 24`，并通过 `transform` 映射旧坐标系，避免 Flutter 外层 26x26 绘制时因资源坐标系差异导致视觉尺寸不一致；补充设置页测试断言所有设置页 SVG 图标均声明 `width="24"`、`height="24"`、`viewBox="0 0 24 24"`、根属性不重复且不再包含内联样式块；补跑 `xmllint` 确认 SVG XML 可解析。
 
 ### P1
@@ -52,12 +54,27 @@
 - [ ] 计算每个学习任务的预计/实际耗时，并展示在学习页入口。
 - [ ] 学习 Tab 点击学习/复习后直接进入学习页面，跳过学习计划页。
 - [ ] 学习 Tab 展示“今日完成任务”折叠区。
-- [ ] 句子增加复制能力：移动端长按、桌面端右键。
+- [x] 句子查词文本改用系统标准选择：移除自定义手柄和整句长按/右键复制；单击选中单词、显示选区操作条并查词，长按选词并在松手后查询最终选区。**完成时间**: 2026-07-27
+  - 已完成（交互完善）：选区紧贴字形、保留字符级自由边界；操作条提供「复制 / 问 AI」，问 AI 打开同句会话并预置引用；选区折叠或失焦时按 owner 关闭对应词典面板。**完成时间**: 2026-07-27
+  - 已完成（视觉与样式收口）：操作条为无箭头紧凑圆角胶囊（垂直内边距 4px）；句子正文与 AI 回答复用独立的平台标准选择样式，同时统一背景、光标和手柄色，不回落到 App 品牌主题；iOS / Android 双入口回归覆盖。**完成时间**: 2026-07-27
+  - 已完成（选区收藏）：操作条新增「收藏 / 取消收藏」，选中文本按词汇规则归一化后复用 `saved_words` 收藏流程并保存来源上下文，与单词、词组和意群统一管理；操作后保留选区、词典面板和操作条，按钮原地双向切换，「取消收藏」强制保持单行。**完成时间**: 2026-07-27 20:16
+- [x] 修复合集详情音频多选模式左右重复显示选择框：移除左侧选择框，每个音频卡片仅保留右侧选择框，并补充位置回归断言。**完成时间**: 2026-07-27 20:19
 - [ ] 支持自定义背景、背景音。
 - [ ] 播放完成音效、任务完成动画与音效。
 - [ ] 埋点能力按中国大陆 / 全球环境拆分落地。
 
 ## 进行中
+
+### 通用记忆调度基础设施
+
+> 实施规格见 [docs/memory-scheduler-infrastructure-plan.md](./docs/memory-scheduler-infrastructure-plan.md)。本阶段仅建设可复用基础设施，不接入现有收藏、Flashcard 或音频学习计划流程。
+
+- [x] 任务 0：流程登记。在 `PLAN.md` 登记关键 ADR，并建立以下独立实施任务。**完成时间**: 2026-07-26
+- [x] 任务 1：领域接口与 Registry。实现领域值对象、命令、结果、异常、算法 adapter 端口，以及代码型 `fsrs.default@1` Profile/Model Registry；补充纯 Dart 单元测试。**完成时间**: 2026-07-26
+- [x] 任务 2：FSRS adapter。引入固定版本 `fsrs: 2.0.1`，实现 FSRS adapter 与状态编解码，补充固定时间 golden 测试，并验证第三方依赖只出现在 adapter 边界。**完成时间**: 2026-07-26
+- [x] 任务 3：数据库与 Repository。实现 Drift 调度/事件表、v47→v48 迁移、DAO、mapper 和具备事务、幂等、乐观锁的 Repository；补充 DAO 与迁移测试。**完成时间**: 2026-07-26 23:41
+- [x] 任务 4：Application facade。实现 `DefaultMemoryScheduler` 的调度、预览、评分、归档、恢复、清除和 Profile 历史重放迁移，并完成 Riverpod 装配与应用层测试。**完成时间**: 2026-07-26 23:58
+- [x] 任务 5：接入前验证。补强旧 operationId 过期重放、归档隔离及 Profile 重放状态一致性回归；确保幂等回放优先由 Repository 事务裁决。**完成时间**: 2026-07-26
 
 ### 百度网盘跨平台音频导入 V1
 
@@ -122,6 +139,10 @@
 
 ## 最近完成（保留近两周）
 
+- [x] 2026-07-27 22:43：修复字幕编辑器缩放滑杆圆点在最左/最右端时难以触摸拖动；移除不参与命中测试的 Slider 显式 padding，保持 7px 圆点视觉尺寸，将 overlay 交互范围扩大到标准 48px；补充左右端点外侧按下并向内拖动的 widget 回归。**完成时间**: 2026-07-27 22:43
+- [x] 2026-07-27 22:25：字幕编辑器波形最大缩放从每秒约 2cm 提高到每秒约 5cm，保持每秒约 1cm 的初始缩放不变，便于在拥挤波形中精调字幕边界；更新长音频自适应与缩放钳制回归测试。**完成时间**: 2026-07-27 22:25
+- [x] 2026-07-25 20:29：Remote Config 启动异步化。启动期不再同步请求 `/api/v1/client/config`，改为只读取本地缓存（允许过期）或默认配置，避免网络慢/超时阻塞首帧；首帧后继续通过 `RemoteConfigController.startPeriodicRefresh(forceFirst: true)` 后台刷新并更新 provider；Remote Config Dio 不再覆盖 3 秒短连接超时，恢复使用后端默认 15/30 秒；补充启动初始加载、缓存损坏回退和后台刷新回归测试。**完成时间**: 2026-07-25 20:29
+- [x] 2026-07-25 20:19：Paywall 权益列表新增优先客户支持。订阅页权益卡新增 “Priority support / 优先客户支持” 文案，未订阅购买态与会员态共用展示；补充英文权益顺序和中文展示 widget 回归测试。**完成时间**: 2026-07-25 20:19
 - [x] 2026-07-24 11:43：删除自由播放器方括号字幕历史自动收藏逻辑。首次加载字幕时不再把首尾 `[]` 包裹的字幕句自动加入收藏，也不再剥掉显示文本中的方括号；字幕内容按原文显示，收藏状态只来自用户操作或已有数据库记录；补充首次加载 `[INDISTINCT CHATTER]` 不自动收藏且原样显示的 provider 回归测试。**完成时间**: 2026-07-24 11:43
 - [x] 2026-07-24 10:56：Paywall 权益列表新增 AI 助手对话次数。订阅页权益卡新增 “More AI assistant conversations / 更多 AI 助手对话次数” 文案，未订阅购买态与会员态共用展示；补充英文权益顺序和中文展示 widget 回归测试。**完成时间**: 2026-07-24 10:56
 - [x] 2026-07-23：修复 GitHub Actions run 30021852357 的 Podcast 详情失败态测试断言。`podcast 合集强刷失败后详情弹窗展示刷新失败状态和时间` 现在断言详情弹窗不显示成功刷新文案，并正向验证失败状态 `Failed · 2026-06-15 11:22`。**完成时间**: 2026-07-23 23:59
@@ -161,6 +182,7 @@
 - [x] 2026-07-20 23:04：修复 CI 中 TTS controller 预览竞态单测偶发失败。`previewVoice 同一 speakingKey 连续发音` 用例不再依赖固定 `pumpEventQueue()` 次数，而是等待 fake engine 收到指定数量的合成 gate，避免 CI 机器调度较慢时在首个合成请求入队前误判失败；补跑相关 analyze 与单测。
 - [x] 2026-07-20 21:39：补充 AI 转录远程时长限制业务入口回归测试，验证默认允许的 2 分钟音频在远程 1 分钟限制下会被字幕管理弹窗正确拦截并展示远程限制值。
 - [x] 2026-07-20 21:12：AI 转录音频限制接入 remote app config。后端 `/api/v1/client/config` 新增 `limits.transcription.maxDurationSeconds/maxUploadBytes` resolved 配置，默认 30 分钟 / 50MB；Flutter remote config 新增 `RemoteTranscriptionLimits` 与 `remoteTranscriptionLimitsProvider`，AI 转录入口的时长和文件大小预校验改为读取远程配置，缺失或非法值回退本地默认；补充 remote config 解析、provider 和后端 route 回归测试。
+- [x] 2026-07-26：App 端 AI 转录大文件预压缩。App 端有效上传上限收紧为 25MiB；超过上限时先转为 16kHz / 48kbps / 单声道 AAC 临时 m4a，使用压缩产物的指纹、MIME 和大小上传；压缩失败或产物仍超限时不发起上传。新增“音频压缩中”状态与中英文错误提示；临时文件在完成、失败和取消时清理。未修改后端配置，转录成功后的 44.1kHz / 64kbps 本地转码保持不变；补充 provider、widget 与配置回归测试。
 - [x] 2026-07-20 16:37：CI 测试结果判定改按 `testDone` 明细。GitHub Actions 全量测试继续保留 JSON reporter，但不再把 `done.success` 作为唯一失败依据；脚本逐条解析 `testDone`，只有存在 `failure` / `error` 用例才失败，并按 `error` 事件关联打印测试名称、错误和堆栈；没有失败用例且存在 `done` 事件时允许通过，同时上传 `test-results.json` artifact 便于后续排查 Flutter runner 收尾误报。
 - [x] 2026-07-20 14:40：订阅管理入口按购买来源解耦。后端权益 `/api/entitlements.source` 现在映射为客户端 `Entitlement.source` 并写入诊断日志；“管理订阅”按有效权益来源分流，Paddle 来源即使运行在 App Store / Google Play 商店包内也打开 Paddle Customer Portal，Apple / Google 来源继续打开对应商店管理页；补充后端 source 映射、商店渠道 Paddle Portal 门控和 Paywall 点击回归测试。
 - [x] 2026-07-20 14:20：商店包 Web 支付兜底入口文案调整。将商店包订阅页的 Web 支付兜底入口中文文案改为“商店支付遇到问题？使用网页支付”，英文同步调整为“Store payment not working? Use web checkout”，并更新订阅页回归测试断言。

@@ -21,6 +21,7 @@ import 'widgets/chat_view.dart';
 Future<void> showChatbotSheet({
   required BuildContext context,
   required ChatbotConfig config,
+  String? initialQuote,
 }) async {
   // 关面板前先拿 container：await 后 context 虽仍有效，此处一次性读更稳。
   final container = ProviderScope.containerOf(context, listen: false);
@@ -35,7 +36,8 @@ Future<void> showChatbotSheet({
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => _ChatbotSheetBody(config: config),
+    builder: (_) =>
+        _ChatbotSheetBody(config: config, initialQuote: initialQuote),
   );
   // 关面板即停在途流：保活下 controller 不销毁，需显式中断，保留已生成部分为 done。
   container.read(chatSessionControllerProvider(config).notifier).stop();
@@ -46,9 +48,10 @@ Future<void> showChatbotSheet({
 /// 高度/下拉关闭手势照搬查词面板（[dictionary_panel] 的 `_onHandleDrag*`）：默认 80%，
 /// 上拉放大（≤95%）、下拉缩小（≥40%），下拉过 [_kDismissOverdrag] 即关闭。
 class _ChatbotSheetBody extends StatefulWidget {
-  const _ChatbotSheetBody({required this.config});
+  const _ChatbotSheetBody({required this.config, this.initialQuote});
 
   final ChatbotConfig config;
+  final String? initialQuote;
 
   @override
   State<_ChatbotSheetBody> createState() => _ChatbotSheetBodyState();
@@ -124,7 +127,10 @@ class _ChatbotSheetBodyState extends State<_ChatbotSheetBody> {
               padding: EdgeInsets.only(
                 bottom: MediaQuery.viewInsetsOf(context).bottom,
               ),
-              child: ChatView(config: config),
+              child: ChatView(
+                config: config,
+                initialQuote: widget.initialQuote,
+              ),
             ),
           ),
         ],

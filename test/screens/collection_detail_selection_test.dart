@@ -109,10 +109,20 @@ void main() {
     await tester.longPress(find.text('a1'));
     await tester.pumpAndSettle();
 
-    // 进入多选：工具栏 + 已选 1 项 + 每项左右各出现一个复选框热区
+    // 进入多选：工具栏 + 已选 1 项 + 每项仅在右侧显示一个复选框。
     expect(find.text('1 selected'), findsOneWidget);
     expect(find.text('Select All'), findsOneWidget);
-    expect(find.byType(Checkbox), findsNWidgets(4));
+    final checkboxes = find.byType(Checkbox);
+    expect(checkboxes, findsNWidgets(2));
+    for (var index = 0; index < 2; index++) {
+      final checkbox = checkboxes.at(index);
+      final itemCard = find.ancestor(of: checkbox, matching: find.byType(Card));
+      expect(itemCard, findsOneWidget);
+      expect(
+        tester.getCenter(checkbox).dx,
+        greaterThan(tester.getCenter(itemCard).dx),
+      );
+    }
 
     // 全选
     await tester.tap(find.text('Select All'));

@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/tappable_wrapper.dart';
-import '../../widgets/common/text_context_menu.dart';
 import '../../widgets/guide_flow.dart';
 import 'selectable_sentence_text.dart';
 
@@ -128,17 +127,6 @@ class PracticeNormalModeView extends StatelessWidget {
                     child: isTextRevealed && sentenceText != null
                         ? GestureDetector(
                             onTap: () {}, // 拦截文字区域点击，不冒泡到偷看切换
-                            onLongPressStart: (details) => TextContextMenu.show(
-                              context,
-                              details.globalPosition,
-                              sentenceText!,
-                            ),
-                            onSecondaryTapDown: (details) =>
-                                TextContextMenu.show(
-                                  context,
-                                  details.globalPosition,
-                                  sentenceText!,
-                                ),
                             child: lookupOrigin != null
                                 ? SelectableSentenceText(
                                     text: sentenceText!,

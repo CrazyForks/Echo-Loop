@@ -142,6 +142,69 @@ void main() {
   });
 
   group('RemoteConfigService', () {
+    test('启动初始加载使用过期缓存且不触发后端请求', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = RemoteConfigStore(prefs);
+      await store.write(
+        const RemoteConfig(
+          version: 1,
+          ttlSeconds: 1,
+          context: RemoteConfigContext(countryCode: 'CN'),
+          features: RemoteConfigFeatures(
+            cloudDriveImport: RemoteFeatureConfig(enabled: true),
+          ),
+        ),
+        now: DateTime(2026, 7, 19, 14),
+      );
+
+      final dio = _MockDio();
+      final service = RemoteConfigService(
+        dio: dio,
+        store: store,
+        now: () => DateTime(2026, 7, 19, 14, 1),
+      );
+
+      final config = service.loadInitialFromCache();
+
+      expect(config.context.countryCode, 'CN');
+      expect(config.isEnabled(RemoteFeature.cloudDriveImport), isTrue);
+      verifyNever(
+        () => dio.get<Object?>(
+          '/api/v1/client/config',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      );
+    });
+
+    test('启动初始加载在缓存缺失或损坏时回退默认值', () async {
+      SharedPreferences.setMockInitialValues({});
+      final emptyPrefs = await SharedPreferences.getInstance();
+      final emptyService = RemoteConfigService(
+        dio: _MockDio(),
+        store: RemoteConfigStore(emptyPrefs),
+      );
+
+      expect(emptyService.loadInitialFromCache(), RemoteConfig.defaults);
+
+      SharedPreferences.setMockInitialValues({
+        'remote_config_payload_v1': '{broken json',
+        'remote_config_fetched_at_ms_v1': DateTime(
+          2026,
+          7,
+          19,
+          14,
+        ).millisecondsSinceEpoch,
+      });
+      final brokenPrefs = await SharedPreferences.getInstance();
+      final brokenService = RemoteConfigService(
+        dio: _MockDio(),
+        store: RemoteConfigStore(brokenPrefs),
+      );
+
+      expect(brokenService.loadInitialFromCache(), RemoteConfig.defaults);
+    });
+
     test('缓存过期后请求后端并写入新配置', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

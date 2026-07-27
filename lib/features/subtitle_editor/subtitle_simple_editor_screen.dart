@@ -346,7 +346,7 @@ class _WaveformControls extends StatelessWidget {
             Expanded(
               // 缩放语义：最左 1.0 = 不缩放（时间轴铺满屏宽），向右拉长时间轴；
               // 上限按音频长度计算，长音频也能放大到看清一句话。
-              // 轨道调细、圆点调小，和紧凑控制条保持一致。
+              // 轨道和圆点保持紧凑，overlay 使用 48px 标准触摸范围。
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   trackHeight: 2,
@@ -354,18 +354,13 @@ class _WaveformControls extends StatelessWidget {
                     enabledThumbRadius: 7,
                   ),
                   overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 16,
+                    overlayRadius: 24,
                   ),
                 ),
                 child: Slider(
                   key: const ValueKey('subtitle-waveform-zoom-slider'),
-                  // 触控目标：横向 padding ≥ overlay 半径，保证圆点在两端也有完整可
-                  // 抓取区域（否则外侧被裁，端点最难点中）；纵向留白补回足够高度的
-                  // 命中区，避免触摸/鼠标难以抓住小圆点。
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.m,
-                    vertical: AppSpacing.s,
-                  ),
+                  // 不设显式 padding：Flutter 的 Slider padding 只负责布局，
+                  // 留白本身不参与命中测试，会让两端圆点外侧形成死区。
                   min: 1.0,
                   max: _canZoom ? maxZoomScale : 2.0,
                   value: zoomScale.clamp(1.0, _canZoom ? maxZoomScale : 2.0),

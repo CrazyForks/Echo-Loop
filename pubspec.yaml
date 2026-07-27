@@ -54,6 +54,7 @@ dependencies:
   ffi: ^2.1.0
   intl: ^0.20.2
   clock: ^1.1.1
+  fsrs: 2.0.1
   drift: ^2.25.0
   sqlite3_flutter_libs: ^0.5.31
   scrollable_positioned_list: ^0.3.8

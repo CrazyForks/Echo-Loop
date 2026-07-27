@@ -581,7 +581,7 @@ void main() {
   });
 
   group('ReviewDifficultPracticeScreen — 跟读模式', () {
-    testWidgets('跟读模式显示句子文本（RichText 可点击查词）', (tester) async {
+    testWidgets('跟读模式显示系统可选的句子文本', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
           playerState: createPlayerState(
@@ -593,12 +593,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // SentenceAnnotationCard 使用 RichText 渲染可点击单词
+      // SentenceAnnotationCard 使用系统标准可选文本。
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      // RichText 中包含句子文本
       expect(
         find.byWidgetPredicate(
-          (w) => w is RichText && w.text.toPlainText().contains('Test'),
+          (w) =>
+              w is SelectableText &&
+              (w.textSpan?.toPlainText().contains('Test') ?? false),
         ),
         findsOneWidget,
       );

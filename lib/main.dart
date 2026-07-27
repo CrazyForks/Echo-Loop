@@ -90,12 +90,12 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final isDemoMode = prefs.getBool('demo_mode') ?? false;
 
-  // 远程配置：启动期先解析缓存/远端配置，失败时降级到本地默认值。
-  // 下游 UI 只读取 provider 暴露的 resolved config，不直接接触网络与缓存。
-  final initialRemoteConfig = await RemoteConfigService.create(
+  // 远程配置：启动期只同步读取本地缓存/默认值，不触发网络请求，避免网络慢阻塞首帧。
+  // 下游 UI 只读取 provider 暴露的 resolved config；远端刷新由 MainShell 首帧后后台执行。
+  final initialRemoteConfig = RemoteConfigService.create(
     prefs: prefs,
     appVersion: packageInfo.version,
-  ).load();
+  ).loadInitialFromCache();
 
   // 首次启动检测：哨兵 key `first_launch_done` 不存在即视为首次启动，
   // 立即写入 true。后续所有启动都会读到该 key = true，即非首启。

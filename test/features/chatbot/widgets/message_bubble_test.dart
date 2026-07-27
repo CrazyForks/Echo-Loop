@@ -124,6 +124,36 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
+  testWidgets(
+    'assistant 流式期间禁用选择，完成后再挂载 SelectionArea',
+    (tester) async {
+      final streaming = msg(
+        content: '正在生成 **markdown**',
+        status: ChatMessageStatus.streaming,
+      );
+      await pumpChatWidget(
+        tester,
+        ChatMessageBubble(message: streaming, onFollowUp: (_) {}),
+      );
+
+      expect(find.byType(GptMarkdown), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsNothing);
+
+      await pumpChatWidget(
+        tester,
+        ChatMessageBubble(
+          message: streaming.copyWith(status: ChatMessageStatus.done),
+          onFollowUp: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(SelectableRegion), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   testWidgets('user 带 quote：气泡上方显示引用行，气泡只显示问题', (tester) async {
     await pumpChatWidget(
       tester,

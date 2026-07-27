@@ -117,7 +117,7 @@ class SubtitleEditorState {
   ///
   /// `1.0` 表示不缩放（整段音频铺满屏宽）；进入编辑页拿到波形可用宽度后，
   /// [SubtitleEditorController.initZoomForViewport] 会按「最大放大时 1 秒音频约占
-  /// 2cm 屏幕长度」计算上限。音频越长，上限越大。
+  /// 5cm 屏幕长度」计算上限。音频越长，上限越大。
   final double maxWaveformZoomScale;
 
   SubtitleEditorState copyWith({
@@ -245,7 +245,7 @@ class SubtitleEditorController extends StateNotifier<SubtitleEditorState> {
   static const double _logicalPixelsPerCm = 160 / 2.54;
 
   /// 最大放大时 1 秒音频在屏幕上占用的物理长度。
-  static const double _maxZoomCentimetersPerSecond = 2.0;
+  static const double _maxZoomCentimetersPerSecond = 5.0;
 
   Future<void> load() async {
     if (_hasLoaded) return;
@@ -886,10 +886,10 @@ class SubtitleEditorController extends StateNotifier<SubtitleEditorState> {
   /// 进入编辑页时按屏幕物理宽度自动计算缩放范围与初始缩放。
   ///
   /// Flutter 逻辑像素以 160px/英寸 为基准，故 1 厘米 ≈ 63 逻辑像素。缩放语义：
-  /// `zoom == 1` 时整段音频铺满可视区；最大缩放时 1 秒音频约占 2cm 屏幕长度，
-  /// 因此上限 = `音频秒数 × 2cm逻辑像素 / 可视区宽度`。
+  /// `zoom == 1` 时整段音频铺满可视区；最大缩放时 1 秒音频约占 5cm 屏幕长度，
+  /// 因此上限 = `音频秒数 × 5cm逻辑像素 / 可视区宽度`。
   ///
-  /// 初始缩放仍保持每 1cm 屏幕约显示 1 秒音频，最大缩放则再放大一档用于精调。
+  /// 初始缩放仍保持每 1cm 屏幕约显示 1 秒音频，最大缩放提供 5 倍精调空间。
   /// 仅在首次进入时执行一次，之后用户可通过滑块手动调整。
   void initZoomForViewport(double usableViewportWidth) {
     if (_didInitZoom) return;

@@ -9,11 +9,11 @@
 ///   OverlayEntry（命令式生命周期易泄漏）；
 /// - 面板状态是页面局部 state（谁创建谁销毁）：页面 pop 即面板销毁，
 ///   查词 controller（autoDispose）随之释放，无跨页残留；
-/// - 面板开着时正文上盖一层**带词区域豁免的透明屏障**：点句子里的词/
-///   拖手柄照常放行（连续查词/扩选），点其它区域先关面板并吸收该次点击
+/// - 面板开着时正文上盖一层**带词区域豁免的透明屏障**：点句子里的词
+///   照常放行（连续查词），点其它区域先关面板并吸收该次点击
 ///   （不触发下层操作）。豁免判定由可点词组件经
-///   [DictionaryPanelHostState.registerTapThroughHitTest] 注册**精确命中
-///   谓词**（文本 bounds + 手柄命中区），不做外扩矩形——句子紧邻的按钮/
+///   [DictionaryPanelHostState.registerTapThroughHitTest] 注册文本 bounds 的
+///   **精确命中谓词**，不做外扩矩形——句子紧邻的按钮/
 ///   点击切换字幕等下层交互不会被误放行。
 library;
 
@@ -145,7 +145,7 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   );
 
   /// 屏障豁免命中谓词集合（入参为全局坐标）。任一谓词命中的点击穿透
-  /// 屏障直达下层（点词切换查询、拖手柄扩选）；均未命中则关面板并吸收点击。
+  /// 屏障直达下层（点词切换查询）；均未命中则关面板并吸收点击。
   final Set<bool Function(Offset globalPosition)> _tapThroughHitTests = {};
 
   /// 面板开关状态监听器。
@@ -246,6 +246,16 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
     return true;
   }
 
+  /// 仅当当前面板由 [owner] 发起时关闭。
+  ///
+  /// 句子选区折叠或失焦时用此入口同步收起查词面板，避免旧组件误关掉
+  /// 另一句刚打开的新查询。
+  bool closeIfOwnedBy(Object owner) {
+    if (!isOpen || !identical(_owner, owner)) return false;
+    close();
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget result = Stack(
@@ -318,7 +328,7 @@ class _DictionaryPanelScope extends InheritedWidget {
 /// 用 [Listener.onPointerDown]（非手势竞技场）保证即时、无歧义地吸收该次
 /// 点击——被吸收的手势后续事件仍归屏障，天然不会触发下层操作。
 class _DismissBarrier extends StatelessWidget {
-  /// 是否放行该全局坐标（命中词区域/手柄豁免区）
+  /// 是否放行该全局坐标（命中查词正文区域）
   final bool Function(Offset globalPosition) shouldForward;
 
   /// 关闭面板回调

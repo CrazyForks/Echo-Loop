@@ -65,6 +65,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumBenefitAiAssistant => 'More AI assistant conversations';
 
   @override
+  String get premiumBenefitPrioritySupport => 'Priority support';
+
+  @override
   String get premiumBenefitSenseGroups => 'More AI sentence chunking';
 
   @override
@@ -2042,6 +2045,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get transcriptionUploading => 'Uploading...';
 
   @override
+  String get transcriptionCompressing => 'Compressing audio...';
+
+  @override
   String get transcriptionProcessing => 'Transcribing...';
 
   @override
@@ -2063,6 +2069,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get transcriptionErrorUnknown =>
       'Please check the audio and try again later';
+
+  @override
+  String get transcriptionErrorCompression =>
+      'Audio compression failed. Please check the audio and try again.';
+
+  @override
+  String get transcriptionErrorCompressedFileTooLarge =>
+      'Compressed file still exceeds 25MB';
 
   @override
   String get transcriptionEmptyResult => 'No speech detected';

@@ -15,6 +15,7 @@ import 'daos/learned_word_form_dao.dart';
 import 'daos/daily_study_record_dao.dart';
 import 'daos/daily_stage_study_record_dao.dart';
 import 'daos/tts_cache_dao.dart';
+import 'daos/memory_schedule_dao.dart';
 import '../services/study_time_service.dart';
 import '../providers/audio_library_provider.dart';
 import '../providers/collection_provider.dart';
@@ -192,6 +193,11 @@ final bookmarkListProvider = StreamProvider<List<BookmarkWithAudio>>((ref) {
 /// TtsCache DAO Provider
 final ttsCacheDaoProvider = Provider<TtsCacheDao>((ref) {
   return ref.watch(appDatabaseProvider).ttsCacheDao;
+});
+
+/// MemoryScheduler DAO Provider。
+final memoryScheduleDaoProvider = Provider<MemoryScheduleDao>((ref) {
+  return ref.watch(appDatabaseProvider).memoryScheduleDao;
 });
 
 /// StudyTimeService Provider

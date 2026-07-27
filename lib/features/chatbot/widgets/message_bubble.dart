@@ -10,6 +10,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_theme.dart';
 import '../models/chat_message.dart';
 import '../models/chat_role.dart';
+import 'markdown_message.dart';
 import 'selectable_assistant_markdown.dart';
 
 /// 操作栏 SVG 图标资源路径（复刻 ChatGPT 线条风格）。
@@ -220,13 +221,21 @@ class ChatMessageBubble extends StatelessWidget {
         message.content.isEmpty) {
       return _ThinkingIndicator(color: textColor);
     }
-    // AI 回答 markdown：官方 SelectionArea 方案，支持长按/拖拽自由选中任意连续文本
-    // （含行内代码 `code`），选区上方弹出「复制 / 问 AI」操作条。
-    final markdown = SelectableAssistantMarkdown(
-      data: message.content,
-      style: TextStyle(color: textColor),
-      onFollowUp: onFollowUp,
-    );
+    final textStyle = TextStyle(color: textColor);
+    // 流式期间 markdown 子节点会随数据帧频繁增删。此时挂载 SelectionArea 会让
+    // Flutter 的 selectable 注册表在帧末更新时发生重入，触发并发修改异常；待消息
+    // 进入稳定终态后再启用选区、复制和「问 AI」。
+    final Widget markdown = message.status == ChatMessageStatus.streaming
+        ? MarkdownMessage(
+            data: message.content,
+            selectable: false,
+            style: textStyle,
+          )
+        : SelectableAssistantMarkdown(
+            data: message.content,
+            style: textStyle,
+            onFollowUp: onFollowUp,
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,

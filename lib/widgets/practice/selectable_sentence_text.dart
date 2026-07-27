@@ -1,32 +1,31 @@
-/// 可点词 + 词组选区的句子文本组件（统一标注卡与盲听偷看两套点词实现）
+/// 可点词 + 系统标准选区的句子文本组件（统一标注卡与盲听偷看两套点词实现）
 ///
-/// 交互模型（业界标准「点词查词 + 选区手柄扩选」）：
-/// - 点单词：立即查该词（词典面板 [DictionaryPanelHost.show]），同时该词
-///   成为选区并在两侧显示词级吸附的边界手柄；
-/// - 拖动手柄：跨词扩展/收缩选区（吸附到词边界，支持跨行），松手后以
-///   选区文本（词组）重新查询；
-/// - 长按不占用：宿主外层的「长按复制整句」GestureDetector 原样生效
-///   （手柄用 [ImmediateMultiDragGestureRecognizer] 按下即抢占，不与长按冲突）。
-///
-/// 几何实现：RichText（保排版）+ [RenderParagraph] 的
-/// `getPositionForOffset` / `getBoxesForSelection` 做命中测试与手柄定位；
-/// 手柄矩形在 post-frame 计算（首帧无手柄，下一帧出现，肉眼无感）。
-///
-/// 选区是组件局部 state：面板关闭或别的组件发起查词
-/// （[DictionaryPanelHost.activeOwnerOf] 变化）时自动清除。
+/// - 点单词：用系统选区选中该词并立即查询；
+/// - 长按：由 Flutter 建立平台默认选区并显示系统手柄；
+/// - 拖动手柄：保持系统标准字符级选区，松手后查询最终选中文本。
 library;
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/chatbot/chatbot_flags.dart';
+import '../../features/chatbot/widgets/selection_toolbar.dart';
+import '../../features/chatbot/widgets/sentence_chat_button.dart';
+import '../../features/remote_config/remote_config.dart';
+import '../../features/remote_config/remote_config_providers.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/speech_practice_models.dart';
 import '../../providers/saved_word_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/saved_text_index.dart';
+import '../../utils/text_normalize.dart';
+import '../common/platform_selection_feedback.dart';
+import '../common/platform_text_selection_style.dart';
 import '../dictionary/dictionary_panel_host.dart';
 import 'sentence_word_selection.dart';
 
@@ -104,32 +103,26 @@ class SelectableSentenceText extends ConsumerStatefulWidget {
 
 class _SelectableSentenceTextState
     extends ConsumerState<SelectableSentenceText> {
-  /// RichText 的 key，用于获取 RenderParagraph 做几何查询
+  /// 系统可选文本的 key，用于保留点词时的精确命中判断。
   final GlobalKey _textKey = GlobalKey();
+
+  /// 系统选区焦点；面板关闭或其它句子发起查词时用于清除旧选区。
+  final FocusNode _focusNode = FocusNode();
 
   /// 分词结果（text/segments 变化时重建）
   late List<WordToken> _tokens = tokenizeSentence(_fullText);
 
-  /// 当前选区（null = 无选区）
-  WordSelection? _selection;
+  /// Flutter 当前选区；长按/拖动期间只记录，直到手指松开才触发查词。
+  TextSelection? _currentSelection;
+  bool _selectionLookupPending = false;
+  bool _selectionCommitScheduled = false;
 
-  /// 手柄锚点矩形（post-frame 由 RenderParagraph 计算；选区首/末词的行内 box）
-  Rect? _startAnchor;
-  Rect? _endAnchor;
+  /// 最近一次按下位置，仅用于区分正文字符与行尾空白的单击。
+  Offset? _lastPointerDownPosition;
 
-  /// 手柄命中区边长
-  static const double _kHandleHitSize = 36;
-
-  /// 手柄圆点直径（iOS 系统选择手柄同款圆点，略放大便于点按）
-  static const double _kHandleDotSize = 12;
-
-  /// 选区边界竖线宽度
-  static const double _kCaretWidth = 2;
-
-  /// Flutter 内置文本放大镜：移动端按平台渲染 iOS/Android 样式，桌面端自动不显示。
-  final MagnifierController _magnifierController = MagnifierController();
-  final ValueNotifier<MagnifierInfo> _magnifierInfo =
-      ValueNotifier<MagnifierInfo>(MagnifierInfo.empty);
+  /// Flutter 在 iOS 首次未聚焦长按时不发送平台反馈；记录起手焦点以便补齐。
+  bool _hadFocusOnPointerDown = false;
+  bool _longPressFeedbackCompleted = false;
 
   /// 已注册豁免区域的宿主（组件卸载时按同一实例注销）
   DictionaryPanelHostState? _host;
@@ -140,6 +133,12 @@ class _SelectableSentenceTextState
   String? _savedMaskText;
   SavedTextIndex? _savedMaskIndex;
 
+  /// 当前词汇收藏 key；操作条按它判断选区应显示“收藏”还是“取消收藏”。
+  Set<String> _savedWordTexts = const {};
+
+  /// 操作条收藏按钮的乐观状态；数据库流追上后自动移除对应覆盖。
+  final Map<String, bool> _pendingSavedWordStates = {};
+
   /// 渲染文本：有高亮片段时为片段拼接，否则为原句
   String get _fullText {
     final segs = widget.highlightedSegments;
@@ -147,327 +146,331 @@ class _SelectableSentenceTextState
     return segs.map((s) => s.text).join();
   }
 
-  RenderParagraph? get _paragraph {
-    final obj = _textKey.currentContext?.findRenderObject();
-    return obj is RenderParagraph ? obj : null;
+  EditableTextState? get _editableState {
+    final root = _textKey.currentContext;
+    EditableTextState? result;
+    void findEditableState(Element child) {
+      if (result != null) return;
+      if (child is StatefulElement) {
+        final state = child.state;
+        if (state is EditableTextState) {
+          result = state;
+          return;
+        }
+      }
+      child.visitChildElements(findEditableState);
+    }
+
+    root?.visitChildElements(findEditableState);
+    return result;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChanged);
+    // 系统选择手柄位于 Overlay，组件自身 Listener 收不到手柄松开事件，
+    // 因此只监听全局 pointer up/cancel 来提交已经由 Flutter 产生的选区。
+    GestureBinding.instance.pointerRouter.addGlobalRoute(
+      _handleGlobalPointerEvent,
+    );
   }
 
   @override
   void didUpdateWidget(SelectableSentenceText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 文本重排（换句/评分片段更新）即清选区并重新分词，避免陈旧几何
+    // 换句时清除旧选区并重新分词。
     final oldFull = oldWidget.highlightedSegments?.map((s) => s.text).join();
     final oldText = (oldFull == null || oldFull.isEmpty)
         ? oldWidget.text
         : oldFull;
     if (oldText != _fullText) {
       _tokens = tokenizeSentence(_fullText);
-      _clearSelection();
+      _currentSelection = null;
+      _selectionLookupPending = false;
+      _focusNode.unfocus();
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 向宿主注册屏障豁免命中谓词：面板开着时点本组件（词/手柄）仍放行，
-    // 点区域外则由宿主屏障关面板并吸收点击。
+    // 面板打开时，正文区域仍可继续单击或长按查词。
     final host = DictionaryPanelHost.maybeOf(context);
     if (!identical(host, _host)) {
       _host?.unregisterTapThroughHitTest(_hitsTapThrough);
       _host = host;
       _host?.registerTapThroughHitTest(_hitsTapThrough);
     }
-    // 面板关闭或别的组件发起了查词：清掉本组件的选区高亮/手柄。
-    // （didChangeDependencies 本就处于重建流程，直接改字段即可）
+    // 面板关闭或其它组件发起查词时，清除当前系统选区。
     final owner = DictionaryPanelHost.activeOwnerOf(context);
-    if (_selection != null && !identical(owner, this)) {
-      _selection = null;
-      _startAnchor = null;
-      _endAnchor = null;
+    if (_focusNode.hasFocus && !identical(owner, this)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _focusNode.hasFocus) _focusNode.unfocus();
+      });
     }
   }
 
   @override
   void dispose() {
     _host?.unregisterTapThroughHitTest(_hitsTapThrough);
-    _hideMagnifier();
-    _magnifierInfo.dispose();
+    _focusNode.removeListener(_handleFocusChanged);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(
+      _handleGlobalPointerEvent,
+    );
+    _focusNode.dispose();
     super.dispose();
   }
 
-  /// 屏障豁免命中判定（全局坐标）：命中「文本 bounds」或「选区手柄命中区」
-  /// 才放行穿透。**精确判定、不整圈外扩**——此前用组件 bounds 上下外扩
-  /// 36dp 的粗矩形，句子紧邻的下层交互（盲听点击切换字幕、标注卡解析按钮）
-  /// 会被误放行；现在这些点击统一由屏障关面板并吸收，行为全场景一致。
+  /// 屏障仅放行正文 bounds；系统手柄自身位于 Overlay，不需要自定义命中区。
   bool _hitsTapThrough(Offset globalPosition) {
     final obj = context.findRenderObject();
     if (obj is! RenderBox || !obj.attached || !obj.hasSize) return false;
     final local = obj.globalToLocal(globalPosition);
-    if ((Offset.zero & obj.size).contains(local)) return true;
-    // 手柄圆点悬在文本 bounds 外（首行上方/末行下方），单独精确判定
-    if (_selection == null) return false;
-    return _handleHitRect(isStartHandle: true).contains(local) ||
-        _handleHitRect(isStartHandle: false).contains(local);
-  }
-
-  /// 手柄命中区矩形（组件局部坐标），与 [_buildHandle] 的定位公式一致。
-  /// 视觉圆点贴词边界，但命中区覆盖圆点 + 选区竖线，而不是只围绕圆点；
-  /// 这样抓蓝色竖线附近也能拖动，左右手柄体感更接近系统文本选择。
-  Rect _handleHitRect({required bool isStartHandle}) {
-    final anchor = isStartHandle ? _startAnchor : _endAnchor;
-    if (anchor == null) return Rect.zero;
-    final dotCenter = _handleDotCenter(isStartHandle: isStartHandle);
-    if (dotCenter == null) return Rect.zero;
-    final obj = context.findRenderObject();
-    final bounds = obj is RenderBox && obj.hasSize
-        ? Offset.zero & obj.size
-        : Rect.zero;
-    return _shiftRectInsideBounds(
-      Rect.fromLTRB(
-        dotCenter.dx - _kHandleHitSize / 2,
-        isStartHandle ? dotCenter.dy - _kHandleHitSize / 2 : anchor.top,
-        dotCenter.dx + _kHandleHitSize / 2,
-        isStartHandle ? anchor.bottom : dotCenter.dy + _kHandleHitSize / 2,
-      ),
-      bounds,
-    );
-  }
-
-  /// 手柄圆点视觉中心（组件局部坐标）。命中区可偏移，视觉位置不可偏移，
-  /// 否则选区边界会看起来脱离文字。
-  Offset? _handleDotCenter({required bool isStartHandle}) {
-    final anchor = isStartHandle ? _startAnchor : _endAnchor;
-    if (anchor == null) return null;
-    final x = isStartHandle ? anchor.left : anchor.right;
-    final dotCenterY = isStartHandle
-        ? anchor.top - _kHandleDotSize / 2
-        : anchor.bottom + _kHandleDotSize / 2;
-    return Offset(x, dotCenterY);
-  }
-
-  Rect _shiftRectInsideBounds(Rect rect, Rect bounds) {
-    if (bounds.isEmpty) return rect;
-    var dx = 0.0;
-    if (rect.left < bounds.left) {
-      dx = bounds.left - rect.left;
-    } else if (rect.right > bounds.right) {
-      dx = bounds.right - rect.right;
-    }
-    var dy = 0.0;
-    if (rect.top < bounds.top) {
-      dy = bounds.top - rect.top;
-    } else if (rect.bottom > bounds.bottom) {
-      dy = bounds.bottom - rect.bottom;
-    }
-    return rect.shift(Offset(dx, dy));
-  }
-
-  void _clearSelection() {
-    _selection = null;
-    _startAnchor = null;
-    _endAnchor = null;
-    _hideMagnifier();
+    return (Offset.zero & obj.size).contains(local);
   }
 
   // -- 查词触发 --
 
-  /// 设置选区并查询其文本
-  void _selectAndLookup(WordSelection sel) {
-    setState(() => _selection = sel);
-    _scheduleAnchorUpdate();
+  void _lookup(String text) {
     widget.onBeforeLookup?.call();
     DictionaryPanelHost.of(
       context,
-    ).show(widget.origin.queryFor(sel.textOf(_fullText, _tokens)), owner: this);
+    ).show(widget.origin.queryFor(text), owner: this);
   }
 
-  /// 点词：命中词内才触发（点空白/标点不查询）
-  void _handleTapUp(TapUpDetails details) {
-    final para = _paragraph;
-    if (para == null || _tokens.isEmpty) return;
-    final pos = para.getPositionForOffset(details.localPosition);
+  /// 选区因点击其它区域或路由切换而失焦时，只关闭本组件发起的词典面板。
+  void _handleFocusChanged() {
+    if (!_focusNode.hasFocus) _closeOwnedDictionary();
+  }
+
+  void _closeOwnedDictionary() {
+    _host?.closeIfOwnedBy(this);
+  }
+
+  /// 保留原有单击查词；系统单击形成的折叠选区提供字符位置。
+  void _handleTap() {
+    final editableState = _editableState;
+    final editable = editableState?.renderEditable;
+    final globalPosition = _lastPointerDownPosition;
+    if (editable == null || globalPosition == null || _tokens.isEmpty) return;
+    final pos = editable.getPositionForPoint(globalPosition);
     // 光标位可能落在词右边界（== end），前移一位再判定
     var idx = wordTokenAtChar(_tokens, pos.offset);
     if (idx < 0 && pos.offset > 0) {
       idx = wordTokenAtChar(_tokens, pos.offset - 1);
     }
     if (idx < 0) return;
-    // box 包含判定：防止行尾空白区域反查到最近词而误触发
+    // 防止行尾空白区域反查到最近词而误触发。
     final t = _tokens[idx];
-    final boxes = para.getBoxesForSelection(
+    final boxes = editable.getBoxesForSelection(
       TextSelection(baseOffset: t.start, extentOffset: t.end),
     );
-    final hit = boxes.any(
-      (b) => b.toRect().inflate(2).contains(details.localPosition),
-    );
+    final localPosition = editable.globalToLocal(globalPosition);
+    final hit = boxes.any((b) => b.toRect().inflate(2).contains(localPosition));
     if (!hit) return;
-    _selectAndLookup(WordSelection(idx, idx));
+    // 复用 RenderEditable 的系统分词边界与平台手柄，不自行绘制或维护选区。
+    editable.selectWord(cause: SelectionChangedCause.tap);
+    editableState?.showToolbar();
+    _lookup(t.text);
   }
 
-  // -- 手柄拖拽 --
-
-  /// 手柄拖拽开始：显示 Flutter 平台自适应放大镜，降低手指遮挡文字的问题。
-  void _handleDragStart(bool isStartHandle, Offset globalPosition) {
-    _showOrUpdateMagnifier(
-      isStartHandle,
-      globalPosition,
-      selection: _selection,
-    );
-  }
-
-  /// 手柄拖拽中把手指位置换算为文本内字符偏移并做词级吸附
-  void _updateSelectionFromDrag(bool isStartHandle, Offset globalPosition) {
-    final para = _paragraph;
-    final sel = _selection;
-    if (para == null || sel == null) return;
-    final local = para.globalToLocal(globalPosition);
-    final pos = para.getPositionForOffset(local);
-    final snapped = snapToWordToken(_tokens, pos.offset);
-    if (snapped < 0) return;
-    // 手柄不越过对侧（交叉时 clamp 成单词选区，系统文本选择同款行为）
-    final next = isStartHandle
-        ? WordSelection(
-            snapped <= sel.endToken ? snapped : sel.endToken,
-            sel.endToken,
-          )
-        : WordSelection(
-            sel.startToken,
-            snapped >= sel.startToken ? snapped : sel.startToken,
-          );
-    if (next != sel) {
-      setState(() => _selection = next);
-      _scheduleAnchorUpdate();
-    }
-    _showOrUpdateMagnifier(isStartHandle, globalPosition, selection: next);
-  }
-
-  /// 手柄松手：以当前选区文本查询（与上次查询相同则不重复触发）
-  void _handleDragEnd() {
-    _hideMagnifier();
-    final sel = _selection;
-    if (sel == null) return;
-    widget.onBeforeLookup?.call();
-    DictionaryPanelHost.of(
-      context,
-    ).show(widget.origin.queryFor(sel.textOf(_fullText, _tokens)), owner: this);
-  }
-
-  void _handleDragCancel() {
-    _hideMagnifier();
-  }
-
-  /// 显示或更新放大镜。坐标按 Flutter [TextMagnifier] 约定转换到 root overlay；
-  /// 触点 Y 使用 caret 中心，避免结束手柄位于文字下方时被 iOS 阈值判断为隐藏。
-  void _showOrUpdateMagnifier(
-    bool isStartHandle,
-    Offset globalPosition, {
-    required WordSelection? selection,
-  }) {
-    final info = _magnifierInfoForHandle(
-      isStartHandle,
-      globalPosition,
-      selection: selection,
-    );
-    if (info == null) return;
-    _magnifierInfo.value = info;
-    if (_magnifierController.overlayEntry != null) return;
-
-    final builtMagnifier = TextMagnifier.adaptiveMagnifierConfiguration
-        .magnifierBuilder(context, _magnifierController, _magnifierInfo);
-    if (builtMagnifier == null) return;
-    _magnifierController.show(
-      context: context,
-      debugRequiredFor: widget,
-      builder: (_) => builtMagnifier,
-    );
-  }
-
-  MagnifierInfo? _magnifierInfoForHandle(
-    bool isStartHandle,
-    Offset globalPosition, {
-    required WordSelection? selection,
-  }) {
-    final para = _paragraph;
-    if (para == null || selection == null) return null;
-    final overlay = Overlay.of(
-      context,
-      rootOverlay: true,
-    ).context.findRenderObject();
-    if (overlay is! RenderBox) return null;
-
-    final token =
-        _tokens[isStartHandle ? selection.startToken : selection.endToken];
-    final boxes = para.getBoxesForSelection(
-      TextSelection(baseOffset: token.start, extentOffset: token.end),
-    );
-    if (boxes.isEmpty) return null;
-
-    final anchor = isStartHandle ? boxes.first.toRect() : boxes.last.toRect();
-    final caretX = isStartHandle ? anchor.left : anchor.right;
-    final localCaret = Rect.fromLTWH(caretX, anchor.top, 0, anchor.height);
-    final transformToOverlay = para.getTransformTo(overlay);
-    final caretRect = MatrixUtils.transformRect(transformToOverlay, localCaret);
-    final fieldBounds = MatrixUtils.transformRect(
-      transformToOverlay,
-      para.paintBounds,
-    );
-    final overlayGesture = overlay.globalToLocal(globalPosition);
-
-    return MagnifierInfo(
-      globalGesturePosition: Offset(overlayGesture.dx, caretRect.center.dy),
-      caretRect: caretRect,
-      fieldBounds: fieldBounds,
-      currentLineBoundaries: Rect.fromLTRB(
-        fieldBounds.left,
-        caretRect.top,
-        fieldBounds.right,
-        caretRect.bottom,
-      ),
-    );
-  }
-
-  void _hideMagnifier() {
-    unawaited(_magnifierController.hide());
-  }
-
-  // -- 手柄几何 --
-
-  /// post-frame 重算手柄锚点（选区变化/布局完成后 RenderParagraph 才有最新 box）
-  void _scheduleAnchorUpdate() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateAnchors();
-    });
-  }
-
-  void _updateAnchors() {
-    final para = _paragraph;
-    final sel = _selection;
-    if (para == null || sel == null) {
-      if (_startAnchor != null || _endAnchor != null) {
-        setState(() {
-          _startAnchor = null;
-          _endAnchor = null;
-        });
-      }
+  /// 选择变化时只保存状态；真正查词由 pointer up 统一提交。
+  void _handleSelectionChanged(
+    TextSelection selection,
+    SelectionChangedCause? cause,
+  ) {
+    _currentSelection = selection;
+    if (!selection.isValid || selection.isCollapsed) {
+      _selectionLookupPending = false;
+      _closeOwnedDictionary();
       return;
     }
-    final startTok = _tokens[sel.startToken];
-    final endTok = _tokens[sel.endToken];
-    final startBoxes = para.getBoxesForSelection(
-      TextSelection(baseOffset: startTok.start, extentOffset: startTok.end),
-    );
-    final endBoxes = para.getBoxesForSelection(
-      TextSelection(baseOffset: endTok.start, extentOffset: endTok.end),
-    );
-    if (startBoxes.isEmpty || endBoxes.isEmpty) return;
-    final newStart = startBoxes.first.toRect();
-    final newEnd = endBoxes.last.toRect();
-    if (newStart != _startAnchor || newEnd != _endAnchor) {
-      setState(() {
-        _startAnchor = newStart;
-        _endAnchor = newEnd;
-      });
+    if (cause == SelectionChangedCause.longPress ||
+        cause == SelectionChangedCause.drag) {
+      _selectionLookupPending = true;
     }
+    if (cause == SelectionChangedCause.longPress &&
+        !_longPressFeedbackCompleted) {
+      _longPressFeedbackCompleted = true;
+      PlatformSelectionFeedback.completeEditableTextLongPress(
+        context,
+        hadFocusOnPointerDown: _hadFocusOnPointerDown,
+      );
+    }
+  }
+
+  void _handleGlobalPointerEvent(PointerEvent event) {
+    if (event is PointerCancelEvent) {
+      _selectionLookupPending = false;
+      _longPressFeedbackCompleted = false;
+      return;
+    }
+    if (event is! PointerUpEvent ||
+        !_selectionLookupPending ||
+        _selectionCommitScheduled) {
+      return;
+    }
+    _selectionCommitScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectionCommitScheduled = false;
+      if (mounted) _commitSelectionLookup();
+    });
+    _longPressFeedbackCompleted = false;
+  }
+
+  /// 手指松开后，以系统最终选区查询；保留字符级边界，只裁掉首尾空白。
+  void _commitSelectionLookup() {
+    if (!_selectionLookupPending) return;
+    _selectionLookupPending = false;
+    final selection = _currentSelection;
+    if (selection == null || !selection.isValid || selection.isCollapsed) {
+      return;
+    }
+    final start = selection.start.clamp(0, _fullText.length);
+    final end = selection.end.clamp(0, _fullText.length);
+    final selectedText = _fullText.substring(start, end).trim();
+    if (selectedText.isNotEmpty) _lookup(selectedText);
+  }
+
+  // -- 选区操作条 --
+
+  /// 句子正文只保留复制、收藏与问 AI，不暴露系统分享、全选等额外动作。
+  Widget _buildSelectionToolbar(BuildContext context, EditableTextState state) {
+    final l10n = AppLocalizations.of(context)!;
+    final selectedWord = normalizeWord(_selectedTextOf(state));
+    final isSaved =
+        _pendingSavedWordStates[selectedWord] ??
+        _savedWordTexts.contains(selectedWord);
+    final aiEnabled = shouldShowAiChatAssistantEntry(
+      chatbotEnabled: kChatbotEnabled,
+      remoteEnabled: ref.read(
+        remoteFeatureEnabledProvider(RemoteFeature.aiChatAssistant),
+      ),
+    );
+    return SelectionToolbar(
+      anchors: SelectionToolbar.anchorsForEditableText(state),
+      actions: [
+        SelectionToolbarAction(
+          label: l10n.chatCopy,
+          onPressed: () => _handleCopy(state),
+        ),
+        if (selectedWord.isNotEmpty)
+          SelectionToolbarAction(
+            label: isSaved
+                ? l10n.favoritesUnsaveVocabulary
+                : l10n.favoritesSaveVocabulary,
+            onPressed: () => unawaited(
+              _handleToggleSave(state, selectedWord, currentlySaved: isSaved),
+            ),
+          ),
+        if (aiEnabled)
+          SelectionToolbarAction(
+            label: l10n.chatFollowUp,
+            onPressed: () => _handleAskAi(state),
+          ),
+      ],
+    );
+  }
+
+  String _selectedTextOf(EditableTextState state) {
+    final value = state.textEditingValue;
+    final selection = value.selection;
+    if (!selection.isValid || selection.isCollapsed) return '';
+    return selection.textInside(value.text);
+  }
+
+  void _handleCopy(EditableTextState state) {
+    final text = _selectedTextOf(state);
+    if (text.isNotEmpty) {
+      unawaited(Clipboard.setData(ClipboardData(text: text)));
+    }
+    _clearEditableSelection(state);
+  }
+
+  /// 把选区按现有词汇规则收藏或取消收藏，并保留选区与查词面板。
+  ///
+  /// 收藏状态由 `saved_words` 的流式 Provider 同步到词典面板、正文收藏标记
+  /// 和收藏页；来源信息与词典面板收藏入口保持完全一致。
+  Future<void> _handleToggleSave(
+    EditableTextState state,
+    String word, {
+    required bool currentlySaved,
+  }) async {
+    final selection = state.textEditingValue.selection;
+    final notifier = ref.read(savedWordListProvider.notifier);
+    try {
+      if (currentlySaved) {
+        await notifier.removeWord(word);
+      } else {
+        await notifier.saveWord(
+          word: word,
+          audioItemId: widget.origin.audioItemId,
+          sentenceIndex: widget.origin.sentenceIndex,
+          sentenceText: widget.origin.sentenceText,
+          sentenceStartMs: widget.origin.sentenceStartMs,
+          sentenceEndMs: widget.origin.sentenceEndMs,
+        );
+      }
+      if (!mounted) return;
+      final desiredSaved = !currentlySaved;
+      final streamedWords =
+          ref.read(savedWordTextsProvider).valueOrNull ?? const <String>{};
+      setState(() {
+        if (streamedWords.contains(word) == desiredSaved) {
+          _pendingSavedWordStates.remove(word);
+        } else {
+          _pendingSavedWordStates[word] = desiredSaved;
+        }
+      });
+      // 收藏流会重建正文 TextSpan；在该帧结束后恢复同一字符选区，并重建
+      // Overlay 操作条，使“收藏 / 取消收藏”文案原地切换而不离开查词现场。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !selection.isValid || selection.isCollapsed) return;
+        final value = state.textEditingValue;
+        state.userUpdateTextEditingValue(
+          value.copyWith(selection: selection),
+          SelectionChangedCause.toolbar,
+        );
+        state.hideToolbar();
+        state.showToolbar();
+      });
+    } catch (error, stackTrace) {
+      debugPrint('[SelectableSentenceText] 收藏选区失败: $error\n$stackTrace');
+    }
+  }
+
+  /// 清除系统选区会触发 [_handleSelectionChanged]，从而同步关闭当前查词面板。
+  void _clearEditableSelection(EditableTextState state) {
+    final value = state.textEditingValue;
+    state.hideToolbar();
+    state.userUpdateTextEditingValue(
+      value.copyWith(
+        selection: TextSelection.collapsed(
+          offset: value.selection.extentOffset,
+        ),
+      ),
+      SelectionChangedCause.toolbar,
+    );
+  }
+
+  /// 关闭选区与词典后打开同一句子的聊天会话，并把选中文字放入引用待发送区。
+  void _handleAskAi(EditableTextState state) {
+    final selectedText = _selectedTextOf(state).trim();
+    if (selectedText.isEmpty) return;
+    final sourceSentence = widget.origin.sentenceText;
+    final sentenceText = sourceSentence == null || sourceSentence.trim().isEmpty
+        ? _fullText
+        : sourceSentence;
+    _clearEditableSelection(state);
+    _closeOwnedDictionary();
+    unawaited(
+      showSentenceChatbotSheet(
+        context: context,
+        sentenceText: sentenceText,
+        initialQuote: selectedText,
+      ),
+    );
   }
 
   // -- 构建 --
@@ -497,49 +500,58 @@ class _SelectableSentenceTextState
           height: 1.6,
           color: theme.colorScheme.onSurface,
         );
+    ref.listen(savedWordTextsProvider, (previous, next) {
+      final streamedWords = next.valueOrNull ?? const <String>{};
+      final acknowledgedWords = [
+        for (final entry in _pendingSavedWordStates.entries)
+          if (streamedWords.contains(entry.key) == entry.value) entry.key,
+      ];
+      if (!mounted || acknowledgedWords.isEmpty) return;
+      setState(() {
+        for (final word in acknowledgedWords) {
+          _pendingSavedWordStates.remove(word);
+        }
+      });
+    });
+    // 单词收藏集合同时供选区操作条判断“收藏 / 取消收藏”。
+    _savedWordTexts =
+        ref.watch(savedWordTextsProvider).valueOrNull ?? const <String>{};
     // 收藏索引流式监听：加载中/降级（测试环境无 DB）时为空索引 = 无标记
     final savedMask = _ensureSavedMask(ref.watch(savedTextIndexProvider));
-    final rich = RichText(
+    final rich = SelectableText.rich(
       key: _textKey,
-      text: TextSpan(style: style, children: _buildSpans(theme, savedMask)),
+      TextSpan(style: style, children: _buildSpans(theme, savedMask)),
+      focusNode: _focusNode,
+      // 默认 includeLineSpacingMiddle 会把 1.6 行高的额外 leading 算进高亮，
+      // 造成截图中的文字/选区中线错位；tight 只贴合实际字形。
+      selectionHeightStyle: ui.BoxHeightStyle.tight,
+      onTap: _handleTap,
+      onSelectionChanged: _handleSelectionChanged,
+      contextMenuBuilder: _buildSelectionToolbar,
     );
-    // 选区存在时布局可能变化（旋屏/字号），每帧后校正手柄位置
-    if (_selection != null) _scheduleAnchorUpdate();
-    // 手柄悬在文本 bounds 之外（首行上方/末行下方/行首左侧），普通 Stack 的命中测试
-    // 会在 size.contains 处提前剪裁——用越界命中 Stack 保证手柄全域可拖。
-    return _UnboundedHitStack(
-      children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: _handleTapUp,
-          child: rich,
-        ),
-        if (_selection != null && _startAnchor != null) ...[
-          _buildCaretLine(theme, isStartHandle: true, anchor: _startAnchor!),
-          _buildHandle(theme, isStartHandle: true),
-        ],
-        if (_selection != null && _endAnchor != null) ...[
-          _buildCaretLine(theme, isStartHandle: false, anchor: _endAnchor!),
-          _buildHandle(theme, isStartHandle: false),
-        ],
-      ],
+    return PlatformTextSelectionStyle(
+      child: Listener(
+        onPointerDown: (event) {
+          _lastPointerDownPosition = event.position;
+          _hadFocusOnPointerDown = _focusNode.hasFocus;
+          _longPressFeedbackCompleted = false;
+        },
+        child: rich,
+      ),
     );
   }
 
-  /// 逐 token 构建 span：选区染背景色，评分片段染文字色，收藏命中加点状下划线
+  /// 逐 token 构建 span：评分片段染文字色，收藏命中加点状下划线。
   ///
   /// 收藏标记按 [savedMask] 的逐字符边界切分 token（如 "dog." 只给 "dog"
   /// 加下划线、句号不加），下划线颜色沿用「橙色 = 收藏」视觉语言（与意群
   /// 收藏色系一致），必须显式设 decorationColor（默认会跟随文字色）。
   List<InlineSpan> _buildSpans(ThemeData theme, List<bool> savedMask) {
-    final selectionColor = theme.colorScheme.primary.withValues(alpha: 0.15);
     final savedColor = AppTheme.savedTextMarkColor(theme.brightness);
-    final (selStart, selEnd) = _selection?.charRangeOf(_tokens) ?? (-1, -1);
     final colorAt = _segmentColorLookup();
     final text = _fullText;
     final spans = <InlineSpan>[];
     for (final t in _tokens) {
-      final selected = t.start >= selStart && t.end <= selEnd;
       // token 颜色按其起点判定（与旧版整 token 染色一致），
       // 收藏掩码只切分下划线子段，不改变染色粒度
       final color = colorAt(t.start);
@@ -553,7 +565,6 @@ class _SelectableSentenceTextState
             text: text.substring(subStart, subEnd),
             style: TextStyle(
               color: color,
-              backgroundColor: selected ? selectionColor : null,
               decoration: saved ? TextDecoration.underline : null,
               decorationStyle: saved ? TextDecorationStyle.dotted : null,
               decorationColor: saved ? savedColor : null,
@@ -587,140 +598,4 @@ class _SelectableSentenceTextState
       return null;
     };
   }
-
-  /// 选区边界竖线（caret，纯视觉）：贴选区首/末词行盒的边界，高度=行高
-  Widget _buildCaretLine(
-    ThemeData theme, {
-    required bool isStartHandle,
-    required Rect anchor,
-  }) {
-    final x = isStartHandle ? anchor.left : anchor.right;
-    return Positioned(
-      left: x - _kCaretWidth / 2,
-      top: anchor.top,
-      child: IgnorePointer(
-        child: Container(
-          width: _kCaretWidth,
-          height: anchor.height,
-          color: theme.colorScheme.primary,
-        ),
-      ),
-    );
-  }
-
-  /// 选区边界手柄：iOS 系统选择手柄同款圆点（起始手柄圆点悬在竖线上端，
-  /// 结束手柄悬在竖线下端，圆点与竖线端点相切），直径较系统略大便于点按。
-  /// 命中区 36dp、以圆点为中心；用 [ImmediateMultiDragGestureRecognizer]
-  /// 按下即赢得手势竞技场，压制外层滚动/横滑/长按（系统选择手柄同款思路）。
-  Widget _buildHandle(ThemeData theme, {required bool isStartHandle}) {
-    // 命中区矩形与屏障豁免判定共用同一公式（[_handleHitRect]），保证
-    // 「能拖到的位置」与「屏障放行的位置」永远一致
-    final hitRect = _handleHitRect(isStartHandle: isStartHandle);
-    final dotCenter = _handleDotCenter(isStartHandle: isStartHandle);
-    if (dotCenter == null) return const SizedBox.shrink();
-    return Positioned(
-      left: hitRect.left,
-      top: hitRect.top,
-      child: RawGestureDetector(
-        behavior: HitTestBehavior.opaque,
-        gestures: {
-          ImmediateMultiDragGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<
-                ImmediateMultiDragGestureRecognizer
-              >(ImmediateMultiDragGestureRecognizer.new, (recognizer) {
-                recognizer.onStart = (offset) => _HandleDrag(
-                  onStart: () => _handleDragStart(isStartHandle, offset),
-                  onUpdate: (d) =>
-                      _updateSelectionFromDrag(isStartHandle, d.globalPosition),
-                  onEnd: _handleDragEnd,
-                  onCancel: _handleDragCancel,
-                );
-              }),
-        },
-        child: SizedBox(
-          key: Key(isStartHandle ? 'word_handle_start' : 'word_handle_end'),
-          width: hitRect.width,
-          height: hitRect.height,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: dotCenter.dx - hitRect.left - _kHandleDotSize / 2,
-                top: dotCenter.dy - hitRect.top - _kHandleDotSize / 2,
-                child: Container(
-                  width: _kHandleDotSize,
-                  height: _kHandleDotSize,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 越界命中 Stack：不做自身 size 的提前剪裁，允许命中悬在文本 bounds
-/// 之外的选区手柄（首行上方、末行下方、行首左侧）。仅用于本组件内部。
-class _UnboundedHitStack extends Stack {
-  const _UnboundedHitStack({super.children}) : super(clipBehavior: Clip.none);
-
-  @override
-  RenderStack createRenderObject(BuildContext context) =>
-      _RenderUnboundedHitStack(
-        textDirection: textDirection ?? Directionality.maybeOf(context),
-        alignment: alignment,
-        fit: fit,
-        clipBehavior: clipBehavior,
-      );
-}
-
-/// [_UnboundedHitStack] 的 render object
-class _RenderUnboundedHitStack extends RenderStack {
-  _RenderUnboundedHitStack({
-    super.textDirection,
-    super.alignment,
-    super.fit,
-    super.clipBehavior,
-  });
-
-  @override
-  bool hitTest(BoxHitTestResult result, {required Offset position}) {
-    // 跳过 RenderBox 默认的 size.contains 剪裁，直接测试子节点
-    if (hitTestChildren(result, position: position)) {
-      result.add(BoxHitTestEntry(this, position));
-      return true;
-    }
-    return false;
-  }
-}
-
-/// 手柄拖拽会话（ImmediateMultiDrag 的 Drag 回调载体）
-class _HandleDrag extends Drag {
-  final VoidCallback onStart;
-  final void Function(DragUpdateDetails) onUpdate;
-  final VoidCallback onEnd;
-  final VoidCallback onCancel;
-
-  _HandleDrag({
-    required this.onStart,
-    required this.onUpdate,
-    required this.onEnd,
-    required this.onCancel,
-  }) {
-    onStart();
-  }
-
-  @override
-  void update(DragUpdateDetails details) => onUpdate(details);
-
-  @override
-  void end(DragEndDetails details) => onEnd();
-
-  @override
-  void cancel() => onCancel();
 }

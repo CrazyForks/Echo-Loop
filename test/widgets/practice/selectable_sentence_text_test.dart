@@ -1,11 +1,19 @@
-/// SelectableSentenceText（可点词 + 词组选区手柄）交互测试
+/// SelectableSentenceText（可点词 + 系统自由选区）交互测试
 ///
 /// 组件与 DictionaryPanelHost 组合验证：点词查词、点空白不触发、
-/// 选区手柄出现与拖拽扩选、面板关闭清选区、onBeforeLookup 时机。
+/// 自定义操作条、字符级拖选、面板与选区同步关闭、onBeforeLookup 时机。
 library;
 
+import 'dart:async';
+
+import 'dart:ui' as ui;
+
 import 'package:dio/dio.dart';
+import 'package:echo_loop/features/remote_config/remote_config.dart';
+import 'package:echo_loop/features/remote_config/remote_config_providers.dart';
 import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart';
+import 'package:echo_loop/database/daos/saved_word_dao.dart';
+import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/dict_entry.dart';
 import 'package:echo_loop/models/dictionary/dictionary_lookup_result.dart';
@@ -20,9 +28,12 @@ import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
 import 'package:echo_loop/widgets/practice/selectable_sentence_text.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,6 +56,66 @@ class _FakeSavedSenseGroupTexts extends SavedSenseGroupTexts {
   _FakeSavedSenseGroupTexts(this.value);
   @override
   Stream<Set<String>> build() => Stream.value(value);
+}
+
+/// 记录选区收藏参数的 SavedWordDao，并提供可流式更新的收藏 key。
+class _RecordingSavedWordDao implements SavedWordDao {
+  _RecordingSavedWordDao([Set<String> initialWords = const {}])
+    : storedWords = {...initialWords};
+
+  final Set<String> storedWords;
+  final StreamController<Set<String>> _savedWordsController =
+      StreamController<Set<String>>.broadcast();
+
+  String? savedWord;
+  String? removedWord;
+  String? audioItemId;
+  int? sentenceIndex;
+  String? sentenceText;
+  int? sentenceStartMs;
+  int? sentenceEndMs;
+
+  @override
+  Stream<List<SavedWord>> watchAll() => Stream.value(const <SavedWord>[]);
+
+  @override
+  Stream<Set<String>> watchSavedWordTexts() async* {
+    yield Set<String>.unmodifiable(storedWords);
+    yield* _savedWordsController.stream;
+  }
+
+  @override
+  Stream<bool> watchIsWordSaved(String word) =>
+      watchSavedWordTexts().map((words) => words.contains(word)).distinct();
+
+  @override
+  Future<void> saveWord({
+    required String word,
+    String? audioItemId,
+    int? sentenceIndex,
+    String? sentenceText,
+    int? sentenceStartMs,
+    int? sentenceEndMs,
+  }) async {
+    savedWord = word;
+    this.audioItemId = audioItemId;
+    this.sentenceIndex = sentenceIndex;
+    this.sentenceText = sentenceText;
+    this.sentenceStartMs = sentenceStartMs;
+    this.sentenceEndMs = sentenceEndMs;
+    storedWords.add(word);
+    _savedWordsController.add(Set<String>.unmodifiable(storedWords));
+  }
+
+  @override
+  Future<void> removeWord(String word) async {
+    removedWord = word;
+    storedWords.remove(word);
+    _savedWordsController.add(Set<String>.unmodifiable(storedWords));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// 回显查询词的 fake 本地源（记录收到的查询）
@@ -77,6 +148,8 @@ void main() {
   late DictionaryService oldInstance;
   late SharedPreferences prefs;
   late _EchoLocalSource source;
+  String? clipboardText;
+  final hapticCalls = <Object?>[];
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -85,15 +158,39 @@ void main() {
     when(() => mock.isAvailable).thenReturn(true);
     oldInstance = DictionaryService.replaceInstance(mock);
     source = _EchoLocalSource();
+    clipboardText = null;
+    hapticCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            final arguments = call.arguments;
+            if (arguments is Map) {
+              final text = arguments['text'];
+              if (text is String) clipboardText = text;
+            }
+          }
+          if (call.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(call.arguments);
+          }
+          return null;
+        });
   });
 
-  tearDown(() => DictionaryService.replaceInstance(oldInstance));
+  tearDown(() {
+    DictionaryService.replaceInstance(oldInstance);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
+  });
 
   final hostKey = GlobalKey<DictionaryPanelHostState>();
 
   Widget wrap({
     String text = 'alpha beta gamma',
     List<SpeechTranscriptSegment>? segments,
+    Locale locale = const Locale('en'),
+    DictionaryLookupOrigin origin = const DictionaryLookupOrigin(
+      sentenceText: 'ctx',
+    ),
     VoidCallback? onBeforeLookup,
     Widget Function(Widget sentence)? layout,
     List<Override> overrides = const [],
@@ -116,7 +213,7 @@ void main() {
       ...overrides,
     ],
     child: MaterialApp(
-      locale: const Locale('en'),
+      locale: locale,
       supportedLocales: const [Locale('en'), Locale('zh')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -133,7 +230,7 @@ void main() {
               final sentence = SelectableSentenceText(
                 text: text,
                 highlightedSegments: segments,
-                origin: const DictionaryLookupOrigin(sentenceText: 'ctx'),
+                origin: origin,
                 onBeforeLookup: onBeforeLookup,
               );
               if (layout != null) return layout(sentence);
@@ -145,16 +242,33 @@ void main() {
     ),
   );
 
-  /// 点击句中某个词的中心
+  /// 取句中某个词的系统文本几何中心。
+  Offset wordCenter(WidgetTester tester, String word) {
+    final editable = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    final text = tester
+        .widget<EditableText>(find.byType(EditableText))
+        .controller
+        .text;
+    final start = text.indexOf(word);
+    final boxes = editable.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: start + word.length),
+    );
+    return editable.localToGlobal(boxes.first.toRect().center);
+  }
+
+  /// 点击句中某个词的中心。
   Future<void> tapWord(WidgetTester tester, String word) async {
-    final rich = find.byType(RichText).first;
-    final renderObject = tester.renderObject<RenderBox>(rich);
-    // 用 RenderParagraph 的几何直接算词心：Ahem 字体等宽，按字符占比近似
-    final text = 'alpha beta gamma';
-    final wordStart = text.indexOf(word);
-    final fraction = (wordStart + word.length / 2) / text.length;
-    final topLeft = renderObject.localToGlobal(Offset.zero);
-    await tester.tapAt(topLeft + Offset(renderObject.size.width * fraction, 8));
+    await tester.tapAt(wordCenter(tester, word));
+  }
+
+  /// 取句子 SelectableText.rich 的全部子 span。
+  List<TextSpan> sentenceSpans(WidgetTester tester) {
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    return selectable.textSpan!.children!.cast<TextSpan>();
   }
 
   testWidgets('点词：打开面板查询该词（剥标点交给归一化），onBeforeLookup 先触发', (tester) async {
@@ -166,120 +280,375 @@ void main() {
     expect(beforeCalls, 1);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(source.queries, ['beta']);
-  });
-
-  testWidgets('点词后出现左右选区手柄', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'beta');
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('word_handle_start')), findsOneWidget);
-    expect(find.byKey(const Key('word_handle_end')), findsOneWidget);
-  });
-
-  testWidgets('行首左手柄命中区收进文本 bounds，避免一半落到左侧不可点区域', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'alpha');
-    await tester.pumpAndSettle();
-
-    final textRect = tester.getRect(find.byType(RichText).first);
-    final startHandleRect = tester.getRect(
-      find.byKey(const Key('word_handle_start')),
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
     );
-
-    expect(startHandleRect.left, greaterThanOrEqualTo(textRect.left));
-    expect(startHandleRect.width, 36);
-  });
-
-  testWidgets('左右手柄命中区覆盖竖线，不只是圆点周围', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'beta');
-    await tester.pumpAndSettle();
-
-    final startHandleRect = tester.getRect(
-      find.byKey(const Key('word_handle_start')),
+    expect(
+      editableState.textEditingValue.selection.textInside(
+        editableState.textEditingValue.text,
+      ),
+      'beta',
     );
-    final endHandleRect = tester.getRect(
-      find.byKey(const Key('word_handle_end')),
-    );
-
-    expect(startHandleRect.height, greaterThan(36));
-    expect(endHandleRect.height, greaterThan(36));
+    expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
   });
 
   testWidgets(
-    'Android 手柄拖拽中显示放大镜，松手后隐藏',
+    'Apple 平台使用系统蓝选区和系统手柄，并用 tight 高亮贴合文字中线',
     (tester) async {
       await tester.pumpWidget(wrap());
-      await tapWord(tester, 'alpha');
-      await tester.pumpAndSettle();
-
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byKey(const Key('word_handle_end'))),
+      final selectable = tester.widget<SelectableText>(
+        find.byType(SelectableText),
       );
-      await tester.pump();
-      expect(find.byType(TextMagnifier), findsOneWidget);
+      expect(selectable.textSpan, isNotNull);
+      final context = tester.element(find.byType(SelectableText));
+      final expectedColor = CupertinoColors.systemBlue
+          .resolveFrom(context)
+          .withValues(alpha: 0.2);
+      final expectedHandleColor = CupertinoColors.systemBlue.resolveFrom(
+        context,
+      );
+      expect(DefaultSelectionStyle.of(context).selectionColor, expectedColor);
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).selectionColor,
+        expectedColor,
+      );
+      expect(
+        CupertinoTheme.of(context).selectionHandleColor,
+        expectedHandleColor,
+      );
+      expect(selectable.selectionHeightStyle, ui.BoxHeightStyle.tight);
+      expect(selectable.selectionControls, isNull);
+      expect(selectable.contextMenuBuilder, isNotNull);
+      expect(find.byKey(const Key('word_handle_start')), findsNothing);
+      expect(find.byKey(const Key('word_handle_end')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
-      await gesture.moveBy(const Offset(240, 0));
-      await tester.pump();
-      expect(find.byType(TextMagnifier), findsOneWidget);
+  testWidgets(
+    'Android 句子讲解文本使用平台选择蓝，不回落到 App 主题色',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      final context = tester.element(find.byType(SelectableText));
+      final expectedColor = Colors.blue.withValues(alpha: 0.4);
+      expect(DefaultSelectionStyle.of(context).selectionColor, expectedColor);
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).selectionColor,
+        expectedColor,
+      );
+      expect(TextSelectionTheme.of(context).selectionHandleColor, Colors.blue);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets('自定义操作条显示复制、收藏和问 AI', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        overrides: [
+          remoteFeatureEnabledProvider(
+            RemoteFeature.aiChatAssistant,
+          ).overrideWithValue(true),
+        ],
+      ),
+    );
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Copy')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Ask AI')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('selection_toolbar_surface')),
+      findsOneWidget,
+    );
+    expect(find.text('Share'), findsNothing);
+    expect(find.text('Select all'), findsNothing);
+  });
+
+  testWidgets('AI 远程开关关闭时操作条仍显示复制和收藏', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        overrides: [
+          remoteFeatureEnabledProvider(
+            RemoteFeature.aiChatAssistant,
+          ).overrideWithValue(false),
+        ],
+      ),
+    );
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Copy')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Ask AI')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('收藏多词选区：按词汇规则归一化、保存来源并保留查词现场', (tester) async {
+    final dao = _RecordingSavedWordDao();
+    const origin = DictionaryLookupOrigin(
+      audioItemId: 'audio-1',
+      sentenceIndex: 7,
+      sentenceText: 'Alpha   beta, gamma',
+      sentenceStartMs: 1200,
+      sentenceEndMs: 3400,
+    );
+    await tester.pumpWidget(
+      wrap(
+        text: 'Alpha   beta, gamma',
+        origin: origin,
+        overrides: [
+          savedWordDaoProvider.overrideWithValue(dao),
+          usageOverride(),
+          notificationPermissionOverride(),
+          remoteFeatureEnabledProvider(
+            RemoteFeature.aiChatAssistant,
+          ).overrideWithValue(false),
+        ],
+      ),
+    );
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    final value = editableState.textEditingValue;
+    editableState.userUpdateTextEditingValue(
+      value.copyWith(
+        selection: const TextSelection(baseOffset: 0, extentOffset: 13),
+      ),
+      SelectionChangedCause.toolbar,
+    );
+    editableState.showToolbar();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Save')));
+    await tester.pumpAndSettle();
+
+    expect(dao.savedWord, 'alpha beta');
+    expect(dao.audioItemId, 'audio-1');
+    expect(dao.sentenceIndex, 7);
+    expect(dao.sentenceText, 'Alpha   beta, gamma');
+    expect(dao.sentenceStartMs, 1200);
+    expect(dao.sentenceEndMs, 3400);
+    expect(editableState.textEditingValue.selection.isCollapsed, isFalse);
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('已收藏选区显示取消收藏，并复用词汇移除流程', (tester) async {
+    final dao = _RecordingSavedWordDao({'beta'});
+    await tester.pumpWidget(
+      wrap(
+        overrides: [
+          savedWordDaoProvider.overrideWithValue(dao),
+          usageOverride(),
+          notificationPermissionOverride(),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Remove')));
+    await tester.pumpAndSettle();
+
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(dao.removedWord, 'beta');
+    expect(editableState.textEditingValue.selection.isCollapsed, isFalse);
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('中文取消收藏在选区操作栏中保持单行', (tester) async {
+    final dao = _RecordingSavedWordDao({'beta'});
+    await tester.pumpWidget(
+      wrap(
+        locale: const Locale('zh'),
+        overrides: [savedWordDaoProvider.overrideWithValue(dao)],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+
+    final label = tester.widget<Text>(find.text('取消收藏'));
+    expect(label.maxLines, 1);
+    expect(label.softWrap, isFalse);
+  });
+
+  testWidgets('复制写入精确选区，并同步清除选区与词典面板', (tester) async {
+    await tester.pumpWidget(wrap());
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Copy')));
+    await tester.pumpAndSettle();
+
+    expect(clipboardText, 'beta');
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableState.textEditingValue.selection.isCollapsed, isTrue);
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
+  });
+
+  testWidgets('拖选保持字符级自由边界，不吸附到完整单词', (tester) async {
+    await tester.pumpWidget(wrap());
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    final value = editableState.textEditingValue;
+    const selection = TextSelection(baseOffset: 1, extentOffset: 8);
+    editableState.userUpdateTextEditingValue(
+      value.copyWith(selection: selection),
+      SelectionChangedCause.drag,
+    );
+    await tester.pump();
+
+    expect(editableState.textEditingValue.selection, selection);
+    expect(selection.textInside(value.text), 'lpha be');
+  });
+
+  testWidgets('选区折叠时自动关闭当前句子的词典面板', (tester) async {
+    await tester.pumpWidget(wrap());
+    await tapWord(tester, 'beta');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    editableState.userUpdateTextEditingValue(
+      editableState.textEditingValue.copyWith(
+        selection: const TextSelection.collapsed(offset: 0),
+      ),
+      SelectionChangedCause.tap,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
+  });
+
+  testWidgets(
+    'Android 长按期间不查词，松手后查询系统选中的单词',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      final gesture = await tester.startGesture(wordCenter(tester, 'beta'));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      expect(source.queries, isEmpty);
 
       await gesture.up();
       await tester.pumpAndSettle();
-      expect(find.byType(TextMagnifier), findsNothing);
-      expect(source.queries.last, 'alpha beta gamma');
+      expect(source.queries, ['beta']);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
   testWidgets(
-    '手柄拖拽取消时清理放大镜 overlay',
+    'Android 长按统一触发选择轻反馈和平台长按反馈',
     (tester) async {
       await tester.pumpWidget(wrap());
-      await tapWord(tester, 'beta');
+      await tester.longPressAt(wordCenter(tester, 'beta'));
       await tester.pumpAndSettle();
 
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byKey(const Key('word_handle_end'))),
-      );
-      await tester.pump();
-      expect(find.byType(TextMagnifier), findsOneWidget);
-
-      await gesture.cancel();
-      await tester.pumpAndSettle();
-      expect(find.byType(TextMagnifier), findsNothing);
+      expect(hapticCalls, ['HapticFeedbackType.selectionClick', null]);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
-  testWidgets('拖动右手柄扩选到句尾：松手查询词组', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'alpha');
-    await tester.pumpAndSettle();
-    expect(source.queries, ['alpha']);
+  testWidgets(
+    'iOS 首次未聚焦和再次长按都触发相同反馈',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.longPressAt(wordCenter(tester, 'beta'));
+      await tester.pumpAndSettle();
 
-    // 向右远拖：吸附到最后一个词 gamma，选区 = alpha beta gamma
-    await tester.dragFrom(
-      tester.getCenter(find.byKey(const Key('word_handle_end'))),
-      const Offset(600, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(source.queries.last, 'alpha beta gamma');
-  });
+      expect(hapticCalls, [
+        'HapticFeedbackType.selectionClick',
+        'HapticFeedbackType.heavyImpact',
+      ]);
 
-  testWidgets('手柄交叉 clamp：右手柄拖过左侧不越界，仍为单词选区', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'gamma');
-    await tester.pumpAndSettle();
+      hapticCalls.clear();
+      await tester.longPressAt(wordCenter(tester, 'gamma'));
+      await tester.pumpAndSettle();
+      expect(hapticCalls, [
+        'HapticFeedbackType.selectionClick',
+        'HapticFeedbackType.heavyImpact',
+      ]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
-    // 右手柄向左远拖：clamp 到不越过起始词，选区仍是 gamma
-    await tester.dragFrom(
-      tester.getCenter(find.byKey(const Key('word_handle_end'))),
-      const Offset(-600, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(source.queries.last, 'gamma');
-  });
+  testWidgets(
+    'Android 长按拖选期间不查词，松手后查询最终选区',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      final gesture = await tester.startGesture(wordCenter(tester, 'alpha'));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      await gesture.moveTo(wordCenter(tester, 'gamma'));
+      await tester.pump();
+      expect(source.queries, isEmpty);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(source.queries, ['alpha beta gamma']);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'Android 长按取消不触发查词',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      final gesture = await tester.startGesture(wordCenter(tester, 'beta'));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+      expect(source.queries, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 
   testWidgets('面板开着时：点句子里另一个词切换查询（豁免放行），点句子外空白关面板', (tester) async {
     await tester.pumpWidget(wrap());
@@ -297,8 +666,6 @@ void main() {
     await tester.tapAt(const Offset(400, 500));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
-    // 选区高亮/手柄一并清除
-    expect(find.byKey(const Key('word_handle_start')), findsNothing);
     // 未发起新查询
     expect(source.queries, ['alpha', 'gamma']);
   });
@@ -361,16 +728,18 @@ void main() {
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
-  testWidgets('面板关闭后选区与手柄清除', (tester) async {
+  testWidgets('面板关闭后系统选区失去焦点', (tester) async {
     await tester.pumpWidget(wrap());
-    await tapWord(tester, 'beta');
+    await tester.longPressAt(wordCenter(tester, 'beta'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('word_handle_start')), findsOneWidget);
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    expect(selectable.focusNode?.hasFocus, isTrue);
 
     hostKey.currentState!.close();
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('word_handle_start')), findsNothing);
-    expect(find.byKey(const Key('word_handle_end')), findsNothing);
+    expect(selectable.focusNode?.hasFocus, isFalse);
   });
 
   testWidgets('评分片段染色仍生效（命中片段绿色）', (tester) async {
@@ -384,8 +753,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final rich = tester.widget<RichText>(find.byType(RichText).first);
-    final spans = (rich.text as TextSpan).children!.cast<TextSpan>();
+    final spans = sentenceSpans(tester);
     // 首 token alpha 应为绿色
     expect(spans.first.text, 'alpha');
     expect(spans.first.style?.color, const Color(0xFF2E9B51));
@@ -393,12 +761,6 @@ void main() {
     final beta = spans.firstWhere((s) => s.text == 'beta');
     expect(beta.style?.color, isNull);
   });
-
-  /// 取句子 RichText 的全部子 span
-  List<TextSpan> sentenceSpans(WidgetTester tester) {
-    final rich = tester.widget<RichText>(find.byType(RichText).first);
-    return (rich.text as TextSpan).children!.cast<TextSpan>();
-  }
 
   testWidgets('收藏单词渲染橙色点状下划线，未收藏词无标记', (tester) async {
     await tester.pumpWidget(
@@ -476,7 +838,7 @@ void main() {
     );
   });
 
-  testWidgets('收藏下划线与评分染色、选区背景叠加不互斥', (tester) async {
+  testWidgets('收藏下划线与评分染色可同时渲染', (tester) async {
     await tester.pumpWidget(
       wrap(
         segments: const [
@@ -492,16 +854,8 @@ void main() {
     );
     await tester.pump();
 
-    // alpha 同时带评分绿色与收藏下划线
-    var alpha = sentenceSpans(tester).firstWhere((s) => s.text == 'alpha');
+    final alpha = sentenceSpans(tester).firstWhere((s) => s.text == 'alpha');
     expect(alpha.style?.color, const Color(0xFF2E9B51));
-    expect(alpha.style?.decoration, TextDecoration.underline);
-
-    // 点选 alpha 后：选区背景与下划线并存
-    await tapWord(tester, 'alpha');
-    await tester.pumpAndSettle();
-    alpha = sentenceSpans(tester).firstWhere((s) => s.text == 'alpha');
-    expect(alpha.style?.backgroundColor, isNotNull);
     expect(alpha.style?.decoration, TextDecoration.underline);
   });
 }

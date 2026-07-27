@@ -18,7 +18,6 @@ import '../../theme/app_theme.dart';
 import '../../utils/sense_group_timing.dart';
 import '../common/async_toggle_button.dart';
 import '../common/shimmer_placeholder.dart';
-import '../common/text_context_menu.dart';
 import '../guide_flow.dart';
 import 'selectable_sentence_text.dart';
 import 'sense_group_text.dart';
@@ -32,7 +31,7 @@ enum ContentLoadState { idle, loading, loaded, error }
 /// 意群显示模式
 enum SenseGroupMode { off, medium, fine }
 
-/// 句子顶部留白，给词组选区手柄圆点让位。
+/// 句子顶部留白。
 const double _sentenceTopPadding = AppSpacing.m - 4;
 
 /// 句子与内联翻译之间的留白，保持译文贴近原句。
@@ -40,7 +39,7 @@ const double _sentenceBottomPadding = AppSpacing.xs;
 
 /// 标注模式句子卡片
 ///
-/// 句子文本经 [SelectableSentenceText] 渲染（点词查词 + 词组选区手柄），
+/// 句子文本经 [SelectableSentenceText] 渲染（点词查词 + 系统标准选区），
 /// 内部管理翻译/解析的加载状态和意群显示开关。
 ///
 /// 工具栏可以通过 [showToolbar] 控制是否在卡片内部渲染。
@@ -947,40 +946,28 @@ class SentenceAnnotationCardState extends State<SentenceAnnotationCard> {
             onTapGroupWithRect: widget.onTapGroupWithRect,
             highlightedSegments: widget.highlightedSegments,
           )
-        : GestureDetector(
-            onLongPressStart: (details) => TextContextMenu.show(
-              context,
-              details.globalPosition,
-              widget.text,
+        : SelectableSentenceText(
+            text: widget.text,
+            style: theme.textTheme.titleMedium?.copyWith(
+              height: 1.6,
+              color: theme.colorScheme.onSurface,
             ),
-            onSecondaryTapDown: (details) => TextContextMenu.show(
-              context,
-              details.globalPosition,
-              widget.text,
+            highlightedSegments: widget.highlightedSegments,
+            origin: DictionaryLookupOrigin(
+              audioItemId: widget.audioItemId,
+              sentenceIndex: widget.sentenceIndex,
+              sentenceText: widget.text,
+              sentenceStartMs: widget.sentenceStartMs,
+              sentenceEndMs: widget.sentenceEndMs,
             ),
-            child: SelectableSentenceText(
-              text: widget.text,
-              style: theme.textTheme.titleMedium?.copyWith(
-                height: 1.6,
-                color: theme.colorScheme.onSurface,
-              ),
-              highlightedSegments: widget.highlightedSegments,
-              origin: DictionaryLookupOrigin(
-                audioItemId: widget.audioItemId,
-                sentenceIndex: widget.sentenceIndex,
-                sentenceText: widget.text,
-                sentenceStartMs: widget.sentenceStartMs,
-                sentenceEndMs: widget.sentenceEndMs,
-              ),
-              onBeforeLookup: () => widget.onToolbarButtonTapped?.call(),
-            ),
+            onBeforeLookup: () => widget.onToolbarButtonTapped?.call(),
           );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 句子文本 — 意群色块模式或纯 RichText（带长按/右键复制整句）。
-        // 顶部留白给选区手柄圆点让位；底部收紧，让译文紧跟原句。
+        // 句子文本 — 意群色块模式或系统可选文本。
+        // 底部收紧，让译文紧跟原句。
         _wrapGuide(
           widget.sentenceGuideStep,
           Padding(

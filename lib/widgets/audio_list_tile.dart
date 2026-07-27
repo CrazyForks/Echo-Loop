@@ -182,17 +182,6 @@ class AudioListTile extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // 多选态：最左侧放选中框，紧凑不占过多横向空间。
-                          if (selectionMode) ...[
-                            Checkbox(
-                              value: selected,
-                              onChanged: (_) => onSelectToggle?.call(),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
                           // 左侧进度图标，垂直居中
                           _buildLeading(progress, downloadProgress),
                           const SizedBox(width: 16),
