@@ -195,16 +195,10 @@ flowchart LR
 
 ## 💬 加入社群
 
-和其他认真练英语的伙伴一起：交流学习方法、反馈使用体验、第一时间收到新功能更新。
+和其他认真练英语的伙伴一起：交流学习方法、分享学习资源、反馈使用体验、第一时间收到新功能更新。
 
-<table>
-  <tr>
-    <td valign="middle" align="center" width="140">
-      <img src="assets/qr/xiaohongshu.jpg" alt="小红书二维码" width="110" /><br/>
-      <sub>扫码关注小红书</sub>
-    </td>
-  </tr>
-</table>
+- [申请加入微信群](https://work.weixin.qq.com/kfid/kfce84fda72015827c6)：联系管理员申请加入用户交流群。
+- [关注小红书](https://xhslink.cn/m/AsKhHXvEDMY)：获取使用技巧、功能更新和英语学习内容。
 
 ---
 
