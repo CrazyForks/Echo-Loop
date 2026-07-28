@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
@@ -7,12 +8,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/models/learning_progress.dart';
+import 'package:echo_loop/models/audio_item.dart' as model;
+import 'package:echo_loop/models/media_engine_state.dart';
+import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
 import 'package:echo_loop/providers/learning_session/blind_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/review_difficult_practice_provider.dart';
 import 'package:echo_loop/providers/learning_session/retell_player_provider.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
 import 'package:echo_loop/providers/listening_practice/listening_practice_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/daily_study_time_provider.dart';
@@ -94,6 +99,51 @@ class _TestBookmarkDao implements BookmarkDao {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     return Future<void>.value();
+  }
+}
+
+/// 模拟视频文件加载失败，并记录失败后的独立媒体链路释放。
+class _FailingMediaEngine extends MediaEngine {
+  int releaseCalls = 0;
+
+  @override
+  MediaEngineState build() => const MediaEngineState();
+
+  @override
+  Future<Duration?> loadMedia(
+    model.AudioItem item,
+    double speed, {
+    Duration initialPosition = Duration.zero,
+  }) async => null;
+
+  @override
+  Future<void> releaseFromScreen() async {
+    releaseCalls += 1;
+  }
+}
+
+/// 用 Completer 控制媒体打开时机，验证退出后的迟到结果不会进入学习会话。
+class _BlockingMediaEngine extends MediaEngine {
+  final Completer<void> loadStarted = Completer<void>();
+  final Completer<Duration?> loadResult = Completer<Duration?>();
+  int releaseCalls = 0;
+
+  @override
+  MediaEngineState build() => const MediaEngineState();
+
+  @override
+  Future<Duration?> loadMedia(
+    model.AudioItem item,
+    double speed, {
+    Duration initialPosition = Duration.zero,
+  }) {
+    loadStarted.complete();
+    return loadResult.future;
+  }
+
+  @override
+  Future<void> releaseFromScreen() async {
+    releaseCalls += 1;
   }
 }
 
@@ -282,8 +332,9 @@ void main() {
 
   group('enterIntensiveListenMode 断点恢复', () {
     ProviderContainer createContainer(
-      LearningProgressNotifier progressNotifier,
-    ) {
+      LearningProgressNotifier progressNotifier, {
+      MediaEngine? mediaEngine,
+    }) {
       return ProviderContainer(
         overrides: [
           appDatabaseProvider.overrideWithValue(_createTestDb()),
@@ -296,6 +347,8 @@ void main() {
           blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
           dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
           analyticsOverride(),
+          if (mediaEngine != null)
+            mediaEngineProvider.overrideWith(() => mediaEngine),
         ],
       );
     }
@@ -342,6 +395,60 @@ void main() {
 
       final playerState = container.read(intensiveListenPlayerProvider);
       expect(playerState.currentSentenceIndex, 0);
+    });
+
+    test('视频加载失败时释放独立媒体链路且不进入学习模式', () async {
+      final mediaEngine = _FailingMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+
+      final entered = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaIntensiveListenMode(
+            model.AudioItem(
+              id: 'video-1',
+              name: 'Video',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 7, 28),
+            ),
+            sentences,
+          );
+
+      expect(entered, MediaLoadResult.failure);
+      expect(mediaEngine.releaseCalls, 1);
+      expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
+    });
+
+    test('视频加载中取消后迟到成功被丢弃并释放媒体链路', () async {
+      final mediaEngine = _BlockingMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+      final session = container.read(learningSessionProvider.notifier);
+
+      final entry = session.enterMediaIntensiveListenMode(
+        model.AudioItem(
+          id: 'video-cancelled',
+          name: 'Video',
+          audioPath: 'video.mp4',
+          addedDate: DateTime(2026, 7, 29),
+        ),
+        sentences,
+      );
+      await mediaEngine.loadStarted.future;
+
+      await session.cancelMediaIntensiveListenEntry();
+      mediaEngine.loadResult.complete(const Duration(minutes: 1));
+
+      expect(await entry, MediaLoadResult.cancelled);
+      expect(mediaEngine.releaseCalls, 1);
+      expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
+      expect(session.isStudyTimerRunning, isFalse);
     });
 
     test('自由练习精听恢复已保存断点', () async {

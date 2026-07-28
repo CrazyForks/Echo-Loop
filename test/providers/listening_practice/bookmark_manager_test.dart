@@ -139,6 +139,23 @@ void main() {
         expect(nextIndex, isNull);
       });
 
+      test('书签模式移除末尾书签但前面仍有收藏时回退到前一个', () {
+        final sentences = [
+          createSentence(0, 'A'),
+          createSentence(1, 'B'),
+          createSentence(2, 'C'),
+          createSentence(3, 'D'),
+        ];
+        final result = BookmarkManager.toggleBookmark(3, sentences, {
+          0,
+          1,
+          3,
+        }, true);
+
+        expect(result.$2, {3});
+        expect(result.$3, 1);
+      });
+
       test('书签模式移除后跳过同文本书签找到下一个', () {
         final sentences = [
           createSentence(0, 'Same'),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:echo_loop/features/baidu_netdisk/data/baidu_credential_repository.dart';
@@ -100,7 +101,9 @@ class _PendingBaiduNetdiskApi implements BaiduNetdiskApi {
     required String accessToken,
     required String dlink,
     required String savePath,
+    String? identityKey,
     int? expectedSize,
+    bool allowResume = true,
     CancelToken? cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) {
@@ -170,7 +173,9 @@ class _StaticBaiduNetdiskApi implements BaiduNetdiskApi {
     required String accessToken,
     required String dlink,
     required String savePath,
+    String? identityKey,
     int? expectedSize,
+    bool allowResume = true,
     CancelToken? cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) {
@@ -318,7 +323,7 @@ class _DuplicateBaiduImportService extends _ImmediateBaiduImportService {
       );
       return CloudDriveImportOutcome(
         added: const <CloudDriveEntry>[],
-        audioDuplicates: [
+        duplicateDetails: [
           (
             attempted: entry.name.replaceFirst(RegExp(r'\.[^.]+$'), ''),
             existing: '已存在课程',
@@ -327,6 +332,104 @@ class _DuplicateBaiduImportService extends _ImmediateBaiduImportService {
       );
     }
     return const CloudDriveImportOutcome(added: <CloudDriveEntry>[]);
+  }
+}
+
+class _FailingBaiduImportService extends _ImmediateBaiduImportService {
+  @override
+  Future<CloudDriveImportOutcome> importAudios({
+    required List<CloudDriveEntry> entries,
+    List<CloudDriveEntry> subtitleEntries = const <CloudDriveEntry>[],
+    required AudioLibrary audioLibrary,
+    required AudioLibraryState audioLibraryState,
+    CollectionList? collectionList,
+    CollectionState? collectionState,
+    String? collectionId,
+    CancelToken? cancelToken,
+    BaiduNetdiskImportProgressCallback? onProgress,
+    BaiduNetdiskImportItemResultCallback? onItemResult,
+  }) async {
+    importedEntries = entries;
+    importedSubtitleEntries = subtitleEntries;
+    if (entries.isEmpty) {
+      return const CloudDriveImportOutcome(added: <CloudDriveEntry>[]);
+    }
+    final entry = entries.first;
+    onProgress?.call(entry, entry.size, entry.size);
+    final failure = CloudDriveImportFailure(
+      entry: entry,
+      message: 'Baidu download failed. Connection terminated during handshake',
+      errorKind: 'network',
+    );
+    onItemResult?.call(
+      CloudDriveImportItemResult.failed(entry: entry, failure: failure),
+    );
+    return CloudDriveImportOutcome(
+      added: const <CloudDriveEntry>[],
+      failures: [failure],
+    );
+  }
+}
+
+class _RetryableBaiduImportService extends _ImmediateBaiduImportService {
+  _RetryableBaiduImportService(this.failOnceFsId);
+
+  final int failOnceFsId;
+  final _failedFsIds = <int>{};
+  var importAudiosCalls = 0;
+
+  @override
+  Future<CloudDriveImportOutcome> importAudios({
+    required List<CloudDriveEntry> entries,
+    List<CloudDriveEntry> subtitleEntries = const <CloudDriveEntry>[],
+    required AudioLibrary audioLibrary,
+    required AudioLibraryState audioLibraryState,
+    CollectionList? collectionList,
+    CollectionState? collectionState,
+    String? collectionId,
+    CancelToken? cancelToken,
+    BaiduNetdiskImportProgressCallback? onProgress,
+    BaiduNetdiskImportItemResultCallback? onItemResult,
+  }) async {
+    importAudiosCalls += 1;
+    importedEntries = entries;
+    importedSubtitleEntries = subtitleEntries;
+    final added = <CloudDriveEntry>[];
+    final addedItems = <AudioItem>[];
+    final failures = <CloudDriveImportFailure>[];
+    for (final entry in entries) {
+      onProgress?.call(entry, entry.size, entry.size);
+      if (entry.fsId == failOnceFsId && _failedFsIds.add(entry.fsId)) {
+        final failure = CloudDriveImportFailure(
+          entry: entry,
+          message:
+              'Baidu download failed. Connection terminated during handshake',
+          errorKind: 'network',
+        );
+        failures.add(failure);
+        onItemResult?.call(
+          CloudDriveImportItemResult.failed(entry: entry, failure: failure),
+        );
+        continue;
+      }
+      final item = AudioItem(
+        id: 'baidu-${entry.fsId}',
+        name: entry.name.replaceFirst(RegExp(r'\.[^.]+$'), ''),
+        audioPath: 'audios/imported/${entry.fsId}.mp3',
+        addedDate: DateTime(2026, 7, 18),
+      );
+      added.add(entry);
+      addedItems.add(item);
+      await audioLibrary.addAudioItem(item);
+      onItemResult?.call(
+        CloudDriveImportItemResult.added(entry: entry, item: item),
+      );
+    }
+    return CloudDriveImportOutcome(
+      added: added,
+      addedItems: addedItems,
+      failures: failures,
+    );
   }
 }
 
@@ -369,7 +472,7 @@ class _MixedDuplicateBaiduImportService extends _ImmediateBaiduImportService {
     return CloudDriveImportOutcome(
       added: [added],
       addedItems: [item],
-      audioDuplicates: [
+      duplicateDetails: [
         (
           attempted: duplicate.name.replaceFirst(RegExp(r'\.[^.]+$'), ''),
           existing: '已存在课程',
@@ -501,6 +604,99 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('导入列表正在导入行显示下载速度百分比和失败摘要', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: ImportAudioSelectionList(
+              progress: const AudioImportSelectionProgress(
+                label: '正在导入 1/2：002-第一周-002-W1-英国文化拓展-很长很长的文件名.mp4',
+                value: 0.5,
+                progressPercent: 50,
+                speedBytesPerSecond: 512 * 1024,
+              ),
+              summary: const AudioImportSelectionSummary(
+                addedCount: 1,
+                subtitleCount: 0,
+                skippedCount: 0,
+                failedCount: 1,
+              ),
+              items: const [
+                AudioImportSelectionItem(
+                  id: 'lesson',
+                  displayName: '002-第一周-002-W1-英国文化拓展-很长很长的文件名.mp4',
+                  fileSize: 2 * 1024 * 1024,
+                  hasSubtitle: false,
+                  status: AudioImportSelectionStatus.importing,
+                ),
+                AudioImportSelectionItem(
+                  id: 'failed',
+                  displayName: 'failed.mp4',
+                  fileSize: 1024,
+                  hasSubtitle: false,
+                  status: AudioImportSelectionStatus.failed,
+                  failureMessage: 'Connection terminated during handshake',
+                ),
+              ],
+            ),
+          ),
+        ),
+        overrides: [
+          analyticsOverride(),
+          appSettingsProvider.overrideWith(
+            () => TestAppSettings(AppSettingsState(locale: const Locale('zh'))),
+          ),
+        ],
+        locale: const Locale('zh'),
+      ),
+    );
+
+    expect(find.text('512.0 KB/s · 50%'), findsOneWidget);
+    expect(find.textContaining('正在导入 1/2：002-第一周'), findsOneWidget);
+    expect(find.textContaining('成功导入 1 个素材'), findsOneWidget);
+    expect(find.text('失败 1 个'), findsOneWidget);
+    expect(find.byIcon(Icons.cancel_rounded), findsNWidgets(2));
+  });
+
+  testWidgets('导入列表速度采样为空时仍保留右侧速度占位', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: ImportAudioSelectionList(
+              progress: const AudioImportSelectionProgress(
+                label: '正在导入 1/3：lesson.mp4',
+                value: 0.15,
+                progressPercent: 15,
+              ),
+              items: const [
+                AudioImportSelectionItem(
+                  id: 'lesson',
+                  displayName: 'lesson.mp4',
+                  fileSize: 2 * 1024 * 1024,
+                  hasSubtitle: false,
+                  status: AudioImportSelectionStatus.importing,
+                ),
+              ],
+            ),
+          ),
+        ),
+        overrides: [
+          analyticsOverride(),
+          appSettingsProvider.overrideWith(
+            () => TestAppSettings(AppSettingsState(locale: const Locale('zh'))),
+          ),
+        ],
+        locale: const Locale('zh'),
+      ),
+    );
+
+    expect(find.text('0 B/s · 15%'), findsOneWidget);
+  });
+
   testWidgets('导入列表未开始导入时可显示删除入口', (tester) async {
     final removedIds = <String>[];
     await tester.pumpWidget(
@@ -540,7 +736,7 @@ void main() {
     expect(find.text('Import Audio'), findsOneWidget);
     expect(find.text('Import from File'), findsOneWidget);
     expect(find.text('Import from Link'), findsOneWidget);
-    expect(find.text('Import from Cloud Storage'), findsOneWidget);
+    expect(find.text('Import from Cloud Drive'), findsOneWidget);
     expect(find.text('Choose a cloud drive provider'), findsNothing);
     expect(find.text('Baidu Netdisk'), findsNothing);
 
@@ -565,7 +761,7 @@ void main() {
     expect(find.text('Import Audio'), findsOneWidget);
     expect(find.text('Import from File'), findsOneWidget);
     expect(find.text('Import from Link'), findsOneWidget);
-    expect(find.text('Import from Cloud Storage'), findsNothing);
+    expect(find.text('Import from Cloud Drive'), findsNothing);
     expect(
       find.byKey(const ValueKey('import-option-cloud-drive')),
       findsNothing,
@@ -634,7 +830,7 @@ void main() {
 
     // 本地文件入口已移除说明文案。
     expect(
-      find.text('Choose audio files from your device or cloud storage'),
+      find.text('Choose media files from your phone or cloud drive'),
       findsNothing,
     );
     expect(find.text('Import from File'), findsOneWidget);
@@ -646,10 +842,10 @@ void main() {
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Import from Cloud Storage'));
+    await tester.tap(find.text('Import from Cloud Drive'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Import from Cloud Storage'), findsOneWidget);
+    expect(find.text('Import from Cloud Drive'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('cloud-drive-option-baidu-netdisk')),
       findsOneWidget,
@@ -663,7 +859,7 @@ void main() {
     );
     expect(find.text('Baidu Netdisk'), findsOneWidget);
     expect(
-      find.text('Choose audio files from your Baidu cloud drive'),
+      find.text('Choose media files from your Baidu cloud drive'),
       findsNothing,
     );
     expect(find.text('Connect Baidu Netdisk'), findsNothing);
@@ -681,7 +877,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Storage'));
+    await tester.tap(find.text('Import from Cloud Drive'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -751,6 +947,14 @@ void main() {
           modifiedAt: DateTime(2026, 7, 18),
         ),
         CloudDriveEntry(
+          fsId: 6,
+          name: 'lesson-video.mp4',
+          path: '/lesson-video.mp4',
+          isDirectory: false,
+          size: 4096,
+          modifiedAt: DateTime(2026, 7, 18),
+        ),
+        CloudDriveEntry(
           fsId: 4,
           name: 'notes.txt',
           path: '/notes.txt',
@@ -783,19 +987,21 @@ void main() {
     expect(find.text('Up'), findsNothing);
     expect(find.text('网盘'), findsNothing);
     expect(find.text('返回'), findsNothing);
-    expect(find.text('此文件夹中没有支持的音频文件。'), findsNothing);
+    expect(find.text('此文件夹中没有支持的素材文件。'), findsNothing);
     expect(find.text('公开英语学习资源'), findsOneWidget);
     expect(find.text('lesson.mp3'), findsOneWidget);
     expect(find.text('lesson.srt'), findsOneWidget);
     expect(find.text('review.mp3'), findsOneWidget);
+    expect(find.text('lesson-video.mp4'), findsOneWidget);
     expect(find.text('notes.txt'), findsOneWidget);
     expect(find.text('2026/7/18 · 1.5 KB'), findsOneWidget);
     expect(find.text('2026/7/18 · 256 B'), findsOneWidget);
     expect(find.text('2026/7/18 · 3.0 KB'), findsOneWidget);
+    expect(find.text('2026/7/18 · 4.0 KB'), findsOneWidget);
     expect(find.text('2026/7/16 · 2.0 KB'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '全选'), findsNothing);
     expect(find.byIcon(Icons.logout), findsOneWidget);
-    expect(find.byType(Checkbox), findsNWidgets(3));
+    expect(find.byType(Checkbox), findsNWidgets(4));
     final titleCenterY = tester.getCenter(find.text('全部文件')).dy;
     final logoutCenterY = tester.getCenter(find.byIcon(Icons.logout)).dy;
     expect((logoutCenterY - titleCenterY).abs(), lessThan(24));
@@ -829,10 +1035,10 @@ void main() {
     final checkboxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
     expect(
       checkboxes.where((checkbox) => checkbox.value == true),
-      hasLength(3),
+      hasLength(4),
     );
     expect(
-      find.widgetWithText(FilledButton, '导入（2 个音频，1 个字幕）'),
+      find.widgetWithText(FilledButton, '导入（3 个素材，1 个字幕）'),
       findsOneWidget,
     );
   });
@@ -880,7 +1086,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, '全选'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频，1 个字幕）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材，1 个字幕）'));
     await tester.pumpAndSettle();
 
     expect(find.text('已选择 1 个文件  ·  1.5 KB'), findsOneWidget);
@@ -888,14 +1094,14 @@ void main() {
     expect(find.text('lesson.srt'), findsNothing);
     expect(find.byIcon(Icons.closed_caption_outlined), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频，1 个字幕）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材，1 个字幕）'));
     await tester.pumpAndSettle();
 
     expect(importService.importedEntries.single.name, 'lesson.mp3');
     expect(importService.importedSubtitleEntries.single.name, 'lesson.srt');
     expect(find.text('导入列表'), findsOneWidget);
     expect(find.text('lesson.mp3'), findsOneWidget);
-    expect(find.textContaining('成功导入 1 个音频'), findsOneWidget);
+    expect(find.textContaining('成功导入 1 个素材'), findsOneWidget);
     expect(find.textContaining('其中 1 个包含字幕'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '完成'), findsOneWidget);
   });
@@ -943,7 +1149,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, '全选'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个素材）'));
     await tester.pumpAndSettle();
 
     expect(find.text('导入列表'), findsOneWidget);
@@ -958,7 +1164,7 @@ void main() {
     expect(find.text('review.mp3'), findsOneWidget);
     expect(find.text('已选择 1 个文件  ·  2.0 KB'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
     await tester.pumpAndSettle();
 
     expect(importService.importedEntries.map((entry) => entry.name), [
@@ -1000,13 +1206,13 @@ void main() {
 
     await tester.tap(find.text('lesson.mp3'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
     await tester.pumpAndSettle();
 
     expect(find.text('导入列表'), findsOneWidget);
-    expect(find.textContaining('成功导入 0 个音频'), findsOneWidget);
+    expect(find.textContaining('成功导入 0 个素材'), findsOneWidget);
     expect(find.textContaining('跳过 1 个重复项'), findsOneWidget);
     expect(find.text('重复文件名: 已存在课程'), findsOneWidget);
     expect(find.byIcon(Icons.copy_all_outlined), findsNothing);
@@ -1015,6 +1221,125 @@ void main() {
     expect(find.byIcon(Icons.warning_amber_rounded), findsWidgets);
     expect(find.byIcon(Icons.cancel_rounded), findsNothing);
     expect(find.widgetWithText(FilledButton, '完成'), findsOneWidget);
+  });
+
+  testWidgets('百度网盘失败项在导入列表内展示红叉和错误原因', (tester) async {
+    final api = _StaticBaiduNetdiskApi({
+      '/': [
+        const CloudDriveEntry(
+          fsId: 2,
+          name: 'lesson.mp4',
+          path: '/lesson.mp4',
+          isDirectory: false,
+          size: 1536,
+        ),
+      ],
+    });
+    final importService = _FailingBaiduImportService();
+    await tester.pumpWidget(
+      _buildApp(
+        locale: const Locale('zh'),
+        overrides: [
+          baiduCredentialRepositoryProvider.overrideWithValue(
+            _TokenCredentialRepository(),
+          ),
+          baiduNetdiskApiProvider.overrideWithValue(api),
+          baiduNetdiskImportServiceProvider.overrideWithValue(importService),
+        ],
+      ),
+    );
+    await tester.tap(find.text('Open Import'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('从网盘导入'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('百度网盘'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('lesson.mp4'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('导入列表'), findsOneWidget);
+    expect(find.textContaining('成功导入 0 个素材'), findsOneWidget);
+    expect(
+      find.text(
+        'Baidu download failed. Connection terminated during handshake',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+    expect(find.text('失败 1 个'), findsOneWidget);
+    expect(find.byIcon(Icons.cancel_rounded), findsNWidgets(2));
+    expect(find.widgetWithText(FilledButton, '完成'), findsOneWidget);
+  });
+
+  testWidgets('百度网盘失败项鼠标悬停后可单独重试', (tester) async {
+    final api = _StaticBaiduNetdiskApi({
+      '/': [
+        const CloudDriveEntry(
+          fsId: 2,
+          name: 'lesson.mp4',
+          path: '/lesson.mp4',
+          isDirectory: false,
+          size: 1536,
+        ),
+      ],
+    });
+    final importService = _RetryableBaiduImportService(2);
+    await tester.pumpWidget(
+      _buildApp(
+        locale: const Locale('zh'),
+        overrides: [
+          baiduCredentialRepositoryProvider.overrideWithValue(
+            _TokenCredentialRepository(),
+          ),
+          baiduNetdiskApiProvider.overrideWithValue(api),
+          baiduNetdiskImportServiceProvider.overrideWithValue(importService),
+        ],
+      ),
+    );
+    await tester.tap(find.text('Open Import'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('从网盘导入'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('百度网盘'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('lesson.mp4'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.cancel_rounded), findsNWidgets(2));
+    expect(find.byIcon(Icons.refresh_rounded), findsNothing);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer();
+    await mouse.moveTo(tester.getCenter(find.text('lesson.mp4')));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.cancel_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.refresh_rounded));
+    await tester.pumpAndSettle();
+
+    expect(importService.importAudiosCalls, 2);
+    expect(importService.importedEntries.single.name, 'lesson.mp4');
+    expect(find.byIcon(Icons.check_circle), findsWidgets);
+    expect(find.byIcon(Icons.cancel_rounded), findsNothing);
+    expect(
+      find.text(
+        'Baidu download failed. Connection terminated during handshake',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('百度网盘成功项无字幕时摘要不误报包含字幕', (tester) async {
@@ -1067,9 +1392,9 @@ void main() {
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, '全选'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个音频，1 个字幕）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个素材，1 个字幕）'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个音频，1 个字幕）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（2 个素材，1 个字幕）'));
     await tester.pumpAndSettle();
 
     expect(importService.importedEntries.map((entry) => entry.name), [
@@ -1077,7 +1402,7 @@ void main() {
       'fresh.mp3',
     ]);
     expect(importService.importedSubtitleEntries.single.name, 'duplicate.lrc');
-    expect(find.textContaining('成功导入 1 个音频'), findsOneWidget);
+    expect(find.textContaining('成功导入 1 个素材'), findsOneWidget);
     expect(find.textContaining('其中 1 个包含字幕'), findsNothing);
     expect(find.byIcon(Icons.closed_caption_outlined), findsOneWidget);
     expect(find.byIcon(Icons.warning_amber_rounded), findsNWidgets(2));
@@ -1125,9 +1450,9 @@ void main() {
 
     await tester.tap(find.text('lesson.mp3'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个音频）'));
+    await tester.tap(find.widgetWithText(FilledButton, '导入（1 个素材）'));
     await tester.pump();
 
     expect(find.text('已选择 1 个文件  ·  2.0 KB'), findsOneWidget);
@@ -1230,7 +1555,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Storage'));
+    await tester.tap(find.text('Import from Cloud Drive'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -1263,7 +1588,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Storage'));
+    await tester.tap(find.text('Import from Cloud Drive'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -1434,7 +1759,10 @@ void main() {
     await tester.tap(find.text('Paste Link'));
     await tester.pump();
 
-    expect(find.text('Clipboard does not have a valid link'), findsOneWidget);
+    expect(
+      find.text('Clipboard does not contain a valid link'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('链接导入页可返回导入方式选择页', (tester) async {
@@ -1500,7 +1828,7 @@ void main() {
 
     expect(find.text('Import complete'), findsOneWidget);
     // 完成页展示成功导入计数与其中带字幕数量。
-    expect(find.text('1 audio files imported'), findsOneWidget);
+    expect(find.text('1 items imported'), findsOneWidget);
     expect(find.text('0 with subtitles'), findsOneWidget);
     expect(find.text('Done'), findsOneWidget);
     // 字幕已自动匹配，完成页不再提示添加字幕。

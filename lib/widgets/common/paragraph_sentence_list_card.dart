@@ -49,6 +49,18 @@ bool isTargetWellCentered({
   return (leadingEdge - 0.5).abs() <= tolerance;
 }
 
+/// 判断列表中的句子集合或顺序是否真正变化。
+///
+/// provider 的派生 getter 可能在每次播放进度更新时返回新 List；不能
+/// 用 List 实例身份判断段落变化，否则会持续重启自动滚动并吞掉 item 点击。
+bool _sentenceSequenceChanged(List<Sentence> previous, List<Sentence> next) {
+  if (previous.length != next.length) return true;
+  for (var i = 0; i < previous.length; i += 1) {
+    if (previous[i].index != next[i].index) return true;
+  }
+  return false;
+}
+
 /// 初次定位淡入层的 key（供测试断言「居中完成前列表隐藏」）。
 @visibleForTesting
 const Key kParagraphListInitialFocusKey = ValueKey(
@@ -190,7 +202,10 @@ class _ParagraphSentenceListCardState extends State<ParagraphSentenceListCard>
     super.didUpdateWidget(oldWidget);
     final playingChanged =
         widget.playingSentenceIndex != oldWidget.playingSentenceIndex;
-    final paragraphChanged = widget.sentences != oldWidget.sentences;
+    final paragraphChanged = _sentenceSequenceChanged(
+      oldWidget.sentences,
+      widget.sentences,
+    );
     final focusReenabled =
         !oldWidget.autoFocusEnabled && widget.autoFocusEnabled;
 

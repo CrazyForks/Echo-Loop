@@ -368,4 +368,60 @@ void main() {
       expect(container.read(audioLibraryProvider).audioItems.length, 1);
     });
   });
+
+  group('AudioLibrary.checkAudioContent', () {
+    late Directory tempDir;
+    late ProviderContainer container;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('audio_library_check_');
+      appDataDirectoryOverride = tempDir;
+      final db = createTestDatabase();
+      container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          analyticsOverride(),
+          usageOverride(),
+          collectionListProvider.overrideWith(
+            () => TestCollectionList(const CollectionState()),
+          ),
+          tagListProvider.overrideWith(() => TestTagList(const TagState())),
+          learningProgressNotifierProvider.overrideWith(
+            () => TestLearningProgressNotifier(const LearningProgressState()),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await db.close();
+      });
+    });
+
+    tearDown(() async {
+      appDataDirectoryOverride = null;
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('视频条目直接早退，不写入 contentStatus', () async {
+      final notifier = container.read(audioLibraryProvider.notifier);
+      await notifier.addAudioItems([
+        createTestAudioItem(
+          id: 'v-1',
+          name: 'video',
+          audioPath: 'videos/clip.mp4',
+        ),
+      ]);
+
+      await notifier.checkAudioContent('v-1');
+
+      final it = container
+          .read(audioLibraryProvider)
+          .audioItems
+          .singleWhere((e) => e.id == 'v-1');
+      expect(it.isVideo, isTrue);
+      expect(it.contentStatus, isNull);
+    });
+  });
 }

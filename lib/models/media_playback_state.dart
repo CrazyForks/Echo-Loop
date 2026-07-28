@@ -1,0 +1,155 @@
+import 'audio_item.dart';
+import 'listening_practice_state.dart';
+import 'playback_settings.dart';
+import 'sentence.dart';
+
+/// media_kit 随心听页面的业务状态。
+///
+/// 该状态面向未来音频/视频共用的媒体播放器；当前仅由带画面轨的媒体入口使用。
+class MediaPlaybackState {
+  const MediaPlaybackState({
+    this.audioItem,
+    this.sentences = const [],
+    this.currentFullIndex,
+    this.currentBookmarkIndex,
+    this.lastPlayedFullIndex,
+    this.lastPlayedBookmarkIndex,
+    this.fullSettings = const PlaybackSettings(),
+    this.bookmarkSettings = kDefaultBookmarkPlaybackSettings,
+    this.playlistMode = PlaylistMode.full,
+    this.bookmarkedIndices = const {},
+    this.isLoading = false,
+    this.isTranscriptLoading = false,
+    this.errorMessage,
+    this.isPlaying = false,
+    this.wholeLoopsDone = 0,
+    this.sentenceRepeatsDone = 0,
+    this.position = Duration.zero,
+    this.duration,
+    this.visualTrackVisible = true,
+    this.visualTrackExpanded = false,
+    this.videoSubtitleVisible = false,
+    this.isLandscapeVideo,
+    this.videoAspectRatio,
+  });
+
+  final AudioItem? audioItem;
+  final List<Sentence> sentences;
+  final int? currentFullIndex;
+  final int? currentBookmarkIndex;
+  final int? lastPlayedFullIndex;
+  final int? lastPlayedBookmarkIndex;
+  final PlaybackSettings fullSettings;
+  final PlaybackSettings bookmarkSettings;
+  final PlaylistMode playlistMode;
+  final Set<int> bookmarkedIndices;
+  final bool isLoading;
+  final bool isTranscriptLoading;
+  final String? errorMessage;
+  final bool isPlaying;
+  final int wholeLoopsDone;
+  final int sentenceRepeatsDone;
+  final Duration position;
+  final Duration? duration;
+  final bool visualTrackVisible;
+  final bool visualTrackExpanded;
+  final bool videoSubtitleVisible;
+  final bool? isLandscapeVideo;
+  final double? videoAspectRatio;
+
+  PlaybackSettings get settings =>
+      playlistMode == PlaylistMode.bookmarks ? bookmarkSettings : fullSettings;
+
+  List<Sentence> get bookmarkedSentences =>
+      sentences.where((s) => bookmarkedIndices.contains(s.index)).toList();
+
+  bool get hasMedia => audioItem != null;
+  bool get hasSentences => sentences.isNotEmpty;
+
+  MediaPlaybackState copyWith({
+    AudioItem? audioItem,
+    bool clearAudioItem = false,
+    List<Sentence>? sentences,
+    int? currentFullIndex,
+    bool clearCurrentFullIndex = false,
+    int? currentBookmarkIndex,
+    bool clearCurrentBookmarkIndex = false,
+    int? lastPlayedFullIndex,
+    bool clearLastPlayedFullIndex = false,
+    int? lastPlayedBookmarkIndex,
+    bool clearLastPlayedBookmarkIndex = false,
+    PlaybackSettings? fullSettings,
+    PlaybackSettings? bookmarkSettings,
+    PlaybackSettings? settings,
+    PlaylistMode? playlistMode,
+    Set<int>? bookmarkedIndices,
+    bool? isLoading,
+    bool? isTranscriptLoading,
+    String? errorMessage,
+    bool clearErrorMessage = false,
+    bool? isPlaying,
+    int? wholeLoopsDone,
+    int? sentenceRepeatsDone,
+    Duration? position,
+    Duration? duration,
+    bool clearDuration = false,
+    bool? visualTrackVisible,
+    bool? visualTrackExpanded,
+    bool? videoSubtitleVisible,
+    bool? isLandscapeVideo,
+    bool clearIsLandscapeVideo = false,
+    double? videoAspectRatio,
+    bool clearVideoAspectRatio = false,
+  }) {
+    final nextPlaylistMode = playlistMode ?? this.playlistMode;
+    var nextFullSettings = fullSettings ?? this.fullSettings;
+    var nextBookmarkSettings = bookmarkSettings ?? this.bookmarkSettings;
+    if (settings != null) {
+      if (nextPlaylistMode == PlaylistMode.bookmarks) {
+        nextBookmarkSettings = settings;
+      } else {
+        nextFullSettings = settings;
+      }
+    }
+
+    return MediaPlaybackState(
+      audioItem: clearAudioItem ? null : audioItem ?? this.audioItem,
+      sentences: sentences ?? this.sentences,
+      currentFullIndex: clearCurrentFullIndex
+          ? null
+          : currentFullIndex ?? this.currentFullIndex,
+      currentBookmarkIndex: clearCurrentBookmarkIndex
+          ? null
+          : currentBookmarkIndex ?? this.currentBookmarkIndex,
+      lastPlayedFullIndex: clearLastPlayedFullIndex
+          ? null
+          : lastPlayedFullIndex ?? this.lastPlayedFullIndex,
+      lastPlayedBookmarkIndex: clearLastPlayedBookmarkIndex
+          ? null
+          : lastPlayedBookmarkIndex ?? this.lastPlayedBookmarkIndex,
+      fullSettings: nextFullSettings,
+      bookmarkSettings: nextBookmarkSettings,
+      playlistMode: nextPlaylistMode,
+      bookmarkedIndices: bookmarkedIndices ?? this.bookmarkedIndices,
+      isLoading: isLoading ?? this.isLoading,
+      isTranscriptLoading: isTranscriptLoading ?? this.isTranscriptLoading,
+      errorMessage: clearErrorMessage
+          ? null
+          : errorMessage ?? this.errorMessage,
+      isPlaying: isPlaying ?? this.isPlaying,
+      wholeLoopsDone: wholeLoopsDone ?? this.wholeLoopsDone,
+      sentenceRepeatsDone: sentenceRepeatsDone ?? this.sentenceRepeatsDone,
+      position: position ?? this.position,
+      duration: clearDuration ? null : duration ?? this.duration,
+      visualTrackVisible: visualTrackVisible ?? this.visualTrackVisible,
+      visualTrackExpanded: visualTrackExpanded ?? this.visualTrackExpanded,
+      videoSubtitleVisible: videoSubtitleVisible ?? this.videoSubtitleVisible,
+      isLandscapeVideo: clearIsLandscapeVideo
+          ? null
+          : isLandscapeVideo ?? this.isLandscapeVideo,
+      videoAspectRatio: clearVideoAspectRatio
+          ? null
+          : videoAspectRatio ?? this.videoAspectRatio,
+    );
+  }
+}

@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/learning_progress.dart';
 import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
@@ -29,16 +30,36 @@ class LearningProgressIcon extends ConsumerWidget {
   /// 环形进度条宽度
   final double strokeWidth;
 
+  /// 是否为视频条目：为 true 时中心媒体图标用视频图标（而非音频波形）。
+  final bool isVideo;
+
   const LearningProgressIcon({
     super.key,
     this.progress,
     this.size = 40.0,
     this.iconSize = 20.0,
     this.strokeWidth = 3.0,
+    this.isVideo = false,
   });
+
+  /// 视频条目左侧媒体图标资源。
+  static const _videoIconAsset = 'assets/icon/video-2.svg';
 
   /// 已完成状态的绿色
   static const completedColor = Color(0xFF4CAF50);
+
+  /// 构建中心媒体图标：视频用 [_videoIconAsset]，音频用波形 [Icons.graphic_eq]。
+  Widget _mediaGlyph(Color color) {
+    if (isVideo) {
+      return SvgPicture.asset(
+        _videoIconAsset,
+        width: iconSize,
+        height: iconSize,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+    }
+    return Icon(Icons.graphic_eq, size: iconSize, color: color);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,11 +83,8 @@ class LearningProgressIcon extends ConsumerWidget {
           shape: BoxShape.circle,
           color: theme.colorScheme.surfaceContainerHighest,
         ),
-        child: Icon(
-          Icons.graphic_eq,
-          size: iconSize,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        alignment: Alignment.center,
+        child: _mediaGlyph(theme.colorScheme.onSurfaceVariant),
       );
     }
 
@@ -136,11 +154,7 @@ class LearningProgressIcon extends ConsumerWidget {
               backgroundColor: theme.colorScheme.surfaceContainerHighest,
             ),
           ),
-          Icon(
-            Icons.graphic_eq,
-            size: iconSize,
-            color: theme.colorScheme.primary,
-          ),
+          _mediaGlyph(theme.colorScheme.primary),
         ],
       ),
     );

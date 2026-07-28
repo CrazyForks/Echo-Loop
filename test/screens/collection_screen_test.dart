@@ -95,9 +95,9 @@ void main() {
         // 合集名称
         expect(find.text('English Lessons'), findsOneWidget);
         expect(find.text('Podcasts'), findsOneWidget);
-        // 音频数量（列表模式下 audioCount 与日期组合显示）
-        expect(find.textContaining('2 audios'), findsOneWidget);
-        expect(find.textContaining('1 audios'), findsOneWidget);
+        // 素材数量（列表模式下 audioCount 与日期组合显示）
+        expect(find.textContaining('2 items'), findsOneWidget);
+        expect(find.textContaining('1 items'), findsOneWidget);
         expect(find.textContaining('Updated 5 minutes ago'), findsNWidgets(2));
         expect(find.textContaining('Added'), findsNothing);
       });

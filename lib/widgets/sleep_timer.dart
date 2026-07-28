@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/listening_practice/sleep_timer_provider.dart';
+import '../providers/media_playback/media_sleep_timer_provider.dart';
 import '../theme/app_theme.dart';
 import 'common/anchored_bubble.dart';
 
@@ -25,7 +26,12 @@ String _formatRemaining(Duration d) {
 /// 未激活用弱化 [Icons.timer_outlined]；激活态改为轻量倒计时胶囊，直接在 AppBar
 /// 暴露剩余时间，同时仍保持低视觉权重。
 class SleepTimerButton extends ConsumerStatefulWidget {
-  const SleepTimerButton({super.key});
+  const SleepTimerButton({super.key, this.forMediaPlayback = false});
+
+  /// 媒体随心听入口：复用同一套菜单与倒计时展示，到点暂停 media_kit 播放器。
+  const SleepTimerButton.mediaPlayback({super.key}) : forMediaPlayback = true;
+
+  final bool forMediaPlayback;
 
   @override
   ConsumerState<SleepTimerButton> createState() => _SleepTimerButtonState();
@@ -42,7 +48,9 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final timerState = ref.watch(sleepTimerProvider);
+    final timerState = widget.forMediaPlayback
+        ? ref.watch(mediaSleepTimerProvider)
+        : ref.watch(sleepTimerProvider);
     final isActive = timerState.isActive;
     final colorScheme = Theme.of(context).colorScheme;
     final remaining = timerState.remaining;
@@ -56,8 +64,10 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
       controller: _portalController,
       direction: BubbleDirection.down,
       width: _popupWidth,
-      contentBuilder: (_) =>
-          _SleepTimerPopup(onSelected: _portalController.hide),
+      contentBuilder: (_) => _SleepTimerPopup(
+        onSelected: _portalController.hide,
+        forMediaPlayback: widget.forMediaPlayback,
+      ),
       child: Semantics(
         button: true,
         label: label,
@@ -132,17 +142,22 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
 /// 卡片内的预设列表。未激活：列出预设时长，点选即启动并关闭浮层。激活中：显示「关闭
 /// 定时」与预设列表，当前档位打勾，用户可直接切到其他时长完成重设。
 class _SleepTimerPopup extends ConsumerWidget {
-  const _SleepTimerPopup({required this.onSelected});
+  const _SleepTimerPopup({
+    required this.onSelected,
+    required this.forMediaPlayback,
+  });
 
   /// 选择预设/关闭后回调（用于收起浮层）。
   final VoidCallback onSelected;
+  final bool forMediaPlayback;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final timerState = ref.watch(sleepTimerProvider);
-    final controller = ref.read(sleepTimerProvider.notifier);
+    final timerState = forMediaPlayback
+        ? ref.watch(mediaSleepTimerProvider)
+        : ref.watch(sleepTimerProvider);
     final activeMinutes = timerState.presetMinutes;
 
     final children = <Widget>[];
@@ -172,7 +187,11 @@ class _SleepTimerPopup extends ConsumerWidget {
           label: l10n.sleepTimerOff,
           color: theme.colorScheme.error,
           onTap: () {
-            controller.cancel();
+            if (forMediaPlayback) {
+              ref.read(mediaSleepTimerProvider.notifier).cancel();
+            } else {
+              ref.read(sleepTimerProvider.notifier).cancel();
+            }
             onSelected();
           },
         ),
@@ -194,7 +213,15 @@ class _SleepTimerPopup extends ConsumerWidget {
               : null,
           selected: selected,
           onTap: () {
-            controller.start(Duration(minutes: minutes));
+            if (forMediaPlayback) {
+              ref
+                  .read(mediaSleepTimerProvider.notifier)
+                  .start(Duration(minutes: minutes));
+            } else {
+              ref
+                  .read(sleepTimerProvider.notifier)
+                  .start(Duration(minutes: minutes));
+            }
             onSelected();
           },
         ),

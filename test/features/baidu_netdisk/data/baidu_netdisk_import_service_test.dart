@@ -15,6 +15,7 @@ import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 class _FakeCredentialRepository implements BaiduCredentialRepository {
   _FakeCredentialRepository(this.accessToken);
@@ -51,22 +52,34 @@ class _FakeBaiduNetdiskApi implements BaiduNetdiskApi {
   int downloadCalls = 0;
   String? lastAccessToken;
   String? lastSavePath;
+  String? lastIdentityKey;
+  final downloadedDlinks = <String>[];
   List<int> bytes = const [1, 2, 3, 4];
   Map<int, List<int>> bytesByFsId = const <int, List<int>>{};
+  Map<int, Object> downloadErrorsByFsId = const <int, Object>{};
 
   @override
   Future<void> downloadToFile({
     required String accessToken,
     required String dlink,
     required String savePath,
+    String? identityKey,
     int? expectedSize,
+    bool allowResume = true,
     CancelToken? cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) async {
     downloadCalls += 1;
     lastAccessToken = accessToken;
     lastSavePath = savePath;
-    final fsId = int.tryParse(dlink.split('/').last);
+    lastIdentityKey = identityKey;
+    downloadedDlinks.add(dlink);
+    final fsId = int.tryParse(Uri.parse(dlink).pathSegments.last);
+    final error = fsId == null ? null : downloadErrorsByFsId[fsId];
+    if (error != null) {
+      downloadErrorsByFsId = {...downloadErrorsByFsId}..remove(fsId);
+      throw error;
+    }
     final content = fsId == null ? bytes : bytesByFsId[fsId] ?? bytes;
     onProgress?.call(content.length, expectedSize);
     await File(savePath).writeAsBytes(content);
@@ -81,7 +94,7 @@ class _FakeBaiduNetdiskApi implements BaiduNetdiskApi {
     lastAccessToken = accessToken;
     return BaiduDownloadLink(
       fsId: fsId,
-      dlink: 'https://d.pcs.baidu.com/file/$fsId',
+      dlink: 'https://d.pcs.baidu.com/file/$fsId?v=$fetchDownloadLinkCalls',
       size: (bytesByFsId[fsId] ?? bytes).length,
     );
   }
@@ -132,6 +145,13 @@ void main() {
       isDirectory: false,
       size: 45,
     );
+    const videoEntry = CloudDriveEntry(
+      fsId: 44,
+      name: 'Lesson Video.mp4',
+      path: '/英语/Lesson Video.mp4',
+      isDirectory: false,
+      size: 4,
+    );
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('baidu-import-test-');
@@ -173,6 +193,8 @@ void main() {
       expect(api.fetchDownloadLinkCalls, 1);
       expect(api.downloadCalls, 1);
       expect(api.lastAccessToken, 'access-token');
+      expect(api.lastIdentityKey, 'baidu:42:4');
+      expect(p.basename(api.lastSavePath!), '42.mp3');
       expect(item.name, 'Lesson 1');
       expect(item.totalDuration, 12);
       expect(item.importSourceType, AudioImportSourceType.cloudDrive);
@@ -180,6 +202,53 @@ void main() {
       expect(item.audioPath, 'audios/imported/sha256.mp3');
       expect(File('${tempDir.path}/${item.audioPath}').existsSync(), isTrue);
       expect(progresses, [4]);
+    });
+
+    test('视频文件从百度网盘导入后落 videos 目录并派生为视频素材', () async {
+      final container = ProviderContainer(
+        overrides: [audioLibraryProvider.overrideWith(_FakeAudioLibrary.new)],
+      );
+      addTearDown(container.dispose);
+
+      final item = await service.importAudio(
+        entry: videoEntry,
+        audioLibrary: container.read(audioLibraryProvider.notifier),
+        audioLibraryState: container.read(audioLibraryProvider),
+      );
+
+      expect(api.fetchDownloadLinkCalls, 1);
+      expect(api.downloadCalls, 1);
+      expect(item.name, 'Lesson Video');
+      expect(item.audioPath, 'videos/sha256.mp4');
+      expect(item.isVideo, isTrue);
+      expect(File('${tempDir.path}/${item.audioPath}').existsSync(), isTrue);
+    });
+
+    test('dlink 下载失败时刷新一次链接后继续下载', () async {
+      api.downloadErrorsByFsId = {
+        entry.fsId: const BaiduNetdiskFileException(
+          kind: BaiduNetdiskFileErrorKind.notFound,
+          message: 'expired dlink',
+        ),
+      };
+      final container = ProviderContainer(
+        overrides: [audioLibraryProvider.overrideWith(_FakeAudioLibrary.new)],
+      );
+      addTearDown(container.dispose);
+
+      final item = await service.importAudio(
+        entry: entry,
+        audioLibrary: container.read(audioLibraryProvider.notifier),
+        audioLibraryState: container.read(audioLibraryProvider),
+      );
+
+      expect(api.fetchDownloadLinkCalls, 2);
+      expect(api.downloadCalls, 2);
+      expect(api.downloadedDlinks, [
+        'https://d.pcs.baidu.com/file/42?v=1',
+        'https://d.pcs.baidu.com/file/42?v=2',
+      ]);
+      expect(item.name, 'Lesson 1');
     });
 
     test('未授权时要求重新授权且不下载', () async {
@@ -278,12 +347,45 @@ void main() {
       );
 
       expect(outcome.added, isEmpty);
-      expect(outcome.duplicates, [entry]);
+      expect(outcome.duplicateEntries, [entry]);
       expect(outcome.failures, isEmpty);
       expect(itemResults.single.status, CloudDriveImportItemStatus.duplicate);
       expect(itemResults.single.entry, entry);
       expect(itemResults.single.duplicateExistingName, 'Existing');
       expect(File(api.lastSavePath!).existsSync(), isFalse);
+    });
+
+    test('批量导入单条普通异常转为失败并继续后续素材', () async {
+      const failedEntry = entry;
+      const nextEntry = CloudDriveEntry(
+        fsId: 45,
+        name: 'Lesson 2.mp3',
+        path: '/英语/Lesson 2.mp3',
+        isDirectory: false,
+        size: 4,
+      );
+      api.downloadErrorsByFsId = {failedEntry.fsId: StateError('TLS failed')};
+      final container = ProviderContainer(
+        overrides: [audioLibraryProvider.overrideWith(_FakeAudioLibrary.new)],
+      );
+      addTearDown(container.dispose);
+      final itemResults = <CloudDriveImportItemResult>[];
+
+      final outcome = await service.importAudios(
+        entries: [failedEntry, nextEntry],
+        audioLibrary: container.read(audioLibraryProvider.notifier),
+        audioLibraryState: container.read(audioLibraryProvider),
+        onItemResult: itemResults.add,
+      );
+
+      expect(outcome.failures.single.entry, failedEntry);
+      expect(outcome.failures.single.message, contains('TLS failed'));
+      expect(outcome.added, [nextEntry]);
+      expect(outcome.addedItems.single.name, 'Lesson 2');
+      expect(itemResults.map((result) => result.status), [
+        CloudDriveImportItemStatus.failed,
+        CloudDriveImportItemStatus.added,
+      ]);
     });
 
     test('批量导入时下载并挂载同名字幕', () async {

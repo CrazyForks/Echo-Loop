@@ -25,8 +25,6 @@ class LoopSettingsPopup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
     final settings = ref.watch(
       listeningPracticeProvider.select((s) => s.settings),
     );
@@ -36,7 +34,34 @@ class LoopSettingsPopup extends ConsumerWidget {
     );
     final controller = ref.read(listeningPracticeProvider.notifier);
 
-    void update(PlaybackSettings next) => controller.updateSettings(next);
+    return LoopSettingsContent(
+      settings: settings,
+      hasSentences: hasSentences,
+      onChanged: controller.updateSettings,
+    );
+  }
+}
+
+/// 可由不同播放控制器复用的循环设置内容。
+///
+/// 组件只负责整篇/单句循环的展示与交互，状态来源和持久化由调用方通过 [onChanged]
+/// 注入，确保音频与媒体随心听共用同一套次数、间隔和布局规则。
+class LoopSettingsContent extends StatelessWidget {
+  const LoopSettingsContent({
+    super.key,
+    required this.settings,
+    required this.hasSentences,
+    required this.onChanged,
+  });
+
+  final PlaybackSettings settings;
+  final bool hasSentences;
+  final ValueChanged<PlaybackSettings> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -54,10 +79,12 @@ class LoopSettingsPopup extends ConsumerWidget {
             enabled: settings.loopWhole,
             count: settings.wholeLoopCount,
             intervalSeconds: settings.wholeInterval.inSeconds,
-            onEnabledChanged: (v) => update(settings.copyWith(loopWhole: v)),
-            onCountChanged: (v) => update(settings.copyWith(wholeLoopCount: v)),
-            onIntervalChanged: (v) =>
-                update(settings.copyWith(wholeInterval: Duration(seconds: v))),
+            onEnabledChanged: (v) => onChanged(settings.copyWith(loopWhole: v)),
+            onCountChanged: (v) =>
+                onChanged(settings.copyWith(wholeLoopCount: v)),
+            onIntervalChanged: (v) => onChanged(
+              settings.copyWith(wholeInterval: Duration(seconds: v)),
+            ),
           ),
           // 单句循环（无字幕时隐藏，连同分隔线）
           if (hasSentences) ...[
@@ -76,10 +103,10 @@ class LoopSettingsPopup extends ConsumerWidget {
               count: settings.sentenceLoopCount,
               intervalSeconds: settings.sentenceInterval.inSeconds,
               onEnabledChanged: (v) =>
-                  update(settings.copyWith(loopSentence: v)),
+                  onChanged(settings.copyWith(loopSentence: v)),
               onCountChanged: (v) =>
-                  update(settings.copyWith(sentenceLoopCount: v)),
-              onIntervalChanged: (v) => update(
+                  onChanged(settings.copyWith(sentenceLoopCount: v)),
+              onIntervalChanged: (v) => onChanged(
                 settings.copyWith(sentenceInterval: Duration(seconds: v)),
               ),
             ),

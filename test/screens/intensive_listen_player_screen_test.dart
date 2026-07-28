@@ -1,4 +1,6 @@
 // 精听播放器页面测试
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart';
+import 'package:echo_loop/models/media_intensive_listen_startup.dart';
+import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/screens/intensive_listen_player_screen.dart';
 import 'package:echo_loop/providers/listening_practice/listening_practice_provider.dart';
@@ -87,9 +91,12 @@ class _RecordingIntensiveListenPlayer extends TestIntensiveListenPlayer {
   int goToNextCalls = 0;
   int goToPreviousCalls = 0;
   int goToSentenceCalls = 0;
+  int startPlayingCalls = 0;
 
   @override
-  Future<void> startPlaying() async {}
+  Future<void> startPlaying() async {
+    startPlayingCalls += 1;
+  }
 
   @override
   Future<void> pause() async {
@@ -178,6 +185,7 @@ void main() {
     bool isCurrentSentenceAutoMarked = false,
     bool isCountdownPaused = false,
     bool isCountdownFastForward = false,
+    bool usesMediaEngine = false,
   }) {
     return IntensiveListenState(
       currentSentenceIndex: currentSentenceIndex,
@@ -198,6 +206,7 @@ void main() {
       isCurrentSentenceAutoMarked: isCurrentSentenceAutoMarked,
       isCountdownPaused: isCountdownPaused,
       isCountdownFastForward: isCountdownFastForward,
+      usesMediaEngine: usesMediaEngine,
     );
   }
 
@@ -223,6 +232,7 @@ void main() {
     _TestBookmarkDao? bookmarkDao,
     List<Override> extraOverrides = const [],
     bool startAtHome = false,
+    MediaIntensiveListenStartup? mediaStartup,
     TestIntensiveListenPlayer Function(
       IntensiveListenState initialState,
       List<Sentence> sentences,
@@ -257,6 +267,7 @@ void main() {
             return IntensiveListenPlayerScreen(
               collectionId: collectionId,
               audioItemId: audioId,
+              mediaStartup: mediaStartup,
             );
           },
         ),
@@ -314,6 +325,75 @@ void main() {
   }
 
   group('IntensiveListenPlayerScreen', () {
+    testWidgets('视频启动任务未完成时立即显示精听页加载动画', (tester) async {
+      final load = Completer<MediaLoadResult>();
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(usesMediaEngine: true),
+          mediaStartup: MediaIntensiveListenStartup(
+            loadKey: 'video-1',
+            load: () => load.future,
+            cancel: () async {},
+          ),
+          playerFactory: (state, sentences) =>
+              player = _RecordingIntensiveListenPlayer(state, sentences),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Intensive Listening'), findsOneWidget);
+      expect(find.text('Loading video…'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.tune), findsNothing);
+      expect(player.startPlayingCalls, 0);
+
+      load.complete(MediaLoadResult.ready);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('media-video-canvas')), findsOneWidget);
+      expect(find.byIcon(Icons.tune), findsOneWidget);
+      expect(player.startPlayingCalls, 1);
+    });
+
+    testWidgets('视频加载中关闭会取消任务并返回入口页', (tester) async {
+      final load = Completer<MediaLoadResult>();
+      var cancelCalls = 0;
+      await tester.pumpWidget(
+        createTestWidget(
+          startAtHome: true,
+          mediaStartup: MediaIntensiveListenStartup(
+            loadKey: 'video-1',
+            load: () => load.future,
+            cancel: () async => cancelCalls += 1,
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open player'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Loading video…'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open player'), findsOneWidget);
+      expect(cancelCalls, greaterThanOrEqualTo(1));
+    });
+
+    testWidgets('视频会话显示共享画面', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(playerState: createPlayerState(usesMediaEngine: true)),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('media-video-canvas')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('media-visual-surface')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('显示精听 AppBar 标题', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();

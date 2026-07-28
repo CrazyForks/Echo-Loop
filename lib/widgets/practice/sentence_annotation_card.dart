@@ -168,6 +168,9 @@ class SentenceAnnotationCard extends StatefulWidget {
   /// 新手引导步骤：指向解析按钮
   final GuideStep? analysisGuideStep;
 
+  /// 原文与译文的横向内边距；解析面板始终占满可用宽度。
+  final double contentHorizontalPadding;
+
   const SentenceAnnotationCard({
     super.key,
     required this.text,
@@ -204,6 +207,7 @@ class SentenceAnnotationCard extends StatefulWidget {
     this.senseGroupGuideStep,
     this.translationGuideStep,
     this.analysisGuideStep,
+    this.contentHorizontalPadding = 0,
   });
 
   @override
@@ -971,7 +975,9 @@ class SentenceAnnotationCardState extends State<SentenceAnnotationCard> {
         _wrapGuide(
           widget.sentenceGuideStep,
           Padding(
-            padding: const EdgeInsets.only(
+            padding: EdgeInsets.only(
+              left: widget.contentHorizontalPadding,
+              right: widget.contentHorizontalPadding,
               top: _sentenceTopPadding,
               bottom: _sentenceBottomPadding,
             ),
@@ -1013,7 +1019,9 @@ class SentenceAnnotationCardState extends State<SentenceAnnotationCard> {
         );
       case ContentLoadState.loaded:
         content = Padding(
-          padding: EdgeInsets.zero,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.contentHorizontalPadding,
+          ),
           child: Text(
             _translationContent ?? '',
             style: theme.textTheme.bodyMedium?.copyWith(

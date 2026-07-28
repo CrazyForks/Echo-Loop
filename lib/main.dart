@@ -48,6 +48,7 @@ import 'package:path_provider/path_provider.dart';
 import 'services/asr/asr_model_manager.dart';
 import 'services/asr/offline_asr_engine.dart';
 import 'services/app_logger.dart';
+import 'services/media_kit_debug_initializer.dart';
 import 'services/tts/kokoro_model_manager.dart';
 import 'services/tts/piper_model_manager.dart';
 import 'services/tts/piper_voices.dart';
@@ -69,6 +70,7 @@ import 'features/subscription/providers/subscription_plans_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) ensureMediaKitInitialized();
   initTimeago();
 
   // 开启日志落盘：每条日志同步写入文件并 flush，崩溃（含 native SIGABRT）前的
@@ -270,6 +272,9 @@ void main() async {
 
   // 清理超过 1 天的 PDF 分享临时目录（分享后不能立即删，见 temp_cleanup_service）
   unawaited(cleanupStalePdfExportTemp());
+
+  // 清理超过 1 天的百度网盘半下载临时文件，短期保留用于续传
+  unawaited(cleanupStaleBaiduNetdiskTemp());
 
   // 启动后延迟清理 TTS 合成缓存（过期 + 超量 LRU），不拖首屏。
   Future.delayed(const Duration(seconds: 8), () {

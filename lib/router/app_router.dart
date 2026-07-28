@@ -35,8 +35,10 @@ import '../screens/favorites_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/learning_plan_screen.dart';
 import '../screens/player_screen.dart';
+import '../screens/media_playback_screen.dart';
 import '../screens/blind_listen_player_screen.dart';
 import '../screens/intensive_listen_player_screen.dart';
+import '../models/media_intensive_listen_startup.dart';
 import '../screens/listen_and_repeat_player_screen.dart';
 import '../screens/retell_player_screen.dart';
 import '../screens/review_difficult_practice_screen.dart';
@@ -112,6 +114,15 @@ abstract class AppRoutes {
       collectionId != null
       ? '/collections/$collectionId/$audioId/retell'
       : '/audio/$audioId/retell';
+
+  /// 媒体随心听页路径段。
+  static const mediaPlayerSegment = 'media-player';
+
+  /// 媒体随心听页。collectionId 为 null 时为独立音频变体。
+  static String mediaPlayer(String? collectionId, String audioId) =>
+      collectionId != null
+      ? '/collections/$collectionId/$audioId/$mediaPlayerSegment'
+      : '/audio/$audioId/$mediaPlayerSegment';
 
   /// 独立音频学习计划页路径（不依赖合集）
   /// [autoStart] 为 true 时进入后自动弹出学习任务
@@ -214,6 +225,21 @@ GoRoute _sentenceDetailRoute() => GoRoute(
   },
 );
 
+/// 媒体随心听页路由工厂。合集内变体挂在 `/collections/:collectionId` 之下
+/// （[path] 传相对段），独立音频变体挂在顶层（[path] 传绝对路径）。
+///
+/// 同 §7.17：嵌套让 URL 自表达完整栈；extra 重解析丢失时首帧退回入口页。
+GoRoute _mediaPlayerRoute(String path) => GoRoute(
+  path: path,
+  parentNavigatorKey: rootNavigatorKey,
+  builder: (context, state) {
+    final item = state.extra;
+    if (item is! AudioItem) return const _RestoredRoutePopper();
+    return MediaPlaybackScreen(audioItem: item);
+  },
+  routes: [_sentenceDetailRoute()],
+);
+
 /// PDF 导出预览页子路由工厂。挂在计划页 / 合集页 / 资源库之下，同上说明。
 GoRoute _pdfPreviewRoute() => GoRoute(
   path: AppRoutes.pdfPreviewSegment,
@@ -307,6 +333,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         builder: (context, state) => const PlayerScreen(),
                         routes: [_sentenceDetailRoute()],
                       ),
+                      _mediaPlayerRoute(
+                        ':audioId/${AppRoutes.mediaPlayerSegment}',
+                      ),
                       GoRoute(
                         path: ':audioId/blind-listen',
                         parentNavigatorKey: rootNavigatorKey,
@@ -328,9 +357,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           final collectionId =
                               state.pathParameters['collectionId']!;
                           final audioId = state.pathParameters['audioId']!;
+                          final startup = state.extra;
                           return IntensiveListenPlayerScreen(
                             collectionId: collectionId,
                             audioItemId: audioId,
+                            mediaStartup: startup is MediaIntensiveListenStartup
+                                ? startup
+                                : null,
                           );
                         },
                       ),
@@ -536,6 +569,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PlayerScreen(),
         routes: [_sentenceDetailRoute()],
       ),
+      _mediaPlayerRoute('/audio/:audioId/${AppRoutes.mediaPlayerSegment}'),
       GoRoute(
         path: '/audio/:audioId/subtitles/edit',
         parentNavigatorKey: rootNavigatorKey,
@@ -564,9 +598,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final audioId = state.pathParameters['audioId']!;
+          final startup = state.extra;
           return IntensiveListenPlayerScreen(
             collectionId: null,
             audioItemId: audioId,
+            mediaStartup: startup is MediaIntensiveListenStartup
+                ? startup
+                : null,
           );
         },
       ),

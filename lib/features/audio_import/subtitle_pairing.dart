@@ -5,11 +5,34 @@
 
 import 'package:path/path.dart' as p;
 
+import '../../models/audio_item.dart';
+
 /// 支持导入的音频扩展名（小写、不含点）。
 const audioImportExtensions = {'mp3', 'wav', 'm4a', 'aac', 'flac'};
 
 /// 支持导入的字幕扩展名（小写、不含点）。同名多字幕的优先级见 [_subtitlePriority]。
 const subtitleImportExtensions = {'srt', 'vtt', 'lrc'};
+
+/// 归一化扩展名：允许调用方传入 `.mp4` 或 `mp4`，统一返回小写且不含点。
+String normalizeImportExtension(String extension) {
+  final trimmed = extension.trim().toLowerCase();
+  return trimmed.startsWith('.') ? trimmed.substring(1) : trimmed;
+}
+
+/// 是否为可作为主学习素材导入的扩展名（音频或视频）。
+///
+/// 本地文件、网盘文件等所有来源都应复用这个判断，避免新增媒体类型时各入口
+/// 过滤规则不一致。
+bool isImportablePrimaryMediaExtension(String extension) {
+  final ext = normalizeImportExtension(extension);
+  return audioImportExtensions.contains(ext) ||
+      videoFileExtensions.contains(ext);
+}
+
+/// 是否为可导入的视频扩展名。
+bool isVideoImportExtension(String extension) {
+  return videoFileExtensions.contains(normalizeImportExtension(extension));
+}
 
 /// 同名多字幕时的选取优先级：srt > vtt > lrc（值越小越优先）。
 const _subtitlePriority = {'srt': 0, 'vtt': 1, 'lrc': 2};
@@ -18,12 +41,16 @@ const _subtitlePriority = {'srt': 0, 'vtt': 1, 'lrc': 2};
 class ImportFileClassification {
   const ImportFileClassification({
     required this.audioNames,
+    required this.videoNames,
     required this.subtitleNames,
     required this.rejectedExtensions,
   });
 
   /// 音频文件名（保持输入顺序）。
   final List<String> audioNames;
+
+  /// 视频文件名（保持输入顺序）。
+  final List<String> videoNames;
 
   /// 字幕文件名（保持输入顺序）。
   final List<String> subtitleNames;
@@ -35,12 +62,15 @@ class ImportFileClassification {
 /// 把一批文件名按扩展名白名单分类为音频 / 字幕 / 不支持。
 ImportFileClassification classifyImportFiles(Iterable<String> fileNames) {
   final audioNames = <String>[];
+  final videoNames = <String>[];
   final subtitleNames = <String>[];
   final rejected = <String>[];
   for (final name in fileNames) {
     final ext = _extensionOf(name);
     if (audioImportExtensions.contains(ext)) {
       audioNames.add(name);
+    } else if (isVideoImportExtension(ext)) {
+      videoNames.add(name);
     } else if (subtitleImportExtensions.contains(ext)) {
       subtitleNames.add(name);
     } else {
@@ -49,6 +79,7 @@ ImportFileClassification classifyImportFiles(Iterable<String> fileNames) {
   }
   return ImportFileClassification(
     audioNames: audioNames,
+    videoNames: videoNames,
     subtitleNames: subtitleNames,
     rejectedExtensions: rejected,
   );
@@ -69,7 +100,7 @@ Map<String, String?> matchSubtitlesForAudios(Iterable<String> fileNames) {
   for (final name in fileNames) {
     final ext = _extensionOf(name);
     final stem = _stemOf(name).toLowerCase();
-    if (audioImportExtensions.contains(ext)) {
+    if (isImportablePrimaryMediaExtension(ext)) {
       audios.add(name);
     } else if (subtitleImportExtensions.contains(ext)) {
       final current = bestSubtitleByStem[stem];

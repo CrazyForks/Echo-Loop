@@ -663,6 +663,7 @@ class _BaiduNetdiskPanelState extends ConsumerState<_BaiduNetdiskPanel> {
                             collectionId: widget.collectionId,
                           ),
                           onRemove: controller.toggleEntry,
+                          onRetryFailed: null,
                           onDone: () => Navigator.pop(context),
                         )
                       : _BaiduFileBrowser(
@@ -677,6 +678,7 @@ class _BaiduNetdiskPanelState extends ConsumerState<_BaiduNetdiskPanel> {
                           state: state,
                           onImport: () {},
                           onRemove: null,
+                          onRetryFailed: null,
                           onDone: () => Navigator.pop(context),
                         )
                       : _BaiduImportingPanel(
@@ -689,6 +691,10 @@ class _BaiduNetdiskPanelState extends ConsumerState<_BaiduNetdiskPanel> {
                           state: state,
                           onImport: () {},
                           onRemove: null,
+                          onRetryFailed: (entry) => controller.retryFailedEntry(
+                            entry,
+                            collectionId: widget.collectionId,
+                          ),
                           onDone: () => Navigator.pop(context),
                         )
                       : _BaiduFileBrowser(
@@ -954,12 +960,14 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
     required this.state,
     required this.onImport,
     required this.onRemove,
+    required this.onRetryFailed,
     required this.onDone,
   });
 
   final BaiduNetdiskImportState state;
   final VoidCallback onImport;
   final ValueChanged<CloudDriveEntry>? onRemove;
+  final ValueChanged<CloudDriveEntry>? onRetryFailed;
   final VoidCallback onDone;
 
   @override
@@ -969,6 +977,7 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
     final audios = state.selectedAudioEntries;
     final completed = state.phase == BaiduNetdiskImportPhase.completed;
     final subtitleCount = matchedSubtitleFsIds.length;
+    final retryFailed = onRetryFailed;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -988,6 +997,18 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
                     for (final entry in audios) {
                       if (entry.fsId == fsId) {
                         onRemove!(entry);
+                        return;
+                      }
+                    }
+                  },
+            onRetryFailed: retryFailed == null
+                ? null
+                : (id) {
+                    final fsId = int.tryParse(id);
+                    if (fsId == null) return;
+                    for (final entry in audios) {
+                      if (entry.fsId == fsId) {
+                        retryFailed(entry);
                         return;
                       }
                     }
@@ -1038,6 +1059,7 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
       hasSubtitle: _hasSubtitleForEntry(entry, matchedSubtitleFsIds),
       status: _selectionStatusFor(entry, duplicateExistingName),
       duplicateExistingName: duplicateExistingName,
+      failureMessage: _failureMessageFor(entry),
     );
   }
 
@@ -1087,6 +1109,9 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
       if (duplicateExistingName != null) {
         return AudioImportSelectionStatus.skipped;
       }
+      if (_failureMessageFor(entry) != null) {
+        return AudioImportSelectionStatus.failed;
+      }
     }
     return AudioImportSelectionStatus.pending;
   }
@@ -1095,10 +1120,21 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
     final stateName = state.importDuplicateExistingNames[entry.fsId];
     if (stateName != null) return stateName;
     final duplicates =
-        state.importOutcome?.audioDuplicates ?? const <AudioImportDuplicate>[];
+        state.importOutcome?.duplicateDetails ?? const <AudioImportDuplicate>[];
     final displayName = _entryDisplayNameWithoutExtension(entry);
     for (final duplicate in duplicates) {
       if (duplicate.attempted == displayName) return duplicate.existing;
+    }
+    return null;
+  }
+
+  String? _failureMessageFor(CloudDriveEntry entry) {
+    final stateMessage = state.importFailureMessages[entry.fsId];
+    if (stateMessage != null) return stateMessage;
+    final failures =
+        state.importOutcome?.failures ?? const <CloudDriveImportFailure>[];
+    for (final failure in failures) {
+      if (failure.entry.fsId == entry.fsId) return failure.message;
     }
     return null;
   }
@@ -1112,7 +1148,8 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
       subtitleCount: outcome.addedItems
           .where((item) => item.transcriptSource == TranscriptSource.local)
           .length,
-      skippedCount: outcome.audioDuplicates.length,
+      skippedCount: outcome.duplicateDetails.length,
+      failedCount: outcome.failures.length,
     );
   }
 
@@ -1122,8 +1159,13 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
   ) {
     if (state.phase != BaiduNetdiskImportPhase.importing) return null;
     final entry = state.importingEntry;
+    final progressPercent = state.importProgress < 0
+        ? null
+        : (state.importProgress * 100).clamp(0, 100).round();
     return AudioImportSelectionProgress(
       value: state.importProgress < 0 ? null : state.importProgress,
+      progressPercent: progressPercent,
+      speedBytesPerSecond: state.importSpeedBytesPerSecond,
       label: entry == null
           ? l10n.baiduNetdiskImporting
           : l10n.importingFileProgress(
@@ -1770,7 +1812,8 @@ String _formatDate(DateTime dateTime) {
 }
 
 bool _isImportableAudio(CloudDriveEntry entry) {
-  return !entry.isDirectory && audioImportExtensions.contains(entry.extension);
+  return !entry.isDirectory &&
+      isImportablePrimaryMediaExtension(entry.extension);
 }
 
 bool _isImportableSubtitle(CloudDriveEntry entry) {

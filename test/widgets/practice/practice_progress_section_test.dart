@@ -12,6 +12,8 @@ Widget _buildTestWidget({
   required int current,
   required int total,
   void Function(int targetIndex)? onSeek,
+  String? durationText,
+  Widget? trailing,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -19,6 +21,8 @@ Widget _buildTestWidget({
         current: current,
         total: total,
         progressText: '第 $current/$total 句',
+        durationText: durationText,
+        trailing: trailing,
         onSeek: onSeek,
       ),
     ),
@@ -50,6 +54,28 @@ void main() {
 
       expect(find.byType(Slider), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('时长与右侧操作和句数显示在同一行', (tester) async {
+      await tester.pumpWidget(
+        _buildTestWidget(
+          current: 2,
+          total: 10,
+          durationText: '5.5 秒',
+          trailing: const Icon(Icons.bookmark_border),
+        ),
+      );
+
+      final progress = tester.getCenter(find.text('第 2/10 句')).dy;
+      expect(
+        tester.getTopLeft(find.text('5.5 秒')).dx,
+        greaterThan(tester.getTopRight(find.text('第 2/10 句')).dx),
+      );
+      expect(tester.getCenter(find.text('5.5 秒')).dy, closeTo(progress, 1));
+      expect(
+        tester.getCenter(find.byIcon(Icons.bookmark_border)).dy,
+        closeTo(progress, 3),
+      );
     });
 
     testWidgets('拖动到末端松手回调 0-based 目标索引', (tester) async {

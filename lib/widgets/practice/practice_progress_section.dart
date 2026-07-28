@@ -44,6 +44,9 @@ class PracticeProgressSection extends StatelessWidget {
   /// 非 null 且 [total] > 1 时进度条变为可拖动滑块；为 null 时保持只读进度条。
   final void Function(int targetIndex)? onSeek;
 
+  /// 进度信息行右侧的可选操作（例如收藏/难句按钮）。
+  final Widget? trailing;
+
   const PracticeProgressSection({
     super.key,
     required this.current,
@@ -55,6 +58,7 @@ class PracticeProgressSection extends StatelessWidget {
     this.timestampText,
     this.l10n,
     this.onSeek,
+    this.trailing,
   });
 
   @override
@@ -90,12 +94,17 @@ class PracticeProgressSection extends StatelessWidget {
           Row(
             children: [
               Text(progressText, style: subtitleStyle),
-              const Spacer(),
-              if (durationText case final dur?) Text(dur, style: subtitleStyle),
+              if (durationText case final dur?) ...[
+                const SizedBox(width: AppSpacing.xs),
+                Text(dur, style: subtitleStyle),
+              ],
               if (timestampText case final ts?) ...[
                 const SizedBox(width: 6),
                 Text(ts, style: timestampStyle),
               ],
+              const Spacer(),
+              if (trailing case final action?)
+                Flexible(fit: FlexFit.loose, child: action),
             ],
           ),
           // 来源音频名称
@@ -186,6 +195,7 @@ class _SeekableProgressBarState extends State<_SeekableProgressBar> {
         divisions: widget.total - 1,
         value: value,
         label: '${value.round()}',
+        padding: EdgeInsets.zero,
         onChanged: (v) => setState(() => _dragValue = v),
         onChangeEnd: (v) {
           setState(() => _dragValue = null);

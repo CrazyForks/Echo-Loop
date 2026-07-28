@@ -84,7 +84,10 @@ class BookmarkManager {
   }
 
   /// 切换书签状态
-  /// 返回: (isRemoving, indicesToRemove, nextIndex)
+  /// 返回: (isRemoving, indicesToRemove, replacementIndex)
+  ///
+  /// 收藏模式删除当前句时，替代焦点优先取后一条；后面没有可用
+  /// 收藏时回退到前一条。只有删除后确实无收藏可选时才返回 null。
   static (bool, Set<int>, int?) toggleBookmark(
     int index,
     List<Sentence> sentences,
@@ -93,7 +96,7 @@ class BookmarkManager {
   ) {
     final isRemoving = bookmarkedIndices.contains(index);
     Set<int> indicesToRemove = {};
-    int? nextIndex;
+    int? replacementIndex;
 
     if (isRemoving) {
       // 计算所有同文本（不区分大小写，忽略首尾标点）的书签
@@ -114,17 +117,28 @@ class BookmarkManager {
       if (inBookmarksMode) {
         final pos = bookmarkedSentences.indexWhere((s) => s.index == index);
         if (pos != -1) {
-          // 找下一个句子（跳过将被移除的条目）
+          // 优先找后一个句子（跳过将被移除的条目）。
           for (int i = pos + 1; i < bookmarkedSentences.length; i++) {
             if (!indicesToRemove.contains(bookmarkedSentences[i].index)) {
-              nextIndex = bookmarkedSentences[i].index;
+              replacementIndex = bookmarkedSentences[i].index;
               break;
+            }
+          }
+
+          // 当前句在收藏末尾时，回退到最近的前一条，避免收藏仍有
+          // 内容却丢失当前焦点，导致精听页误退回列表。
+          if (replacementIndex == null) {
+            for (int i = pos - 1; i >= 0; i--) {
+              if (!indicesToRemove.contains(bookmarkedSentences[i].index)) {
+                replacementIndex = bookmarkedSentences[i].index;
+                break;
+              }
             }
           }
         }
       }
     }
 
-    return (isRemoving, indicesToRemove, nextIndex);
+    return (isRemoving, indicesToRemove, replacementIndex);
   }
 }

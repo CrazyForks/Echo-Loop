@@ -274,7 +274,7 @@ class AudioListTile extends ConsumerWidget {
         progress: downloadProgress,
       );
     }
-    return LearningProgressIcon(progress: progress);
+    return LearningProgressIcon(progress: progress, isVideo: audioItem.isVideo);
   }
 
   /// 当前卡片对应的 podcast 单集正在通过链接导入下载时，返回下载状态。
@@ -763,7 +763,7 @@ class AudioListTile extends ConsumerWidget {
               context,
               value: 'export',
               icon: const Icon(Icons.ios_share, size: 20),
-              label: l10n.exportAudio,
+              label: audioItem.isVideo ? l10n.exportVideo : l10n.exportAudio,
             ),
           // 学习材料导出 PDF：只读派生内容（字幕+笔记），官方音频也可用，仅要求有字幕
           if (audioItem.hasTranscript)

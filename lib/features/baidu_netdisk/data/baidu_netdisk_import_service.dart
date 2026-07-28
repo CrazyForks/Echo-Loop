@@ -4,7 +4,6 @@ library;
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:universal_io/io.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../models/audio_item.dart';
 import '../../../providers/audio_library_provider.dart';
@@ -75,14 +74,12 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
     AudioFinalizationService? finalizationService,
     AudioRegistrationService? registrationService,
     BaiduNetdiskSubtitleImporter? subtitleImporter,
-    Uuid? uuid,
   }) : _credentialRepository = credentialRepository,
        _api = api,
        _resolveDataDir = resolveDataDir ?? getAppDataDirectory,
        _finalizationService = finalizationService ?? AudioFinalizationService(),
        _registrationService = registrationService ?? AudioRegistrationService(),
-       _subtitleImporter = subtitleImporter,
-       _uuid = uuid ?? const Uuid();
+       _subtitleImporter = subtitleImporter;
 
   final BaiduCredentialRepository _credentialRepository;
   final BaiduNetdiskApi _api;
@@ -90,7 +87,6 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
   final AudioFinalizationService _finalizationService;
   final AudioRegistrationService _registrationService;
   final BaiduNetdiskSubtitleImporter? _subtitleImporter;
-  final Uuid _uuid;
 
   @override
   Future<AudioItem> importAudio({
@@ -110,10 +106,10 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
         'Cannot import a directory: ${entry.name}',
       );
     }
-    if (!audioImportExtensions.contains(entry.extension)) {
+    if (!isImportablePrimaryMediaExtension(entry.extension)) {
       throw AudioImportException(
         AudioImportFailureCode.unsupportedFormat,
-        'Unsupported audio format: .${entry.extension}',
+        'Unsupported media format: .${entry.extension}',
       );
     }
 
@@ -130,10 +126,13 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
       cancelToken: cancelToken,
       onProgress: onProgress,
     );
+    final targetSubdir = isVideoImportExtension(entry.extension)
+        ? 'videos'
+        : p.join('audios', 'imported');
     final finalizedAudio = await _finalizationService.finalize(
       dataDir: dataDir,
       tempRelativePath: tempRelativePath,
-      targetSubdir: p.join('audios', 'imported'),
+      targetSubdir: targetSubdir,
     );
 
     final result = await _registrationService.registerSandboxedAudio(
@@ -183,8 +182,8 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
   }) async {
     final added = <CloudDriveEntry>[];
     final addedItems = <AudioItem>[];
-    final audioDuplicates = <AudioImportDuplicate>[];
-    final duplicates = <CloudDriveEntry>[];
+    final duplicateDetails = <AudioImportDuplicate>[];
+    final duplicateEntries = <CloudDriveEntry>[];
     final failures = <CloudDriveImportFailure>[];
     var currentLibraryState = audioLibraryState;
     var wasCanceled = false;
@@ -228,8 +227,8 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
         }
         if (error.code == AudioImportFailureCode.duplicate) {
           final existingName = _existingNameFromDuplicateMessage(error.message);
-          duplicates.add(entry);
-          audioDuplicates.add((
+          duplicateEntries.add(entry);
+          duplicateDetails.add((
             attempted: _displayNameForEntry(entry),
             existing: existingName,
           ));
@@ -264,14 +263,34 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
         onItemResult?.call(
           CloudDriveImportItemResult.failed(entry: entry, failure: failure),
         );
+      } on BaiduReauthorizationRequiredException {
+        rethrow;
+      } on Object catch (error, stackTrace) {
+        if (error is DioException && CancelToken.isCancel(error)) {
+          wasCanceled = true;
+          break;
+        }
+        AppLogger.log(
+          'BaiduNetdiskImport',
+          'import "${entry.name}" failed unexpectedly: $error\n$stackTrace',
+        );
+        final failure = CloudDriveImportFailure(
+          entry: entry,
+          message: _messageForUnexpectedError(error),
+          errorKind: 'unknown',
+        );
+        failures.add(failure);
+        onItemResult?.call(
+          CloudDriveImportItemResult.failed(entry: entry, failure: failure),
+        );
       }
     }
 
     return CloudDriveImportOutcome(
       added: added,
       addedItems: addedItems,
-      audioDuplicates: audioDuplicates,
-      duplicates: duplicates,
+      duplicateDetails: duplicateDetails,
+      duplicateEntries: duplicateEntries,
       failures: failures,
       wasCanceled: wasCanceled,
     );
@@ -375,8 +394,33 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
     final tmpDir = Directory(p.join(dataDir.path, 'tmp', 'baidu_netdisk'));
     await tmpDir.create(recursive: true);
     final tempFile = File(
-      p.join(tmpDir.path, '${_uuid.v4()}.${entry.extension}'),
+      p.join(tmpDir.path, '${entry.fsId}.${entry.extension}'),
     );
+    final identityKey = _identityKeyFor(entry);
+    try {
+      await _downloadWithFreshLink(
+        accessToken: accessToken,
+        entry: entry,
+        savePath: tempFile.path,
+        identityKey: identityKey,
+        cancelToken: cancelToken,
+        onProgress: onProgress,
+      );
+      return p.join('tmp', 'baidu_netdisk', p.basename(tempFile.path));
+    } on Object {
+      await _deleteIfExists(tempFile);
+      rethrow;
+    }
+  }
+
+  Future<void> _downloadWithFreshLink({
+    required String accessToken,
+    required CloudDriveEntry entry,
+    required String savePath,
+    required String identityKey,
+    required CancelToken? cancelToken,
+    required BaiduNetdiskImportProgressCallback? onProgress,
+  }) async {
     final link = await _api.fetchDownloadLink(
       accessToken: accessToken,
       fsId: entry.fsId,
@@ -385,17 +429,46 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
       await _api.downloadToFile(
         accessToken: accessToken,
         dlink: link.dlink,
-        savePath: tempFile.path,
+        savePath: savePath,
+        identityKey: identityKey,
         expectedSize: link.size ?? entry.size,
         cancelToken: cancelToken,
         onProgress: (received, total) =>
             onProgress?.call(entry, received, total),
       );
-      return p.join('tmp', 'baidu_netdisk', p.basename(tempFile.path));
-    } on Object {
-      await _deleteIfExists(tempFile);
-      rethrow;
+    } on BaiduNetdiskFileException catch (error) {
+      if (!_shouldRefreshDlink(error)) rethrow;
+      AppLogger.log(
+        'BaiduNetdiskImport',
+        'download "${entry.name}" failed with ${error.kind.name}; refreshing dlink once',
+      );
+      final refreshed = await _api.fetchDownloadLink(
+        accessToken: accessToken,
+        fsId: entry.fsId,
+      );
+      await _api.downloadToFile(
+        accessToken: accessToken,
+        dlink: refreshed.dlink,
+        savePath: savePath,
+        identityKey: identityKey,
+        expectedSize: refreshed.size ?? entry.size,
+        cancelToken: cancelToken,
+        onProgress: (received, total) =>
+            onProgress?.call(entry, received, total),
+      );
     }
+  }
+
+  bool _shouldRefreshDlink(BaiduNetdiskFileException error) {
+    return switch (error.kind) {
+      BaiduNetdiskFileErrorKind.unauthorized ||
+      BaiduNetdiskFileErrorKind.notFound ||
+      BaiduNetdiskFileErrorKind.network => true,
+      BaiduNetdiskFileErrorKind.badRequest ||
+      BaiduNetdiskFileErrorKind.rateLimited ||
+      BaiduNetdiskFileErrorKind.canceled ||
+      BaiduNetdiskFileErrorKind.unknown => false,
+    };
   }
 
   String _displayNameForEntry(CloudDriveEntry entry) {
@@ -411,6 +484,15 @@ class DefaultBaiduNetdiskImportService implements BaiduNetdiskImportService {
 
   String _sourceUrlForEntry(CloudDriveEntry entry) {
     return 'baidunetdisk://fs/${entry.fsId}?path=${Uri.encodeComponent(entry.path)}';
+  }
+
+  String _identityKeyFor(CloudDriveEntry entry) {
+    return 'baidu:${entry.fsId}:${entry.size}';
+  }
+
+  String _messageForUnexpectedError(Object error) {
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Baidu Netdisk import failed.' : message;
   }
 
   Future<void> _deleteIfExists(File file) async {

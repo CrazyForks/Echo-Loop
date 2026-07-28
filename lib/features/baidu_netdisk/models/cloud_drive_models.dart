@@ -166,8 +166,8 @@ class CloudDriveImportOutcome {
   const CloudDriveImportOutcome({
     required this.added,
     this.addedItems = const <AudioItem>[],
-    this.audioDuplicates = const <AudioImportDuplicate>[],
-    this.duplicates = const <CloudDriveEntry>[],
+    this.duplicateDetails = const <AudioImportDuplicate>[],
+    this.duplicateEntries = const <CloudDriveEntry>[],
     this.failures = const <CloudDriveImportFailure>[],
     this.wasCanceled = false,
   });
@@ -178,11 +178,11 @@ class CloudDriveImportOutcome {
   /// 成功入库的音频项，供统一导入完成页展示字幕数量等音频级状态。
   final List<AudioItem> addedItems;
 
-  /// 音频级重复详情：导入名与库中已有音频名。
-  final List<AudioImportDuplicate> audioDuplicates;
+  /// 重复详情：导入素材名与库中已有素材名，用于结果说明。
+  final List<AudioImportDuplicate> duplicateDetails;
 
-  /// 重复条目。
-  final List<CloudDriveEntry> duplicates;
+  /// 重复的云盘源条目，用于列表行状态和按 `fsId` 合并重试结果。
+  final List<CloudDriveEntry> duplicateEntries;
 
   /// 失败条目。
   final List<CloudDriveImportFailure> failures;

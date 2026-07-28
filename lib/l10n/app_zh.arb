@@ -238,6 +238,8 @@
   "noSentenceSelected": "未选择句子",
   "noBookmarkedSentences": "没有收藏的句子",
   "tapBookmarkIcon": "点击句子旁的书签图标收藏",
+  "noBookmarksHint": "还没有收藏句子，可点击句子右侧书签添加",
+  "bookmarksEmptyReturned": "已无收藏句子，已切回全文",
   "removeBookmarkTip": "取消收藏",
   "addBookmarkTip": "收藏",
   "listMode": "列表模式",
@@ -324,7 +326,7 @@
   "sortCollections": "排序",
   "gridView": "文件夹视图",
   "listView": "列表视图",
-  "audioCount": "{count} 个音频",
+  "audioCount": "{count} 个素材",
   "collectionNameEmpty": "合集名称不能为空",
   "collectionNameExists": "已存在同名合集",
   "addAudioToCollection": "添加音频",
@@ -1230,6 +1232,8 @@
 
   "exportAudio": "导出音频",
   "exportAudioFile": "音频",
+  "exportVideo": "导出视频",
+  "exportVideoFile": "视频",
   "exportSubtitleFile": "字幕",
   "exportSelectFiles": "选择要导出的文件",
   "exportPdf": "导出 PDF",
@@ -1349,11 +1353,17 @@
       "name": {"type": "String"}
     }
   },
-  "multipleAudioAdded": "已添加 {count} 个音频",
-  "audioImportedCount": "成功导入 {count} 个音频",
+  "multipleAudioAdded": "已添加 {count} 个素材",
+  "audioImportedCount": "成功导入 {count} 个素材",
   "audioImportedWithSubtitleCount": "其中 {count} 个包含字幕",
   "duplicatesSkipped": "跳过 {count} 个重复项",
-  "duplicatesSkippedDetail": "以下音频与本合集中已有音频内容完全相同，已跳过：",
+  "importFailedCount": "失败 {count} 个",
+  "@importFailedCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "duplicatesSkippedDetail": "以下素材与本合集中已有素材内容完全相同，已跳过：",
   "duplicateExistingFileName": "重复文件名: {name}",
   "@duplicateExistingFileName": {
     "placeholders": {
@@ -1724,7 +1734,7 @@
   "discard": "放弃",
   "importAudio": "导入音频",
   "importAudioFromFile": "从本地文件导入",
-  "importAudioFromFileDescription": "选择手机或网盘中的音频文件",
+  "importAudioFromFileDescription": "选择手机或网盘中的素材文件",
   "importAudioFromUrl": "从链接导入",
   "importAudioFromUrlDescription": "粘贴音频直链，下载后加入资源库",
   "importAudioFromCloudDrive": "从网盘导入",
@@ -1736,7 +1746,7 @@
   "baiduNetdiskLoadingFiles": "正在加载百度网盘文件...",
   "baiduNetdiskImportFailed": "百度网盘导入失败。",
   "baiduNetdiskConnectTitle": "连接百度网盘",
-  "baiduNetdiskConnectDescription": "授权 Echo Loop 浏览你的百度网盘，并导入选中的音频文件。",
+  "baiduNetdiskConnectDescription": "授权 Echo Loop 浏览你的百度网盘，并导入选中的素材文件。",
   "baiduNetdiskConnectAction": "连接百度网盘",
   "baiduNetdiskLogoutTooltip": "退出百度网盘登录",
   "baiduNetdiskSelectAllAction": "全选",
@@ -1744,7 +1754,7 @@
   "baiduNetdiskLogoutTitle": "退出百度网盘登录？",
   "baiduNetdiskLogoutMessage": "Echo Loop 会清除当前设备上保存的百度网盘授权。",
   "baiduNetdiskLogoutConfirm": "退出登录",
-  "baiduNetdiskNoSupportedAudio": "此文件夹中没有支持的音频文件。",
+  "baiduNetdiskNoSupportedAudio": "此文件夹中没有支持的素材文件。",
   "importAudioShort": "导入",
   "importAudioSelectedCount": "导入 {count} 个",
   "@importAudioSelectedCount": {
@@ -1752,7 +1762,7 @@
       "count": {"type": "int"}
     }
   },
-  "importAudioAndSubtitleCount": "导入（{audioCount, plural, =0{} other{{audioCount} 个音频}}{subtitleCount, plural, =0{} other{，{subtitleCount} 个字幕}}）",
+  "importAudioAndSubtitleCount": "导入（{audioCount, plural, =0{} other{{audioCount} 个素材}}{subtitleCount, plural, =0{} other{，{subtitleCount} 个字幕}}）",
   "@importAudioAndSubtitleCount": {
     "placeholders": {
       "audioCount": {"type": "int"},
@@ -1970,5 +1980,17 @@
   "retellAiReviewSignInRequiredTitle": "登录后使用 AI 复述评估",
   "retellAiReviewSignInRequiredMessage": "AI 复述评估使用云端 AI 服务，登录后即可获得复述反馈。",
   "retellAiReviewPlayRecording": "播放录音",
-  "retellAiReviewStopRecording": "停止录音"
+  "retellAiReviewStopRecording": "停止录音",
+  "videoHideTrack": "隐藏画面",
+  "mediaShowVisualTrack": "显示画面",
+  "mediaEnterFullscreen": "全屏",
+  "mediaExitFullscreen": "退出全屏",
+  "mediaHideVideoSubtitles": "隐藏视频内字幕",
+  "mediaShowVideoSubtitles": "显示视频内字幕",
+  "videoLoopWhole": "整篇循环",
+  "videoLoopSentence": "单句循环",
+  "videoLoading": "正在加载视频…",
+  "videoLoadFailed": "视频加载失败",
+  "videoNoTranscript": "无字幕",
+  "videoRetry": "重试"
 }

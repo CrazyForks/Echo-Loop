@@ -19,6 +19,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../database/providers.dart';
 import '../features/audio_import/audio_finalization_service.dart';
 import '../features/audio_import/audio_transcode_service.dart';
+import '../features/audio_import/transcription_audio_extractor.dart';
 import '../features/remote_config/remote_config_providers.dart';
 import '../features/subscription/providers/subscription_controller.dart'
     show entitlementQuotaDivergenceHandlerProvider;
@@ -61,6 +62,11 @@ TranscriptionFileOps transcriptionFileOps(Ref ref) =>
 AudioFinalizationService transcriptionFinalizationService(Ref ref) =>
     AudioFinalizationService();
 
+/// 视频转录前抽取音轨的服务 Provider（测试时可覆盖）
+@Riverpod(keepAlive: true)
+TranscriptionAudioExtractor transcriptionAudioExtractor(Ref ref) =>
+    TranscriptionAudioExtractor();
+
 /// 云端转录上传前的临时音频压缩服务（测试时可覆盖）。
 final transcriptionUploadTranscodeServiceProvider =
     Provider<AudioTranscodeService>((ref) => AudioTranscodeService());
@@ -89,7 +95,7 @@ class TranscriptionUploading extends TranscriptionTaskState {
   const TranscriptionUploading({this.progress = 0});
 }
 
-/// 正在将过大的原始音频压缩为上传用临时文件。
+/// 正在将过大的上传文件压缩为临时音频。
 class TranscriptionCompressing extends TranscriptionTaskState {
   const TranscriptionCompressing();
 }
@@ -172,7 +178,10 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
     final cancelToken = CancelToken();
     _cancelTokens[audioId] = cancelToken;
 
+    // 上传压缩和视频抽音轨均可能产生临时文件，结束后统一清理。
     File? temporaryUploadFile;
+    String? tempAudioPath;
+
     try {
       final api = ref.read(transcriptionApiClientProvider);
       final fileOps = ref.read(transcriptionFileOpsProvider);
@@ -183,6 +192,9 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       final fullPath = p.join(docDir.path, audioItem.audioPath);
       final finalAudioSha256 =
           audioItem.audioSha256 ?? await fileOps.computeSha256(fullPath);
+      // 转录缓存 key（服务端）。始终用视频/原始文件指纹：同一视频在各平台 sha
+      // 一致，跨设备/重导入才能命中缓存。视频抽出的音轨只是上传内容，其 ffmpeg
+      // 产物 sha 因设备而异，绝不能用作缓存 key。
       var transcriptionSha256 =
           audioItem.originalAudioSha256 ?? finalAudioSha256;
 
@@ -195,13 +207,28 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
             .updateAudioItem(audioItem.copyWith(audioSha256: finalAudioSha256));
       }
 
-      // ── 步骤 2: 对超过 App 上限的文件先压缩，再获取上传 URL + 上传 ──
-      // 后端远程限制可进一步收紧，但 App 永不上传超过 25MiB 的文件。
+      // ── 步骤 2: 视频先抽音轨；超限时再压缩实际上传文件。 ──
+
+      // 视频条目：转录前抽出音轨，只上传音频（省带宽、免服务端解码视频）。
+      // uploadPath 指向实际上传的文件，视频抽取成功时为临时 m4a，否则为原文件。
+      // 抽取失败静默回退上传原视频（后端兼容 mp4 容器）。缓存 key
+      // (transcriptionSha256) 不受影响，仍是稳定的视频 sha——音轨仅作上传内容。
+      var uploadPath = fullPath;
+      if (audioItem.isVideo) {
+        final extracted = await ref
+            .read(transcriptionAudioExtractorProvider)
+            .extractAudioTrack(dataDir: docDir, videoAbsolutePath: fullPath);
+        if (cancelToken.isCancelled) return;
+        if (extracted != null) {
+          tempAudioPath = extracted;
+          uploadPath = extracted;
+        }
+      }
+
       final remoteMaxUploadBytes = ref
           .read(remoteTranscriptionLimitsProvider)
           .maxUploadBytes;
       final maxUploadBytes = min(remoteMaxUploadBytes, _appMaxUploadBytes);
-      var uploadPath = fullPath;
       var mimeType = _getMimeType(uploadPath);
       var fileSize = await fileOps.getFileSize(uploadPath);
       if (fileSize > maxUploadBytes) {
@@ -214,28 +241,20 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
         final compressed = await ref
             .read(transcriptionUploadTranscodeServiceProvider)
             .transcodeForTranscriptionUpload(
-              source: File(fullPath),
+              source: File(uploadPath),
               output: temporaryUploadFile,
             );
         if (cancelToken.isCancelled) return;
         if (!compressed) {
-          _updateState(
-            audioId,
-            const TranscriptionFailed(message: 'compression'),
-          );
+          _updateState(audioId, const TranscriptionFailed(message: 'compression'));
           return;
         }
-
         uploadPath = temporaryUploadFile.path;
         fileSize = await fileOps.getFileSize(uploadPath);
         if (fileSize > maxUploadBytes) {
-          _updateState(
-            audioId,
-            const TranscriptionFailed(message: 'fileTooLarge'),
-          );
+          _updateState(audioId, const TranscriptionFailed(message: 'fileTooLarge'));
           return;
         }
-        // 上传对象的内容已改变，必须使用临时文件的指纹作为缓存与对象键。
         transcriptionSha256 = await fileOps.computeSha256(uploadPath);
         mimeType = 'audio/mp4';
       }
@@ -243,7 +262,8 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       _updateState(audioId, const TranscriptionUploading());
       AppLogger.log(
         'Transcription',
-        'Step 2 上传 | sha256=$transcriptionSha256 size=$fileSize mime=$mimeType',
+        'Step 2 上传 | isVideo=${audioItem.isVideo} sha256=$transcriptionSha256 '
+            'size=$fileSize mime=$mimeType',
       );
 
       final uploadResp = await api.getUploadUrl(
@@ -280,7 +300,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
 
       final submitResp = await api.submitTranscription(
         sha256: transcriptionSha256,
-        fileName: _displayFileNameForTranscription(audioItem, uploadPath),
+        fileName: _displayFileNameForTranscription(audioItem, fullPath),
         objectName: uploadResp.objectName,
         publicUrl: uploadResp.publicUrl,
         mimeType: mimeType,
@@ -344,6 +364,13 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       AppLogger.log('Transcription', '❌ 转录失败(非网络) | $e\n$st');
       _updateState(audioId, const TranscriptionFailed(message: 'unknown'));
     } finally {
+      // 清理视频抽出的临时音轨（上传后即无用；原视频文件不受影响）。
+      if (tempAudioPath != null) {
+        try {
+          final tmp = File(tempAudioPath);
+          if (await tmp.exists()) await tmp.delete();
+        } catch (_) {}
+      }
       if (temporaryUploadFile != null && await temporaryUploadFile.exists()) {
         try {
           await temporaryUploadFile.delete();
@@ -489,8 +516,12 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
     // 转码失败静默处理：仍保存字幕、保留原始音频，避免转码 bug 把音频挡在学习外。
     // 仅对「尚未转码的用户导入」执行：remoteAudioId==null（非官方）且
     // audioSha256==originalAudioSha256（存的还是原始文件）。老数据/已转码/官方跳过。
+    //
+    // 视频条目必须跳过：transcodeExisting 只保留音轨转 m4a，会把视频转成纯音频、
+    // 丢掉画面并令 isVideo 派生失真。视频永远保留原始文件（后续要真实播放视频）。
     final needTranscode =
         audioItem.remoteAudioId == null &&
+        !audioItem.isVideo &&
         audioItem.audioPath != null &&
         audioItem.originalAudioSha256 != null &&
         audioItem.audioSha256 == audioItem.originalAudioSha256;

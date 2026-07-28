@@ -234,6 +234,31 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('默认布局保持学习任务工具栏固定在滚动区外', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+    );
+
+    final scrollView = find.descendant(
+      of: find.byType(AnnotationContentView),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scrollView, findsOneWidget);
+    expect(
+      find.ancestor(of: find.text('Analysis'), matching: scrollView),
+      findsNothing,
+    );
+  });
+
   testWidgets('未登录请求新意群时展示可关闭的登录弹窗', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();

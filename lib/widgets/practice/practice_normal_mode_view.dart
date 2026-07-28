@@ -2,8 +2,7 @@
 ///
 /// 布局：
 /// - 上方：难句/收藏标记行
-/// - 中间（Expanded）：隐藏占位 / 偷看文本，整个区域可点击切换字幕显示
-/// - 中间下方：偷看字幕标签（提示用户可点击）
+/// - 中间（Expanded）：字幕内容与显隐入口整体居中，整个区域可点击切换
 /// - 底部固定区：听不懂按钮（居中，与跟读录音按钮同位置） + 倒计时
 ///
 /// 用于精听、难句补练和收藏复习。
@@ -19,6 +18,40 @@ import 'selectable_sentence_text.dart';
 
 /// 普通模式视图（文字遮盖 / 偷看）
 class PracticeNormalModeView extends StatelessWidget {
+  /// 字幕交互区，用于布局回归测试验证提示与占位内容不会重叠。
+  static const subtitleRegionKey = ValueKey('practice-subtitle-region');
+
+  /// 耳朵/灰线或字幕正文所在的主要内容区。
+  static const subtitleMainRegionKey = ValueKey(
+    'practice-subtitle-main-region',
+  );
+
+  /// 偷看/隐藏字幕所在的辅助操作区。
+  static const subtitleLabelRegionKey = ValueKey(
+    'practice-subtitle-label-region',
+  );
+
+  /// 标签区下方、操作按钮上方的倒计时预留点击区。
+  static const subtitleTrailingTapRegionKey = ValueKey(
+    'practice-subtitle-trailing-tap-region',
+  );
+
+  /// 主要字幕内容的定位锚点。
+  static const subtitleContentGroupKey = ValueKey(
+    'practice-subtitle-content-group',
+  );
+
+  /// 隐藏字幕骨架的定位锚点。
+  static const hiddenPlaceholderKey = ValueKey('practice-hidden-placeholder');
+
+  /// 隐藏字幕骨架中的三条灰线锚点。
+  static const hiddenPlaceholderLinesKey = ValueKey(
+    'practice-hidden-placeholder-lines',
+  );
+
+  /// 偷看/隐藏字幕提示的定位锚点。
+  static const peekLabelKey = ValueKey('practice-peek-label');
+
   /// 本地化
   final AppLocalizations l10n;
 
@@ -51,6 +84,17 @@ class PracticeNormalModeView extends StatelessWidget {
   /// 当前句子文本
   final String? sentenceText;
 
+  /// 是否显示隐藏字幕占位中的三条灰线。
+  ///
+  /// 视频画面可见时可隐藏灰线以减少视觉干扰；隐藏画面后重新显示灰线。
+  /// 耳朵图标与字幕显隐入口不受此配置影响。
+  final bool showHiddenTextPlaceholderLines;
+
+  /// 是否在内容区顶部显示难句/收藏标记行。
+  ///
+  /// 精听页会将入口放到顶部进度信息行，此时设为 false，避免重复显示。
+  final bool showBookmarkRow;
+
   /// 查词来源上下文（null 时不启用点词/词组选择，渲染纯文本）
   final DictionaryLookupOrigin? lookupOrigin;
 
@@ -72,6 +116,8 @@ class PracticeNormalModeView extends StatelessWidget {
     required this.onToggleMark,
     this.isDifficult = true,
     this.sentenceText,
+    this.showHiddenTextPlaceholderLines = true,
+    this.showBookmarkRow = true,
     this.lookupOrigin,
     this.onBeforeLookup,
     this.cantUnderstandStep,
@@ -79,6 +125,32 @@ class PracticeNormalModeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitleContent = isTextRevealed && sentenceText != null
+        ? GestureDetector(
+            onTap: () {}, // 拦截文字区域点击，不冒泡到偷看切换
+            child: lookupOrigin != null
+                ? SelectableSentenceText(
+                    text: sentenceText!,
+                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                    origin: lookupOrigin!,
+                    onBeforeLookup: onBeforeLookup,
+                  )
+                : Text(
+                    sentenceText!,
+                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                  ),
+          )
+        : KeyedSubtree(
+            key: hiddenPlaceholderKey,
+            child: _HiddenTextPlaceholder(
+              showLines: showHiddenTextPlaceholderLines,
+            ),
+          );
+    final peekLabel = KeyedSubtree(
+      key: peekLabelKey,
+      child: _PeekLabel(isRevealed: isTextRevealed, l10n: l10n, theme: theme),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
       child: Column(
@@ -86,75 +158,75 @@ class PracticeNormalModeView extends StatelessWidget {
           const SizedBox(height: AppSpacing.s),
 
           // 难句/收藏标记行
-          TappableWrapper(
-            onTap: onToggleMark,
-            feedbackType: TapFeedback.opacity,
-            pressedOpacity: 0.4,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Text(
-                    isDifficult
-                        ? l10n.intensiveListenMarkedDifficult
-                        : l10n.intensiveListenNotDifficult,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Icon(
-                  isDifficult ? Icons.bookmark : Icons.bookmark_border,
-                  color: isDifficult ? Colors.amber : Colors.grey,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-
-          // 字幕区域（整个区域可点击切换字幕）
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onPeekToggle,
-              child: Stack(
+          if (showBookmarkRow)
+            TappableWrapper(
+              onTap: onToggleMark,
+              feedbackType: TapFeedback.opacity,
+              pressedOpacity: 0.4,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // 字幕内容偏上（-0.4 ≈ 上方 30% 位置）
-                  Align(
-                    alignment: const Alignment(0, -0.4),
-                    child: isTextRevealed && sentenceText != null
-                        ? GestureDetector(
-                            onTap: () {}, // 拦截文字区域点击，不冒泡到偷看切换
-                            child: lookupOrigin != null
-                                ? SelectableSentenceText(
-                                    text: sentenceText!,
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      height: 1.6,
-                                    ),
-                                    origin: lookupOrigin!,
-                                    onBeforeLookup: onBeforeLookup,
-                                  )
-                                : Text(
-                                    sentenceText!,
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      height: 1.6,
-                                    ),
-                                  ),
-                          )
-                        : const _HiddenTextPlaceholder(),
-                  ),
-                  // 偷看字幕标签（固定在字幕区中间偏下）
-                  Align(
-                    alignment: const Alignment(0, 0.55),
-                    child: _PeekLabel(
-                      isRevealed: isTextRevealed,
-                      l10n: l10n,
-                      theme: theme,
+                  Flexible(
+                    child: Text(
+                      isDifficult
+                          ? l10n.intensiveListenMarkedDifficult
+                          : l10n.intensiveListenNotDifficult,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(
+                    isDifficult ? Icons.bookmark : Icons.bookmark_border,
+                    color: isDifficult ? Colors.amber : Colors.grey,
+                    size: 18,
                   ),
                 ],
+              ),
+            ),
+
+          // 字幕交互区分为互不影响的两个语义区域：主要内容占上方 2/3，
+          // 显隐入口占下方 1/3。正文高度和标签位置不再互相牵动。
+          Expanded(
+            child: SizedBox(
+              key: subtitleRegionKey,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onPeekToggle,
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        key: subtitleMainRegionKey,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) =>
+                              SingleChildScrollView(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight,
+                                  ),
+                                  child: Center(
+                                    child: KeyedSubtree(
+                                      key: subtitleContentGroupKey,
+                                      child: subtitleContent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: SizedBox(
+                        key: subtitleLabelRegionKey,
+                        child: Center(child: peekLabel),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -163,9 +235,24 @@ class PracticeNormalModeView extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 倒计时（固定 56 高度占位，避免字幕区跳动）
-              SizedBox(height: 56, child: countdown),
-              const SizedBox(height: AppSpacing.m),
+              // 倒计时预留区与其下方间距在空白状态下也属于字幕显隐入口，
+              // 避免视觉上连续的大块空白无法点击。
+              GestureDetector(
+                key: subtitleTrailingTapRegionKey,
+                behavior: HitTestBehavior.opaque,
+                onTap: onPeekToggle,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 固定 56 高度占位，避免字幕区随倒计时显隐跳动。
+                      SizedBox(height: 56, child: countdown),
+                      const SizedBox(height: AppSpacing.m),
+                    ],
+                  ),
+                ),
+              ),
               // 取消标记 + 听不懂按钮（并排，主次随 isDifficult 翻转）
               SizedBox(
                 height: 48,
@@ -312,7 +399,9 @@ class _PeekLabel extends StatelessWidget {
 
 /// 隐藏文本占位（灰色线条）
 class _HiddenTextPlaceholder extends StatelessWidget {
-  const _HiddenTextPlaceholder();
+  final bool showLines;
+
+  const _HiddenTextPlaceholder({this.showLines = true});
 
   @override
   Widget build(BuildContext context) {
@@ -326,15 +415,25 @@ class _HiddenTextPlaceholder extends StatelessWidget {
           size: 48,
           color: theme.colorScheme.primary.withValues(alpha: 0.3),
         ),
-        const SizedBox(height: AppSpacing.l),
-        for (int i = 0; i < 3; i++) ...[
-          Container(
-            width: 200 - i * 40,
-            height: 8,
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
+        if (showLines) ...[
+          const SizedBox(height: AppSpacing.l),
+          KeyedSubtree(
+            key: PracticeNormalModeView.hiddenPlaceholderLinesKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < 3; i++) ...[
+                  Container(
+                    width: 200 - i * 40,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

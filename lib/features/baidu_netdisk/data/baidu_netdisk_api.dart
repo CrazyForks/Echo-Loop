@@ -7,6 +7,7 @@ library;
 import 'package:dio/dio.dart';
 
 import '../../../services/api_log_interceptor.dart';
+import '../../../services/reliable_http_downloader.dart';
 import '../models/cloud_drive_models.dart';
 
 /// 百度网盘文件 API 抽象。
@@ -30,7 +31,9 @@ abstract interface class BaiduNetdiskApi {
     required String accessToken,
     required String dlink,
     required String savePath,
+    String? identityKey,
     int? expectedSize,
+    bool allowResume = true,
     CancelToken? cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   });
@@ -39,12 +42,17 @@ abstract interface class BaiduNetdiskApi {
 /// 默认百度网盘文件 API 实现。
 class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
   /// 构造默认实现。
-  DefaultBaiduNetdiskApi({Dio? metadataDio, Dio? downloadDio})
-    : _metadataDio = metadataDio ?? _createMetadataDio(),
-      _downloadDio = downloadDio ?? _createDownloadDio();
+  DefaultBaiduNetdiskApi({
+    Dio? metadataDio,
+    Dio? downloadDio,
+    ReliableHttpDownloader? downloader,
+  }) : _metadataDio = metadataDio ?? _createMetadataDio(),
+       _downloader =
+           downloader ??
+           DioReliableHttpDownloader(dio: downloadDio ?? _createDownloadDio());
 
   final Dio _metadataDio;
-  final Dio _downloadDio;
+  final ReliableHttpDownloader _downloader;
 
   static Dio _createMetadataDio() {
     final dio = Dio(
@@ -147,7 +155,9 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     required String accessToken,
     required String dlink,
     required String savePath,
+    String? identityKey,
     int? expectedSize,
+    bool allowResume = true,
     CancelToken? cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) async {
@@ -159,20 +169,27 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
       },
     );
     try {
-      await _downloadDio.download(
-        downloadUri.toString(),
-        savePath,
+      await _downloader.download(
+        uri: downloadUri,
+        savePath: savePath,
+        headers: const {'User-Agent': _baiduUserAgent},
+        identityKey: identityKey,
+        expectedSize: expectedSize,
+        allowResume: allowResume,
         cancelToken: cancelToken,
-        options: Options(
-          followRedirects: true,
-          headers: const {'User-Agent': _baiduUserAgent},
-        ),
-        onReceiveProgress: (received, total) {
-          onProgress?.call(received, total > 0 ? total : expectedSize);
-        },
+        onProgress: onProgress,
       );
     } on DioException catch (error) {
       throw _mapDioException(error, fallbackMessage: 'Baidu download failed.');
+    } on ReliableDownloadException catch (error) {
+      throw BaiduNetdiskFileException(
+        kind: BaiduNetdiskFileErrorKind.network,
+        message: _displayMessageForReliableDownloadException(
+          error,
+          fallbackMessage: 'Baidu download failed.',
+        ),
+        cause: error,
+      );
     }
   }
 
@@ -234,9 +251,45 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     };
     return BaiduNetdiskFileException(
       kind: kind,
-      message: fallbackMessage,
+      message: _displayMessageForDioException(
+        error,
+        fallbackMessage: fallbackMessage,
+      ),
       cause: error,
     );
+  }
+
+  /// 保留 Dio 底层异常原因，供批量导入结果页展示可排查的失败信息。
+  String _displayMessageForDioException(
+    DioException error, {
+    required String fallbackMessage,
+  }) {
+    final responseMessage = error.response?.statusMessage;
+    final detail = _cleanDioMessage(
+      responseMessage,
+      error.message,
+      error.error?.toString(),
+    );
+    if (detail == null || detail == fallbackMessage) return fallbackMessage;
+    return '$fallbackMessage $detail';
+  }
+
+  String? _cleanDioMessage(String? first, String? second, String? third) {
+    for (final message in [first, second, third]) {
+      if (message == null) continue;
+      final trimmed = message.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  String _displayMessageForReliableDownloadException(
+    ReliableDownloadException error, {
+    required String fallbackMessage,
+  }) {
+    final detail = error.message.trim();
+    if (detail.isEmpty || detail == fallbackMessage) return fallbackMessage;
+    return '$fallbackMessage $detail';
   }
 
   int? _errnoOf(Object? value) {

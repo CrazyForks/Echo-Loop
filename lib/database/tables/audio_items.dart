@@ -1,6 +1,15 @@
 import 'package:drift/drift.dart';
 
-/// 音频元数据表
+/// 媒体元数据表（音频 + 视频通用）。
+///
+/// 历史上仅存音频，故表名与多数列名带 `audio` 前缀；自视频内容类型接入后，
+/// 视频条目复用同一张表（不新建表、不升 schema），`audioPath` 等字段实际存的是
+/// 「主媒体文件」，与音视频类型无关。是否视频由 [audioPath] 扩展名派生
+/// （见 `AudioItem.mediaType`），本表不落 mediaType 列。
+///
+/// 命名遗留：`audio*` 名称只是历史包袱，语义上等价于 `media*`。未来若接入账号与
+/// 多端同步（字段名会固化进后端 schema 与 API 契约），应作一次独立的中性重命名重构
+/// （`MediaItems` / `mediaPath` / `mediaSha256`），届时统一走 Drift 列 rename 迁移。
 class AudioItems extends Table {
   /// UUID 主键
   TextColumn get id => text()();
@@ -8,10 +17,10 @@ class AudioItems extends Table {
   /// 音频名称
   TextColumn get name => text()();
 
-  /// 音频文件相对路径。
+  /// 主媒体文件相对路径（音频或视频，音频落 `audios/`、视频落 `videos/`）。
   ///
-  /// NULL 表示音频尚未就绪（官方合集加入后、下载完成前）；非 NULL 表示文件已在本地。
-  /// 是「音频是否可用」的单一真实来源。
+  /// NULL 表示媒体尚未就绪（官方合集加入后、下载完成前）；非 NULL 表示文件已在本地。
+  /// 是「媒体是否可用」的单一真实来源，同时是媒体类型判定依据（按扩展名派生 video/audio）。
   TextColumn get audioPath => text().nullable()();
 
   /// 字幕文件相对路径。
@@ -37,19 +46,21 @@ class AudioItems extends Table {
   /// 字幕来源：0=local, 1=ai, null=无字幕
   IntColumn get transcriptSource => integer().nullable()();
 
-  /// 音频文件 SHA256 指纹（缓存，避免重复计算）
+  /// 媒体文件 SHA256 指纹（缓存，避免重复计算）。纯文件哈希，音视频通用。
   TextColumn get audioSha256 => text().nullable()();
 
-  /// 转码前原始音频 SHA256 指纹。
+  /// 转码前原始媒体 SHA256 指纹。
   ///
   /// AI 转录优先用该值作为后端字幕缓存 key；为空时回退 [audioSha256]。
+  /// 视频不转码（保留原始文件），此值等同原始文件指纹，音视频通用。
   TextColumn get originalAudioSha256 => text().nullable()();
 
   /// AI 转录使用的语言（'en' / 'multi'）
   TextColumn get transcriptLanguage => text().nullable()();
 
-  /// 音频内容有效性状态：0=ok, 1=damaged, 2=silent, null=未检测。
+  /// 媒体内容有效性状态：0=ok, 1=damaged, 2=silent, null=未检测。
   /// 新下载时检测一次（短解码失败判 damaged，可解码但静音判 silent）。
+  /// 视频条目跳过检测，恒为 null（见 `audio_library_provider.checkAudioContent`）。
   IntColumn get audioContentStatus => integer().nullable()();
 
   /// 最后修改时间

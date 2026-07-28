@@ -1,4 +1,6 @@
 // 学习计划表页面测试
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,8 +14,10 @@ import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/screens/learning_plan_screen.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/learning_progress.dart';
+import 'package:echo_loop/models/media_intensive_listen_startup.dart';
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
+import 'package:echo_loop/providers/audio_sentences_provider.dart';
 import 'package:echo_loop/providers/listening_practice/listening_practice_provider.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
@@ -58,6 +62,18 @@ void main() {
     name: 'Test Audio',
     audioPath: 'audios/test.mp3',
     addedDate: DateTime(2026, 1, 1),
+  );
+
+  // 视频条目：audioPath 为 mp4，isVideo 派生为 true。
+  final testVideoItem = AudioItem(
+    id: 'test-1',
+    name: 'Test Video',
+    audioPath: 'videos/test.mp4',
+    transcriptPath: 'transcripts/test.srt',
+    transcriptSource: TranscriptSource.ai,
+    addedDate: DateTime(2026, 1, 1),
+    sentenceCount: 10,
+    wordCount: 50,
   );
 
   Session signedInSession() {
@@ -151,6 +167,7 @@ void main() {
     DateTime? fixedNow,
     ListeningPracticeState? lpState,
     TestListeningPractice Function()? listeningPracticeOverride,
+    List<Sentence>? videoSentences,
     Map<String, DateTime>? completedStageTimes,
   }) {
     final item = audioItem ?? testAudioItem;
@@ -179,13 +196,21 @@ void main() {
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/intensive-listen',
-          builder: (context, state) =>
-              const Scaffold(body: Text('Intensive Listen')),
+          builder: (context, state) {
+            final startup = state.extra;
+            return _MediaStartupTestScreen(
+              startup: startup is MediaIntensiveListenStartup ? startup : null,
+            );
+          },
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/review-difficult-practice',
           builder: (context, state) =>
               const Scaffold(body: Text('Review Difficult Practice')),
+        ),
+        GoRoute(
+          path: '/collections/:collectionId/:audioId/media-player',
+          builder: (context, state) => const Scaffold(body: Text('Video Test')),
         ),
       ],
     );
@@ -218,6 +243,8 @@ void main() {
               TestLearningProgressNotifier(withAutoCompletions(progressState)),
         ),
         learningSessionProvider.overrideWith(() => TestLearningSession()),
+        if (videoSentences != null)
+          audioSentencesProvider(item.id).overrideWith((ref) => videoSentences),
         if (fixedNow != null) nowProvider.overrideWithValue(() => fixedNow),
         reviewStageCompletionTimesProvider(item.id).overrideWith(
           (ref) =>
@@ -260,6 +287,79 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Player'), findsOneWidget);
+    });
+
+    testWidgets('视频条目：页面正常渲染不崩溃，AppBar 显示视频名称', (tester) async {
+      final lp = _RecordingListeningPractice();
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          listeningPracticeOverride: () => lp,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Video'), findsOneWidget);
+      // 视频条目不进入听力练习引擎：loadAudio 从未被调用（引擎不被该视频 id 触碰）。
+      expect(lp.loadAudioCalls, isEmpty);
+    });
+
+    testWidgets('视频条目：逐句精听走独立媒体会话且不加载音频链路', (tester) async {
+      final lp = _RecordingListeningPractice();
+      final sentences = createTestSentences();
+      final progressState = LearningProgressState(
+        progressMap: {
+          testVideoItem.id: LearningProgress(
+            audioItemId: testVideoItem.id,
+            currentStage: LearningStage.firstLearn,
+            currentSubStage: SubStageType.intensiveListen,
+            updatedAt: DateTime(2026, 7, 28),
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          progressState: progressState,
+          listeningPracticeOverride: () => lp,
+          videoSentences: sentences,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final planContext = tester.element(find.byType(LearningPlanScreen));
+      final container = ProviderScope.containerOf(planContext);
+
+      await tester.tap(find.text('Start Learning').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Listen sentence by sentence.'), findsWidgets);
+
+      await tester.tap(find.text('Start Practice'));
+      await tester.pumpAndSettle();
+
+      final session = container.read(learningSessionProvider);
+      expect(session.learningMode, LearningMode.intensiveListen);
+      expect(session.playbackChain, LearningPlaybackChain.media);
+      expect(session.audioItemId, testVideoItem.id);
+      expect(lp.loadAudioCalls, isEmpty);
+      expect(find.text('Intensive Listen'), findsOneWidget);
+    });
+
+    testWidgets('视频条目：随心听分流到视频测试页', (tester) async {
+      final lp = _RecordingListeningPractice();
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          listeningPracticeOverride: () => lp,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('learning_plan_free_play_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Video Test'), findsOneWidget);
+      expect(find.text('Player'), findsNothing);
     });
 
     testWidgets('AppBar「更多」菜单：有字幕音频显示 4 项操作', (tester) async {
@@ -1811,6 +1911,53 @@ void main() {
       expect(find.text('Warm-up Listening'), findsNothing);
     });
   });
+}
+
+/// 模拟生产精听页消费路由启动任务，避免入口测试绕过媒体加载契约。
+class _MediaStartupTestScreen extends StatefulWidget {
+  const _MediaStartupTestScreen({this.startup});
+
+  final MediaIntensiveListenStartup? startup;
+
+  @override
+  State<_MediaStartupTestScreen> createState() =>
+      _MediaStartupTestScreenState();
+}
+
+class _MediaStartupTestScreenState extends State<_MediaStartupTestScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final startup = widget.startup;
+    if (startup != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(startup.load());
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Text('Intensive Listen'));
+}
+
+/// 记录 loadAudio 调用的测试用 LP，初始为空状态（无 currentAudioItem）。
+///
+/// 用于验证视频条目不进入听力练习引擎：_maybeLoadAudio 对视频早退，loadAudio 不被调用。
+class _RecordingListeningPractice extends TestListeningPractice {
+  final List<AudioItem> loadAudioCalls = [];
+
+  @override
+  Future<void> loadAudio(
+    AudioItem audioItem, {
+    bool forceTranscriptReload = false,
+  }) async {
+    loadAudioCalls.add(audioItem);
+    await super.loadAudio(
+      audioItem,
+      forceTranscriptReload: forceTranscriptReload,
+    );
+  }
 }
 
 class _TranscriptionReloadListeningPractice extends TestListeningPractice {

@@ -480,6 +480,7 @@ class AudioLibrary extends _$AudioLibrary {
   }) async {
     final item = getItemById(audioId);
     if (item == null || !item.isAudioReady) return;
+    if (item.isVideo) return; // 本期视频不做内容有效性校验
     if (!_contentCheckInFlight.add(audioId)) return;
     final audioPath = item.audioPath!;
     try {

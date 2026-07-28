@@ -5,10 +5,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../models/audio_item.dart';
 import '../../../analytics/analytics_providers.dart';
 import '../../../analytics/analytics_service.dart';
 import '../../../analytics/models/event_names.dart';
+import '../../../models/audio_item.dart';
 import '../../../providers/audio_library_provider.dart';
 import '../../../providers/collection_provider.dart';
 import '../../audio_import/audio_import_models.dart';
@@ -60,11 +60,15 @@ class BaiduNetdiskImportState {
     this.selectedFsIds = const <int>{},
     this.importItemStatuses = const <int, AudioImportSelectionStatus>{},
     this.importDuplicateExistingNames = const <int, String>{},
+    this.importFailureMessages = const <int, String>{},
     this.importedItemsByFsId = const <int, AudioItem>{},
     this.errorMessage,
     this.importOutcome,
     this.importingEntry,
     this.importProgress = -1,
+    this.importReceivedBytes,
+    this.importTotalBytes,
+    this.importSpeedBytesPerSecond,
     this.importingIndex = 0,
     this.importTotal = 0,
   });
@@ -91,6 +95,9 @@ class BaiduNetdiskImportState {
   /// 重复跳过音频 fs_id 对应的库中已有音频名。
   final Map<int, String> importDuplicateExistingNames;
 
+  /// 导入失败音频 fs_id 对应的可展示错误原因。
+  final Map<int, String> importFailureMessages;
+
   /// 成功导入音频 fs_id 对应的最终音频项。
   final Map<int, AudioItem> importedItemsByFsId;
 
@@ -105,6 +112,15 @@ class BaiduNetdiskImportState {
 
   /// 当前文件下载进度；-1 表示不定进度。
   final double importProgress;
+
+  /// 当前文件已下载字节数。
+  final int? importReceivedBytes;
+
+  /// 当前文件总字节数；未知时为 null。
+  final int? importTotalBytes;
+
+  /// 当前文件下载速度，单位 bytes/s；采样不足时为 null。
+  final double? importSpeedBytesPerSecond;
 
   /// 当前正在导入的音频序号，1-based；0 表示未知。
   final int importingIndex;
@@ -154,11 +170,15 @@ class BaiduNetdiskImportState {
     Set<int>? selectedFsIds,
     Map<int, AudioImportSelectionStatus>? importItemStatuses,
     Map<int, String>? importDuplicateExistingNames,
+    Map<int, String>? importFailureMessages,
     Map<int, AudioItem>? importedItemsByFsId,
     Object? errorMessage = _sentinel,
     Object? importOutcome = _sentinel,
     Object? importingEntry = _sentinel,
     double? importProgress,
+    Object? importReceivedBytes = _sentinel,
+    Object? importTotalBytes = _sentinel,
+    Object? importSpeedBytesPerSecond = _sentinel,
     int? importingIndex,
     int? importTotal,
   }) {
@@ -170,6 +190,8 @@ class BaiduNetdiskImportState {
       importItemStatuses: importItemStatuses ?? this.importItemStatuses,
       importDuplicateExistingNames:
           importDuplicateExistingNames ?? this.importDuplicateExistingNames,
+      importFailureMessages:
+          importFailureMessages ?? this.importFailureMessages,
       importedItemsByFsId: importedItemsByFsId ?? this.importedItemsByFsId,
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
@@ -181,10 +203,26 @@ class BaiduNetdiskImportState {
           ? this.importingEntry
           : importingEntry as CloudDriveEntry?,
       importProgress: importProgress ?? this.importProgress,
+      importReceivedBytes: identical(importReceivedBytes, _sentinel)
+          ? this.importReceivedBytes
+          : importReceivedBytes as int?,
+      importTotalBytes: identical(importTotalBytes, _sentinel)
+          ? this.importTotalBytes
+          : importTotalBytes as int?,
+      importSpeedBytesPerSecond: identical(importSpeedBytesPerSecond, _sentinel)
+          ? this.importSpeedBytesPerSecond
+          : importSpeedBytesPerSecond as double?,
       importingIndex: importingIndex ?? this.importingIndex,
       importTotal: importTotal ?? this.importTotal,
     );
   }
+}
+
+class _ImportSpeedSample {
+  const _ImportSpeedSample({required this.at, required this.receivedBytes});
+
+  final DateTime at;
+  final int receivedBytes;
 }
 
 /// 百度网盘导入 Controller provider。
@@ -221,6 +259,7 @@ class BaiduNetdiskImportController
     required CollectionState Function() readCollectionState,
     AnalyticsService? analytics,
     TargetPlatform? platform,
+    DateTime Function()? now,
   }) : _credentialRepository = credentialRepository,
        _api = api,
        _importService = importService,
@@ -230,6 +269,7 @@ class BaiduNetdiskImportController
        _collectionList = collectionList,
        _readCollectionState = readCollectionState,
        _analytics = analytics,
+       _now = now ?? DateTime.now,
        _platform = platform,
        super(const BaiduNetdiskImportState.idle());
 
@@ -242,10 +282,15 @@ class BaiduNetdiskImportController
   final CollectionList _collectionList;
   final CollectionState Function() _readCollectionState;
   final AnalyticsService? _analytics;
+  final DateTime Function() _now;
   final TargetPlatform? _platform;
 
   CancelToken? _cancelToken;
   int _sessionId = 0;
+  int? _speedSampleFsId;
+  final List<_ImportSpeedSample> _speedSamples = [];
+  double? _displayedImportSpeed;
+  DateTime? _lastSpeedDisplayAt;
 
   @override
   void dispose() {
@@ -359,11 +404,15 @@ class BaiduNetdiskImportController
       selectedFsIds: const <int>{},
       importItemStatuses: const <int, AudioImportSelectionStatus>{},
       importDuplicateExistingNames: const <int, String>{},
+      importFailureMessages: const <int, String>{},
       importedItemsByFsId: const <int, AudioItem>{},
       errorMessage: null,
       importOutcome: null,
       importingEntry: null,
       importProgress: -1,
+      importReceivedBytes: null,
+      importTotalBytes: null,
+      importSpeedBytesPerSecond: null,
       importingIndex: 0,
       importTotal: 0,
     );
@@ -376,27 +425,85 @@ class BaiduNetdiskImportController
     final subtitles = state.selectedSubtitleEntries;
     if (selected.isEmpty) return;
 
+    await _importEntries(
+      entries: selected,
+      subtitleEntries: subtitles,
+      collectionId: collectionId,
+      resetPreviousOutcome: true,
+    );
+  }
+
+  /// 重新导入单个失败的网盘素材。
+  Future<void> retryFailedEntry(
+    CloudDriveEntry entry, {
+    String? collectionId,
+  }) async {
+    if (state.isBusy) return;
+    if (state.importItemStatuses[entry.fsId] !=
+        AudioImportSelectionStatus.failed) {
+      return;
+    }
+    await _importEntries(
+      entries: [entry],
+      subtitleEntries: state.selectedSubtitleEntries,
+      collectionId: collectionId,
+      resetPreviousOutcome: false,
+    );
+  }
+
+  Future<void> _importEntries({
+    required List<CloudDriveEntry> entries,
+    required List<CloudDriveEntry> subtitleEntries,
+    required String? collectionId,
+    required bool resetPreviousOutcome,
+  }) async {
+    if (entries.isEmpty) return;
+
     _sessionId++;
     final sid = _sessionId;
+    _resetImportProgressSample();
     _cancelToken = CancelToken();
+    final statuses = resetPreviousOutcome
+        ? <int, AudioImportSelectionStatus>{
+            for (final entry in entries)
+              entry.fsId: AudioImportSelectionStatus.pending,
+          }
+        : Map<int, AudioImportSelectionStatus>.from(state.importItemStatuses);
+    final duplicateNames = resetPreviousOutcome
+        ? <int, String>{}
+        : Map<int, String>.from(state.importDuplicateExistingNames);
+    final failureMessages = resetPreviousOutcome
+        ? <int, String>{}
+        : Map<int, String>.from(state.importFailureMessages);
+    final importedItems = resetPreviousOutcome
+        ? <int, AudioItem>{}
+        : Map<int, AudioItem>.from(state.importedItemsByFsId);
+    for (final entry in entries) {
+      statuses[entry.fsId] = AudioImportSelectionStatus.pending;
+      duplicateNames.remove(entry.fsId);
+      failureMessages.remove(entry.fsId);
+      importedItems.remove(entry.fsId);
+    }
     state = state.copyWith(
       phase: BaiduNetdiskImportPhase.importing,
       errorMessage: null,
-      importingEntry: selected.first,
+      importingEntry: entries.first,
       importProgress: -1,
-      importItemStatuses: {
-        for (final entry in selected)
-          entry.fsId: AudioImportSelectionStatus.pending,
-      },
-      importDuplicateExistingNames: const <int, String>{},
-      importedItemsByFsId: const <int, AudioItem>{},
-      importingIndex: selected.isEmpty ? 0 : 1,
-      importTotal: selected.length,
+      importItemStatuses: statuses,
+      importDuplicateExistingNames: duplicateNames,
+      importFailureMessages: failureMessages,
+      importedItemsByFsId: importedItems,
+      importOutcome: resetPreviousOutcome ? null : state.importOutcome,
+      importingIndex: 1,
+      importTotal: entries.length,
+      importReceivedBytes: null,
+      importTotalBytes: null,
+      importSpeedBytesPerSecond: null,
     );
     try {
       final outcome = await _importService.importAudios(
-        entries: selected,
-        subtitleEntries: subtitles,
+        entries: entries,
+        subtitleEntries: subtitleEntries,
         audioLibrary: _audioLibrary,
         audioLibraryState: _readAudioLibraryState(),
         collectionList: collectionId == null ? null : _collectionList,
@@ -405,9 +512,8 @@ class BaiduNetdiskImportController
         cancelToken: _cancelToken,
         onProgress: (entry, received, total) {
           if (sid != _sessionId) return;
-          final index = selected.indexWhere(
-            (audio) => audio.fsId == entry.fsId,
-          );
+          final index = entries.indexWhere((audio) => audio.fsId == entry.fsId);
+          final speed = _speedForProgress(entry: entry, received: received);
           final statuses = Map<int, AudioImportSelectionStatus>.from(
             state.importItemStatuses,
           );
@@ -415,49 +521,35 @@ class BaiduNetdiskImportController
           state = state.copyWith(
             importingEntry: entry,
             importProgress: total == null || total <= 0 ? -1 : received / total,
+            importReceivedBytes: received,
+            importTotalBytes: total,
+            importSpeedBytesPerSecond: speed,
             importItemStatuses: statuses,
             importingIndex: index < 0 ? state.importingIndex : index + 1,
-            importTotal: selected.length,
+            importTotal: entries.length,
           );
         },
         onItemResult: (result) {
           if (sid != _sessionId) return;
-          final statuses = Map<int, AudioImportSelectionStatus>.from(
-            state.importItemStatuses,
-          );
-          final duplicateNames = Map<int, String>.from(
-            state.importDuplicateExistingNames,
-          );
-          final importedItems = Map<int, AudioItem>.from(
-            state.importedItemsByFsId,
-          );
-          switch (result.status) {
-            case CloudDriveImportItemStatus.added:
-              statuses[result.entry.fsId] = AudioImportSelectionStatus.added;
-              final item = result.item;
-              if (item != null) importedItems[result.entry.fsId] = item;
-            case CloudDriveImportItemStatus.duplicate:
-              statuses[result.entry.fsId] = AudioImportSelectionStatus.skipped;
-              final existingName = result.duplicateExistingName;
-              if (existingName != null) {
-                duplicateNames[result.entry.fsId] = existingName;
-              }
-            case CloudDriveImportItemStatus.failed:
-              statuses[result.entry.fsId] = AudioImportSelectionStatus.skipped;
-          }
-          state = state.copyWith(
-            importItemStatuses: statuses,
-            importDuplicateExistingNames: duplicateNames,
-            importedItemsByFsId: importedItems,
-          );
+          _applyItemResult(result);
         },
       );
       if (sid != _sessionId) return;
+      final nextOutcome = resetPreviousOutcome
+          ? outcome
+          : _mergeRetryOutcome(
+              previous: state.importOutcome,
+              retryOutcome: outcome,
+              retriedEntries: entries,
+            );
       state = state.copyWith(
         phase: BaiduNetdiskImportPhase.completed,
-        importOutcome: outcome,
+        importOutcome: nextOutcome,
         importingEntry: null,
         importProgress: -1,
+        importReceivedBytes: null,
+        importTotalBytes: null,
+        importSpeedBytesPerSecond: null,
         importingIndex: 0,
       );
       _analytics?.track(Events.cloudImportResult, {
@@ -465,9 +557,9 @@ class BaiduNetdiskImportController
             ? 'cancelled'
             : outcome.failures.isEmpty ? 'completed' : 'partial_failure',
         EventParams.source: 'baidu_netdisk',
-        EventParams.selectedCount: selected.length,
+        EventParams.selectedCount: entries.length,
         EventParams.addedCount: outcome.added.length,
-        EventParams.duplicateCount: outcome.duplicates.length,
+        EventParams.duplicateCount: outcome.duplicateDetails.length,
         EventParams.failedCount: outcome.failures.length,
       });
     } catch (error) {
@@ -476,28 +568,165 @@ class BaiduNetdiskImportController
         phase: BaiduNetdiskImportPhase.failed,
         errorMessage: _messageForError(error),
         importingEntry: null,
+        importReceivedBytes: null,
+        importTotalBytes: null,
+        importSpeedBytesPerSecond: null,
       );
       _analytics?.track(Events.cloudImportResult, {
         EventParams.result: 'failed',
         EventParams.source: 'baidu_netdisk',
-        EventParams.selectedCount: selected.length,
+        EventParams.selectedCount: entries.length,
       });
     } finally {
       if (sid == _sessionId) _cancelToken = null;
     }
   }
 
+  void _applyItemResult(CloudDriveImportItemResult result) {
+    final statuses = Map<int, AudioImportSelectionStatus>.from(
+      state.importItemStatuses,
+    );
+    final duplicateNames = Map<int, String>.from(
+      state.importDuplicateExistingNames,
+    );
+    final failureMessages = Map<int, String>.from(state.importFailureMessages);
+    final importedItems = Map<int, AudioItem>.from(state.importedItemsByFsId);
+    switch (result.status) {
+      case CloudDriveImportItemStatus.added:
+        statuses[result.entry.fsId] = AudioImportSelectionStatus.added;
+        duplicateNames.remove(result.entry.fsId);
+        failureMessages.remove(result.entry.fsId);
+        final item = result.item;
+        if (item != null) importedItems[result.entry.fsId] = item;
+      case CloudDriveImportItemStatus.duplicate:
+        statuses[result.entry.fsId] = AudioImportSelectionStatus.skipped;
+        failureMessages.remove(result.entry.fsId);
+        final existingName = result.duplicateExistingName;
+        if (existingName != null) {
+          duplicateNames[result.entry.fsId] = existingName;
+        }
+      case CloudDriveImportItemStatus.failed:
+        statuses[result.entry.fsId] = AudioImportSelectionStatus.failed;
+        duplicateNames.remove(result.entry.fsId);
+        final message = result.failure?.message;
+        if (message != null && message.isNotEmpty) {
+          failureMessages[result.entry.fsId] = message;
+        }
+    }
+    state = state.copyWith(
+      importItemStatuses: statuses,
+      importDuplicateExistingNames: duplicateNames,
+      importFailureMessages: failureMessages,
+      importedItemsByFsId: importedItems,
+    );
+  }
+
+  /// 用最近 5 秒下载量估算速度，并限制显示刷新频率。
+  ///
+  /// 底层下载回调按网络分块触发，相邻两次回调的瞬时值会跳动明显。
+  /// 这里保留当前文件最近 5 秒采样，用窗口内字节差 / 时间差计算速度。
+  double? _speedForProgress({
+    required CloudDriveEntry entry,
+    required int received,
+  }) {
+    final now = _now();
+    if (_speedSampleFsId != entry.fsId) {
+      _speedSampleFsId = entry.fsId;
+      _speedSamples.clear();
+      _displayedImportSpeed = null;
+      _lastSpeedDisplayAt = null;
+    }
+    _speedSamples.add(_ImportSpeedSample(at: now, receivedBytes: received));
+    final cutoff = now.subtract(const Duration(seconds: 5));
+    _speedSamples.removeWhere((sample) => sample.at.isBefore(cutoff));
+    final speed = _speedFromSamples();
+    if (speed == null) return _displayedImportSpeed;
+
+    final lastDisplayAt = _lastSpeedDisplayAt;
+    if (_displayedImportSpeed == null ||
+        lastDisplayAt == null ||
+        now.difference(lastDisplayAt).inMilliseconds >= 700) {
+      _displayedImportSpeed = speed;
+      _lastSpeedDisplayAt = now;
+    }
+    return _displayedImportSpeed;
+  }
+
+  void _resetImportProgressSample() {
+    _speedSampleFsId = null;
+    _speedSamples.clear();
+    _displayedImportSpeed = null;
+    _lastSpeedDisplayAt = null;
+  }
+
+  double? _speedFromSamples() {
+    if (_speedSamples.length < 2) return null;
+    final first = _speedSamples.first;
+    final latest = _speedSamples.last;
+    final elapsedMs = latest.at.difference(first.at).inMilliseconds;
+    final deltaBytes = latest.receivedBytes - first.receivedBytes;
+    if (elapsedMs <= 0 || deltaBytes < 0) return null;
+    return deltaBytes / (elapsedMs / 1000);
+  }
+
+  CloudDriveImportOutcome _mergeRetryOutcome({
+    required CloudDriveImportOutcome? previous,
+    required CloudDriveImportOutcome retryOutcome,
+    required List<CloudDriveEntry> retriedEntries,
+  }) {
+    if (previous == null) return retryOutcome;
+    final retriedFsIds = retriedEntries.map((entry) => entry.fsId).toSet();
+    final retriedNames = retriedEntries
+        .map(_displayNameWithoutExtension)
+        .toSet();
+    final keptAdded = <CloudDriveEntry>[];
+    final keptAddedItems = <AudioItem>[];
+    for (var i = 0; i < previous.added.length; i++) {
+      final entry = previous.added[i];
+      if (retriedFsIds.contains(entry.fsId)) continue;
+      keptAdded.add(entry);
+      if (i < previous.addedItems.length) {
+        keptAddedItems.add(previous.addedItems[i]);
+      }
+    }
+    return CloudDriveImportOutcome(
+      added: [...keptAdded, ...retryOutcome.added],
+      addedItems: [...keptAddedItems, ...retryOutcome.addedItems],
+      duplicateDetails: [
+        for (final duplicate in previous.duplicateDetails)
+          if (!retriedNames.contains(duplicate.attempted)) duplicate,
+        ...retryOutcome.duplicateDetails,
+      ],
+      duplicateEntries: [
+        for (final entry in previous.duplicateEntries)
+          if (!retriedFsIds.contains(entry.fsId)) entry,
+        ...retryOutcome.duplicateEntries,
+      ],
+      failures: [
+        for (final failure in previous.failures)
+          if (!retriedFsIds.contains(failure.entry.fsId)) failure,
+        ...retryOutcome.failures,
+      ],
+      wasCanceled: retryOutcome.wasCanceled,
+    );
+  }
+
   /// 取消当前操作。
   void cancel() {
     _sessionId++;
+    _resetImportProgressSample();
     _cancelToken?.cancel('user-cancelled');
     _cancelToken = null;
     state = state.copyWith(
       phase: BaiduNetdiskImportPhase.ready,
       importingEntry: null,
       importProgress: -1,
+      importReceivedBytes: null,
+      importTotalBytes: null,
+      importSpeedBytesPerSecond: null,
       importItemStatuses: const <int, AudioImportSelectionStatus>{},
       importDuplicateExistingNames: const <int, String>{},
+      importFailureMessages: const <int, String>{},
       importedItemsByFsId: const <int, AudioItem>{},
       importingIndex: 0,
       importTotal: 0,
@@ -514,6 +743,7 @@ class BaiduNetdiskImportController
     required String path,
     required String accessToken,
   }) async {
+    _resetImportProgressSample();
     final previous = state;
     state = state.copyWith(
       phase: BaiduNetdiskImportPhase.loading,
@@ -522,7 +752,11 @@ class BaiduNetdiskImportController
       selectedFsIds: const <int>{},
       importItemStatuses: const <int, AudioImportSelectionStatus>{},
       importDuplicateExistingNames: const <int, String>{},
+      importFailureMessages: const <int, String>{},
       importedItemsByFsId: const <int, AudioItem>{},
+      importReceivedBytes: null,
+      importTotalBytes: null,
+      importSpeedBytesPerSecond: null,
       importingIndex: 0,
       importTotal: 0,
     );
@@ -583,7 +817,8 @@ class BaiduNetdiskImportController
 }
 
 bool _isImportableAudio(CloudDriveEntry entry) {
-  return !entry.isDirectory && audioImportExtensions.contains(entry.extension);
+  return !entry.isDirectory &&
+      isImportablePrimaryMediaExtension(entry.extension);
 }
 
 bool _isImportableSubtitle(CloudDriveEntry entry) {
@@ -593,6 +828,13 @@ bool _isImportableSubtitle(CloudDriveEntry entry) {
 
 bool _isSelectableImportEntry(CloudDriveEntry entry) {
   return _isImportableAudio(entry) || _isImportableSubtitle(entry);
+}
+
+String _displayNameWithoutExtension(CloudDriveEntry entry) {
+  final name = entry.name;
+  final dot = name.lastIndexOf('.');
+  if (dot <= 0) return name;
+  return name.substring(0, dot);
 }
 
 const _sentinel = Object();

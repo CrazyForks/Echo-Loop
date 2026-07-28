@@ -542,8 +542,10 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
         for (final f in result.files) f.name: f,
       };
       final classification = classifyImportFiles(byName.keys);
+      // 音频在前、视频在后，一并进入后续同名字幕配对与入库流程。
       final audioFiles = [
         for (final n in classification.audioNames) byName[n]!,
+        for (final n in classification.videoNames) byName[n]!,
       ];
       final subtitleFiles = <String, PlatformFile>{
         for (final n in classification.subtitleNames) n: byName[n]!,
@@ -654,7 +656,11 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
 
   /// 弹出系统文件选择器，放行「音频 + 字幕」扩展名并集。
   Future<FilePickerResult?> _showAudioFilePicker() {
-    final allowed = [...audioImportExtensions, ...subtitleImportExtensions];
+    final allowed = [
+      ...audioImportExtensions,
+      ...videoFileExtensions,
+      ...subtitleImportExtensions,
+    ];
     if (!kIsWeb && Platform.isAndroid) {
       // Android SAF 在 FileType.custom + 多扩展名场景会按精确 MIME 匹配，
       // 导致 m4a/flac 等被设备索引成非标 MIME 的文件被灰掉、无法选中；且 FileType.audio
@@ -864,7 +870,13 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
         });
 
         // 落沙盒 + 算内容指纹（重活）在此进行，受下方进度条覆盖。
-        final saved = await _savePickedFileToSandbox(file.file, 'audios');
+        // 视频落 videos/、音频落 audios/，按扩展名区分，目录职责清晰。
+        final ext = path
+            .extension(file.displayName)
+            .replaceFirst('.', '')
+            .toLowerCase();
+        final subdir = isVideoImportExtension(ext) ? 'videos' : 'audios';
+        final saved = await _savePickedFileToSandbox(file.file, subdir);
 
         final result = await registrationService.registerSandboxedAudio(
           input: SandboxedAudioRegistrationInput(

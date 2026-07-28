@@ -22,6 +22,7 @@ import 'package:echo_loop/features/official_collections/download/official_downlo
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/audio_list_tile.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../helpers/mock_providers.dart';
@@ -235,6 +236,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Export PDF'), findsNothing);
+    });
+  });
+
+  group('AudioListTile 视频条目', () {
+    Widget buildTile(AudioItem item) {
+      return createTestApp(
+        Center(
+          child: SizedBox(width: 360, child: AudioListTile(audioItem: item)),
+        ),
+        overrides: [
+          audioLibraryProvider.overrideWith(
+            () => TestAudioLibrary(AudioLibraryState(audioItems: [item])),
+          ),
+        ],
+      );
+    }
+
+    testWidgets('视频条目左侧显示视频 SVG 图标', (tester) async {
+      final item = createTestAudioItem(
+        name: 'Video',
+        audioPath: 'videos/clip.mp4',
+      );
+
+      await tester.pumpWidget(buildTile(item));
+      await tester.pumpAndSettle();
+
+      expect(item.isVideo, isTrue);
+      expect(find.byType(SvgPicture), findsWidgets);
+    });
+
+    testWidgets('视频条目菜单导出项显示「Export Video」', (tester) async {
+      final item = createTestAudioItem(
+        name: 'Video',
+        audioPath: 'videos/clip.mp4',
+      );
+
+      await tester.pumpWidget(buildTile(item));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Export Video'), findsOneWidget);
+      expect(find.text('Export Audio'), findsNothing);
+    });
+
+    testWidgets('音频条目菜单导出项显示「Export Audio」', (tester) async {
+      final item = createTestAudioItem(name: 'Audio');
+
+      await tester.pumpWidget(buildTile(item));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Export Audio'), findsOneWidget);
+      expect(find.text('Export Video'), findsNothing);
     });
   });
 

@@ -620,6 +620,75 @@ void main() {
         await _disposeTree(tester);
       });
 
+      testWidgets('句子元信息与难句标记位于同一行', (tester) async {
+        final item = createTestAudioItem();
+        final sentences = createTestSentences(count: 3);
+
+        await tester.pumpWidget(
+          createTestScreen(
+            const PlayerScreen(),
+            overrides: _singleSentenceOverrides(
+              practiceState: ListeningPracticeState(
+                currentAudioItem: item,
+                sentences: sentences,
+                currentFullIndex: 0,
+                settings: const PlaybackSettings(singleSentenceMode: true),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final metadataCenter = tester.getCenter(find.text('#1')).dy;
+        final bookmarkCenter = tester
+            .getCenter(find.byType(BookmarkToggleRow))
+            .dy;
+        expect(metadataCenter, closeTo(bookmarkCenter, 1));
+        await _disposeTree(tester);
+      });
+
+      testWidgets('句子信息、难句标记与讲解内容在同一滚动区域', (tester) async {
+        final item = createTestAudioItem();
+        final sentences = createTestSentences(count: 3);
+
+        await tester.pumpWidget(
+          createTestScreen(
+            const PlayerScreen(),
+            overrides: _singleSentenceOverrides(
+              practiceState: ListeningPracticeState(
+                currentAudioItem: item,
+                sentences: sentences,
+                currentFullIndex: 0,
+                settings: const PlaybackSettings(singleSentenceMode: true),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final scrollView = find.descendant(
+          of: find.byType(AnnotationContentView),
+          matching: find.byType(SingleChildScrollView),
+        );
+        expect(scrollView, findsOneWidget);
+        expect(
+          find.ancestor(of: find.text('#1'), matching: scrollView),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(
+            of: find.byType(BookmarkToggleRow),
+            matching: scrollView,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.ancestor(of: find.text('Analysis'), matching: scrollView),
+          findsOneWidget,
+        );
+        await _disposeTree(tester);
+      });
+
       testWidgets('隐藏字幕时叠加遮罩，显示字幕时无遮罩', (tester) async {
         final item = createTestAudioItem();
         final sentences = createTestSentences(count: 3);

@@ -1,0 +1,257 @@
+import 'package:echo_loop/l10n/app_localizations.dart';
+import 'package:echo_loop/widgets/practice/practice_normal_mode_view.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('隐藏画面时耳朵、灰线与偷看入口在可利用区域整体居中', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 500));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: PracticeNormalModeView(
+              l10n: AppLocalizations.of(context)!,
+              theme: ThemeData.light(),
+              isTextRevealed: false,
+              onPeekToggle: () {},
+              onCantUnderstand: () {},
+              onToggleMark: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(PracticeNormalModeView.hiddenPlaceholderKey),
+      findsOneWidget,
+    );
+    expect(find.byKey(PracticeNormalModeView.peekLabelKey), findsOneWidget);
+    expect(
+      find.byKey(PracticeNormalModeView.hiddenPlaceholderLinesKey),
+      findsOneWidget,
+    );
+
+    final mainRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleMainRegionKey),
+    );
+    final contentGroup = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleContentGroupKey),
+    );
+    final labelRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleLabelRegionKey),
+    );
+    final label = tester.getRect(
+      find.byKey(PracticeNormalModeView.peekLabelKey),
+    );
+    expect(contentGroup.center.dy, closeTo(mainRegion.center.dy, 0.5));
+    expect(label.center.dy, closeTo(labelRegion.center.dy, 0.5));
+    expect(labelRegion.top, closeTo(mainRegion.bottom, 0.5));
+  });
+
+  testWidgets('视频画面可见时可隐藏灰线但保留居中的耳朵与偷看入口', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 500));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: PracticeNormalModeView(
+              l10n: AppLocalizations.of(context)!,
+              theme: ThemeData.light(),
+              isTextRevealed: false,
+              showHiddenTextPlaceholderLines: false,
+              onPeekToggle: () {},
+              onCantUnderstand: () {},
+              onToggleMark: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final peekLabel = tester.getRect(
+      find.byKey(PracticeNormalModeView.peekLabelKey),
+    );
+
+    expect(
+      find.byKey(PracticeNormalModeView.hiddenPlaceholderKey),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(PracticeNormalModeView.hiddenPlaceholderLinesKey),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(PracticeNormalModeView.hiddenPlaceholderKey),
+        matching: find.byIcon(Icons.hearing),
+      ),
+      findsOneWidget,
+    );
+    final ear = tester.getRect(find.byIcon(Icons.hearing));
+    final mainRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleMainRegionKey),
+    );
+    final contentGroup = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleContentGroupKey),
+    );
+    final labelRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleLabelRegionKey),
+    );
+
+    // 提示在耳朵下方，通过内容间距排版，不能与图标重叠。
+    expect(peekLabel.top, greaterThan(ear.bottom));
+    expect(contentGroup.center.dy, closeTo(mainRegion.center.dy, 0.5));
+    expect(peekLabel.center.dy, closeTo(labelRegion.center.dy, 0.5));
+  });
+
+  testWidgets('视频精听显示字幕后将隐藏入口排在正文下方', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 500));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: PracticeNormalModeView(
+              l10n: AppLocalizations.of(context)!,
+              theme: ThemeData.light(),
+              isTextRevealed: true,
+              sentenceText: 'How about you? I like boxing.',
+              showHiddenTextPlaceholderLines: false,
+              onPeekToggle: () {},
+              onCantUnderstand: () {},
+              onToggleMark: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sentence = tester.getRect(find.text('How about you? I like boxing.'));
+    final hideLabel = tester.getRect(
+      find.byKey(PracticeNormalModeView.peekLabelKey),
+    );
+    final mainRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleMainRegionKey),
+    );
+    final labelRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleLabelRegionKey),
+    );
+
+    expect(sentence.center.dy, closeTo(mainRegion.center.dy, 0.5));
+    expect(hideLabel.center.dy, closeTo(labelRegion.center.dy, 0.5));
+    expect(hideLabel.top, greaterThan(sentence.bottom));
+  });
+
+  testWidgets('长字幕在较小可利用区域内不溢出并可滚动', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 320));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: PracticeNormalModeView(
+              l10n: AppLocalizations.of(context)!,
+              theme: ThemeData.light(),
+              isTextRevealed: true,
+              sentenceText: List.filled(
+                12,
+                'This is a deliberately long subtitle for layout testing.',
+              ).join(' '),
+              onPeekToggle: () {},
+              onCantUnderstand: () {},
+              onToggleMark: () {},
+              alwaysShowToggleButton: false,
+              isDifficult: false,
+              showBookmarkRow: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.descendant(
+        of: find.byKey(PracticeNormalModeView.subtitleRegionKey),
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('标签下方直到操作按钮前的空白区域也可以切换字幕', (tester) async {
+    var toggleCount = 0;
+    await tester.binding.setSurfaceSize(const Size(800, 500));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: PracticeNormalModeView(
+              l10n: AppLocalizations.of(context)!,
+              theme: ThemeData.light(),
+              isTextRevealed: false,
+              onPeekToggle: () => toggleCount++,
+              onCantUnderstand: () {},
+              onToggleMark: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final trailingTapRegion = tester.getRect(
+      find.byKey(PracticeNormalModeView.subtitleTrailingTapRegionKey),
+    );
+
+    await tester.tapAt(trailingTapRegion.center);
+    await tester.pump();
+
+    expect(toggleCount, 1);
+  });
+}

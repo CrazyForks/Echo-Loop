@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
+import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/router/app_router.dart';
 import 'package:echo_loop/providers/settings_provider.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
@@ -116,6 +117,15 @@ void main() {
     test('Podcast 搜索订阅页与预览子路由段正确', () {
       expect(AppRoutes.podcastSubscribe, '/podcast-subscribe');
       expect(AppRoutes.podcastPreviewSegment, 'preview');
+    });
+
+    test('媒体随心听页两种变体路径正确', () {
+      expect(AppRoutes.mediaPlayerSegment, 'media-player');
+      expect(
+        AppRoutes.mediaPlayer('c1', 'a1'),
+        '/collections/c1/a1/media-player',
+      );
+      expect(AppRoutes.mediaPlayer(null, 'a1'), '/audio/a1/media-player');
     });
   });
 
@@ -645,4 +655,193 @@ void main() {
       expect(find.text('plan'), findsOneWidget);
     });
   });
+
+  group('媒体随心听页路由结构（防塌栈回归）', () {
+    /// 复刻真实媒体页路由的构造语义：extra 非 AudioItem 时首帧 pop 回入口页
+    /// （对齐 _RestoredRoutePopper 行为，后者为 private 无法直接引用）。
+    Widget mediaPlayerBuilder(GoRouterState state) {
+      final item = state.extra;
+      if (item is! AudioItem) return const _FakeRestoredPopper();
+      return Scaffold(body: Text('media-player:${item.name}'));
+    }
+
+    GoRouter buildMediaRouter() {
+      final rootKey = GlobalKey<NavigatorState>();
+      return GoRouter(
+        navigatorKey: rootKey,
+        initialLocation: '/collections',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, shell) => shell,
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/collections',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('library-root')),
+                    routes: [
+                      GoRoute(
+                        path: ':collectionId',
+                        builder: (context, state) =>
+                            const Scaffold(body: Text('collection-detail')),
+                        routes: [
+                          GoRoute(
+                            path: ':audioId/${AppRoutes.mediaPlayerSegment}',
+                            parentNavigatorKey: rootKey,
+                            builder: (context, state) =>
+                                mediaPlayerBuilder(state),
+                            routes: [
+                              GoRoute(
+                                path: AppRoutes.sentenceDetailSegment,
+                                parentNavigatorKey: rootKey,
+                                builder: (context, state) => const Scaffold(
+                                  body: Text('media-sentence-detail'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/study',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('study')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/audio/:audioId/${AppRoutes.mediaPlayerSegment}',
+            parentNavigatorKey: rootKey,
+            builder: (context, state) => mediaPlayerBuilder(state),
+            routes: [
+              GoRoute(
+                path: AppRoutes.sentenceDetailSegment,
+                parentNavigatorKey: rootKey,
+                builder: (context, state) =>
+                    const Scaffold(body: Text('media-sentence-detail')),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    final videoItem = createTestAudioItem(
+      id: 'v1',
+      name: '视频',
+      audioPath: 'videos/v1.mp4',
+    );
+
+    testWidgets('嵌套结构：深层 URI 重解析后返回回到合集详情而非资源库根', (tester) async {
+      final router = buildMediaRouter();
+      await tester.pumpWidget(createRouterTestApp(router));
+      await tester.pumpAndSettle();
+
+      router.go('/collections/c1');
+      await tester.pumpAndSettle();
+      expect(find.text('collection-detail'), findsOneWidget);
+
+      router.push(
+        '/collections/c1/v1/${AppRoutes.mediaPlayerSegment}',
+        extra: videoItem,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('media-player:视频'), findsOneWidget);
+
+      // 模拟框架 null-state 回灌当前 URI：extra 丢失 → 命中 popper 首帧退回入口页。
+      router.go('/collections/c1/v1/${AppRoutes.mediaPlayerSegment}');
+      await tester.pumpAndSettle();
+
+      // 重解析后栈仍保留合集详情，可被返回到（不塌回资源库根）。
+      expect(find.text('collection-detail'), findsOneWidget);
+      expect(find.text('library-root'), findsNothing);
+    });
+
+    testWidgets('extra 丢失命中 popper：不显示视频页内容', (tester) async {
+      final router = buildMediaRouter();
+      await tester.pumpWidget(createRouterTestApp(router));
+      await tester.pumpAndSettle();
+
+      router.go('/collections/c1');
+      await tester.pumpAndSettle();
+
+      // 不带 extra 直接进入（模拟重解析后 extra 丢失）。
+      router.push('/collections/c1/v1/${AppRoutes.mediaPlayerSegment}');
+      await tester.pumpAndSettle();
+
+      // popper 首帧 pop，最终停在合集详情，媒体页内容不出现。
+      expect(find.textContaining('media-player'), findsNothing);
+      expect(find.text('collection-detail'), findsOneWidget);
+    });
+
+    testWidgets('合集与独立媒体入口都可嵌套进入句子讲解页', (tester) async {
+      final router = buildMediaRouter();
+      await tester.pumpWidget(createRouterTestApp(router));
+      await tester.pumpAndSettle();
+
+      router.push(
+        '/collections/c1/v1/${AppRoutes.mediaPlayerSegment}',
+        extra: videoItem,
+      );
+      await tester.pumpAndSettle();
+      router.push(
+        '/collections/c1/v1/${AppRoutes.mediaPlayerSegment}/'
+        '${AppRoutes.sentenceDetailSegment}',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('media-sentence-detail'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('media-player:视频'), findsOneWidget);
+
+      router.go('/study');
+      await tester.pumpAndSettle();
+      router.push(
+        '/audio/v1/${AppRoutes.mediaPlayerSegment}',
+        extra: videoItem,
+      );
+      await tester.pumpAndSettle();
+      router.push(
+        '/audio/v1/${AppRoutes.mediaPlayerSegment}/'
+        '${AppRoutes.sentenceDetailSegment}',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('media-sentence-detail'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('media-player:视频'), findsOneWidget);
+    });
+  });
+}
+
+/// 测试用的入口页恢复占位组件：首帧 pop 回上一页，模拟 _RestoredRoutePopper。
+class _FakeRestoredPopper extends StatefulWidget {
+  const _FakeRestoredPopper();
+
+  @override
+  State<_FakeRestoredPopper> createState() => _FakeRestoredPopperState();
+}
+
+class _FakeRestoredPopperState extends State<_FakeRestoredPopper> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold();
 }

@@ -61,6 +61,7 @@ Future<void> exportAudioItem(
   final selection = await showExportAudioDialog(
     context: context,
     hasTranscript: audioItem.hasTranscript,
+    isVideo: audioItem.isVideo,
   );
   if (selection == null || !context.mounted) return;
 

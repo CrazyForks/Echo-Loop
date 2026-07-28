@@ -87,6 +87,7 @@ class AudioImportSelectionItem {
     required this.hasSubtitle,
     this.status = AudioImportSelectionStatus.pending,
     this.duplicateExistingName,
+    this.failureMessage,
   });
 
   final String id;
@@ -95,6 +96,7 @@ class AudioImportSelectionItem {
   final bool hasSubtitle;
   final AudioImportSelectionStatus status;
   final String? duplicateExistingName;
+  final String? failureMessage;
 }
 
 /// 待导入列表单行状态。
@@ -110,16 +112,30 @@ enum AudioImportSelectionStatus {
 
   /// 因内容重复被跳过。
   skipped,
+
+  /// 因下载、解析或入库错误失败。
+  failed,
 }
 
 /// 待导入确认列表底部的统一进度信息。
 ///
 /// [value] 为 `0..1` 时显示确定进度；为 null 时显示不定进度。
 class AudioImportSelectionProgress {
-  const AudioImportSelectionProgress({required this.label, this.value});
+  const AudioImportSelectionProgress({
+    required this.label,
+    this.value,
+    this.progressPercent,
+    this.speedBytesPerSecond,
+  });
 
   final String label;
   final double? value;
+
+  /// 当前文件下载百分比；仅云盘下载导入中使用。
+  final int? progressPercent;
+
+  /// 当前文件下载速度，单位 bytes/s；仅云盘下载导入中使用。
+  final double? speedBytesPerSecond;
 }
 
 /// 待导入列表底部的完成汇总。
@@ -128,11 +144,15 @@ class AudioImportSelectionSummary {
     required this.addedCount,
     required this.subtitleCount,
     required this.skippedCount,
+    this.failedCount = 0,
   });
 
   final int addedCount;
   final int subtitleCount;
   final int skippedCount;
+
+  /// 下载、解析或入库失败的数量。
+  final int failedCount;
 }
 
 enum AudioImportFailureCode {

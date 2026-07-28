@@ -755,10 +755,10 @@ class AudioItem extends DataClass implements Insertable<AudioItem> {
   /// 音频名称
   final String name;
 
-  /// 音频文件相对路径。
+  /// 主媒体文件相对路径（音频或视频，音频落 `audios/`、视频落 `videos/`）。
   ///
-  /// NULL 表示音频尚未就绪（官方合集加入后、下载完成前）；非 NULL 表示文件已在本地。
-  /// 是「音频是否可用」的单一真实来源。
+  /// NULL 表示媒体尚未就绪（官方合集加入后、下载完成前）；非 NULL 表示文件已在本地。
+  /// 是「媒体是否可用」的单一真实来源，同时是媒体类型判定依据（按扩展名派生 video/audio）。
   final String? audioPath;
 
   /// 字幕文件相对路径。
@@ -784,19 +784,21 @@ class AudioItem extends DataClass implements Insertable<AudioItem> {
   /// 字幕来源：0=local, 1=ai, null=无字幕
   final int? transcriptSource;
 
-  /// 音频文件 SHA256 指纹（缓存，避免重复计算）
+  /// 媒体文件 SHA256 指纹（缓存，避免重复计算）。纯文件哈希，音视频通用。
   final String? audioSha256;
 
-  /// 转码前原始音频 SHA256 指纹。
+  /// 转码前原始媒体 SHA256 指纹。
   ///
   /// AI 转录优先用该值作为后端字幕缓存 key；为空时回退 [audioSha256]。
+  /// 视频不转码（保留原始文件），此值等同原始文件指纹，音视频通用。
   final String? originalAudioSha256;
 
   /// AI 转录使用的语言（'en' / 'multi'）
   final String? transcriptLanguage;
 
-  /// 音频内容有效性状态：0=ok, 1=damaged, 2=silent, null=未检测。
+  /// 媒体内容有效性状态：0=ok, 1=damaged, 2=silent, null=未检测。
   /// 新下载时检测一次（短解码失败判 damaged，可解码但静音判 silent）。
+  /// 视频条目跳过检测，恒为 null（见 `audio_library_provider.checkAudioContent`）。
   final int? audioContentStatus;
 
   /// 最后修改时间

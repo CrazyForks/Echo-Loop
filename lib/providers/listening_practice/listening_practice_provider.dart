@@ -1404,7 +1404,7 @@ class ListeningPractice extends _$ListeningPractice {
     final (
       isRemoving,
       indicesToRemove,
-      nextIndex,
+      replacementIndex,
     ) = BookmarkManager.toggleBookmark(
       index,
       state.sentences,
@@ -1444,7 +1444,7 @@ class ListeningPractice extends _$ListeningPractice {
 
     final inBookmarksMode = state.playlistMode == PlaylistMode.bookmarks;
     final shouldResume =
-        inBookmarksMode && _engine.isPlaying && nextIndex != null;
+        inBookmarksMode && _engine.isPlaying && replacementIndex != null;
 
     if (inBookmarksMode && isRemoving && _engine.isPlaying) {
       await pause();
@@ -1463,11 +1463,12 @@ class ListeningPractice extends _$ListeningPractice {
       }
 
       if (inBookmarksMode) {
-        if (nextIndex != null && nextIndex < newSentences.length) {
+        if (replacementIndex != null &&
+            replacementIndex < newSentences.length) {
           state = state.copyWith(
             bookmarkedIndices: newBookmarks,
             sentences: newSentences,
-            currentBookmarkIndex: nextIndex,
+            currentBookmarkIndex: replacementIndex,
           );
         } else {
           state = state.copyWith(
@@ -1510,7 +1511,7 @@ class ListeningPractice extends _$ListeningPractice {
       }
     }
 
-    // 收藏模式下移除当前句后，从下一收藏句继续播放
+    // 收藏模式下移除当前句后，从替代焦点继续播放。
     if (inBookmarksMode &&
         shouldResume &&
         state.bookmarkedSentences.isNotEmpty) {

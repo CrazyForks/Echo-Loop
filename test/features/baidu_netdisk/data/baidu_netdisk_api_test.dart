@@ -1,22 +1,58 @@
 import 'package:dio/dio.dart';
 import 'package:echo_loop/features/baidu_netdisk/data/baidu_netdisk_api.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/cloud_drive_models.dart';
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockDio extends Mock implements Dio {}
 
+class _FakeReliableHttpDownloader implements ReliableHttpDownloader {
+  Uri? uri;
+  String? savePath;
+  Map<String, String>? headers;
+  int? expectedSize;
+  String? identityKey;
+  Object? error;
+
+  @override
+  Future<ReliableDownloadResult> download({
+    required Uri uri,
+    required String savePath,
+    Map<String, String> headers = const <String, String>{},
+    int? expectedSize,
+    String? identityKey,
+    bool allowResume = true,
+    CancelToken? cancelToken,
+    void Function(int receivedBytes, int? totalBytes)? onProgress,
+  }) async {
+    this.uri = uri;
+    this.savePath = savePath;
+    this.headers = headers;
+    this.expectedSize = expectedSize;
+    this.identityKey = identityKey;
+    final error = this.error;
+    if (error != null) throw error;
+    onProgress?.call(expectedSize ?? 1, expectedSize);
+    return ReliableDownloadResult(
+      savePath: savePath,
+      bytesWritten: expectedSize ?? 1,
+      resumed: false,
+    );
+  }
+}
+
 void main() {
   late _MockDio metadataDio;
-  late _MockDio downloadDio;
+  late _FakeReliableHttpDownloader downloader;
   late DefaultBaiduNetdiskApi api;
 
   setUp(() {
     metadataDio = _MockDio();
-    downloadDio = _MockDio();
+    downloader = _FakeReliableHttpDownloader();
     api = DefaultBaiduNetdiskApi(
       metadataDio: metadataDio,
-      downloadDio: downloadDio,
+      downloader: downloader,
     );
   });
 
@@ -155,38 +191,49 @@ void main() {
     });
 
     test('downloadToFile 给 dlink 补 access_token 并带百度 UA', () async {
-      when(
-        () => downloadDio.download(
-          any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
-          options: any(named: 'options'),
-          onReceiveProgress: any(named: 'onReceiveProgress'),
-        ),
-      ).thenAnswer(
-        (_) async => Response<void>(requestOptions: RequestOptions()),
-      );
-
       await api.downloadToFile(
         accessToken: 'access-token',
         dlink: 'https://d.pcs.baidu.com/file/lesson?x=1',
         savePath: '/tmp/lesson.mp3',
+        identityKey: 'baidu:42:123',
+        expectedSize: 123,
       );
 
-      final captured = verify(
-        () => downloadDio.download(
-          captureAny(),
-          '/tmp/lesson.mp3',
-          cancelToken: any(named: 'cancelToken'),
-          options: captureAny(named: 'options'),
-          onReceiveProgress: any(named: 'onReceiveProgress'),
+      expect(downloader.uri?.queryParameters['x'], '1');
+      expect(downloader.uri?.queryParameters['access_token'], 'access-token');
+      expect(downloader.savePath, '/tmp/lesson.mp3');
+      expect(downloader.headers?['User-Agent'], 'pan.baidu.com');
+      expect(downloader.identityKey, 'baidu:42:123');
+      expect(downloader.expectedSize, 123);
+    });
+
+    test('downloadToFile 网络异常保留底层错误原因', () async {
+      downloader.error = DioException(
+        requestOptions: RequestOptions(path: '/file'),
+        type: DioExceptionType.unknown,
+        error: 'HandshakeException: Connection terminated during handshake',
+      );
+
+      await expectLater(
+        api.downloadToFile(
+          accessToken: 'access-token',
+          dlink: 'https://d.pcs.baidu.com/file/lesson',
+          savePath: '/tmp/lesson.mp3',
         ),
-      ).captured;
-      final uri = Uri.parse(captured[0] as String);
-      final options = captured[1] as Options;
-      expect(uri.queryParameters['x'], '1');
-      expect(uri.queryParameters['access_token'], 'access-token');
-      expect(options.headers?['User-Agent'], 'pan.baidu.com');
+        throwsA(
+          isA<BaiduNetdiskFileException>()
+              .having(
+                (error) => error.kind,
+                'kind',
+                BaiduNetdiskFileErrorKind.network,
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                contains('Connection terminated during handshake'),
+              ),
+        ),
+      );
     });
   });
 }

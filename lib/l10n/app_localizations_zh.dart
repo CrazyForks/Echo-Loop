@@ -543,6 +543,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tapBookmarkIcon => '点击句子旁的书签图标收藏';
 
   @override
+  String get noBookmarksHint => '还没有收藏句子，可点击句子右侧书签添加';
+
+  @override
+  String get bookmarksEmptyReturned => '已无收藏句子，已切回全文';
+
+  @override
   String get removeBookmarkTip => '取消收藏';
 
   @override
@@ -764,7 +770,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String audioCount(int count) {
-    return '$count 个音频';
+    return '$count 个素材';
   }
 
   @override
@@ -2835,6 +2841,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportAudioFile => '音频';
 
   @override
+  String get exportVideo => '导出视频';
+
+  @override
+  String get exportVideoFile => '视频';
+
+  @override
   String get exportSubtitleFile => '字幕';
 
   @override
@@ -3159,12 +3171,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String multipleAudioAdded(int count) {
-    return '已添加 $count 个音频';
+    return '已添加 $count 个素材';
   }
 
   @override
   String audioImportedCount(int count) {
-    return '成功导入 $count 个音频';
+    return '成功导入 $count 个素材';
   }
 
   @override
@@ -3178,7 +3190,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get duplicatesSkippedDetail => '以下音频与本合集中已有音频内容完全相同，已跳过：';
+  String importFailedCount(int count) {
+    return '失败 $count 个';
+  }
+
+  @override
+  String get duplicatesSkippedDetail => '以下素材与本合集中已有素材内容完全相同，已跳过：';
 
   @override
   String duplicateExistingFileName(String name) {
@@ -3331,6 +3348,14 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get guideIntensiveListenCantUnderstandDescription =>
       '遇到听不懂的句子时点这里，会自动标记为难句并进入讲解模式。';
+
+  @override
+  String get guideIntensiveListenAnnotationContinueDescription =>
+      'Once you understand this sentence, tap Continue to move on to the next one.';
+
+  @override
+  String get guideIntensiveListenAnnotationPlayDescription =>
+      'Tap the play button to play the current sentence.';
 
   @override
   String get guideSentenceTileNumberDescription => '点击编号从这句开始播放。';
@@ -3731,6 +3756,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get autoSkipRetellSubtitle => '学习计划遇到复述任务时自动跳过';
 
   @override
+  String get autoSkipRetellDescription =>
+      'When enabled, speaking practice tasks are auto-marked as skipped; you can complete them anytime in free practice.';
+
+  @override
   String get autoExpandCachedAnnotationToggle => '自动展开句子讲解';
 
   @override
@@ -4114,7 +4143,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importAudioFromFile => '从本地文件导入';
 
   @override
-  String get importAudioFromFileDescription => '选择手机或网盘中的音频文件';
+  String get importAudioFromFileDescription => '选择手机或网盘中的素材文件';
 
   @override
   String get importAudioFromUrl => '从链接导入';
@@ -4151,7 +4180,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get baiduNetdiskConnectDescription =>
-      '授权 Echo Loop 浏览你的百度网盘，并导入选中的音频文件。';
+      '授权 Echo Loop 浏览你的百度网盘，并导入选中的素材文件。';
 
   @override
   String get baiduNetdiskConnectAction => '连接百度网盘';
@@ -4175,7 +4204,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get baiduNetdiskLogoutConfirm => '退出登录';
 
   @override
-  String get baiduNetdiskNoSupportedAudio => '此文件夹中没有支持的音频文件。';
+  String get baiduNetdiskNoSupportedAudio => '此文件夹中没有支持的素材文件。';
 
   @override
   String get importAudioShort => '导入';
@@ -4190,7 +4219,7 @@ class AppLocalizationsZh extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       audioCount,
       locale: localeName,
-      other: '$audioCount 个音频',
+      other: '$audioCount 个素材',
       zero: '',
     );
     String _temp1 = intl.Intl.pluralLogic(
@@ -4751,4 +4780,39 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retellAiReviewStopRecording => '停止录音';
+
+  String get videoHideTrack => '隐藏画面';
+
+  @override
+  String get mediaShowVisualTrack => '显示画面';
+
+  @override
+  String get mediaEnterFullscreen => '全屏';
+
+  @override
+  String get mediaExitFullscreen => '退出全屏';
+
+  @override
+  String get mediaHideVideoSubtitles => '隐藏视频内字幕';
+
+  @override
+  String get mediaShowVideoSubtitles => '显示视频内字幕';
+
+  @override
+  String get videoLoopWhole => '整篇循环';
+
+  @override
+  String get videoLoopSentence => '单句循环';
+
+  @override
+  String get videoLoading => '正在加载视频…';
+
+  @override
+  String get videoLoadFailed => '视频加载失败';
+
+  @override
+  String get videoNoTranscript => '无字幕';
+
+  @override
+  String get videoRetry => '重试';
 }

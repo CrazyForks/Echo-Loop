@@ -623,5 +623,46 @@ void main() {
         expect(reset.originalDate, isNull);
       });
     });
+
+    group('mediaType 派生', () {
+      test('path 为 null 按 audio 处理', () {
+        expect(mediaTypeForPath(null), MediaType.audio);
+      });
+
+      test('无扩展名按 audio 处理', () {
+        expect(mediaTypeForPath('audios/noext'), MediaType.audio);
+      });
+
+      test('音频扩展名判定为 audio', () {
+        expect(mediaTypeForPath('audios/a.mp3'), MediaType.audio);
+        expect(mediaTypeForPath('audios/a.m4a'), MediaType.audio);
+      });
+
+      test('三种视频扩展名判定为 video', () {
+        expect(mediaTypeForPath('videos/a.mp4'), MediaType.video);
+        expect(mediaTypeForPath('videos/a.mov'), MediaType.video);
+        expect(mediaTypeForPath('videos/a.m4v'), MediaType.video);
+      });
+
+      test('大写视频扩展名判定为 video', () {
+        expect(mediaTypeForPath('videos/A.MP4'), MediaType.video);
+      });
+
+      test('AudioItem.isVideo：视频路径为 true', () {
+        final item = createSample().copyWith(audioPath: 'videos/a.mp4');
+        expect(item.isVideo, isTrue);
+        expect(item.mediaType, MediaType.video);
+      });
+
+      test('AudioItem.isVideo：音频路径为 false', () {
+        final item = createSample().copyWith(audioPath: 'audios/a.mp3');
+        expect(item.isVideo, isFalse);
+      });
+
+      test('AudioItem.isVideo：audioPath 为 null 时为 false', () {
+        final item = createSample().copyWith(audioPath: null);
+        expect(item.isVideo, isFalse);
+      });
+    });
   });
 }

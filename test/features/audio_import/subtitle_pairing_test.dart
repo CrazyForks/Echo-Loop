@@ -160,5 +160,71 @@ void main() {
       final c = classifyImportFiles(['z.mp3', 'a.mp3', 'm.mp3']);
       expect(c.audioNames, ['z.mp3', 'a.mp3', 'm.mp3']);
     });
+
+    test('mp4/mov/m4v 归入 videoNames 且不进 rejected', () {
+      final c = classifyImportFiles(['a.mp4', 'b.mov', 'c.m4v']);
+      expect(c.videoNames, ['a.mp4', 'b.mov', 'c.m4v']);
+      expect(c.audioNames, isEmpty);
+      expect(c.rejectedExtensions, isEmpty);
+    });
+
+    test('大写视频扩展名归类正确', () {
+      final c = classifyImportFiles(['A.MP4', 'B.MOV']);
+      expect(c.videoNames, ['A.MP4', 'B.MOV']);
+      expect(c.rejectedExtensions, isEmpty);
+    });
+
+    test('音频+视频混选各自分类，视频不落 rejected', () {
+      final c = classifyImportFiles(['a.mp3', 'v.mp4', 'a.srt', 'cover.jpg']);
+      expect(c.audioNames, ['a.mp3']);
+      expect(c.videoNames, ['v.mp4']);
+      expect(c.subtitleNames, ['a.srt']);
+      expect(c.rejectedExtensions, ['jpg']);
+    });
+  });
+
+  group('isImportablePrimaryMediaExtension', () {
+    test('音频和视频扩展名都视为主素材', () {
+      expect(isImportablePrimaryMediaExtension('mp3'), isTrue);
+      expect(isImportablePrimaryMediaExtension('.m4a'), isTrue);
+      expect(isImportablePrimaryMediaExtension('mp4'), isTrue);
+      expect(isImportablePrimaryMediaExtension('.MOV'), isTrue);
+      expect(isImportablePrimaryMediaExtension('txt'), isFalse);
+    });
+
+    test('isVideoImportExtension 只识别视频扩展名', () {
+      expect(isVideoImportExtension('mp4'), isTrue);
+      expect(isVideoImportExtension('.m4v'), isTrue);
+      expect(isVideoImportExtension('mp3'), isFalse);
+    });
+  });
+
+  group('视频同名字幕配对', () {
+    test('视频与同名字幕配对成功', () {
+      final result = matchSubtitlesForAudios(['clip.mp4', 'clip.srt']);
+      expect(result['clip.mp4'], 'clip.srt');
+    });
+
+    test('mov/m4v 也参与配对', () {
+      final result = matchSubtitlesForAudios([
+        'a.mov',
+        'a.vtt',
+        'b.m4v',
+        'b.lrc',
+      ]);
+      expect(result['a.mov'], 'a.vtt');
+      expect(result['b.m4v'], 'b.lrc');
+    });
+
+    test('音频+视频混选各自配对同名字幕', () {
+      final result = matchSubtitlesForAudios([
+        'song.mp3',
+        'song.srt',
+        'movie.mp4',
+        'movie.srt',
+      ]);
+      expect(result['song.mp3'], 'song.srt');
+      expect(result['movie.mp4'], 'movie.srt');
+    });
   });
 }

@@ -1,0 +1,360 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../../l10n/app_localizations.dart';
+
+/// 视频画面的纯展示状态，供随心听与学习任务共享同一套视觉组件。
+class MediaVisualSurfaceState {
+  const MediaVisualSurfaceState({
+    required this.visible,
+    required this.expanded,
+    required this.isPlaying,
+    required this.subtitleVisible,
+  });
+
+  final bool visible;
+  final bool expanded;
+  final bool isPlaying;
+  final bool subtitleVisible;
+}
+
+/// 视频画面产生的业务动作；组件本身不直接依赖任何 Provider。
+class MediaVisualSurfaceActions {
+  const MediaVisualSurfaceActions({
+    required this.onShow,
+    required this.onHide,
+    required this.onPlayPause,
+    required this.onSubtitleToggle,
+    required this.onFullscreenToggle,
+  });
+
+  final VoidCallback onShow;
+  final VoidCallback onHide;
+  final VoidCallback onPlayPause;
+  final VoidCallback onSubtitleToggle;
+  final VoidCallback onFullscreenToggle;
+}
+
+/// media_kit 视频画面的共享外壳。
+///
+/// 隐藏、CC、全屏和悬浮控制行为只有这一份实现；播放器实例通过
+/// [buildVideoView] 注入，组件不会越过 controller 直接改变播放状态。
+class MediaVisualSurface extends StatefulWidget {
+  const MediaVisualSurface({
+    super.key,
+    required this.state,
+    required this.actions,
+    required this.buildVideoView,
+    this.fillAvailableHeight = false,
+  });
+
+  final MediaVisualSurfaceState state;
+  final MediaVisualSurfaceActions actions;
+  final Widget Function(Size viewportSize) buildVideoView;
+  final bool fillAvailableHeight;
+
+  @override
+  State<MediaVisualSurface> createState() => _MediaVisualSurfaceState();
+}
+
+class _MediaVisualSurfaceState extends State<MediaVisualSurface> {
+  static const _buttonVisibleDuration = Duration(seconds: 3);
+  bool _controlsVisible = false;
+  Timer? _hideTimer;
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showControlsTemporarily() {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = true);
+    _hideTimer = Timer(_buttonVisibleDuration, () {
+      if (mounted) setState(() => _controlsVisible = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final theme = Theme.of(context);
+    if (!state.visible) {
+      return InkWell(
+        key: const ValueKey('media-visual-collapsed-bar'),
+        onTap: widget.actions.onShow,
+        child: Container(
+          height: 44,
+          width: double.infinity,
+          alignment: Alignment.center,
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.smart_display_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                AppLocalizations.of(context)!.mediaShowVisualTrack,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final controlsVisible = state.expanded || _controlsVisible;
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : double.infinity;
+        final preferredHeight = width / (16 / 9);
+        final height = state.expanded
+            ? maxHeight
+            : widget.fillAvailableHeight
+            ? maxHeight
+            : math.min(preferredHeight, math.min(260.0, maxHeight));
+        return MouseRegion(
+          onEnter: (_) => _showControlsTemporarily(),
+          onHover: (_) => _showControlsTemporarily(),
+          child: GestureDetector(
+            key: const ValueKey('media-visual-surface'),
+            onTap: _showControlsTemporarily,
+            child: Center(
+              child: SizedBox(
+                width: double.infinity,
+                height: height,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(
+                      key: const ValueKey('media-video-canvas'),
+                      color: Colors.black,
+                      child: widget.buildVideoView(Size(width, height)),
+                    ),
+                    Center(
+                      child: AnimatedOpacity(
+                        opacity: controlsVisible ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: IgnorePointer(
+                          ignoring: !controlsVisible,
+                          child: Tooltip(
+                            message: state.isPlaying
+                                ? AppLocalizations.of(context)!.pause
+                                : AppLocalizations.of(context)!.play,
+                            child: Material(
+                              color: Colors.black.withValues(alpha: 0.58),
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: IconButton(
+                                key: const ValueKey(
+                                  'media-visual-play-pause-button',
+                                ),
+                                icon: Icon(
+                                  state.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                ),
+                                color: Colors.white,
+                                iconSize: 42,
+                                padding: const EdgeInsets.all(14),
+                                tooltip: null,
+                                onPressed: widget.actions.onPlayPause,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: AnimatedOpacity(
+                        opacity: controlsVisible ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: IgnorePointer(
+                          ignoring: !controlsVisible,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _VisualControlButton(
+                                key: const ValueKey(
+                                  'media-subtitle-track-button',
+                                ),
+                                icon: _CcTrackIcon(
+                                  enabled: state.subtitleVisible,
+                                ),
+                                active: state.subtitleVisible,
+                                tooltip: state.subtitleVisible
+                                    ? AppLocalizations.of(
+                                        context,
+                                      )!.mediaHideVideoSubtitles
+                                    : AppLocalizations.of(
+                                        context,
+                                      )!.mediaShowVideoSubtitles,
+                                onPressed: widget.actions.onSubtitleToggle,
+                              ),
+                              const SizedBox(width: 8),
+                              _VisualControlButton(
+                                key: const ValueKey('media-fullscreen-button'),
+                                icon: Icon(
+                                  state.expanded
+                                      ? Icons.fullscreen_exit
+                                      : Icons.fullscreen,
+                                ),
+                                active: true,
+                                tooltip: state.expanded
+                                    ? AppLocalizations.of(
+                                        context,
+                                      )!.mediaExitFullscreen
+                                    : AppLocalizations.of(
+                                        context,
+                                      )!.mediaEnterFullscreen,
+                                onPressed: widget.actions.onFullscreenToggle,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: AnimatedOpacity(
+                        opacity: controlsVisible ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: IgnorePointer(
+                          ignoring: !controlsVisible || state.expanded,
+                          child: Offstage(
+                            offstage: state.expanded,
+                            child: _VisualControlButton(
+                              key: const ValueKey('media-hide-visual-button'),
+                              icon: const Icon(Icons.visibility_off),
+                              active: true,
+                              tooltip: AppLocalizations.of(
+                                context,
+                              )!.videoHideTrack,
+                              onPressed: widget.actions.onHide,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _VisualControlButton extends StatelessWidget {
+  const _VisualControlButton({
+    super.key,
+    required this.icon,
+    required this.active,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final Widget icon;
+  final bool active;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.52),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          icon: IconTheme.merge(
+            data: IconThemeData(
+              color: active
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.58),
+            ),
+            child: icon,
+          ),
+          iconSize: 22,
+          splashRadius: 22,
+          visualDensity: VisualDensity.compact,
+          onPressed: onPressed,
+        ),
+      ),
+    );
+  }
+}
+
+class _CcTrackIcon extends StatelessWidget {
+  const _CcTrackIcon({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 20,
+            height: 15,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: enabled
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.68),
+                width: 1.8,
+              ),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              'CC',
+              style: TextStyle(
+                color: enabled
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.68),
+                fontSize: 9,
+                height: 1,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (!enabled)
+            Transform.rotate(
+              angle: -0.72,
+              child: Container(
+                width: 25,
+                height: 2.2,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

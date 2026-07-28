@@ -14,12 +14,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/audio_import/audio_finalization_service.dart';
-import 'package:echo_loop/features/audio_import/audio_transcode_service.dart';
-import 'package:echo_loop/features/remote_config/remote_config.dart';
-import 'package:echo_loop/features/remote_config/remote_config_providers.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_controller.dart'
     show entitlementQuotaDivergenceHandlerProvider;
 import 'package:echo_loop/features/audio_import/audio_import_models.dart';
+import 'package:echo_loop/features/audio_import/transcription_audio_extractor.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/word_timestamp.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
@@ -62,23 +60,23 @@ class _FakeFinalizationService extends AudioFinalizationService {
   }
 }
 
-/// 上传前压缩桩：记录调用，并按预设结果写入指定临时文件。
-class _FakeUploadTranscodeService extends AudioTranscodeService {
-  _FakeUploadTranscodeService({required this.shouldSucceed});
+/// 视频抽音轨桩：返回预设临时路径（null 表示抽取失败），记录调用与入参。
+class _FakeAudioExtractor extends TranscriptionAudioExtractor {
+  _FakeAudioExtractor({this.output});
 
-  final bool shouldSucceed;
+  /// 抽取产物路径；null 模拟抽取失败（调用方回退上传原视频）。
+  final String? output;
   int calls = 0;
+  String? lastVideoPath;
 
   @override
-  Future<bool> transcodeForTranscriptionUpload({
-    required File source,
-    required File output,
+  Future<String?> extractAudioTrack({
+    required Directory dataDir,
+    required String videoAbsolutePath,
   }) async {
     calls++;
-    if (!shouldSucceed) return false;
-    await output.parent.create(recursive: true);
-    await output.writeAsBytes([1, 2, 3]);
-    return true;
+    lastVideoPath = videoAbsolutePath;
+    return output;
   }
 }
 
@@ -127,7 +125,7 @@ ProviderContainer _createContainer({
   required db.AppDatabase database,
   MockSubtitleAutoAlignService? mockAutoAlignService,
   AudioFinalizationService? finalizationService,
-  AudioTranscodeService? uploadTranscodeService,
+  TranscriptionAudioExtractor? audioExtractor,
   List<AudioItem>? audioItems,
   void Function(String context)? quotaDivergenceHandler,
 }) {
@@ -143,22 +141,17 @@ ProviderContainer _createContainer({
       quotaDivergenceHandler ?? (_) {},
     ),
     analyticsOverride(),
-    remoteTranscriptionLimitsProvider.overrideWithValue(
-      const RemoteTranscriptionLimits(),
-    ),
   ];
-  if (uploadTranscodeService != null) {
-    overrides.add(
-      transcriptionUploadTranscodeServiceProvider.overrideWithValue(
-        uploadTranscodeService,
-      ),
-    );
-  }
   if (finalizationService != null) {
     overrides.add(
       transcriptionFinalizationServiceProvider.overrideWithValue(
         finalizationService,
       ),
+    );
+  }
+  if (audioExtractor != null) {
+    overrides.add(
+      transcriptionAudioExtractorProvider.overrideWithValue(audioExtractor),
     );
   }
   if (mockAutoAlignService != null) {
@@ -350,6 +343,27 @@ void main() {
       container.dispose();
     });
 
+    test('防止重复发起 — Compressing 状态下忽略新请求', () async {
+      final container = _createContainer(
+        mockApi: mockApi,
+        mockFileOps: mockFileOps,
+        database: database,
+      );
+      final notifier = container.read(
+        transcriptionTaskManagerProvider.notifier,
+      );
+
+      notifier.state = {'test-audio-1': const TranscriptionCompressing()};
+      await notifier.startTranscription(
+        _testAudioItem(),
+        'en',
+        accessToken: 'token',
+      );
+      verifyNever(() => mockFileOps.computeSha256(any()));
+
+      container.dispose();
+    });
+
     test('防止重复发起 — Processing 状态下忽略新请求', () async {
       final container = _createContainer(
         mockApi: mockApi,
@@ -516,140 +530,6 @@ void main() {
       expect(states.first, isA<TranscriptionHashing>());
       expect(states.last, isA<TranscriptionCompleted>());
 
-      container.dispose();
-    });
-
-    test('大文件先压缩，并使用压缩产物的指纹和 MIME 提交转录', () async {
-      final uploadTranscode = _FakeUploadTranscodeService(shouldSucceed: true);
-      final audioItem = _testAudioItem(audioSha256: 'source-sha');
-      when(() => mockFileOps.computeSha256(any())).thenAnswer((
-        invocation,
-      ) async {
-        final path = invocation.positionalArguments.single as String;
-        return path.endsWith('.m4a') ? 'compressed-sha' : 'source-sha';
-      });
-      when(() => mockFileOps.getFileSize(any())).thenAnswer((invocation) async {
-        final path = invocation.positionalArguments.single as String;
-        return path.endsWith('.m4a') ? 1024 : 26 * 1024 * 1024;
-      });
-      stubCachedTranscript();
-
-      final container = _createContainer(
-        mockApi: mockApi,
-        mockFileOps: mockFileOps,
-        database: database,
-        uploadTranscodeService: uploadTranscode,
-        audioItems: [audioItem],
-      );
-      await _seedAudioRows(database, [audioItem]);
-
-      await container
-          .read(transcriptionTaskManagerProvider.notifier)
-          .startTranscription(audioItem, 'en', accessToken: 'token');
-
-      expect(uploadTranscode.calls, 1);
-      verify(
-        () => mockApi.getUploadUrl(
-          sha256: 'compressed-sha',
-          mimeType: 'audio/mp4',
-          fileSize: 1024,
-          accessToken: 'token',
-        ),
-      ).called(1);
-      verify(
-        () => mockApi.submitTranscription(
-          sha256: 'compressed-sha',
-          fileName: any(named: 'fileName'),
-          objectName: any(named: 'objectName'),
-          publicUrl: any(named: 'publicUrl'),
-          mimeType: 'audio/mp4',
-          fileSize: 1024,
-          language: 'en',
-          accessToken: 'token',
-          mergeSentences: any(named: 'mergeSentences'),
-        ),
-      ).called(1);
-      expect(
-        container.read(transcriptionTaskManagerProvider)['test-audio-1'],
-        isA<TranscriptionCompleted>(),
-      );
-      container.dispose();
-    });
-
-    test('压缩后仍超过 25MiB 时不请求上传或提交', () async {
-      final uploadTranscode = _FakeUploadTranscodeService(shouldSucceed: true);
-      final audioItem = _testAudioItem(audioSha256: 'source-sha');
-      when(
-        () => mockFileOps.computeSha256(any()),
-      ).thenAnswer((_) async => 'sha');
-      when(
-        () => mockFileOps.getFileSize(any()),
-      ).thenAnswer((_) async => 26 * 1024 * 1024);
-
-      final container = _createContainer(
-        mockApi: mockApi,
-        mockFileOps: mockFileOps,
-        database: database,
-        uploadTranscodeService: uploadTranscode,
-      );
-      await container
-          .read(transcriptionTaskManagerProvider.notifier)
-          .startTranscription(audioItem, 'en', accessToken: 'token');
-
-      expect(uploadTranscode.calls, 1);
-      expect(
-        container.read(transcriptionTaskManagerProvider)['test-audio-1'],
-        isA<TranscriptionFailed>().having(
-          (state) => state.message,
-          'message',
-          'fileTooLarge',
-        ),
-      );
-      verifyNever(
-        () => mockApi.getUploadUrl(
-          sha256: any(named: 'sha256'),
-          mimeType: any(named: 'mimeType'),
-          fileSize: any(named: 'fileSize'),
-          accessToken: any(named: 'accessToken'),
-        ),
-      );
-      container.dispose();
-    });
-
-    test('压缩失败时不请求上传或提交', () async {
-      final uploadTranscode = _FakeUploadTranscodeService(shouldSucceed: false);
-      final audioItem = _testAudioItem(audioSha256: 'source-sha');
-      when(
-        () => mockFileOps.getFileSize(any()),
-      ).thenAnswer((_) async => 26 * 1024 * 1024);
-
-      final container = _createContainer(
-        mockApi: mockApi,
-        mockFileOps: mockFileOps,
-        database: database,
-        uploadTranscodeService: uploadTranscode,
-      );
-      await container
-          .read(transcriptionTaskManagerProvider.notifier)
-          .startTranscription(audioItem, 'en', accessToken: 'token');
-
-      expect(uploadTranscode.calls, 1);
-      expect(
-        container.read(transcriptionTaskManagerProvider)['test-audio-1'],
-        isA<TranscriptionFailed>().having(
-          (state) => state.message,
-          'message',
-          'compression',
-        ),
-      );
-      verifyNever(
-        () => mockApi.getUploadUrl(
-          sha256: any(named: 'sha256'),
-          mimeType: any(named: 'mimeType'),
-          fileSize: any(named: 'fileSize'),
-          accessToken: any(named: 'accessToken'),
-        ),
-      );
       container.dispose();
     });
 
@@ -1703,6 +1583,362 @@ void main() {
       expect(updated.audioSha256, 'orig-sha');
       // 原始文件未被删除。
       expect(await originalFile.exists(), isTrue);
+
+      container.dispose();
+    });
+
+    test('视频条目转录成功 — 不转码，保留原始 mp4、audioPath/isVideo 不变', () async {
+      // 视频不能被转码为 m4a（会丢画面）；转录只写字幕，文件保持视频。
+      final dataDir = await Directory.systemTemp.createTemp('tx_video_');
+      addTearDown(() async {
+        if (await dataDir.exists()) await dataDir.delete(recursive: true);
+      });
+      const videoRel = 'audios/imported/orig-sha.mp4';
+      final videoFile = File('${dataDir.path}/$videoRel');
+      await videoFile.create(recursive: true);
+      await videoFile.writeAsBytes([1, 2, 3]);
+
+      final videoItem = _testAudioItem(
+        audioPath: videoRel,
+        audioSha256: 'orig-sha',
+        originalAudioSha256: 'orig-sha',
+      );
+      expect(videoItem.isVideo, isTrue);
+
+      when(() => mockFileOps.getDataDir()).thenAnswer((_) async => dataDir);
+      when(() => mockFileOps.getFileSize(any())).thenAnswer((_) async => 1024);
+      stubCachedTranscript();
+
+      // 若被误调用会返回一个 m4a，从而让断言失败。
+      final fakeFinalization = _FakeFinalizationService(
+        result: const FinalizedAudio(
+          relativePath: 'audios/imported/new-sha.m4a',
+          sha256: 'new-sha',
+          originalSha256: 'orig-sha',
+          created: true,
+        ),
+      );
+
+      final container = _createContainer(
+        mockApi: mockApi,
+        mockFileOps: mockFileOps,
+        database: database,
+        finalizationService: fakeFinalization,
+        // 抽音轨失败 → 回退上传原视频（不触达真实 ffmpeg）。
+        audioExtractor: _FakeAudioExtractor(),
+        audioItems: [videoItem],
+      );
+      await _seedAudioRows(database, [videoItem]);
+      final notifier = container.read(
+        transcriptionTaskManagerProvider.notifier,
+      );
+
+      await notifier.startTranscription(videoItem, 'en', accessToken: 'token');
+
+      // 关键：转码从未被调用。
+      expect(fakeFinalization.calls, 0);
+      final updated = container
+          .read(audioLibraryProvider)
+          .audioItems
+          .singleWhere((item) => item.id == videoItem.id);
+      // audioPath 仍是 mp4，isVideo 仍为 true。
+      expect(updated.audioPath, videoRel);
+      expect(updated.isVideo, isTrue);
+      // 原始视频文件保留。
+      expect(await videoFile.exists(), isTrue);
+      // 字幕已保存、状态完成。
+      expect(
+        notifier.getTaskState('test-audio-1'),
+        isA<TranscriptionCompleted>(),
+      );
+      final savedSrt = await database.audioItemDao.getTranscriptSrt(
+        'test-audio-1',
+      );
+      expect(savedSrt, contains('Hello world'));
+
+      container.dispose();
+    });
+
+    test('视频条目转录 — 只上传音轨、但缓存 key 仍用视频 sha、不计算音轨 sha、清理临时文件', () async {
+      final dataDir = await Directory.systemTemp.createTemp('tx_video_extract_');
+      addTearDown(() async {
+        if (await dataDir.exists()) await dataDir.delete(recursive: true);
+      });
+      const videoRel = 'audios/imported/video-sha.mp4';
+      final videoFile = File('${dataDir.path}/$videoRel');
+      await videoFile.create(recursive: true);
+      await videoFile.writeAsBytes([1, 2, 3]);
+
+      // 抽出的临时音轨（.m4a）。
+      final tmpAudio = File('${dataDir.path}/tmp/transcription/video-sha.m4a');
+      await tmpAudio.create(recursive: true);
+      await tmpAudio.writeAsBytes([4, 5, 6]);
+
+      final videoItem = _testAudioItem(
+        audioPath: videoRel,
+        audioSha256: 'video-sha',
+        originalAudioSha256: 'video-sha',
+      );
+      expect(videoItem.isVideo, isTrue);
+
+      when(() => mockFileOps.getDataDir()).thenAnswer((_) async => dataDir);
+      when(() => mockFileOps.getFileSize(any())).thenAnswer((_) async => 512);
+
+      // 音频未存在 → 需要上传。objectName/publicUrl 由服务端按视频 sha 派生。
+      when(
+        () => mockApi.getUploadUrl(
+          sha256: any(named: 'sha256'),
+          mimeType: any(named: 'mimeType'),
+          fileSize: any(named: 'fileSize'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const UploadUrlResponse(
+          audioExists: false,
+          uploadUrl: 'https://r2.example.com/put',
+          objectName: 'user-audio/video-sha.m4a',
+          publicUrl: 'https://cdn.example.com/video-sha.m4a',
+        ),
+      );
+      when(
+        () => mockApi.uploadToR2(
+          uploadUrl: any(named: 'uploadUrl'),
+          filePath: any(named: 'filePath'),
+          contentType: any(named: 'contentType'),
+          cancelToken: any(named: 'cancelToken'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockApi.submitTranscription(
+          sha256: any(named: 'sha256'),
+          fileName: any(named: 'fileName'),
+          objectName: any(named: 'objectName'),
+          publicUrl: any(named: 'publicUrl'),
+          mimeType: any(named: 'mimeType'),
+          fileSize: any(named: 'fileSize'),
+          language: any(named: 'language'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      ).thenAnswer(
+        (_) async => SubmitTranscriptionResponse(
+          cached: true,
+          transcript: TranscriptResult(
+            sentences: [
+              TranscriptSentence(
+                text: 'Hello world',
+                startTime: Duration.zero,
+                endTime: const Duration(seconds: 2),
+              ),
+            ],
+            fullText: 'Hello world',
+          ),
+        ),
+      );
+
+      final extractor = _FakeAudioExtractor(output: tmpAudio.path);
+      final container = _createContainer(
+        mockApi: mockApi,
+        mockFileOps: mockFileOps,
+        database: database,
+        audioExtractor: extractor,
+        audioItems: [videoItem],
+      );
+      await _seedAudioRows(database, [videoItem]);
+      final notifier = container.read(
+        transcriptionTaskManagerProvider.notifier,
+      );
+
+      await notifier.startTranscription(videoItem, 'en', accessToken: 'token');
+
+      // 抽音轨被调用，入参是视频绝对路径。
+      expect(extractor.calls, 1);
+      expect(extractor.lastVideoPath, videoFile.path);
+
+      // 上传的是临时音轨，而非原视频。
+      verify(
+        () => mockApi.uploadToR2(
+          uploadUrl: 'https://r2.example.com/put',
+          filePath: tmpAudio.path,
+          contentType: 'audio/mp4',
+          cancelToken: any(named: 'cancelToken'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).called(1);
+
+      // 缓存 key 用稳定的视频 sha，绝不用设备侧音轨 sha；音轨 sha 不参与计算。
+      verifyNever(() => mockFileOps.computeSha256(tmpAudio.path));
+      verify(
+        () => mockApi.getUploadUrl(
+          sha256: 'video-sha',
+          mimeType: 'audio/mp4',
+          fileSize: 512,
+          accessToken: 'token',
+        ),
+      ).called(1);
+      verify(
+        () => mockApi.submitTranscription(
+          sha256: 'video-sha',
+          fileName: any(named: 'fileName'),
+          objectName: any(named: 'objectName'),
+          publicUrl: any(named: 'publicUrl'),
+          mimeType: 'audio/mp4',
+          fileSize: 512,
+          language: 'en',
+          accessToken: 'token',
+        ),
+      ).called(1);
+
+      // 临时音轨在上传结束后被清理；原视频文件保留。
+      expect(await tmpAudio.exists(), isFalse);
+      expect(await videoFile.exists(), isTrue);
+
+      expect(
+        notifier.getTaskState('test-audio-1'),
+        isA<TranscriptionCompleted>(),
+      );
+
+      container.dispose();
+    });
+
+    test('视频抽音轨失败 — 回退上传原视频', () async {
+      final dataDir = await Directory.systemTemp.createTemp('tx_video_fb_');
+      addTearDown(() async {
+        if (await dataDir.exists()) await dataDir.delete(recursive: true);
+      });
+      const videoRel = 'audios/imported/video-sha.mp4';
+      final videoFile = File('${dataDir.path}/$videoRel');
+      await videoFile.create(recursive: true);
+      await videoFile.writeAsBytes([1, 2, 3]);
+
+      final videoItem = _testAudioItem(
+        audioPath: videoRel,
+        audioSha256: 'video-sha',
+        originalAudioSha256: 'video-sha',
+      );
+
+      when(() => mockFileOps.getDataDir()).thenAnswer((_) async => dataDir);
+      when(() => mockFileOps.getFileSize(any())).thenAnswer((_) async => 2048);
+      when(
+        () => mockApi.getUploadUrl(
+          sha256: any(named: 'sha256'),
+          mimeType: any(named: 'mimeType'),
+          fileSize: any(named: 'fileSize'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const UploadUrlResponse(
+          audioExists: false,
+          uploadUrl: 'https://r2.example.com/put',
+          objectName: 'user-audio/video-sha.mp4',
+          publicUrl: 'https://cdn.example.com/video-sha.mp4',
+        ),
+      );
+      when(
+        () => mockApi.uploadToR2(
+          uploadUrl: any(named: 'uploadUrl'),
+          filePath: any(named: 'filePath'),
+          contentType: any(named: 'contentType'),
+          cancelToken: any(named: 'cancelToken'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockApi.submitTranscription(
+          sha256: any(named: 'sha256'),
+          fileName: any(named: 'fileName'),
+          objectName: any(named: 'objectName'),
+          publicUrl: any(named: 'publicUrl'),
+          mimeType: any(named: 'mimeType'),
+          fileSize: any(named: 'fileSize'),
+          language: any(named: 'language'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      ).thenAnswer(
+        (_) async => SubmitTranscriptionResponse(
+          cached: true,
+          transcript: TranscriptResult(
+            sentences: [
+              TranscriptSentence(
+                text: 'Hello world',
+                startTime: Duration.zero,
+                endTime: const Duration(seconds: 2),
+              ),
+            ],
+            fullText: 'Hello world',
+          ),
+        ),
+      );
+
+      final container = _createContainer(
+        mockApi: mockApi,
+        mockFileOps: mockFileOps,
+        database: database,
+        // 抽取失败。
+        audioExtractor: _FakeAudioExtractor(),
+        audioItems: [videoItem],
+      );
+      await _seedAudioRows(database, [videoItem]);
+      final notifier = container.read(
+        transcriptionTaskManagerProvider.notifier,
+      );
+
+      await notifier.startTranscription(videoItem, 'en', accessToken: 'token');
+
+      // 回退：上传原视频、用视频 sha 与 video/mp4 提交。
+      verify(
+        () => mockApi.uploadToR2(
+          uploadUrl: 'https://r2.example.com/put',
+          filePath: videoFile.path,
+          contentType: 'video/mp4',
+          cancelToken: any(named: 'cancelToken'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).called(1);
+      verify(
+        () => mockApi.submitTranscription(
+          sha256: 'video-sha',
+          fileName: any(named: 'fileName'),
+          objectName: any(named: 'objectName'),
+          publicUrl: any(named: 'publicUrl'),
+          mimeType: 'video/mp4',
+          fileSize: 2048,
+          language: 'en',
+          accessToken: 'token',
+        ),
+      ).called(1);
+
+      expect(
+        notifier.getTaskState('test-audio-1'),
+        isA<TranscriptionCompleted>(),
+      );
+
+      container.dispose();
+    });
+
+    test('音频条目不触发抽音轨', () async {
+      final audioItem = _testAudioItem(audioSha256: 'abc123');
+
+      when(() => mockFileOps.getFileSize(any())).thenAnswer((_) async => 1024);
+      stubCachedTranscript();
+
+      final extractor = _FakeAudioExtractor(output: '/should/not/be/used.m4a');
+      final container = _createContainer(
+        mockApi: mockApi,
+        mockFileOps: mockFileOps,
+        database: database,
+        audioExtractor: extractor,
+        audioItems: [audioItem],
+      );
+      await _seedAudioRows(database, [audioItem]);
+      final notifier = container.read(
+        transcriptionTaskManagerProvider.notifier,
+      );
+
+      await notifier.startTranscription(audioItem, 'en', accessToken: 'token');
+
+      // 音频条目不应抽音轨。
+      expect(extractor.calls, 0);
 
       container.dispose();
     });

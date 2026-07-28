@@ -1,6 +1,7 @@
 // 环形学习进度图标测试
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/widgets/learning_progress_icon.dart';
 import 'package:echo_loop/models/learning_plan.dart';
@@ -9,7 +10,7 @@ import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/providers/learning_settings_provider.dart';
 
 void main() {
-  Widget createTestWidget(LearningProgress? progress) {
+  Widget createTestWidget(LearningProgress? progress, {bool isVideo = false}) {
     return ProviderScope(
       overrides: [
         initialLearningSettingsProvider.overrideWithValue(
@@ -18,7 +19,9 @@ void main() {
       ],
       child: MaterialApp(
         home: Scaffold(
-          body: Center(child: LearningProgressIcon(progress: progress)),
+          body: Center(
+            child: LearningProgressIcon(progress: progress, isVideo: isVideo),
+          ),
         ),
       ),
     );
@@ -100,6 +103,28 @@ void main() {
       );
       expect(indicator.color, isNot(LearningProgressIcon.completedColor));
       expect(indicator.value, isNotNull);
+    });
+
+    testWidgets('视频条目未学习 → 中心图标用视频 SVG，而非 graphic_eq', (tester) async {
+      await tester.pumpWidget(createTestWidget(null, isVideo: true));
+
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.byIcon(Icons.graphic_eq), findsNothing);
+    });
+
+    testWidgets('视频条目进行中 → 环形进度 + 中心视频 SVG', (tester) async {
+      final progress = LearningProgress(
+        audioItemId: 'test-1',
+        currentStage: LearningStage.firstLearn,
+        currentSubStage: SubStageType.listenAndRepeat,
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      await tester.pumpWidget(createTestWidget(progress, isVideo: true));
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.byIcon(Icons.graphic_eq), findsNothing);
     });
   });
 }

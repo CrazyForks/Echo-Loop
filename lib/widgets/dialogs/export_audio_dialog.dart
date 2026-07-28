@@ -25,21 +25,30 @@ class ExportAudioSelection {
 /// 显示音频导出选项对话框
 ///
 /// [hasTranscript] 为 false 时，字幕选项置灰不可选。
+/// [isVideo] 为 true 时，标题与媒体选项文案改用「视频」。
 /// 返回用户的导出选择，取消时返回 null。
 Future<ExportAudioSelection?> showExportAudioDialog({
   required BuildContext context,
   required bool hasTranscript,
+  bool isVideo = false,
 }) {
   return showDialog<ExportAudioSelection>(
     context: context,
-    builder: (ctx) => _ExportAudioDialogContent(hasTranscript: hasTranscript),
+    builder: (ctx) => _ExportAudioDialogContent(
+      hasTranscript: hasTranscript,
+      isVideo: isVideo,
+    ),
   );
 }
 
 class _ExportAudioDialogContent extends StatefulWidget {
   final bool hasTranscript;
+  final bool isVideo;
 
-  const _ExportAudioDialogContent({required this.hasTranscript});
+  const _ExportAudioDialogContent({
+    required this.hasTranscript,
+    required this.isVideo,
+  });
 
   @override
   State<_ExportAudioDialogContent> createState() =>
@@ -56,9 +65,13 @@ class _ExportAudioDialogContentState extends State<_ExportAudioDialogContent> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final exportLabel = widget.isVideo ? l10n.exportVideo : l10n.exportAudio;
+    final mediaFileLabel = widget.isVideo
+        ? l10n.exportVideoFile
+        : l10n.exportAudioFile;
 
     return AlertDialog(
-      title: Text(l10n.exportAudio),
+      title: Text(exportLabel),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,7 +87,7 @@ class _ExportAudioDialogContentState extends State<_ExportAudioDialogContent> {
             children: [
               Expanded(
                 child: _ExportOptionTile(
-                  label: l10n.exportAudioFile,
+                  label: mediaFileLabel,
                   checked: _includeAudio,
                   onChanged: (v) => setState(() => _includeAudio = v),
                 ),
@@ -107,7 +120,7 @@ class _ExportAudioDialogContentState extends State<_ExportAudioDialogContent> {
                   ),
                 )
               : null,
-          child: Text(l10n.exportAudio),
+          child: Text(exportLabel),
         ),
       ],
     );

@@ -46,9 +46,12 @@ import 'sentence_annotation_card.dart';
 import 'sense_group_action_bar.dart';
 import 'sense_group_text.dart';
 
+/// 解析工具栏相对句子讲解内容的布局方式。
+enum AnnotationToolbarPlacement { fixed, scrollWithContent }
+
 /// 标注模式内容视图
 ///
-/// 工具栏固定在顶部不随内容滚动，句子文本和解析内容在下方可滚动。
+/// 默认工具栏固定在顶部不随内容滚动；随心听场景可让工具栏与讲解内容一起滚动。
 /// 内部管理意群数据和播放。
 class AnnotationContentView extends ConsumerStatefulWidget {
   /// 句子文本
@@ -93,6 +96,15 @@ class AnnotationContentView extends ConsumerStatefulWidget {
   /// 仅讲解详情页启用；未登录时不会自动触发，避免冷启动直接弹登录。
   final bool autoLoadSentenceAi;
 
+  /// 工具栏固定在内容区顶部，或与句子、翻译和解析一起滚动。
+  final AnnotationToolbarPlacement toolbarPlacement;
+
+  /// 随滚动讲解内容显示在工具栏之前的宿主内容，例如单句元信息。
+  final Widget? scrollHeader;
+
+  /// 工具栏与句子正文的横向内边距；解析内容面板仍保持满宽，由自身处理内边距。
+  final double contentHorizontalPadding;
+
   const AnnotationContentView({
     super.key,
     required this.text,
@@ -107,6 +119,9 @@ class AnnotationContentView extends ConsumerStatefulWidget {
     this.onToolbarButtonTapped,
     this.enableGuide = true,
     this.autoLoadSentenceAi = false,
+    this.toolbarPlacement = AnnotationToolbarPlacement.fixed,
+    this.scrollHeader,
+    this.contentHorizontalPadding = 0,
   });
 
   @override
@@ -890,171 +905,203 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
           }
           return false;
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 固定工具栏（监听 notifier 刷新）。
+        child: _AnnotationContentLayout(
+          toolbarPlacement: widget.toolbarPlacement,
+          scrollHeader: widget.scrollHeader,
+          toolbar: Padding(
             // 下方间距缩小：句子已自带 12dp 上留白（给选区手柄圆点让位，
             // 见 SentenceAnnotationCard），二者合计维持原 16dp 视觉间距。
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: ListenableBuilder(
-                listenable: _toolbarNotifier,
-                builder: (context, _) {
-                  final cardState = _cardKey.currentState;
-                  if (cardState == null || !cardState.hasToolbarButtons) {
-                    return const SizedBox.shrink();
+            padding: EdgeInsets.only(
+              left: widget.contentHorizontalPadding,
+              right: widget.contentHorizontalPadding,
+              bottom: AppSpacing.xs,
+            ),
+            child: ListenableBuilder(
+              listenable: _toolbarNotifier,
+              builder: (context, _) {
+                final cardState = _cardKey.currentState;
+                if (cardState == null || !cardState.hasToolbarButtons) {
+                  return const SizedBox.shrink();
+                }
+                return cardState.buildToolbar(context);
+              },
+            ),
+          ),
+          content: SentenceAnnotationCard(
+            key: _cardKey,
+            text: widget.text,
+            contentHorizontalPadding: widget.contentHorizontalPadding,
+            showToolbar: false,
+            onToolbarStateChanged: _toolbarNotifier.notify,
+            onRequestTranslation: ai != null
+                ? (cancelToken, source) async* {
+                    var hasContent = false;
+                    try {
+                      final (requestPreviousText, requestNextText) =
+                          await resolveTranslationContext();
+                      // await for（非 yield*）确保流内 auth/quota 错误在本
+                      // try 内重抛，从而弹登录/订阅（与 onRequestAnalysis 语义一致）。
+                      await for (final t in ai.getTranslationStream(
+                        widget.text,
+                        previous: requestPreviousText,
+                        next: requestNextText,
+                        targetLanguage: nativeLanguage,
+                        accessToken: accessToken,
+                        cancelToken: cancelToken,
+                        respectLocalQuotaReset:
+                            source == SentenceAiRequestSource.automatic,
+                      )) {
+                        if (t.translation.isNotEmpty) {
+                          hasContent = true;
+                        }
+                        yield t.translation;
+                      }
+                      if (hasContent) {
+                        ref
+                            .read(usageTrackerProvider)
+                            .record(UsageEvent.translationSucceeded);
+                      }
+                    } on AiFeatureAuthRequiredException {
+                      if (mounted) {
+                        unawaited(_showAiFeatureSignInDialog());
+                      }
+                      rethrow;
+                    } on AiFeatureQuotaExceededException catch (e) {
+                      if (mounted) {
+                        unawaited(
+                          _showAiQuotaExceededDialog(
+                            e,
+                            force: source == SentenceAiRequestSource.userTap,
+                          ),
+                        );
+                      }
+                      rethrow;
+                    }
                   }
-                  return cardState.buildToolbar(context);
-                },
-              ),
-            ),
-            // 可滚动内容区
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: AppSpacing.l),
-                child: SentenceAnnotationCard(
-                  key: _cardKey,
-                  text: widget.text,
-                  showToolbar: false,
-                  onToolbarStateChanged: _toolbarNotifier.notify,
-                  onRequestTranslation: ai != null
-                      ? (cancelToken, source) async* {
-                          var hasContent = false;
-                          try {
-                            final (requestPreviousText, requestNextText) =
-                                await resolveTranslationContext();
-                            // await for（非 yield*）确保流内 auth/quota 错误在本
-                            // try 内重抛，从而弹登录/订阅（与 onRequestAnalysis 语义一致）。
-                            await for (final t in ai.getTranslationStream(
-                              widget.text,
-                              previous: requestPreviousText,
-                              next: requestNextText,
-                              targetLanguage: nativeLanguage,
-                              accessToken: accessToken,
-                              cancelToken: cancelToken,
-                              respectLocalQuotaReset:
-                                  source == SentenceAiRequestSource.automatic,
-                            )) {
-                              if (t.translation.isNotEmpty) {
-                                hasContent = true;
-                              }
-                              yield t.translation;
-                            }
-                            if (hasContent) {
-                              ref
-                                  .read(usageTrackerProvider)
-                                  .record(UsageEvent.translationSucceeded);
-                            }
-                          } on AiFeatureAuthRequiredException {
-                            if (mounted) {
-                              unawaited(_showAiFeatureSignInDialog());
-                            }
-                            rethrow;
-                          } on AiFeatureQuotaExceededException catch (e) {
-                            if (mounted) {
-                              unawaited(
-                                _showAiQuotaExceededDialog(
-                                  e,
-                                  force:
-                                      source == SentenceAiRequestSource.userTap,
-                                ),
-                              );
-                            }
-                            rethrow;
-                          }
+                : null,
+            onRequestAnalysis: ai != null
+                ? (cancelToken, source) async* {
+                    var hasContent = false;
+                    try {
+                      // await for 确保流内 auth/quota 错误进入本层 catch，
+                      // 从而触发登录或订阅导航，并由卡片恢复按钮状态。
+                      await for (final analysis in ai.getAnalysisStream(
+                        widget.text,
+                        targetLanguage: nativeLanguage,
+                        accessToken: accessToken,
+                        cancelToken: cancelToken,
+                        respectLocalQuotaReset:
+                            source == SentenceAiRequestSource.automatic,
+                      )) {
+                        if (analysis.isNotEmpty) {
+                          hasContent = true;
                         }
-                      : null,
-                  onRequestAnalysis: ai != null
-                      ? (cancelToken, source) async* {
-                          var hasContent = false;
-                          try {
-                            // await for 确保流内 auth/quota 错误进入本层 catch，
-                            // 从而触发登录或订阅导航，并由卡片恢复按钮状态。
-                            await for (final analysis in ai.getAnalysisStream(
-                              widget.text,
-                              targetLanguage: nativeLanguage,
-                              accessToken: accessToken,
-                              cancelToken: cancelToken,
-                              respectLocalQuotaReset:
-                                  source == SentenceAiRequestSource.automatic,
-                            )) {
-                              if (analysis.isNotEmpty) {
-                                hasContent = true;
-                              }
-                              yield analysis;
-                            }
-                            if (hasContent) {
-                              ref
-                                  .read(usageTrackerProvider)
-                                  .record(UsageEvent.analysisSucceeded);
-                            }
-                          } on AiFeatureAuthRequiredException {
-                            if (mounted) {
-                              unawaited(_showAiFeatureSignInDialog());
-                            }
-                            rethrow;
-                          } on AiFeatureQuotaExceededException catch (e) {
-                            if (mounted) {
-                              unawaited(
-                                _showAiQuotaExceededDialog(
-                                  e,
-                                  force:
-                                      source == SentenceAiRequestSource.userTap,
-                                ),
-                              );
-                            }
-                            rethrow;
-                          }
-                        }
-                      : null,
-                  cachedTranslation: cachedTranslation,
-                  cachedAnalysis: cachedAnalysis,
-                  autoLoadTranslation:
-                      shouldAutoLoadSentenceAi &&
-                      autoShowAiTranslation &&
-                      translationContextReady,
-                  autoLoadAnalysis:
-                      shouldAutoLoadSentenceAi && autoShowAiAnalysis,
-                  onTranslationUserIntent: () {
-                    ref
-                        .read(usageTrackerProvider)
-                        .record(UsageEvent.translationTapped);
-                  },
-                  onAnalysisUserIntent: () {
-                    ref
-                        .read(usageTrackerProvider)
-                        .record(UsageEvent.analysisTapped);
-                  },
-                  audioItemId: widget.audioItemId,
-                  sentenceIndex: widget.sentenceIndex,
-                  sentenceStartMs: widget.sentenceStartMs,
-                  sentenceEndMs: widget.sentenceEndMs,
-                  senseGroupResult: _senseGroupResult,
-                  senseGroupTimings: _senseGroupTimings,
-                  onSenseGroupModeChanged: _handleModeChanged,
-                  playingSenseGroupIndex: _playingSenseGroupIndex,
-                  playedSenseGroupIndices: _playedSenseGroupIndices,
-                  onTapSenseGroup: _handleTapSenseGroup,
-                  onRequestSenseGroups: _requestSenseGroups,
-                  autoLoadSenseGroups:
-                      shouldAutoLoadSentenceAi && autoShowAiSenseGroups,
-                  onAwaitSenseGroupFine: _awaitSenseGroupFine,
-                  hasWordTimestamps: _wordTimestamps != null,
-                  highlightedSegments: widget.highlightedSegments,
-                  savedGroupTexts: savedTexts,
-                  onTapGroupWithRect: _showActionBar,
-                  onToolbarButtonTapped: widget.onToolbarButtonTapped,
-                  sentenceGuideStep: sentenceStep,
-                  senseGroupGuideStep: senseGroupStep,
-                  translationGuideStep: translationStep,
-                  analysisGuideStep: analysisStep,
-                ),
-              ),
-            ),
-          ],
+                        yield analysis;
+                      }
+                      if (hasContent) {
+                        ref
+                            .read(usageTrackerProvider)
+                            .record(UsageEvent.analysisSucceeded);
+                      }
+                    } on AiFeatureAuthRequiredException {
+                      if (mounted) {
+                        unawaited(_showAiFeatureSignInDialog());
+                      }
+                      rethrow;
+                    } on AiFeatureQuotaExceededException catch (e) {
+                      if (mounted) {
+                        unawaited(
+                          _showAiQuotaExceededDialog(
+                            e,
+                            force: source == SentenceAiRequestSource.userTap,
+                          ),
+                        );
+                      }
+                      rethrow;
+                    }
+                  }
+                : null,
+            cachedTranslation: cachedTranslation,
+            cachedAnalysis: cachedAnalysis,
+            autoLoadTranslation:
+                shouldAutoLoadSentenceAi &&
+                autoShowAiTranslation &&
+                translationContextReady,
+            autoLoadAnalysis: shouldAutoLoadSentenceAi && autoShowAiAnalysis,
+            onTranslationUserIntent: () {
+              ref
+                  .read(usageTrackerProvider)
+                  .record(UsageEvent.translationTapped);
+            },
+            onAnalysisUserIntent: () {
+              ref.read(usageTrackerProvider).record(UsageEvent.analysisTapped);
+            },
+            audioItemId: widget.audioItemId,
+            sentenceIndex: widget.sentenceIndex,
+            sentenceStartMs: widget.sentenceStartMs,
+            sentenceEndMs: widget.sentenceEndMs,
+            senseGroupResult: _senseGroupResult,
+            senseGroupTimings: _senseGroupTimings,
+            onSenseGroupModeChanged: _handleModeChanged,
+            playingSenseGroupIndex: _playingSenseGroupIndex,
+            playedSenseGroupIndices: _playedSenseGroupIndices,
+            onTapSenseGroup: _handleTapSenseGroup,
+            onRequestSenseGroups: _requestSenseGroups,
+            autoLoadSenseGroups:
+                shouldAutoLoadSentenceAi && autoShowAiSenseGroups,
+            onAwaitSenseGroupFine: _awaitSenseGroupFine,
+            hasWordTimestamps: _wordTimestamps != null,
+            highlightedSegments: widget.highlightedSegments,
+            savedGroupTexts: savedTexts,
+            onTapGroupWithRect: _showActionBar,
+            onToolbarButtonTapped: widget.onToolbarButtonTapped,
+            sentenceGuideStep: sentenceStep,
+            senseGroupGuideStep: senseGroupStep,
+            translationGuideStep: translationStep,
+            analysisGuideStep: analysisStep,
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// 根据宿主场景决定工具栏固定或随讲解内容滚动，讲解卡片本身保持单一实例。
+class _AnnotationContentLayout extends StatelessWidget {
+  const _AnnotationContentLayout({
+    required this.toolbarPlacement,
+    required this.scrollHeader,
+    required this.toolbar,
+    required this.content,
+  });
+
+  final AnnotationToolbarPlacement toolbarPlacement;
+  final Widget? scrollHeader;
+  final Widget toolbar;
+  final Widget content;
+
+  @override
+  Widget build(BuildContext context) {
+    if (toolbarPlacement == AnnotationToolbarPlacement.scrollWithContent) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: AppSpacing.l),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [if (scrollHeader != null) scrollHeader!, toolbar, content],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        toolbar,
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.l),
+            child: content,
+          ),
+        ),
+      ],
     );
   }
 }

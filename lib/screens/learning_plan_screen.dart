@@ -13,8 +13,11 @@ import '../database/enums.dart';
 import '../models/audio_item.dart';
 import '../models/learning_plan.dart';
 import '../models/learning_progress.dart';
+import '../models/media_intensive_listen_startup.dart';
+import '../models/media_load_result.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
 import '../providers/audio_library_provider.dart';
+import '../providers/audio_sentences_provider.dart';
 import '../providers/collection_provider.dart';
 import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
@@ -432,9 +435,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       if (audioItem == null) return;
 
       // 始终调用 loadAudio：同一音频时只重新读取字幕，不重新加载音频文件
-      _loadAudioFuture = ref
-          .read(listeningPracticeProvider.notifier)
-          .loadAudio(audioItem);
+      _maybeLoadAudio(audioItem);
 
       // 监听字幕变化（上传/AI转录完成后重新加载字幕）。
       //
@@ -455,13 +456,19 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               prev?.sentenceCount != next.sentenceCount ||
               prev?.wordCount != next.wordCount;
           if (transcriptChanged) {
-            _loadAudioFuture = ref
-                .read(listeningPracticeProvider.notifier)
-                .loadAudio(next, forceTranscriptReload: true);
+            _maybeLoadAudio(next, forceTranscriptReload: true);
           }
         },
       );
     });
+  }
+
+  /// 加载音频到听力练习引擎；视频条目本期不接入播放引擎，直接跳过（仅保证页面不崩溃）。
+  void _maybeLoadAudio(AudioItem item, {bool forceTranscriptReload = false}) {
+    if (item.isVideo) return;
+    _loadAudioFuture = ref
+        .read(listeningPracticeProvider.notifier)
+        .loadAudio(item, forceTranscriptReload: forceTranscriptReload);
   }
 
   /// 等待音频加载完成，返回 LP 状态。
@@ -494,6 +501,16 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
   ///
   /// 右上角随心听胶囊与「首次学习」预热卡共用此入口，保证目的地单一来源。
   void _openFreePlay(BuildContext context) {
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem != null && audioItem.isVideo) {
+      context.push(
+        AppRoutes.mediaPlayer(widget.collectionId, widget.audioItemId),
+        extra: audioItem,
+      );
+      return;
+    }
     if (widget.collectionId != null) {
       context.push(AppRoutes.player(widget.collectionId!, widget.audioItemId));
     } else {
@@ -536,7 +553,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
           context,
           value: 'export',
           icon: const Icon(Icons.ios_share, size: 20),
-          label: l10n.exportAudio,
+          label: audioItem.isVideo ? l10n.exportVideo : l10n.exportAudio,
         ),
       if (hasTranscript)
         appPopupMenuItem(
@@ -1148,12 +1165,18 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
 
   /// 进入逐句精听
   Future<void> _startIntensiveListen(BuildContext context) async {
-    final lpState = await _ensureAudioLoaded();
-    if (!context.mounted || lpState == null) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : (await _ensureAudioLoaded())?.sentences;
+    if (!context.mounted || sentences == null) return;
     final l10n = AppLocalizations.of(context)!;
 
     // 无字幕则提示用户上传
-    if (lpState.sentences.isEmpty) {
+    if (sentences.isEmpty) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -1171,7 +1194,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     }
 
     // 预估时长：每句 = 句子时长 × 2（听 + 停顿处理）
-    final totalSentenceDuration = lpState.sentences.fold<Duration>(
+    final totalSentenceDuration = sentences.fold<Duration>(
       Duration.zero,
       (sum, s) => sum + s.duration,
     );
@@ -1186,22 +1209,42 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     final defaults = prefs.resolve(slot, smartSpeed: 1.0);
     showIntensiveListenBriefingSheet(
       context: context,
-      sentenceCount: lpState.sentences.length,
+      sentenceCount: sentences.length,
       estimatedDuration: intensiveEstimate,
       defaultPlaybackSpeed: defaults.playbackSpeed,
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       // 改完即记(与 🔧 面板一致):无论是否「开始练习」、即使关闭弹窗都已持久化。
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
       onStartPractice: (playbackSpeed, pause) async {
-        await ref
-            .read(learningSessionProvider.notifier)
-            .enterIntensiveListenMode(
+        final session = ref.read(learningSessionProvider.notifier);
+        final resolved = prefs.resolve(slot, smartSpeed: 1.0);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.intensiveListenPlayer(
+              widget.collectionId,
               widget.audioItemId,
-              lpState.sentences,
-              // onSelectionChanged 已把改动落入偏好,这里重新 resolve 取最新完整设置。
-              settings: prefs.resolve(slot, smartSpeed: 1.0),
-              settingsSlot: slot,
-            );
+            ),
+            extra: MediaIntensiveListenStartup(
+              loadKey: '${audioItem.id}:planned',
+              load: () => session.enterMediaIntensiveListenMode(
+                audioItem,
+                sentences,
+                settings: resolved,
+                settingsSlot: slot,
+              ),
+              cancel: session.cancelMediaIntensiveListenEntry,
+            ),
+          );
+          return;
+        }
+
+        await session.enterIntensiveListenMode(
+          widget.audioItemId,
+          sentences,
+          settings: resolved,
+          settingsSlot: slot,
+        );
         if (!context.mounted) return;
         context.push(
           AppRoutes.intensiveListenPlayer(
@@ -2563,11 +2606,17 @@ class _FirstStudySection extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final lpState = ref.read(listeningPracticeProvider);
-    if (lpState.sentences.isEmpty) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (sentences.isEmpty || !context.mounted) return;
 
     // 预估时长：每句 = 句子时长 × 2（听 + 停顿处理）
-    final totalSentenceDuration = lpState.sentences.fold<Duration>(
+    final totalSentenceDuration = sentences.fold<Duration>(
       Duration.zero,
       (sum, s) => sum + s.duration,
     );
@@ -2582,18 +2631,48 @@ class _FirstStudySection extends ConsumerWidget {
     final defaults = prefs.resolve(slot, smartSpeed: 1.0);
     showIntensiveListenBriefingSheet(
       context: context,
-      sentenceCount: lpState.sentences.length,
+      sentenceCount: sentences.length,
       estimatedDuration: intensiveEstimate,
       defaultPlaybackSpeed: defaults.playbackSpeed,
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
       onStartPractice: (playbackSpeed, pause) async {
         final notifier = ref.read(learningSessionProvider.notifier);
+        final resolved = prefs.resolve(slot, smartSpeed: 1.0);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.intensiveListenPlayer(collectionId, audioItemId),
+            extra: MediaIntensiveListenStartup(
+              loadKey: '${audioItem.id}:free-play',
+              load: () async {
+                final result = await notifier.enterMediaIntensiveListenMode(
+                  audioItem,
+                  sentences,
+                  isFreePlay: true,
+                  settings: resolved,
+                  settingsSlot: slot,
+                );
+                if (result == MediaLoadResult.ready) {
+                  // 补做语义：跳过的精听完成后回收为已完成。
+                  notifier.setCatchUp(
+                    LearningStage.firstLearn,
+                    SubStageType.intensiveListen,
+                  );
+                }
+                return result;
+              },
+              cancel: notifier.cancelMediaIntensiveListenEntry,
+            ),
+          );
+          return;
+        }
+
         await notifier.enterIntensiveListenMode(
           audioItemId,
-          lpState.sentences,
+          sentences,
           isFreePlay: true,
-          settings: prefs.resolve(slot, smartSpeed: 1.0),
+          settings: resolved,
           settingsSlot: slot,
         );
         // 补做语义：跳过的精听完成后回收为已完成

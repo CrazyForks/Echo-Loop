@@ -49,6 +49,25 @@ enum AudioContentStatus {
   }
 }
 
+/// 支持导入的视频扩展名（小写、不含点）。是 mediaType 判定的唯一依据，
+/// 其他文件（如 subtitle_pairing.dart）复用这个常量，不要另外定义一份。
+const videoFileExtensions = {'mp4', 'mov', 'm4v'};
+
+/// 媒体类型：按文件扩展名派生，不落库。
+enum MediaType { audio, video }
+
+/// 按文件路径扩展名判定媒体类型。path 为 null（未下载/未就绪）或无扩展名时
+/// 按 audio 处理——该 fallback 不影响功能，mediaType 只在文件已落盘后被实际读取。
+MediaType mediaTypeForPath(String? filePath) {
+  if (filePath == null) return MediaType.audio;
+  final ext = path.extension(filePath);
+  if (ext.isEmpty) return MediaType.audio;
+  final normalized = ext.substring(1).toLowerCase();
+  return videoFileExtensions.contains(normalized)
+      ? MediaType.video
+      : MediaType.audio;
+}
+
 /// 用户导入音频的来源类型。
 ///
 /// 精选/官方合集不使用该字段，继续由 `remoteAudioId` 与合集 `source=official`
@@ -81,14 +100,20 @@ enum AudioImportSourceType {
   }
 }
 
+/// 一条可学习的媒体条目（音频或视频通用）。
+///
+/// 历史上仅表示音频，故类名与多数字段带 `audio` 前缀；视频接入后复用同一模型，
+/// `audioPath` 等字段语义等价于「主媒体文件」，与音视频类型无关。类型由 [mediaType]
+/// 从 [audioPath] 扩展名派生，不落库。命名遗留与未来中性重命名意图见 `AudioItems` 表注释。
 class AudioItem {
   final String id;
   final String name;
 
-  /// 音频文件相对路径。
+  /// 主媒体文件相对路径（音频或视频）。
   ///
   /// NULL 表示未就绪（官方合集加入后、下载完成前）；非 NULL 表示文件已在本地。
-  /// 是「音频是否可用」的单一真实来源 —— 播放入口据此判断「直接播」或「触发下载」。
+  /// 是「媒体是否可用」的单一真实来源 —— 播放入口据此判断「直接播」或「触发下载」，
+  /// 也是 [mediaType]（video/audio）的派生依据。
   final String? audioPath;
 
   /// 字幕文件相对路径。NULL 表示无字幕或尚未下载。
@@ -102,7 +127,7 @@ class AudioItem {
   /// 字幕来源：null 表示无字幕
   final TranscriptSource? transcriptSource;
 
-  /// 音频文件 SHA256 指纹（缓存，避免重复计算）
+  /// 媒体文件 SHA256 指纹（缓存，避免重复计算）。纯文件哈希，音视频通用。
   final String? audioSha256;
 
   /// 转码前原始音频 SHA256 指纹。
@@ -185,8 +210,14 @@ class AudioItem {
     this.podcastLink,
   });
 
-  /// 音频文件是否已就绪（在本地可播）。
+  /// 媒体文件是否已就绪（在本地可播）。音视频通用。
   bool get isAudioReady => audioPath != null && audioPath!.isNotEmpty;
+
+  /// 媒体类型（按 audioPath 扩展名派生的计算属性，不落库）
+  MediaType get mediaType => mediaTypeForPath(audioPath);
+
+  /// 是否为视频条目
+  bool get isVideo => mediaType == MediaType.video;
 
   /// 是否有字幕。
   ///
@@ -194,7 +225,7 @@ class AudioItem {
   /// 文件路径）。所有创建点设置 source、删除时清空。
   bool get hasTranscript => transcriptSource != null;
 
-  /// 获取音频文件的完整路径；未就绪时返回 null。
+  /// 获取媒体文件（音频或视频）的完整路径；未就绪时返回 null。
   Future<String?> getFullAudioPath() async {
     if (!isAudioReady) return null;
     final dataDir = await getAppDataDirectory();

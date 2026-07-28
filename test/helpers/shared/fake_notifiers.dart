@@ -50,8 +50,10 @@ import 'package:echo_loop/models/difficult_practice_settings.dart';
 import 'package:echo_loop/models/flashcard_item.dart';
 import 'package:echo_loop/models/flashcard_settings.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart';
+import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/models/learning_plan.dart';
 import 'package:echo_loop/models/learning_progress.dart';
+import 'package:echo_loop/providers/learning_session/intensive_listen_playback_driver.dart';
 import 'package:echo_loop/models/playback_settings.dart';
 import 'package:echo_loop/models/retell_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
@@ -984,6 +986,23 @@ class FakeLearningSession extends LearningSession {
   }
 
   @override
+  Future<MediaLoadResult> enterMediaIntensiveListenMode(
+    AudioItem mediaItem,
+    List<Sentence> sentences, {
+    bool isFreePlay = false,
+    IntensiveListenSettings settings = const IntensiveListenSettings(),
+    String? settingsSlot,
+  }) async {
+    state = state.copyWith(
+      learningMode: LearningMode.intensiveListen,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+    );
+    return MediaLoadResult.ready;
+  }
+
+  @override
   Future<void> enterListenAndRepeatMode(
     String audioItemId,
     List<Sentence> sentences, {
@@ -1138,14 +1157,20 @@ class FakeIntensiveListenPlayer extends IntensiveListenPlayer {
     int startIndex = 0,
     IntensiveListenSettings settings = const IntensiveListenSettings(),
     String? settingsSlot,
+    IntensiveListenPlaybackDriver? playbackDriver,
+    bool usesMediaEngine = false,
   }) async {
     testSentences = List.of(sentences);
     state = IntensiveListenState(
       currentSentenceIndex: startIndex,
       totalSentences: sentences.length,
       settings: settings,
+      usesMediaEngine: usesMediaEngine,
     );
   }
+
+  @override
+  Future<void> applyPlaybackSpeed(double speed) async {}
 
   @override
   void updateSettings(IntensiveListenSettings newSettings) {

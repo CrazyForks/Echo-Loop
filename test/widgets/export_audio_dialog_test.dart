@@ -47,6 +47,32 @@ void main() {
       expect(checkboxes, findsNWidgets(2));
     });
 
+    testWidgets('isVideo 时标题与媒体选项文案用「视频」', (tester) async {
+      await tester.pumpWidget(
+        _buildTestApp(
+          child: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showExportAudioDialog(
+                context: context,
+                hasTranscript: true,
+                isVideo: true,
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // 标题 + 确认按钮都为 Export Video；媒体选项为 Video；不出现 Audio 文案。
+      expect(find.text('Export Video'), findsNWidgets(2));
+      expect(find.text('Video'), findsOneWidget);
+      expect(find.text('Audio'), findsNothing);
+      expect(find.text('Subtitle'), findsOneWidget);
+    });
+
     testWidgets('无字幕时字幕 checkbox disabled', (tester) async {
       await tester.pumpWidget(
         _buildTestApp(

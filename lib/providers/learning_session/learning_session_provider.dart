@@ -17,6 +17,8 @@ import '../../database/enums.dart';
 import '../../models/blind_listen_settings.dart';
 import '../../models/difficult_practice_settings.dart';
 import '../../models/intensive_listen_settings.dart';
+import '../../models/audio_item.dart';
+import '../../models/media_load_result.dart';
 import '../../models/playback_settings.dart';
 import '../../models/retell_settings.dart';
 import '../../models/sentence.dart';
@@ -37,8 +39,10 @@ import '../../utils/playback_speed_default.dart';
 import '../speech/speech_recording_controller.dart';
 import '../retell_recording_controller_provider.dart';
 import '../listening_practice/listening_practice_provider.dart';
+import '../media_engine/media_engine_provider.dart';
 import 'blind_listen_player_provider.dart';
 import 'intensive_listen_player_provider.dart';
+import 'intensive_listen_playback_driver.dart';
 import 'retell_player_provider.dart';
 import 'review_difficult_practice_provider.dart';
 import 'sentence_playback_engine.dart';
@@ -62,6 +66,9 @@ enum LearningMode {
   /// 复习难句补练
   reviewDifficultPractice,
 }
+
+/// 当前学习会话实际占用的播放链路。
+enum LearningPlaybackChain { audio, media }
 
 /// 学习会话状态
 class LearningSessionState {
@@ -105,6 +112,7 @@ class LearningSessionState {
 
   /// 自由练习时用户点击的目标子步骤（与 [catchUpStage] 配套）。
   final SubStageType? catchUpSubStage;
+  final LearningPlaybackChain playbackChain;
 
   const LearningSessionState({
     this.learningMode,
@@ -119,6 +127,7 @@ class LearningSessionState {
     this.shadowingTargetPlayCount = 3,
     this.catchUpStage,
     this.catchUpSubStage,
+    this.playbackChain = LearningPlaybackChain.audio,
   });
 
   /// 是否处于学习模式中
@@ -143,6 +152,7 @@ class LearningSessionState {
     int? shadowingTargetPlayCount,
     LearningStage? catchUpStage,
     SubStageType? catchUpSubStage,
+    LearningPlaybackChain? playbackChain,
     bool clearLearningMode = false,
     bool clearSavedSettings = false,
     bool clearAudioItemId = false,
@@ -172,6 +182,7 @@ class LearningSessionState {
       catchUpSubStage: clearCatchUp
           ? null
           : (catchUpSubStage ?? this.catchUpSubStage),
+      playbackChain: playbackChain ?? this.playbackChain,
     );
   }
 }
@@ -184,6 +195,9 @@ class LearningSessionState {
 @Riverpod(keepAlive: true)
 class LearningSession extends _$LearningSession {
   StreamSubscription<ja.PlayerState>? _playerStateSub;
+
+  /// 视频精听进入流程 generation；退出或重试会使旧异步结果失效。
+  int _mediaIntensiveEntryGeneration = 0;
 
   /// 学习计时器，进入学习模式时启动，退出时停止
   final Stopwatch _studyStopwatch = Stopwatch();
@@ -548,6 +562,117 @@ class LearningSession extends _$LearningSession {
     _trackSessionStart();
   }
 
+  /// 进入视频逐句精听模式。
+  ///
+  /// 字幕由调用方直接从数据库提供，媒体只加载到 MediaEngine；不会把视频送入
+  /// listeningPracticeProvider，也不会改写现有音频逐句精听的加载链路。
+  Future<MediaLoadResult> enterMediaIntensiveListenMode(
+    AudioItem mediaItem,
+    List<Sentence> sentences, {
+    bool isFreePlay = false,
+    IntensiveListenSettings settings = const IntensiveListenSettings(),
+    String? settingsSlot,
+  }) async {
+    final generation = ++_mediaIntensiveEntryGeneration;
+    bool isCurrentGeneration() => generation == _mediaIntensiveEntryGeneration;
+
+    final progressNotifier = ref.read(
+      learningProgressNotifierProvider.notifier,
+    );
+    final progress = await progressNotifier.getLatestOrEnsureProgress(
+      mediaItem.id,
+    );
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+
+    var startIndex = 0;
+    if (isFreePlay && _isBreakpointValid(progress.freePlayBreakpointSavedAt)) {
+      startIndex = progress.freePlayIntensiveListenSentenceIndex ?? 0;
+    } else if (!isFreePlay &&
+        _isBreakpointValid(progress.newLearningBreakpointSavedAt)) {
+      startIndex = progress.intensiveListenSentenceIndex ?? 0;
+    }
+
+    // 两条媒体会话不能同时占用系统控制位；这里只暂停旧音频，不加载或改写它。
+    await ref.read(audioEngineProvider.notifier).pause();
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+
+    final mediaEngine = ref.read(mediaEngineProvider.notifier);
+    final duration = await mediaEngine.loadMedia(
+      mediaItem,
+      settings.playbackSpeed,
+    );
+    if (!isCurrentGeneration()) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.cancelled;
+    }
+    if (duration == null) {
+      AppLogger.log(
+        'Session',
+        '✗ enterMediaIntensiveListenMode load failed: ${mediaItem.id}',
+      );
+      // loadMedia 会先创建 media_kit 链路；失败后立即释放，避免重试时残留
+      // 未激活的 native Player。该清理只针对独立视频链路。
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.failure;
+    }
+
+    final subtitleSrt = await ref
+        .read(audioItemDaoProvider)
+        .getTranscriptSrt(mediaItem.id);
+    if (!isCurrentGeneration()) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.cancelled;
+    }
+    await mediaEngine.setSubtitleTrackData(subtitleSrt);
+    if (!isCurrentGeneration()) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.cancelled;
+    }
+
+    state = state.copyWith(
+      learningMode: LearningMode.intensiveListen,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+      clearSavedSettings: true,
+    );
+
+    final intensivePlayer = ref.read(intensiveListenPlayerProvider.notifier);
+    await intensivePlayer.initialize(
+      sentences,
+      startIndex: startIndex,
+      settings: settings,
+      settingsSlot: settingsSlot,
+      playbackDriver: MediaIntensiveListenPlaybackDriver(mediaEngine),
+      usesMediaEngine: true,
+    );
+    if (!isCurrentGeneration()) {
+      await exitLearningMode();
+      return MediaLoadResult.cancelled;
+    }
+
+    _startStudyTimer();
+    _trackSessionStart();
+    AppLogger.log(
+      'Session',
+      '🎬 enterMediaIntensiveListenMode: targetId=${mediaItem.id}, '
+          'sentences=${sentences.length}',
+    );
+    return MediaLoadResult.ready;
+  }
+
+  /// 取消当前视频精听进入流程。
+  ///
+  /// 加载尚未完成时只使 generation 失效，由原协程在下一异步边界释放媒体；若
+  /// 会话已完成写入，则复用正常退出路径立即释放播放器和学习状态。
+  Future<void> cancelMediaIntensiveListenEntry() async {
+    _mediaIntensiveEntryGeneration += 1;
+    if (state.learningMode == LearningMode.intensiveListen &&
+        state.playbackChain == LearningPlaybackChain.media) {
+      await exitLearningMode();
+    }
+  }
+
   // TODO: 跟读页已迁移到 ListenAndRepeatController.initialize()，此方法不再被调用。
   // 等所有 enterXxxMode 都迁移到各自 Controller 后，删除整个 LearningSessionProvider。
   /// 进入难句跟读模式（已废弃，保留供参考）
@@ -803,6 +928,7 @@ class LearningSession extends _$LearningSession {
 
     _playerStateSub?.cancel();
     _playerStateSub = null;
+    final usesMediaChain = state.playbackChain == LearningPlaybackChain.media;
     if (mode == LearningMode.blindListen) {
       final blindPlayer = ref.read(blindListenPlayerProvider.notifier);
       await blindPlayer.pause();
@@ -821,6 +947,15 @@ class LearningSession extends _$LearningSession {
       // 释放难句补练播放器资源
       final player = ref.read(reviewDifficultPracticeProvider.notifier);
       player.disposePlayer();
+    }
+
+    if (usesMediaChain) {
+      await ref.read(mediaEngineProvider.notifier).releaseFromScreen();
+      await _flushLearnedVocabulary();
+      ref.read(dailyStudyTimeProvider.notifier).refresh();
+      ref.read(studyStatsNotifierProvider.notifier).refresh();
+      state = const LearningSessionState();
+      return;
     }
 
     // 通用：清除 clip 防止残留影响 LP 的 absolutePositionStream

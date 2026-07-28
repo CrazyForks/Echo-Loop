@@ -6,7 +6,6 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../analytics/analytics_providers.dart';
@@ -31,7 +30,7 @@ import '../intensive_listen_prefs_provider.dart';
 import '../learning_progress_provider.dart';
 import 'countdown_controller.dart';
 import 'learning_session_provider.dart';
-import 'study_background_playback_mixin.dart';
+import 'intensive_listen_playback_driver.dart';
 
 part 'intensive_listen_player_provider.g.dart';
 
@@ -76,6 +75,9 @@ class IntensiveListenState {
   final bool stepFinished;
   final int? playingSenseGroupIndex;
   final Set<int> playedSenseGroupIndices;
+
+  /// 当前会话是否由独立的 media_kit 链路播放。
+  final bool usesMediaEngine;
   final BlindPracticeFlowState? blindFlowState;
   final IntensiveAnnotationState? annotationState;
 
@@ -101,6 +103,7 @@ class IntensiveListenState {
     this.stepFinished = false,
     this.playingSenseGroupIndex,
     this.playedSenseGroupIndices = const {},
+    this.usesMediaEngine = false,
     this.blindFlowState,
     this.annotationState,
   });
@@ -131,6 +134,7 @@ class IntensiveListenState {
     bool? stepFinished,
     Object? playingSenseGroupIndex = _sentinel,
     Set<int>? playedSenseGroupIndices,
+    bool? usesMediaEngine,
     Object? blindFlowState = _sentinel,
     Object? annotationState = _sentinel,
   }) {
@@ -164,6 +168,7 @@ class IntensiveListenState {
           : playingSenseGroupIndex as int?,
       playedSenseGroupIndices:
           playedSenseGroupIndices ?? this.playedSenseGroupIndices,
+      usesMediaEngine: usesMediaEngine ?? this.usesMediaEngine,
       blindFlowState: blindFlowState == _sentinel
           ? this.blindFlowState
           : blindFlowState as BlindPracticeFlowState?,
@@ -175,15 +180,12 @@ class IntensiveListenState {
 }
 
 @Riverpod(keepAlive: true)
-class IntensiveListenPlayer extends _$IntensiveListenPlayer
-    with StudyBackgroundPlaybackMixin {
-  @override
-  Ref get bgRef => ref;
-
+class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   List<Sentence> _sentences = [];
   late StudyEventRecorder _recorder;
   late BlindPracticeFlowEngine _blindEngine;
   final CountdownController _annotationCountdown = CountdownController();
+  late IntensiveListenPlaybackDriver _playback;
 
   int _currentSessionId = -1;
   bool _refreshBlindConfigWhenWaiting = false;
@@ -197,7 +199,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     return BlindPracticeFlowEngine(
       onStateChanged: _onBlindFlowStateChanged,
       callbacks: BlindPracticeFlowCallbacks(
-        pauseAudio: () => ref.read(audioEngineProvider.notifier).pause(),
+        pauseAudio: _playback.pause,
         playSentence: _playSentenceForBlind,
       ),
       logTag: 'IntensiveBlind',
@@ -217,6 +219,9 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
       vocabTracker: vocabTracker,
       stage: StudyStage.intensiveListen,
     );
+    _playback = AudioIntensiveListenPlaybackDriver(
+      ref.read(audioEngineProvider.notifier),
+    );
     _blindEngine = _createBlindEngine();
 
     ref.onDispose(() {
@@ -232,7 +237,14 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     int startIndex = 0,
     IntensiveListenSettings settings = const IntensiveListenSettings(),
     String? settingsSlot,
+    IntensiveListenPlaybackDriver? playbackDriver,
+    bool usesMediaEngine = false,
   }) async {
+    _playback =
+        playbackDriver ??
+        AudioIntensiveListenPlaybackDriver(
+          ref.read(audioEngineProvider.notifier),
+        );
     _settingsSlot = settingsSlot;
     _blindEngine.dispose();
     _blindEngine = _createBlindEngine();
@@ -254,13 +266,14 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
       totalSentences: _sentences.length,
       difficultSentences: preBookmarked,
       settings: settings,
+      usesMediaEngine: usesMediaEngine,
     );
     _prepareBlindFlow(startIndex: safeIndex);
 
     // 锁屏控制：每任务绑定一次（回调为稳定的 notifier 方法），整段任务期间锁屏
     // 上一句/下一句始终可用；避免「按活跃 phase 条件 bind」在等待/切换瞬间留下
     // 空窗导致切句失灵。会话活跃度（保活 + 图标）由 setSessionActive 单独维护。
-    bindLockScreen(
+    _playback.bindLockScreen(
       onPlay: resume,
       onPause: pause,
       onNext: goToNext,
@@ -272,6 +285,9 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
       EventParams.totalSentences: _sentences.length,
     });
   }
+
+  /// 将设置中的速度同步到当前会话实际使用的播放链路。
+  Future<void> applyPlaybackSpeed(double speed) => _playback.setSpeed(speed);
 
   Sentence? get currentSentence =>
       _sentences.isNotEmpty && state.currentSentenceIndex < _sentences.length
@@ -344,7 +360,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
 
     _blindEngine.stopSession();
     _cleanupAnnotationSession();
-    ref.read(audioEngineProvider.notifier).pause();
+    _playback.pause();
 
     final newDifficult = Set<int>.from(state.difficultSentences);
     final wasAlreadyDifficult = newDifficult.contains(
@@ -406,13 +422,13 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     stopSenseGroupPlayback();
     _cleanupAnnotationSession();
 
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
     state = state.copyWith(isPlaying: true);
 
     await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playClipOnce(sentence, sessionId);
+    await engine.playSentence(sentence, sessionId);
     if (!engine.isActiveSession(sessionId)) {
       state = state.copyWith(isPlaying: false);
       return;
@@ -443,7 +459,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     int groupIndex,
   ) async {
     if (state.annotationState == null) return;
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
     _annotationCountdown.cancel();
@@ -471,7 +487,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
 
   Future<void> playAllSenseGroups(List<SenseGroupTiming> timings) async {
     if (state.annotationState == null || timings.isEmpty) return;
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
     _annotationCountdown.cancel();
@@ -681,7 +697,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
   }
 
   void disposePlayer() {
-    unbindLockScreen();
+    _playback.unbindLockScreen();
     _blindEngine.stopSession();
     _cleanupAnnotationSession();
     _sentences = [];
@@ -754,12 +770,12 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     // 会话活跃度：播放中或停顿倒计时即活跃 → 保活（iOS 静音轨）+ 锁屏图标显示「播放中」；
     // 等待用户/完成时不活跃 → 停保活、图标转暂停。回调槽已在 initialize 绑定一次，此处不再动。
     final active = phase is BlindPlayingPrompt || phase is BlindWaitingInterval;
-    setSessionActive(active);
+    _playback.setSessionActive(active);
 
     // 句间停顿倒计时期间冻结锁屏进度条：保活会话仍活跃（图标显示播放中），但音频不
     // 前进，进度条应停在句尾而非按 playbackRate 继续外推（见 §7.16，与全文盲听同源）。
     // 实际播放（BlindPlayingPrompt）时解冻，进度随播放前进。
-    setProgressFrozen(interval != null);
+    _playback.setProgressFrozen(interval != null);
 
     if (phase is BlindWaitingForUser && _refreshBlindConfigWhenWaiting) {
       _refreshBlindConfigWhenWaiting = false;
@@ -779,10 +795,10 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
   Future<bool> _playSentenceForBlind(Sentence sentence, int flowToken) async {
     if (sentence.duration <= Duration.zero) return false;
     _persistCurrentSentenceIndexAsync();
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     final sessionId = engine.newSession();
     await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playClipOnce(sentence, sessionId);
+    await engine.playSentence(sentence, sessionId);
     return true;
   }
 
@@ -830,12 +846,12 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
       ),
     );
 
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
 
     await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playClipOnce(sentence, sessionId);
+    await engine.playSentence(sentence, sessionId);
     if (!engine.isActiveSession(sessionId)) {
       state = state.copyWith(isPlaying: false);
       return;
@@ -868,7 +884,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     final pauseDur = sentence != null
         ? calculatePauseDuration(sentence.duration, state.settings)
         : const Duration(seconds: 1);
-    final engine = ref.read(audioEngineProvider.notifier);
+    final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
 
@@ -949,7 +965,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer
     _annotationCountdown.cancel();
     _currentSessionId = -1;
     _annotationWaitAfterCurrentPlayback = false;
-    ref.read(audioEngineProvider.notifier).pause();
+    _playback.pause();
   }
 
   void _setAnnotationPhase(IntensiveAnnotationPhase phase) {

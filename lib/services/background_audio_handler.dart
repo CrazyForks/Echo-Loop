@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:just_audio/just_audio.dart' as ja;
 
 import '../utils/app_data_dir.dart';
+import 'media_session_router.dart';
 
 /// Echo Loop 全局后台播放控制器。
 ///
@@ -442,6 +443,7 @@ class EchoLoopAudioHandler extends BaseAudioHandler with SeekHandler {
 }
 
 EchoLoopAudioHandler? _globalAudioHandler;
+MediaSessionRouter? _globalMediaSessionRouter;
 
 /// 初始化全局后台播放 handler。
 Future<EchoLoopAudioHandler> initEchoLoopAudioHandler() async {
@@ -449,9 +451,10 @@ Future<EchoLoopAudioHandler> initEchoLoopAudioHandler() async {
   final handler = EchoLoopAudioHandler();
   await handler.configureSession();
   await handler.prepareArtwork();
+  final router = MediaSessionRouter(defaultHandler: handler);
   if (!kIsWeb) {
     await AudioService.init(
-      builder: () => handler,
+      builder: () => router,
       config: AudioServiceConfig(
         androidNotificationChannelId: 'app.echoloop.audio',
         androidNotificationChannelName: 'Echo Loop Playback',
@@ -462,6 +465,7 @@ Future<EchoLoopAudioHandler> initEchoLoopAudioHandler() async {
     );
   }
   _globalAudioHandler = handler;
+  _globalMediaSessionRouter = router;
   return handler;
 }
 
@@ -471,4 +475,12 @@ EchoLoopAudioHandler get echoLoopAudioHandler {
     throw StateError('EchoLoopAudioHandler has not been initialized');
   }
   return handler;
+}
+
+MediaSessionRouter get echoLoopMediaSessionRouter {
+  final router = _globalMediaSessionRouter;
+  if (router == null) {
+    throw StateError('MediaSessionRouter has not been initialized');
+  }
+  return router;
 }
