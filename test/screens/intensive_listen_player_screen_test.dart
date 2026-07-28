@@ -86,6 +86,7 @@ class _RecordingIntensiveListenPlayer extends TestIntensiveListenPlayer {
   int replayDuringCountdownCalls = 0;
   int goToNextCalls = 0;
   int goToPreviousCalls = 0;
+  int goToSentenceCalls = 0;
 
   @override
   Future<void> startPlaying() async {}
@@ -124,6 +125,24 @@ class _RecordingIntensiveListenPlayer extends TestIntensiveListenPlayer {
   Future<void> goToPrevious() async {
     goToPreviousCalls += 1;
     await super.goToPrevious();
+  }
+
+  @override
+  Future<void> goToSentence(int index) async {
+    goToSentenceCalls += 1;
+    if (index < 0 || index >= state.totalSentences) return;
+    state = state.copyWith(
+      currentSentenceIndex: index,
+      currentPlayCount: 1,
+      isAnnotationMode: false,
+      isAnnotationReplay: false,
+      isTextRevealed: false,
+      isCurrentSentenceAutoMarked: false,
+    );
+  }
+
+  void emit(IntensiveListenState nextState) {
+    state = nextState;
   }
 }
 
@@ -867,6 +886,143 @@ void main() {
 
       // 下一句应自动隐藏
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    });
+
+    testWidgets('正文左滑切到下一句并同步进度', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            totalSentences: 5,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(-400, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 1);
+      expect(player.currentIndex, 3);
+      expect(find.text('Sentence 4/5'), findsOneWidget);
+    });
+
+    testWidgets('正文右滑切到上一句并同步进度', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            totalSentences: 5,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(400, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 1);
+      expect(player.currentIndex, 1);
+      expect(find.text('Sentence 2/5'), findsOneWidget);
+    });
+
+    testWidgets('外部自动切句驱动分页但不会重复切句', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            totalSentences: 5,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 模拟盲听流程自然播完后推进到相邻句。
+      player.emit(player.state.copyWith(currentSentenceIndex: 3));
+      await tester.pumpAndSettle();
+
+      expect(player.currentIndex, 3);
+      expect(player.goToSentenceCalls, 0);
+      expect(find.text('Sentence 4/5'), findsOneWidget);
+    });
+
+    testWidgets('短距离或垂直拖动正文不会切句', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(currentSentenceIndex: 2),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(-32, 0),
+      );
+      await tester.drag(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(0, -80),
+      );
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 0);
+      expect(player.currentIndex, 2);
+    });
+
+    testWidgets('讲解状态下横滑也会切句', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(-400, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 1);
+      expect(player.currentIndex, 3);
+      expect(player.state.isAnnotationMode, isFalse);
     });
 
     testWidgets('标注模式下导航按钮可用（非重播状态）', (tester) async {
