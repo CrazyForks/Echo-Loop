@@ -125,6 +125,7 @@ void main() {
     trialUsage = _RecordingTrialUsage();
     final container = ProviderContainer(
       overrides: [
+        analyticsOverride(),
         chatApiClientProvider.overrideWithValue(api),
         isAuthenticatedProvider.overrideWithValue(authenticated),
         supabaseSessionProvider.overrideWith(

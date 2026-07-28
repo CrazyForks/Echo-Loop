@@ -18,6 +18,7 @@ library;
 import 'package:posthog_flutter/posthog_flutter.dart';
 
 import '../analytics_channel.dart';
+import '../posthog_event_policy.dart';
 
 /// PostHog 分析上报通道
 class PostHogChannel implements AnalyticsChannel {
@@ -52,6 +53,7 @@ class PostHogChannel implements AnalyticsChannel {
 
   @override
   Future<void> logEvent(String name, Map<String, Object>? parameters) async {
+    if (!PostHogEventPolicy.shouldCapture(name)) return;
     await Posthog().capture(eventName: name, properties: parameters);
   }
 

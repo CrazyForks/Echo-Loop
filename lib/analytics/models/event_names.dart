@@ -245,6 +245,13 @@ abstract class Events {
   /// 用户从提醒设置页跳转到系统设置
   static const notificationSettingsOpenTapped =
       'notification_settings_open_tapped';
+
+  // ── 核心商业化与数据安全漏斗 ──
+  static const subscriptionCheckoutStarted = 'subscription_checkout_started';
+  static const subscriptionPurchaseResult = 'subscription_purchase_result';
+  static const chatTurnResult = 'chat_turn_result';
+  static const cloudImportResult = 'cloud_import_result';
+  static const backupOperationResult = 'backup_operation_result';
 }
 
 /// User property 名称常量（写入分析通道用于分群留存）
@@ -407,4 +414,12 @@ abstract class EventParams {
   /// 系统授权框返回状态
   /// 值：'granted' / 'denied'
   static const status = 'status';
+
+  static const result = 'result';
+  static const operation = 'operation';
+  static const selectedCount = 'selected_count';
+  static const addedCount = 'added_count';
+  static const duplicateCount = 'duplicate_count';
+  static const failedCount = 'failed_count';
+  static const planPeriod = 'plan_period';
 }

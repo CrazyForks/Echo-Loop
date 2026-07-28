@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../database/app_database.dart';
+import '../analytics/analytics_providers.dart';
+import '../analytics/models/event_names.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/backup_provider.dart';
 import '../services/backup/backup_constants.dart';
@@ -61,6 +63,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         ref,
         onProgress: (value) => progress.value = value,
       );
+      _trackBackupResult('backup', 'completed');
       if (!mounted) {
         await _deleteFile(path);
         return;
@@ -69,6 +72,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       _temporaryBackupPath = path;
       await _showBackupReadyDialog(path);
     } catch (error) {
+      _trackBackupResult('backup', 'failed');
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         _showError(l10n.backupFailed('$error'));
@@ -179,12 +183,14 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         path,
         onProgress: (value) => progress.value = value,
       );
+      _trackBackupResult('restore', 'completed');
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.importSuccess)));
     } catch (error) {
+      _trackBackupResult('restore', 'failed');
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         _showError(l10n.restoreFailed('$error'));
@@ -193,6 +199,13 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       progress.dispose();
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _trackBackupResult(String operation, String result) {
+    ref.read(analyticsServiceProvider).track(Events.backupOperationResult, {
+      EventParams.operation: operation,
+      EventParams.result: result,
+    });
   }
 
   Future<void> _showProgressDialog(ValueNotifier<BackupProgress> progress) {

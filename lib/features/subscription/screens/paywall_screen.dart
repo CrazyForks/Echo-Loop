@@ -17,6 +17,8 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/revenuecat_config.dart';
+import '../../../analytics/analytics_providers.dart';
+import '../../../analytics/models/event_names.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../services/app_logger.dart';
 import '../../auth/sign_in_required_dialog.dart';
@@ -466,6 +468,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       _busy = false;
       _waitingForWeb = true;
     });
+    _trackPurchaseEvent(Events.subscriptionCheckoutStarted, {
+      EventParams.source: 'paddle',
+      EventParams.planPeriod: plan.period.name,
+    });
     unawaited(_pollEntitlement());
   }
 
@@ -598,28 +604,48 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       return;
     }
     setState(() => _busy = true);
+    _trackPurchaseEvent(Events.subscriptionCheckoutStarted, {
+      EventParams.source: 'native',
+      EventParams.planPeriod: plan.period.name,
+    });
     try {
       await ref
           .read(subscriptionControllerProvider.notifier)
           .purchase(plan.planId);
       if (!mounted) return;
       if (ref.read(subscriptionControllerProvider).isActive) {
+        _trackPurchaseEvent(Events.subscriptionPurchaseResult, {
+          EventParams.result: 'activated',
+          EventParams.source: 'native',
+        });
         context.pop();
       } else {
         // 成交但后端收敛未确认：权益同步中，绝不显示「购买失败」。
         _showMessage(AppLocalizations.of(context)!.premiumPurchasePendingSync);
       }
     } on PurchaseException catch (e) {
+      _trackPurchaseEvent(Events.subscriptionPurchaseResult, {
+        EventParams.result: e.cancelled ? 'cancelled' : 'failed',
+        EventParams.source: 'native',
+      });
       if (!e.cancelled && mounted) {
         _showMessage(AppLocalizations.of(context)!.premiumPurchaseFailed);
       }
     } catch (_) {
+      _trackPurchaseEvent(Events.subscriptionPurchaseResult, {
+        EventParams.result: 'failed',
+        EventParams.source: 'native',
+      });
       if (mounted) {
         _showMessage(AppLocalizations.of(context)!.premiumPurchaseFailed);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _trackPurchaseEvent(String name, Map<String, Object> properties) {
+    ref.read(analyticsServiceProvider).track(name, properties);
   }
 
   Future<void> _restore() async {

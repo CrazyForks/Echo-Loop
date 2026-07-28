@@ -12,6 +12,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../analytics/analytics_providers.dart';
+import '../../../analytics/models/event_names.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/app_logger.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -301,6 +303,17 @@ class ChatSessionController extends _$ChatSessionController {
       // removeEmpty && 目标 → 跳过（移除空占位）
     }
     state = state.copyWith(status: ChatSessionStatus.idle, messages: next);
+    final result = _stopRequested
+        ? 'cancelled'
+        : switch (status) {
+            ChatMessageStatus.done => 'completed',
+            ChatMessageStatus.authRequired => 'auth_required',
+            ChatMessageStatus.quotaBlocked => 'quota_blocked',
+            _ => 'failed',
+          };
+    ref.read(analyticsServiceProvider).track(Events.chatTurnResult, {
+      EventParams.result: result,
+    });
   }
 
   /// 诊断日志。

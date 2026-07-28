@@ -6,6 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/audio_item.dart';
+import '../../../analytics/analytics_providers.dart';
+import '../../../analytics/analytics_service.dart';
+import '../../../analytics/models/event_names.dart';
 import '../../../providers/audio_library_provider.dart';
 import '../../../providers/collection_provider.dart';
 import '../../audio_import/audio_import_models.dart';
@@ -199,6 +202,7 @@ final baiduNetdiskImportControllerProvider =
         readAudioLibraryState: () => ref.read(audioLibraryProvider),
         collectionList: ref.watch(collectionListProvider.notifier),
         readCollectionState: () => ref.read(collectionListProvider),
+        analytics: ref.read(analyticsServiceProvider),
       );
     });
 
@@ -215,6 +219,7 @@ class BaiduNetdiskImportController
     required AudioLibraryState Function() readAudioLibraryState,
     required CollectionList collectionList,
     required CollectionState Function() readCollectionState,
+    AnalyticsService? analytics,
     TargetPlatform? platform,
   }) : _credentialRepository = credentialRepository,
        _api = api,
@@ -224,6 +229,7 @@ class BaiduNetdiskImportController
        _readAudioLibraryState = readAudioLibraryState,
        _collectionList = collectionList,
        _readCollectionState = readCollectionState,
+       _analytics = analytics,
        _platform = platform,
        super(const BaiduNetdiskImportState.idle());
 
@@ -235,6 +241,7 @@ class BaiduNetdiskImportController
   final AudioLibraryState Function() _readAudioLibraryState;
   final CollectionList _collectionList;
   final CollectionState Function() _readCollectionState;
+  final AnalyticsService? _analytics;
   final TargetPlatform? _platform;
 
   CancelToken? _cancelToken;
@@ -453,6 +460,16 @@ class BaiduNetdiskImportController
         importProgress: -1,
         importingIndex: 0,
       );
+      _analytics?.track(Events.cloudImportResult, {
+        EventParams.result: outcome.wasCanceled
+            ? 'cancelled'
+            : outcome.failures.isEmpty ? 'completed' : 'partial_failure',
+        EventParams.source: 'baidu_netdisk',
+        EventParams.selectedCount: selected.length,
+        EventParams.addedCount: outcome.added.length,
+        EventParams.duplicateCount: outcome.duplicates.length,
+        EventParams.failedCount: outcome.failures.length,
+      });
     } catch (error) {
       if (sid != _sessionId) return;
       state = state.copyWith(
@@ -460,6 +477,11 @@ class BaiduNetdiskImportController
         errorMessage: _messageForError(error),
         importingEntry: null,
       );
+      _analytics?.track(Events.cloudImportResult, {
+        EventParams.result: 'failed',
+        EventParams.source: 'baidu_netdisk',
+        EventParams.selectedCount: selected.length,
+      });
     } finally {
       if (sid == _sessionId) _cancelToken = null;
     }

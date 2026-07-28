@@ -24,6 +24,8 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
+import '../../helpers/mock_providers.dart';
+
 /// 固定权益态的 controller 替身（不跑对账 / 监听 / 订阅流）。
 class _FixedController extends SubscriptionController {
   _FixedController(this._state);
@@ -220,6 +222,7 @@ Widget _harness({
   final remoteService = remoteConfigService ?? _SpyRemoteConfigService();
   return ProviderScope(
     overrides: [
+      analyticsOverride(),
       remoteConfigServiceProvider.overrideWithValue(remoteService),
       subscriptionAvailabilityProvider.overrideWithValue(available),
       webCheckoutModeProvider.overrideWithValue(webCheckout),
