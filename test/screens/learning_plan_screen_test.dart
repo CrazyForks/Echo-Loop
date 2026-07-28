@@ -290,6 +290,44 @@ void main() {
       expect(find.text('Export PDF'), findsNothing);
     });
 
+    testWidgets('AppBar「更多」菜单：已有学习进度可确认重置', (tester) async {
+      final progressState = LearningProgressState(
+        progressMap: {
+          'test-1': LearningProgress(
+            audioItemId: 'test-1',
+            currentStage: LearningStage.firstLearn,
+            currentSubStage: SubStageType.listenAndRepeat,
+            updatedAt: DateTime(2026, 5, 1),
+          ),
+        },
+      );
+
+      await tester.pumpWidget(createTestWidget(progressState: progressState));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('learning_plan_more_menu')));
+      await tester.pumpAndSettle();
+
+      final resetLabel = find.text('Reset Progress');
+      expect(resetLabel, findsOneWidget);
+      expect(
+        tester.widget<Text>(resetLabel).style?.color,
+        AppTheme.light().colorScheme.error,
+      );
+
+      await tester.tap(resetLabel);
+      await tester.pumpAndSettle();
+      expect(find.text('Reset Learning Progress?'), findsOneWidget);
+
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Learning progress has been reset'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('learning_plan_more_menu')));
+      await tester.pumpAndSettle();
+      expect(find.text('Reset Progress'), findsNothing);
+    });
+
     testWidgets('显示进度卡片（0%，未开始）', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();

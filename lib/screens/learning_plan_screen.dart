@@ -503,16 +503,18 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
 
   /// 构建计划页顶栏「更多操作」菜单（随心听按钮右侧）。
   ///
-  /// 承载对当前音频的重要操作：管理字幕、编辑字幕、导出音频、导出 PDF。
+  /// 承载对当前音频的重要操作：管理字幕、编辑字幕、导出音频、导出 PDF、重置进度。
   /// 与音频列表项菜单同源（复用 [showManageSubtitlesSheet]/[exportAudioItem]）。
   /// 官方音频隐藏字幕/导出写操作，仅在有字幕时保留导出 PDF；无可用项时返回 null。
   Widget? _buildPlanMenu(
     BuildContext context,
     AppLocalizations l10n,
     AudioItem audioItem,
+    LearningProgress? progress,
   ) {
     final isOfficial = audioItem.remoteAudioId != null;
     final hasTranscript = audioItem.hasTranscript;
+    final hasProgress = progress?.isStarted ?? false;
 
     final items = <PopupMenuEntry<String>>[
       if (!isOfficial)
@@ -543,6 +545,19 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
           icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
           label: l10n.exportPdf,
         ),
+      // 与音频列表菜单保持一致：仅在已有实际学习进度时提供危险的重置操作。
+      if (hasProgress)
+        appPopupMenuItem(
+          context,
+          value: 'resetProgress',
+          icon: Icon(
+            Icons.restart_alt,
+            size: 20,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          label: l10n.resetLearningProgress,
+          destructive: true,
+        ),
     ];
 
     if (items.isEmpty) return null;
@@ -569,9 +584,49 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               AppRoutes.pdfPreviewSegment,
               extra: audioItem,
             );
+          case 'resetProgress':
+            _showResetProgressDialog(context, l10n, audioItem);
         }
       },
     );
+  }
+
+  /// 确认后清除当前音频的学习进度，并保留音频与字幕内容。
+  Future<void> _showResetProgressDialog(
+    BuildContext context,
+    AppLocalizations l10n,
+    AudioItem audioItem,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.resetLearningProgressConfirmTitle),
+        content: Text(l10n.resetLearningProgressConfirmMessage(audioItem.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: Text(l10n.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    await ref
+        .read(learningProgressNotifierProvider.notifier)
+        .deleteProgress(audioItem.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.resetLearningProgressDone)));
+    }
   }
 
   /// 处理"开始学习/继续学习"按钮点击
@@ -1485,7 +1540,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
                 ),
               ),
             ),
-            ?_buildPlanMenu(context, l10n, audioItem),
+            ?_buildPlanMenu(context, l10n, audioItem, progress),
           ],
         ),
         body: Column(
