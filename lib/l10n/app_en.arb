@@ -1894,8 +1894,6 @@
   "guideFavoritesVocabularyListDescription": "Your saved words, phrases, and sense groups. Expand a flashcard to view meanings of a saved item and hear it in its original sentence.",
   "guideFavoritesFlashcardDescription": "Tap here to enter flashcard mode and review every saved words. Viewing the word and hearing it in context makes memory stick.",
   "guideIntensiveListenCantUnderstandDescription": "Tap here when a sentence is hard to follow. It will be auto-saved and you'll enter the explanation mode.",
-  "guideIntensiveListenAnnotationContinueDescription": "Once you understand this sentence, tap Continue to move on to the next one.",
-  "guideIntensiveListenAnnotationPlayDescription": "Tap the play button to play the current sentence.",
   "guideSentenceTileNumberDescription": "Tap the number to play from this sentence.",
   "guideSentenceTileBodyDescription": "Tap the sentence to view explanations.",
   "guideSubtitleEditorBoundaryHandleDescription": "Drag the red or green handles on the waveform to adjust the current sentence's start and end time.",

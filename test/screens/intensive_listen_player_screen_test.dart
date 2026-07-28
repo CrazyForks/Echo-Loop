@@ -969,6 +969,37 @@ void main() {
       expect(find.text('Sentence 4/5'), findsOneWidget);
     });
 
+    testWidgets('从首句自动推进时分页使用 320ms 横滑动画', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 0,
+            totalSentences: 5,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      player.emit(player.state.copyWith(currentSentenceIndex: 1));
+      await tester.pump();
+      // 分页同步通过 post-frame 回调启动动画，先让该回调完成。
+      await tester.pump();
+      // 300ms 时动画仍未结束，避免时长退回较快的 280ms。
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final pageView = tester.widget<PageView>(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+      );
+      expect(pageView.controller!.page, greaterThan(0));
+      expect(pageView.controller!.page, lessThan(1));
+      expect(player.goToSentenceCalls, 0);
+    });
+
     testWidgets('短距离或垂直拖动正文不会切句', (tester) async {
       late _RecordingIntensiveListenPlayer player;
       await tester.pumpWidget(
@@ -1021,6 +1052,116 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(player.goToSentenceCalls, 1);
+      expect(player.currentIndex, 3);
+      expect(player.state.isAnnotationMode, isFalse);
+    });
+
+    testWidgets('讲解状态横滑停稳前目标页显示盲听且不重置源句', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(
+          find.byKey(const ValueKey('intensive-sentence-page-view')),
+        ),
+      );
+      final pagerSize = tester.getSize(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+      );
+      await gesture.moveBy(Offset(-pagerSize.width * 0.75, 0));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('intensive-sentence-mode-3-blind')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('intensive-sentence-mode-3-blind')),
+          matching: find.text('Continue'),
+        ),
+        findsNothing,
+      );
+      expect(player.goToSentenceCalls, 0);
+      expect(player.currentIndex, 2);
+      expect(player.state.isAnnotationMode, isTrue);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 1);
+      expect(player.currentIndex, 3);
+      expect(player.state.isAnnotationMode, isFalse);
+    });
+
+    testWidgets('讲解状态取消横滑时保留源句讲解态', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(const ValueKey('intensive-sentence-page-view')),
+        const Offset(-32, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(player.goToSentenceCalls, 0);
+      expect(player.currentIndex, 2);
+      expect(player.state.isAnnotationMode, isTrue);
+    });
+
+    testWidgets('讲解状态底部切句会在横滑结束后才提交', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            currentSentenceIndex: 2,
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.skip_next_rounded));
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(player.goToSentenceCalls, 0);
+      expect(player.currentIndex, 2);
+      expect(player.state.isAnnotationMode, isTrue);
+
+      await tester.pumpAndSettle();
+      expect(player.goToNextCalls, 1);
       expect(player.currentIndex, 3);
       expect(player.state.isAnnotationMode, isFalse);
     });

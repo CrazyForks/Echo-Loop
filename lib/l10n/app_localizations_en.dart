@@ -3466,14 +3466,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap here when a sentence is hard to follow. It will be auto-saved and you\'ll enter the explanation mode.';
 
   @override
-  String get guideIntensiveListenAnnotationContinueDescription =>
-      'Once you understand this sentence, tap Continue to move on to the next one.';
-
-  @override
-  String get guideIntensiveListenAnnotationPlayDescription =>
-      'Tap the play button to play the current sentence.';
-
-  @override
   String get guideSentenceTileNumberDescription =>
       'Tap the number to play from this sentence.';
 
