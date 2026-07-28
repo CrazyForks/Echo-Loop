@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:echo_loop/analytics/analytics_providers.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/features/chatbot/models/chat_message.dart';
 import 'package:echo_loop/features/chatbot/models/chatbot_config.dart';
@@ -87,6 +88,10 @@ void main() {
     ChatApi api, {
     FreeAllowancePolicy policy = const AlwaysAllowPolicy(),
   }) => [
+    // controller 完成/中断一轮会记录埋点，避免依赖 app 启动期全局初始化。
+    analyticsServiceProvider.overrideWithValue(
+      createTestAnalyticsServiceSync(),
+    ),
     chatApiClientProvider.overrideWithValue(api),
     isAuthenticatedProvider.overrideWithValue(true),
     supabaseSessionProvider.overrideWith(

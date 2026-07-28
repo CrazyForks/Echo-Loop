@@ -7,6 +7,7 @@
 library;
 
 import 'package:dio/dio.dart';
+import 'package:echo_loop/analytics/analytics_providers.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/features/chatbot/chatbot_sheet.dart';
 import 'package:echo_loop/features/chatbot/models/chat_message.dart';
@@ -103,6 +104,10 @@ void main() {
         ),
       ),
       overrides: [
+        // ChatSessionController 收尾时会上报结果，测试须注入无副作用服务。
+        analyticsServiceProvider.overrideWithValue(
+          createTestAnalyticsServiceSync(),
+        ),
         chatApiClientProvider.overrideWithValue(_SlowApi()),
         isAuthenticatedProvider.overrideWithValue(true),
         supabaseSessionProvider.overrideWith(
