@@ -198,7 +198,7 @@ flowchart LR
 和其他认真练英语的伙伴一起：交流学习方法、分享学习资源、反馈使用体验、第一时间收到新功能更新。
 
 - [申请加入微信群](https://work.weixin.qq.com/kfid/kfce84fda72015827c6)：联系管理员申请加入用户交流群。
-- [关注小红书](https://xhslink.cn/m/AsKhHXvEDMY)：获取使用技巧、功能更新和英语学习内容。
+- [关注小红书](https://xhslink.cn/m/4zOdGUcDH4N)：获取使用技巧、功能更新和英语学习内容。
 
 ---
 
