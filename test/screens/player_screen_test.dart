@@ -268,8 +268,8 @@ void main() {
 
         // TabBar 应显示"全文"和"书签"标签
         expect(find.byType(TabBar), findsOneWidget);
-        expect(find.textContaining('Full Text'), findsOneWidget);
-        expect(find.textContaining('Bookmarked'), findsOneWidget);
+        expect(find.textContaining('full playback'), findsOneWidget);
+        expect(find.textContaining('saved'), findsOneWidget);
         await _disposeTree(tester);
       });
 
@@ -451,7 +451,7 @@ void main() {
 
         // 应弹出循环设置弹窗（含两组循环开关，无标题）
         expect(find.text('Loop Settings'), findsNothing);
-        expect(find.text('Whole-text loop'), findsOneWidget);
+        expect(find.text('loop entire media'), findsOneWidget);
         expect(find.text('Single-sentence loop'), findsOneWidget);
         await _disposeTree(tester);
       });
@@ -475,14 +475,14 @@ void main() {
         await tester.pump();
 
         // 点击书签标签
-        await tester.tap(find.textContaining('Bookmarked'));
+        await tester.tap(find.textContaining('saved'));
         // Tab 切换动画 300ms + 内容构建，分多次 pump 确保完成
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump();
 
         // 应显示无书签提示
-        expect(find.text('No bookmarked sentences'), findsOneWidget);
+        expect(find.text('No saved sentences'), findsOneWidget);
         await _disposeTree(tester);
       });
 
@@ -504,22 +504,22 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('No bookmarked sentences'), findsNothing);
+        expect(find.text('No saved sentences'), findsNothing);
 
         await tester.drag(find.byType(TabBarView), const Offset(-400, 0));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump();
 
-        expect(find.text('No bookmarked sentences'), findsNothing);
+        expect(find.text('No saved sentences'), findsNothing);
         expect(find.byType(ParagraphSentenceListCard), findsOneWidget);
 
-        await tester.tap(find.textContaining('Bookmarked'));
+        await tester.tap(find.textContaining('saved'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump();
 
-        expect(find.text('No bookmarked sentences'), findsOneWidget);
+        expect(find.text('No saved sentences'), findsOneWidget);
         await _disposeTree(tester);
       });
 
@@ -688,14 +688,14 @@ void main() {
         await tester.pump();
 
         // 初始未标记
-        expect(find.text('Tap to mark as difficult'), findsOneWidget);
+        expect(find.text('Tap to mark as challenging'), findsOneWidget);
 
         await tester.tap(find.byType(BookmarkToggleRow));
         await tester.pump();
 
         // 切换后显示已标记文案
-        expect(find.text('Tap to mark as difficult'), findsNothing);
-        expect(find.text('Marked difficult, tap to undo'), findsOneWidget);
+        expect(find.text('Tap to mark as challenging'), findsNothing);
+        expect(find.text('Already saved, tap to undo'), findsOneWidget);
         await _disposeTree(tester);
       });
 
@@ -886,7 +886,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.textContaining('Bookmarked'));
+        await tester.tap(find.text('saved (2)'));
         // 等待 TabBarView 切换动画结束，否则滑动区仍在横向位移中，
         // fling 命中点会落到正在滑出的全文页上而非收藏页滑动区。
         await tester.pumpAndSettle();

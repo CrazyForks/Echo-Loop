@@ -97,7 +97,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-skip speaking practice',
+          (w.title as Text).data == 'Auto-skip retelling practice',
     );
     final switchTile = tester.widget<SwitchListTile>(autoSkipFinder);
     expect(switchTile.value, isFalse);
@@ -106,7 +106,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-play retell recording',
+          (w.title as Text).data == 'Auto-play retelling recording',
     );
     final autoPlayTile = tester.widget<SwitchListTile>(autoPlayFinder);
     expect(autoPlayTile.value, isFalse);
@@ -114,7 +114,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during read-aloud',
+          (w.title as Text).data == 'Show rating after each repeat',
     );
     final listenRatingTile = tester.widget<SwitchListTile>(ratingFinder);
     expect(listenRatingTile.value, isTrue);
@@ -122,7 +122,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during retelling',
+          (w.title as Text).data == 'Show rating after each retelling',
     );
     final ratingTile = tester.widget<SwitchListTile>(retellRatingFinder);
     expect(ratingTile.value, isTrue);
@@ -172,7 +172,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-skip speaking practice',
+          (w.title as Text).data == 'Auto-skip retelling practice',
     );
     await tester.tap(autoSkipFinder);
     await tester.pumpAndSettle();
@@ -192,7 +192,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-play retell recording',
+          (w.title as Text).data == 'Auto-play retelling recording',
     );
     await tester.tap(autoPlayFinder);
     await tester.pumpAndSettle();
@@ -222,7 +222,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during retelling',
+          (w.title as Text).data == 'Show rating after each retelling',
     );
     await tester.tap(ratingFinder);
     await tester.pumpAndSettle();
@@ -242,7 +242,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during read-aloud',
+          (w.title as Text).data == 'Show rating after each repeat',
     );
     await tester.tap(ratingFinder);
     await tester.pumpAndSettle();
@@ -268,7 +268,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-skip speaking practice',
+          (w.title as Text).data == 'Auto-skip retelling practice',
     );
     final switchTile = tester.widget<SwitchListTile>(autoSkipFinder);
     expect(switchTile.value, isTrue);
@@ -277,7 +277,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-play retell recording',
+          (w.title as Text).data == 'Auto-play retelling recording',
     );
     final autoPlayTile = tester.widget<SwitchListTile>(autoPlayFinder);
     expect(autoPlayTile.value, isTrue);
@@ -286,7 +286,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during read-aloud',
+          (w.title as Text).data == 'Show rating after each repeat',
     );
     final listenRatingTile = tester.widget<SwitchListTile>(ratingFinder);
     expect(listenRatingTile.value, isTrue);
@@ -295,7 +295,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during retelling',
+          (w.title as Text).data == 'Show rating after each retelling',
     );
     final ratingTile = tester.widget<SwitchListTile>(retellRatingFinder);
     expect(ratingTile.value, isTrue);
@@ -309,7 +309,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during retelling',
+          (w.title as Text).data == 'Show rating after each retelling',
     );
     final ratingTile = tester.widget<SwitchListTile>(ratingFinder);
     expect(ratingTile.value, isFalse);
@@ -325,7 +325,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Show rating during read-aloud',
+          (w.title as Text).data == 'Show rating after each repeat',
     );
     final ratingTile = tester.widget<SwitchListTile>(ratingFinder);
     expect(ratingTile.value, isFalse);

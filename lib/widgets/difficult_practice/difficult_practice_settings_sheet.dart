@@ -303,7 +303,8 @@ class _DifficultPracticeSettingsSheet extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: theme.textTheme.bodyLarge),
+        Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
+        const SizedBox(width: AppSpacing.s),
         AppDropdown<int>(
           value: value,
           items: [

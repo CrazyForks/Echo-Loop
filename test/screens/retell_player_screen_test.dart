@@ -301,12 +301,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // 默认应选中 Visible Only
-      expect(find.text('Visible Only'), findsOneWidget);
-      expect(find.text('Show All'), findsOneWidget);
-      expect(find.text('Hide All'), findsOneWidget);
+      expect(find.text('Partially Visible'), findsOneWidget);
+      expect(find.text('Fully Visible'), findsOneWidget);
+      expect(find.text('Hided'), findsOneWidget);
 
       // 点击 Show All
-      await tester.tap(find.text('Show All'));
+      await tester.tap(find.text('Fully Visible'));
       await tester.pumpAndSettle();
 
       // 验证选中状态变化（通过 SegmentedButton 的 selected 属性）
@@ -438,7 +438,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Listen first, then retell'), findsOneWidget);
-      expect(find.text('Listening...'), findsNothing);
+      expect(find.text('Listening closely...'), findsNothing);
     });
 
     testWidgets('WaitingForUser 态即使 isPlaying 为 true 也显示播放图标', (tester) async {
@@ -480,8 +480,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Retell it in your own words'), findsNothing);
-      expect(find.text('Listening...'), findsNothing);
+      expect(find.text('Retell what you heard'), findsNothing);
+      expect(find.text('Listening closely...'), findsNothing);
     });
 
     testWidgets('录音中显示录音状态而不显示复述提示', (tester) async {
@@ -506,7 +506,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Retell it in your own words'), findsNothing);
+      expect(find.text('Retell what you heard'), findsNothing);
       expect(find.text('Recording...'), findsOneWidget);
     });
 

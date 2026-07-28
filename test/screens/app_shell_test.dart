@@ -102,19 +102,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Auto-skip speaking practice'), findsOneWidget);
+      expect(find.text('Auto-skip retelling practice'), findsOneWidget);
 
       // 默认 autoSkipRetell=false
       final context = tester.element(find.byType(EchoLoopApp));
       final container = ProviderScope.containerOf(context);
       expect(container.read(learningSettingsProvider).autoSkipRetell, isFalse);
 
-      // 找到 "Auto-skip speaking practice" 的 SwitchListTile 并切换
+      // 找到自动跳过复述练习的 SwitchListTile 并切换。
       final autoSkipSwitch = find.byWidgetPredicate(
         (w) =>
             w is SwitchListTile &&
             w.title is Text &&
-            (w.title as Text).data == 'Auto-skip speaking practice',
+            (w.title as Text).data == 'Auto-skip retelling practice',
       );
       await tester.tap(autoSkipSwitch);
       await tester.pump(const Duration(milliseconds: 300));

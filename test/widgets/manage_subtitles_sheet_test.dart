@@ -132,7 +132,7 @@ void main() {
         expect(find.text('Cloud Transcription'), findsOneWidget);
 
         // 无删除按钮
-        expect(find.byTooltip('Delete Subtitle'), findsNothing);
+        expect(find.byTooltip('Delete Subtitles'), findsNothing);
       });
 
       testWidgets('有本地字幕音频：显示编辑和红色删除按钮', (tester) async {
@@ -147,11 +147,11 @@ void main() {
 
         // 标题栏右侧依次显示编辑和删除按钮。
         expect(find.byTooltip('Edit subtitles'), findsOneWidget);
-        expect(find.byTooltip('Delete Subtitle'), findsOneWidget);
+        expect(find.byTooltip('Delete Subtitles'), findsOneWidget);
 
         final deleteButton = tester.widget<IconButton>(
           find.descendant(
-            of: find.byTooltip('Delete Subtitle'),
+            of: find.byTooltip('Delete Subtitles'),
             matching: find.byType(IconButton),
           ),
         );
@@ -209,7 +209,7 @@ void main() {
 
         // FilledButton 显示"上传字幕"
         expect(
-          find.widgetWithText(FilledButton, 'Upload Transcript'),
+          find.widgetWithText(FilledButton, 'Upload Subtitles'),
           findsOneWidget,
         );
       });
@@ -225,12 +225,12 @@ void main() {
         await tester.pumpAndSettle();
 
         // 点击删除图标按钮
-        await tester.tap(find.byTooltip('Delete Subtitle'));
+        await tester.tap(find.byTooltip('Delete Subtitles'));
         await tester.pumpAndSettle();
 
         // 确认对话框出现
         expect(
-          find.text('Are you sure you want to delete the subtitle?'),
+          find.text('Are you sure you want to delete the subtitles?'),
           findsOneWidget,
         );
         expect(find.text('Cancel'), findsOneWidget);
@@ -247,7 +247,7 @@ void main() {
         await tester.tap(find.text('Open'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byTooltip('Delete Subtitle'));
+        await tester.tap(find.byTooltip('Delete Subtitles'));
         await tester.pumpAndSettle();
 
         // 点击取消
@@ -255,7 +255,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // 删除按钮仍在（状态不变）
-        expect(find.byTooltip('Delete Subtitle'), findsOneWidget);
+        expect(find.byTooltip('Delete Subtitles'), findsOneWidget);
       });
 
       testWidgets('AI(en) 已转录 + 选中 auto → 按钮可点击', (tester) async {
@@ -401,7 +401,7 @@ void main() {
 
         await runZoned<Future<void>>(() async {
           await tester.tap(
-            find.widgetWithText(FilledButton, 'Upload Transcript'),
+            find.widgetWithText(FilledButton, 'Upload Subtitles'),
           );
           await tester.pump();
         }, zoneSpecification: ZoneSpecification(print: (_, _, _, _) {}));
@@ -447,9 +447,7 @@ void main() {
         await tester.tap(find.text('Local Upload'));
         await tester.pumpAndSettle();
 
-        await tester.tap(
-          find.widgetWithText(FilledButton, 'Upload Transcript'),
-        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Upload Subtitles'));
         await tester.pumpAndSettle();
 
         final logLines = AppLogger.instance.entries.map((e) => e.toString());
@@ -476,13 +474,13 @@ void main() {
         await tester.tap(find.text('Open'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byTooltip('Delete Subtitle'));
+        await tester.tap(find.byTooltip('Delete Subtitles'));
         await tester.pumpAndSettle();
 
         // 显示收藏句子删除警告
         expect(
           find.text(
-            'Deleting the subtitle will also clear all bookmarked sentences and learning progress for this audio.',
+            'Deleting the subtitles will also clear all saved sentences and learning progress of this audio.',
           ),
           findsOneWidget,
         );

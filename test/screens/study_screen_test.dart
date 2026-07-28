@@ -392,7 +392,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 子阶段标签
-    expect(find.textContaining('Intensive Listening'), findsAtLeast(1));
+    expect(find.textContaining('Listen sentence by sentence'), findsAtLeast(1));
     // 按钮文案为 Continue（已开始首次学习）
     expect(find.text('Continue'), findsAtLeast(1));
   });
@@ -475,7 +475,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 不应出现 Hero Card 的 "Continue Learning" 标签
-    expect(find.text('Continue Learning'), findsNothing);
+    expect(find.text('Continue practicing'), findsNothing);
     // 任务应直接在对应 section 中显示
     expect(find.text('Review Audio'), findsAtLeast(1));
     expect(find.text('First Study Audio'), findsAtLeast(1));

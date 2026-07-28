@@ -15,12 +15,12 @@ void main() {
               onPressed: () {
                 showStepCompleteDialog(
                   context: context,
-                  title: 'Intensive Listening Complete',
+                  title: 'Listening sentence by sentence Complete',
                   contentBody: const Text('All 10 sentences'),
                   stepIndex: 0,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
-                  nextStepName: 'Shadowing',
+                  stageName: 'First Round',
+                  nextStepName: 'Listen & Repeat',
                 );
               },
               child: const Text('Open'),
@@ -33,18 +33,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // 验证标题和步骤进度
-      expect(find.text('Intensive Listening Complete'), findsOneWidget);
-      expect(find.text('Step 1/4 (Initial Learning)'), findsOneWidget);
+      expect(
+        find.text('Listening sentence by sentence Complete'),
+        findsOneWidget,
+      );
+      expect(find.text('Stage 1/4 (First Round)'), findsOneWidget);
       expect(find.text('All 10 sentences'), findsOneWidget);
 
       // 难度选择器已移除
-      expect(find.text('How did it feel?'), findsNothing);
+      expect(find.text('How difficult was this?'), findsNothing);
       expect(find.text('Very Easy'), findsNothing);
       expect(find.text('Hard'), findsNothing);
 
       // 验证两个按钮
       expect(find.text('Done'), findsOneWidget);
-      expect(find.text('Continue: Shadowing'), findsOneWidget);
+      expect(find.text('Continue: Listen & Repeat'), findsOneWidget);
 
       // 右上角关闭按钮
       expect(find.byIcon(Icons.close), findsOneWidget);
@@ -58,11 +61,11 @@ void main() {
               onPressed: () {
                 showStepCompleteDialog(
                   context: context,
-                  title: 'Intensive Listening Complete',
+                  title: 'Listening sentence by sentence Complete',
                   stepIndex: 0,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
-                  nextStepName: 'Shadowing',
+                  stageName: 'First Round',
+                  nextStepName: 'Listen & Repeat',
                 );
               },
               child: const Text('Open'),
@@ -75,7 +78,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final continueButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Continue: Shadowing'),
+        find.widgetWithText(FilledButton, 'Continue: Listen & Repeat'),
       );
       expect(continueButton.onPressed, isNotNull);
 
@@ -95,11 +98,11 @@ void main() {
               onPressed: () async {
                 result = await showStepCompleteDialog(
                   context: context,
-                  title: 'Intensive Listening Complete',
+                  title: 'Listening sentence by sentence Complete',
                   stepIndex: 0,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
-                  nextStepName: 'Shadowing',
+                  stageName: 'First Round',
+                  nextStepName: 'Listen & Repeat',
                 );
               },
               child: const Text('Open'),
@@ -111,7 +114,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Continue: Shadowing'));
+      await tester.tap(find.text('Continue: Listen & Repeat'));
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);
@@ -128,11 +131,11 @@ void main() {
               onPressed: () async {
                 result = await showStepCompleteDialog(
                   context: context,
-                  title: 'Intensive Listening Complete',
+                  title: 'Listening sentence by sentence Complete',
                   stepIndex: 0,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
-                  nextStepName: 'Shadowing',
+                  stageName: 'First Round',
+                  nextStepName: 'Listen & Repeat',
                 );
               },
               child: const Text('Open'),
@@ -164,7 +167,7 @@ void main() {
                   title: 'Test',
                   stepIndex: 0,
                   totalSteps: 2,
-                  stageName: 'Initial Learning',
+                  stageName: 'First Round',
                   nextStepName: 'Next',
                 );
               },
@@ -195,7 +198,7 @@ void main() {
                   title: 'Retell Complete',
                   stepIndex: 3,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
+                  stageName: 'First Round',
                   isLastStep: true,
                 );
               },
@@ -208,8 +211,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Step 4/4 (Initial Learning)'), findsOneWidget);
-      expect(find.text('Complete Initial Learning'), findsOneWidget);
+      expect(find.text('Stage 4/4 (First Round)'), findsOneWidget);
+      expect(find.text('First Round Complete'), findsOneWidget);
       expect(find.text('Done'), findsNothing);
     });
 
@@ -226,7 +229,7 @@ void main() {
                   title: 'Retell Complete',
                   stepIndex: 3,
                   totalSteps: 4,
-                  stageName: 'Initial Learning',
+                  stageName: 'First Round',
                   isLastStep: true,
                 );
               },
@@ -239,7 +242,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Complete Initial Learning'));
+      await tester.tap(find.text('First Round Complete'));
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);

@@ -54,7 +54,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumBenefitAnalysis => '更多 AI 句子拆解';
 
   @override
-  String get premiumBenefitWordAnalysis => '更多 AI 单词讲解';
+  String get premiumBenefitWordAnalysis => '更多 AI 词汇解析';
 
   @override
   String get premiumBenefitTranscription => '更多 AI 字幕转录';
@@ -3726,9 +3726,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get autoSkipRetellSubtitle => '学习计划遇到复述任务时自动跳过';
-
-  @override
-  String get autoSkipRetellDescription => '开启后，复述类任务会自动标记为已跳过；你随时可以在随心听里完成它们。';
 
   @override
   String get autoExpandCachedAnnotationToggle => '自动展开句子讲解';

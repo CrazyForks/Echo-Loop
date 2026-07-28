@@ -533,7 +533,7 @@ void main() {
     expect(find.text('Import Audio'), findsOneWidget);
     expect(find.text('Import from File'), findsOneWidget);
     expect(find.text('Import from Link'), findsOneWidget);
-    expect(find.text('Import from Cloud Drive'), findsOneWidget);
+    expect(find.text('Import from Cloud Storage'), findsOneWidget);
     expect(find.text('Choose a cloud drive provider'), findsNothing);
     expect(find.text('Baidu Netdisk'), findsNothing);
 
@@ -558,7 +558,7 @@ void main() {
     expect(find.text('Import Audio'), findsOneWidget);
     expect(find.text('Import from File'), findsOneWidget);
     expect(find.text('Import from Link'), findsOneWidget);
-    expect(find.text('Import from Cloud Drive'), findsNothing);
+    expect(find.text('Import from Cloud Storage'), findsNothing);
     expect(
       find.byKey(const ValueKey('import-option-cloud-drive')),
       findsNothing,
@@ -627,7 +627,7 @@ void main() {
 
     // 本地文件入口已移除说明文案。
     expect(
-      find.text('Choose audio files from your phone or cloud drive'),
+      find.text('Choose audio files from your device or cloud storage'),
       findsNothing,
     );
     expect(find.text('Import from File'), findsOneWidget);
@@ -639,10 +639,10 @@ void main() {
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Import from Cloud Drive'));
+    await tester.tap(find.text('Import from Cloud Storage'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Import from Cloud Drive'), findsOneWidget);
+    expect(find.text('Import from Cloud Storage'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('cloud-drive-option-baidu-netdisk')),
       findsOneWidget,
@@ -674,7 +674,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Drive'));
+    await tester.tap(find.text('Import from Cloud Storage'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -1223,7 +1223,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Drive'));
+    await tester.tap(find.text('Import from Cloud Storage'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -1256,7 +1256,7 @@ void main() {
     );
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Import from Cloud Drive'));
+    await tester.tap(find.text('Import from Cloud Storage'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
@@ -1371,10 +1371,7 @@ void main() {
     await tester.tap(find.text('Paste Link'));
     await tester.pump();
 
-    expect(
-      find.text('Clipboard does not contain a valid link'),
-      findsOneWidget,
-    );
+    expect(find.text('Clipboard does not have a valid link'), findsOneWidget);
   });
 
   testWidgets('链接导入页可返回导入方式选择页', (tester) async {

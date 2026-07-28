@@ -299,7 +299,7 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Intensive Listening'), findsOneWidget);
+      expect(find.text('Listen sentence by sentence'), findsOneWidget);
     });
 
     testWidgets('AppBar 显示设置按钮', (tester) async {
@@ -330,7 +330,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Peek'), findsOneWidget);
+      expect(find.text('Peek at subtitles'), findsOneWidget);
       expect(find.text('Unclear'), findsOneWidget);
     });
 
@@ -608,7 +608,7 @@ void main() {
 
       // 难句统计 chip 显示数据库难句总数 2（而非本次会话的 1），标签为 Difficult
       expect(find.text('2'), findsOneWidget);
-      expect(find.text('Difficult'), findsOneWidget);
+      expect(find.text('challenging'), findsOneWidget);
     });
 
     testWidgets('完成后仍会检查并弹出学习版通知提示', (tester) async {
@@ -680,7 +680,7 @@ void main() {
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Exit Intensive Listening?'), findsNothing);
+      expect(find.text('Exit Listening sentence by sentence?'), findsNothing);
       expect(find.text('Open player'), findsOneWidget);
 
       await tester.tap(find.text('Open player'));
@@ -731,7 +731,7 @@ void main() {
 
       // 难句标记行：★ + 文案
       expect(find.byIcon(Icons.bookmark), findsOneWidget);
-      expect(find.text('Marked difficult, tap to undo'), findsOneWidget);
+      expect(find.text('Already saved, tap to undo'), findsOneWidget);
       // 底部显示"取消标记"和"听不懂"按钮
       expect(find.text('Unmark'), findsOneWidget);
       expect(find.text('Unclear'), findsOneWidget);
@@ -750,7 +750,7 @@ void main() {
 
       // 当前句子（索引0）不在难句集合中，显示空心星标 + 灰色文案
       expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
-      expect(find.text('Tap to mark as difficult'), findsOneWidget);
+      expect(find.text('Tap to mark as challenging'), findsOneWidget);
     });
 
     testWidgets('正常模式下点击标记行可取消标记', (tester) async {
@@ -770,7 +770,7 @@ void main() {
 
       // 取消后变为空心星标 + 灰色文案
       expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
-      expect(find.text('Tap to mark as difficult'), findsOneWidget);
+      expect(find.text('Tap to mark as challenging'), findsOneWidget);
     });
 
     testWidgets('偷看字幕点击切换 — 初始隐藏', (tester) async {
@@ -803,12 +803,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点击偷看按钮切换为显示
-      await tester.tap(find.text('Peek'));
+      await tester.tap(find.text('Peek at subtitles'));
       await tester.pumpAndSettle();
 
       // 统一可点词组件：整句渲染为单个 RichText
       expect(
-        find.textContaining('sentence', findRichText: true),
+        find.textContaining('Test sentence number', findRichText: true),
         findsOneWidget,
       );
       // 偷看按钮图标变为 visibility_off
@@ -827,17 +827,20 @@ void main() {
       await tester.pumpAndSettle();
 
       // 第一次点击显示
-      await tester.tap(find.text('Peek'));
+      await tester.tap(find.text('Peek at subtitles'));
       await tester.pumpAndSettle();
       expect(
-        find.textContaining('sentence', findRichText: true),
+        find.textContaining('Test sentence number', findRichText: true),
         findsOneWidget,
       );
 
       // 第二次点击隐藏（文案已变为 Hide）
-      await tester.tap(find.text('Hide'));
+      await tester.tap(find.text('Hide subtitles'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('sentence', findRichText: true), findsNothing);
+      expect(
+        find.textContaining('Test sentence number', findRichText: true),
+        findsNothing,
+      );
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });
 

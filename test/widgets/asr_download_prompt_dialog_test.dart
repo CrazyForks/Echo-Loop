@@ -372,7 +372,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('Show rating during retelling'), findsNothing);
+      expect(
+        find.textContaining('Show rating after each retelling'),
+        findsNothing,
+      );
       expect(find.text('Not Now'), findsNothing);
 
       // 点击空白区域关闭对话框（"Retry" 是唯一按钮，没有 "Not Now"）
@@ -449,7 +452,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('Show rating during retelling'), findsNothing);
+      expect(
+        find.textContaining('Show rating after each retelling'),
+        findsNothing,
+      );
       expect(find.text('Not Now'), findsNothing);
       expect(find.text('Retry'), findsOneWidget);
 
@@ -489,7 +495,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Show rating during read-aloud'),
+        find.textContaining('Show rating after each repeat'),
         findsNothing,
       );
       expect(find.text('Not Now'), findsNothing);

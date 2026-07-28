@@ -152,7 +152,7 @@ void main() {
       );
       expect(find.byIcon(Icons.subtitles_outlined), findsNothing);
       expect(find.text('CC'), findsOneWidget);
-      expect(find.text('Transcript'), findsNothing);
+      expect(find.text('subtitles'), findsNothing);
 
       final badge = tester.widget<Container>(
         find.byKey(const Key('audio_list_tile_transcript_badge')),
@@ -192,7 +192,7 @@ void main() {
       );
       expect(find.byKey(const Key('audio_list_tile_badge_row')), findsNothing);
       expect(find.byIcon(Icons.subtitles_outlined), findsNothing);
-      expect(find.text('Transcript'), findsNothing);
+      expect(find.text('subtitles'), findsNothing);
     });
   });
 
@@ -450,7 +450,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Added'), findsOneWidget);
-      expect(find.textContaining('Published'), findsNothing);
+      expect(find.textContaining('Released'), findsNothing);
     });
 
     testWidgets('podcast 单集显示「发布于」而非「添加于」', (tester) async {
@@ -463,7 +463,7 @@ void main() {
       await tester.pumpWidget(buildTile(item));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Published'), findsOneWidget);
+      expect(find.textContaining('Released'), findsOneWidget);
       expect(find.textContaining('Added'), findsNothing);
     });
   });
@@ -1085,7 +1085,7 @@ void main() {
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Update Subtitle'), findsOneWidget);
+      expect(find.text('Update Subtitles'), findsOneWidget);
       expect(find.text('Manage Subtitles'), findsNothing);
       expect(find.text('Edit subtitles'), findsNothing);
     });
@@ -1172,12 +1172,12 @@ void main() {
 
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Update Subtitle'));
+      await tester.tap(find.text('Update Subtitles'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Update subtitle?'), findsOneWidget);
+      expect(find.text('Update subtitles?'), findsOneWidget);
       expect(
-        find.textContaining('clear all bookmarked sentences'),
+        find.textContaining('clearing all saved sentences'),
         findsOneWidget,
       );
     });

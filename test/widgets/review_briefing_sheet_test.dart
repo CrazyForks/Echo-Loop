@@ -87,7 +87,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('0.9x').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start Practice'));
+    await tester.tap(find.text('Start Practicing'));
     await tester.pumpAndSettle();
 
     expect(selectedSpeed, 0.9);

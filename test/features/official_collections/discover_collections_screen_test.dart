@@ -139,7 +139,7 @@ void main() {
 
     expect(find.text('Sign in to add collections'), findsOneWidget);
     expect(
-      find.textContaining('Sign in to add curated collections'),
+      find.textContaining('Sign in to add any curated collections'),
       findsOneWidget,
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);

@@ -544,7 +544,7 @@ void main() {
         final upgradeBadge = tester.widget<Text>(find.text('Upgrade'));
         expect(upgradeBadge.style?.color, const Color(0xFF111111));
         // 顶部不再有大金卡的「会员」状态徽章
-        expect(find.text('Member'), findsNothing);
+        expect(find.text('Premium'), findsNothing);
       });
 
       testWidgets('已订阅：显示「会员」徽章与套餐摘要', (tester) async {
@@ -571,7 +571,7 @@ void main() {
 
         // 保持简洁：只有标题 + 「会员」徽章，无副标题详情
         expect(find.text('Subscription'), findsOneWidget);
-        expect(find.text('Member'), findsOneWidget);
+        expect(find.text('Premium'), findsOneWidget);
         expect(find.text('Upgrade'), findsNothing);
       });
 
@@ -692,7 +692,7 @@ void main() {
 
         expect(find.text('Developer'), findsOneWidget);
         expect(find.text('Time Machine'), findsOneWidget);
-        expect(find.text('Using system time'), findsOneWidget);
+        expect(find.text('Use system time'), findsOneWidget);
       });
 
       testWidgets('开发者选项开启且已设置时时显示当前调试时间', (tester) async {
@@ -817,7 +817,7 @@ void main() {
         await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Using system time'), findsOneWidget);
+        expect(find.text('Use system time'), findsOneWidget);
         expect(find.text('Debug time: 2026-03-11 22:15'), findsNothing);
       });
     });

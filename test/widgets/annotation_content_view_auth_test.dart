@@ -248,7 +248,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Groups'));
+    await tester.tap(find.text('Sense Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -265,7 +265,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Sign in to use AI features'), findsNothing);
 
-    await tester.tap(find.text('Groups'));
+    await tester.tap(find.text('Sense Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Sign In'));
@@ -288,7 +288,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Translate'));
+    await tester.tap(find.text('Translation'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -328,7 +328,10 @@ void main() {
           ? aiNotifier.translationRespectLocalQuotaResetValues
           : aiNotifier.analysisRespectLocalQuotaResetValues;
       expect(respectLocalQuotaResetValues, [false]);
-      expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+      expect(
+        find.text('You\'ve reached your free monthly limit'),
+        findsOneWidget,
+      );
       expect(find.text('Got it'), findsOneWidget);
       expect(find.text('Upgrade Now'), findsOneWidget);
       expect(find.text('Paywall page'), findsNothing);
@@ -363,19 +366,25 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+    expect(
+      find.text('You\'ve reached your free monthly limit'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Got it'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsNothing);
+    expect(find.text('You\'ve reached your free monthly limit'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('translation')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+    expect(
+      find.text('You\'ve reached your free monthly limit'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('手动点击意群超额时也强制弹窗并允许再次弹窗', (tester) async {
@@ -400,19 +409,25 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+    expect(
+      find.text('You\'ve reached your free monthly limit'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Got it'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsNothing);
+    expect(find.text('You\'ve reached your free monthly limit'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('senseGroup')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+    expect(
+      find.text('You\'ve reached your free monthly limit'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('自动加载翻译和解析同时超额时只展示一个弹窗', (tester) async {
@@ -439,7 +454,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free limit'), findsOneWidget);
+    expect(
+      find.text('You\'ve reached your free monthly limit'),
+      findsOneWidget,
+    );
     expect(find.text('Got it'), findsOneWidget);
     expect(find.text('Upgrade Now'), findsOneWidget);
     expect(aiNotifier.translationRespectLocalQuotaResetValues, [true]);

@@ -116,8 +116,8 @@ void main() {
     expect(items, hasLength(3));
     // 全选态：三行行尾都有打勾
     expect(items.every((item) => item.trailing != null), isTrue);
-    expect(find.text('Key Sentence Translation'), findsOneWidget);
-    expect(find.text('Saved Word Definitions'), findsOneWidget);
+    expect(find.text('Translations of saved sentences'), findsOneWidget);
+    expect(find.text('meanings of saved words'), findsOneWidget);
     expect(find.text('Key Sentence Analysis'), findsOneWidget);
   });
 
@@ -129,7 +129,7 @@ void main() {
     // 取消勾选「译文」→ bitmask 6，重新生成（气泡菜单点选后保持打开）
     await tester.tap(find.byIcon(CupertinoIcons.ellipsis));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Key Sentence Translation'));
+    await tester.tap(find.text('Translations of saved sentences'));
     await tester.pumpAndSettle();
 
     expect(find.text('preview-6'), findsOneWidget);
@@ -138,7 +138,7 @@ void main() {
     ).called(2);
 
     // 恢复勾选 → bitmask 7 命中缓存，不再调用 buildBytes
-    await tester.tap(find.text('Key Sentence Translation'));
+    await tester.tap(find.text('Translations of saved sentences'));
     await tester.pumpAndSettle();
 
     expect(find.text('preview-7'), findsOneWidget);
