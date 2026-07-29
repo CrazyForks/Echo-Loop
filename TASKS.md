@@ -23,6 +23,7 @@
 ### P0
 
 - [ ] Android 离线 ASR：结束录音后仍闪退。当前已确认崩在 sherpa-onnx 的 Silero VAD native 推理，现有 cpu provider、AudioRecord 串行、自适应跳过 VAD 都未解决；下一步必须拿到真机 `logcat` 与 `/data/tombstones` 再定方案。
+  - [x] 将 `sherpa_onnx` 从 1.12.36 升级至 1.13.4；完成依赖解析、ASR 静态分析与单测，待 Android 真机回归确认是否影响 Silero VAD 原生崩溃。**完成时间**: 2026-07-29
 
 ## 通用 Chatbot 组件
 

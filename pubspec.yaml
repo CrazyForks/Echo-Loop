@@ -93,7 +93,7 @@ dependencies:
   share_plus: ^10.1.4
   table_calendar: ^3.2.0
   timeago: ^3.7.1
-  sherpa_onnx: ^1.12.36
+  sherpa_onnx: ^1.13.4
   showcaseview: ^5.0.1
   # 认证：复用 fluency-frontend 的 Supabase 项目（auth.users 共享），
   # mobile 端走 native ID Token 流（Apple/Google）+ 邮箱密码。详见 docs / plan。
