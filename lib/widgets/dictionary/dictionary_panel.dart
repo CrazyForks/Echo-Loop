@@ -511,6 +511,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         ),
         SpeakButton(text: displayWord),
         AnimatedBookmarkIcon(
+          key: const Key('dict_panel_bookmark'),
           isSaved: isSaved,
           onPressed: () => _toggleSave(savedWord, isSaved),
         ),

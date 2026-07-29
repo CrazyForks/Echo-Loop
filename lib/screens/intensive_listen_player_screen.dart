@@ -1019,6 +1019,8 @@ class _IntensiveListenPlayerScreenState
                                                   total: s.total,
                                                   isPaused: s.paused,
                                                   isFastForward: s.fastForward,
+                                                  onTap: player
+                                                      .enterWaitingForUserInBlindMode,
                                                   onPause: () =>
                                                       player.pauseCountdown(),
                                                   onResume: () =>
@@ -1154,6 +1156,8 @@ class _IntensiveListenPlayerScreenState
                                             isPaused: countdown.paused,
                                             isFastForward:
                                                 countdown.fastForward,
+                                            onTap: player
+                                                .onAnnotationUserInteraction,
                                             onPause: () =>
                                                 player.pauseCountdown(),
                                             onResume: () =>
@@ -1162,79 +1166,37 @@ class _IntensiveListenPlayerScreenState
                                         );
                                       },
                                     ),
-                                if (_showAnnotationCountdown(playerState))
-                                  Consumer(
-                                    builder: (context, ref, _) {
-                                      final countdown = ref.watch(
-                                        intensiveListenPlayerProvider.select(
-                                          (s) => (
-                                            show: _showAnnotationCountdown(s),
-                                            sentenceIndex:
-                                                s.currentSentenceIndex,
-                                            total: s.pauseDuration,
-                                            paused: s.isCountdownPaused,
-                                            fastForward:
-                                                s.isCountdownFastForward,
-                                          ),
-                                        ),
-                                      );
-                                      if (!countdown.show) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: AppSpacing.l,
-                                          right: AppSpacing.l,
-                                          bottom: AppSpacing.m,
-                                        ),
-                                        child: CountdownChip(
-                                          key: ValueKey(
-                                            'annotation-countdown-'
-                                            '${countdown.sentenceIndex}-'
-                                            '${countdown.total.inMilliseconds}',
-                                          ),
-                                          total: countdown.total,
-                                          isPaused: countdown.paused,
-                                          isFastForward: countdown.fastForward,
-                                          onTap: player
-                                              .onAnnotationUserInteraction,
-                                          onPause: () =>
-                                              player.pauseCountdown(),
-                                          onResume: () =>
-                                              player.resumeCountdown(),
-                                        ),
-                                      );
-                                    },
+                                  PracticePlaybackFooter(
+                                    canGoPrev:
+                                        playerState.currentSentenceIndex > 0,
+                                    isLast:
+                                        playerState.currentSentenceIndex >=
+                                        playerState.totalSentences - 1,
+                                    centerIcon: _buildFooterCenterIcon(
+                                      playerState,
+                                    ),
+                                    onPrevious: _handlePrevious,
+                                    onNext: _handleNext,
+                                    onCenter: _handleCenter,
+                                    isManualMode:
+                                        playerState.settings.isManualMode,
+                                    playCountText: formatPracticePlayCount(
+                                      l10n,
+                                      currentCount:
+                                          playerState.currentPlayCount,
+                                      totalCount:
+                                          playerState.settings.isManualMode
+                                          ? 1
+                                          : playerState.settings.repeatCount,
+                                    ),
+                                    statusSuffixText: _formatSpeed(
+                                      playerState.settings.playbackSpeed,
+                                    ),
+                                    l10n: l10n,
+                                    theme: theme,
                                   ),
-                                PracticePlaybackFooter(
-                                  canGoPrev:
-                                      playerState.currentSentenceIndex > 0,
-                                  isLast:
-                                      playerState.currentSentenceIndex >=
-                                      playerState.totalSentences - 1,
-                                  centerIcon: _buildFooterCenterIcon(
-                                    playerState,
-                                  ),
-                                  onPrevious: _handlePrevious,
-                                  onNext: _handleNext,
-                                  onCenter: _handleCenter,
-                                  isManualMode:
-                                      playerState.settings.isManualMode,
-                                  playCountText: formatPracticePlayCount(
-                                    l10n,
-                                    currentCount: playerState.currentPlayCount,
-                                    totalCount:
-                                        playerState.settings.isManualMode
-                                        ? 1
-                                        : playerState.settings.repeatCount,
-                                  ),
-                                  statusSuffixText: _formatSpeed(
-                                    playerState.settings.playbackSpeed,
-                                  ),
-                                  l10n: l10n,
-                                  theme: theme,
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),

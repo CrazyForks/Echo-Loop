@@ -17,10 +17,18 @@
 ///   点击切换字幕等下层交互不会被误放行。
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'dictionary_panel.dart';
+
+/// 面板查询切换日志；仅 debug 构建输出，与选区和 controller 日志共用前缀。
+void _traceDictionaryPanel(String message) {
+  if (!kDebugMode) return;
+  final timestamp = DateTime.now().toIso8601String();
+  debugPrint('[DictionaryTrace][$timestamp][panel] $message');
+}
 
 /// 一次查词请求：查询文本 + 来源信息（收藏单词时记录出处）
 class DictionaryPanelQuery {
@@ -138,6 +146,14 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   /// 是否正在滑出（滑出期间面板仍在树中播放退场动画）
   bool _closing = false;
 
+  /// 面板表面的渲染节点，用于把真实顶部位置同步给选区展示层。
+  final GlobalKey _panelSurfaceKey = GlobalKey();
+
+  /// 当前可见面板在全局坐标中的顶部；关闭时为 null。
+  final ValueNotifier<double?> _panelTop = ValueNotifier<double?>(null);
+
+  bool _panelTopUpdateScheduled = false;
+
   /// 面板滑入/滑出动画
   late final AnimationController _slide = AnimationController(
     vsync: this,
@@ -192,6 +208,7 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   @override
   void initState() {
     super.initState();
+    _slide.addListener(_schedulePanelTopUpdate);
     // 滑出到底后再把面板移出树（期间保留子树以播放退场动画）
     _slide.addStatusListener((status) {
       if (status == AnimationStatus.dismissed && mounted && _closing) {
@@ -207,24 +224,43 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
 
   @override
   void dispose() {
+    _slide.removeListener(_schedulePanelTopUpdate);
     _slide.dispose();
+    _panelTop.dispose();
     super.dispose();
   }
 
   /// 面板是否打开（滑出中视为已关闭，避免 closeIfOpen 重复消费返回键）
   bool get isOpen => _query != null && !_closing;
 
+  /// 当前面板真实顶部的只读通知。
+  ///
+  /// 选区操作栏据此判断正文是否被面板遮挡；通知覆盖入退场动画、内容
+  /// 自适应高度和用户拖拽，不要求调用方猜测面板比例。
+  ValueListenable<double?> get panelTopListenable => _panelTop;
+
+  /// 当前打开的查词会话是否属于 [owner]。
+  ///
+  /// 异步恢复选区或操作条前需重新核对所有权，避免旧帧回调干扰已经切换的查询。
+  bool isOwnedBy(Object owner) => isOpen && identical(_owner, owner);
+
   /// 显示/切换查词。面板已开时原地切换内容（不重播入场动画）。
   ///
   /// [owner] 为发起查词的组件 identity（可点词组件传 State 自身），
   /// 供 [DictionaryPanelHost.activeOwnerOf] 做选区清理判定。
   void show(DictionaryPanelQuery query, {Object? owner}) {
+    _traceDictionaryPanel(
+      'show owner=${owner == null ? null : identityHashCode(owner)} '
+      'word="${query.word}" previous="${_query?.word}" '
+      'wasOpen=$isOpen',
+    );
     setState(() {
       _query = query;
       _owner = owner;
       _closing = false;
     });
     _slide.forward();
+    _schedulePanelTopUpdate();
     _notifyOpenStateListeners();
   }
 
@@ -232,8 +268,38 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   void close() {
     if (_query == null || _closing) return;
     setState(() => _closing = true);
+    _setPanelTop(null);
     _slide.reverse();
     _notifyOpenStateListeners();
+  }
+
+  void _schedulePanelTopUpdate() {
+    if (_panelTopUpdateScheduled) return;
+    _panelTopUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _panelTopUpdateScheduled = false;
+      if (!mounted) return;
+      if (!isOpen) {
+        _setPanelTop(null);
+        return;
+      }
+      final renderObject = _panelSurfaceKey.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox ||
+          !renderObject.attached ||
+          !renderObject.hasSize) {
+        return;
+      }
+      _setPanelTop(renderObject.localToGlobal(Offset.zero).dy);
+    });
+  }
+
+  void _setPanelTop(double? value) {
+    final previous = _panelTop.value;
+    if (previous == value ||
+        (previous != null && value != null && (previous - value).abs() < 0.1)) {
+      return;
+    }
+    _panelTop.value = value;
   }
 
   /// 面板开着则关闭并返回 true；否则返回 false。
@@ -248,10 +314,10 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
 
   /// 仅当当前面板由 [owner] 发起时关闭。
   ///
-  /// 句子选区折叠或失焦时用此入口同步收起查词面板，避免旧组件误关掉
-  /// 另一句刚打开的新查询。
+  /// 显式结束查词会话时用此入口同步收起面板，避免旧组件误关掉另一句
+  /// 刚打开的新查询。
   bool closeIfOwnedBy(Object owner) {
-    if (!isOpen || !identical(_owner, owner)) return false;
+    if (!isOwnedBy(owner)) return false;
     close();
     return true;
   }
@@ -273,22 +339,36 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
         if (_query != null)
           // 非 Positioned 子节点拿 Stack 的宽松约束：面板最大高度天然
           // 不超过正文区域，宽度经内部拉满。
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: const Offset(0, 1),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(parent: _slide, curve: Curves.easeOutCubic),
+          NotificationListener<SizeChangedLayoutNotification>(
+            onNotification: (_) {
+              _schedulePanelTopUpdate();
+              return false;
+            },
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SlideTransition(
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: _slide,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    ),
+                child: SizeChangedLayoutNotifier(
+                  child: TextFieldTapRegion(
+                    child: SizedBox(
+                      key: _panelSurfaceKey,
+                      width: double.infinity,
+                      child: DictionaryPanel(
+                        query: _query!,
+                        onClose: close,
+                        entryAnimation: _slide.view,
+                      ),
+                    ),
                   ),
-              child: SizedBox(
-                width: double.infinity,
-                child: DictionaryPanel(
-                  query: _query!,
-                  onClose: close,
-                  entryAnimation: _slide.view,
                 ),
               ),
             ),

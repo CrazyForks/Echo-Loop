@@ -80,6 +80,8 @@ class SourceSwitcher extends ConsumerWidget {
       child: PopupMenuButton<String>(
         tooltip: '',
         position: PopupMenuPosition.under,
+        // 词典来源菜单属于当前查词会话，不应抢走正文 SelectableText 的焦点。
+        requestFocus: false,
         onSelected: onSelected,
         itemBuilder: (context) => [
           for (final s in visible)

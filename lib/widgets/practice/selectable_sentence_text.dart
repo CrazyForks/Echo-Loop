@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,13 @@ import '../common/platform_selection_feedback.dart';
 import '../common/platform_text_selection_style.dart';
 import '../dictionary/dictionary_panel_host.dart';
 import 'sentence_word_selection.dart';
+
+/// 真机查词时序日志；仅 debug 构建输出，统一使用微秒时间戳便于跨组件对齐。
+void _traceDictionarySelection(String message) {
+  if (!kDebugMode) return;
+  final timestamp = DateTime.now().toIso8601String();
+  debugPrint('[DictionaryTrace][$timestamp][selection] $message');
+}
 
 /// 查词来源上下文（收藏溯源用），聚合原先散落的 5 个参数
 class DictionaryLookupOrigin {
@@ -101,8 +109,8 @@ class SelectableSentenceText extends ConsumerStatefulWidget {
       _SelectableSentenceTextState();
 }
 
-class _SelectableSentenceTextState
-    extends ConsumerState<SelectableSentenceText> {
+class _SelectableSentenceTextState extends ConsumerState<SelectableSentenceText>
+    with WidgetsBindingObserver {
   /// 系统可选文本的 key，用于保留点词时的精确命中判断。
   final GlobalKey _textKey = GlobalKey();
 
@@ -114,8 +122,22 @@ class _SelectableSentenceTextState
 
   /// Flutter 当前选区；长按/拖动期间只记录，直到手指松开才触发查词。
   TextSelection? _currentSelection;
+
+  /// 当前查词会话确认的字符选区。
+  ///
+  /// Flutter 可能因面板交互、系统前后台切换临时释放 EditableText selection；
+  /// 该快照只在用户显式结束会话时清除，是选区持久性的单一来源。
+  TextSelection? _sessionSelection;
+
   bool _selectionLookupPending = false;
   bool _selectionCommitScheduled = false;
+  bool _selectionPresentationScheduled = false;
+  bool _pendingRestoreSelection = false;
+  bool _pendingRequestToolbar = false;
+  bool _toolbarHiddenByPanel = false;
+
+  /// 当前仍按下的指针；多指或系统手柄交互全部结束后才提交最终选区。
+  final Set<int> _activePointers = {};
 
   /// 最近一次按下位置，仅用于区分正文字符与行尾空白的单击。
   Offset? _lastPointerDownPosition;
@@ -168,9 +190,10 @@ class _SelectableSentenceTextState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _focusNode.addListener(_handleFocusChanged);
     // 系统选择手柄位于 Overlay，组件自身 Listener 收不到手柄松开事件，
-    // 因此只监听全局 pointer up/cancel 来提交已经由 Flutter 产生的选区。
+    // 因此监听全局指针序列，在全部指针松开后提交 Flutter 产生的最终选区。
     GestureBinding.instance.pointerRouter.addGlobalRoute(
       _handleGlobalPointerEvent,
     );
@@ -187,8 +210,12 @@ class _SelectableSentenceTextState
     if (oldText != _fullText) {
       _tokens = tokenizeSentence(_fullText);
       _currentSelection = null;
+      _sessionSelection = null;
       _selectionLookupPending = false;
       _focusNode.unfocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _closeOwnedDictionary();
+      });
     }
   }
 
@@ -199,27 +226,65 @@ class _SelectableSentenceTextState
     final host = DictionaryPanelHost.maybeOf(context);
     if (!identical(host, _host)) {
       _host?.unregisterTapThroughHitTest(_hitsTapThrough);
+      _host?.panelTopListenable.removeListener(_handlePanelTopChanged);
       _host = host;
       _host?.registerTapThroughHitTest(_hitsTapThrough);
+      _host?.panelTopListenable.addListener(_handlePanelTopChanged);
     }
-    // 面板关闭或其它组件发起查词时，清除当前系统选区。
+    // 面板关闭或其它组件发起查词时，清除当前系统选区。回调执行前再次
+    // 核对所有权，避免同帧内 show 后的旧回调清掉刚恢复的选区与操作条。
     final owner = DictionaryPanelHost.activeOwnerOf(context);
-    if (_focusNode.hasFocus && !identical(owner, this)) {
+    if (!identical(owner, this)) {
+      _sessionSelection = null;
+      _toolbarHiddenByPanel = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _focusNode.hasFocus) _focusNode.unfocus();
+        if (mounted &&
+            _focusNode.hasFocus &&
+            !(_host?.isOwnedBy(this) ?? false)) {
+          _focusNode.unfocus();
+        }
       });
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _host?.unregisterTapThroughHitTest(_hitsTapThrough);
+    _host?.panelTopListenable.removeListener(_handlePanelTopChanged);
     _focusNode.removeListener(_handleFocusChanged);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(
       _handleGlobalPointerEvent,
     );
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// 系统切到后台会主动销毁 selection overlay；回到前台时只为仍存续的
+  /// 当前查词会话恢复焦点和操作条，避免误激活已经关闭或切换 owner 的选区。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed ||
+        !(_host?.isOwnedBy(this) ?? false)) {
+      return;
+    }
+    _scheduleSelectionPresentationSync(
+      restoreSelection: true,
+      requestToolbar: true,
+    );
+  }
+
+  void _handlePanelTopChanged() {
+    _scheduleSelectionPresentationSync();
+  }
+
+  /// 面板会话存续期间，焦点变化只属于展示层变化，不等价于取消选区。
+  void _handleFocusChanged() {
+    if (_focusNode.hasFocus || !(_host?.isOwnedBy(this) ?? false)) return;
+    _scheduleSelectionPresentationSync(
+      restoreSelection: true,
+      requestToolbar: true,
+    );
   }
 
   /// 屏障仅放行正文 bounds；系统手柄自身位于 Overlay，不需要自定义命中区。
@@ -233,15 +298,108 @@ class _SelectableSentenceTextState
   // -- 查词触发 --
 
   void _lookup(String text) {
+    _traceDictionarySelection(
+      'lookup owner=${identityHashCode(this)} text="$text" '
+      'selection=$_currentSelection active=$_activePointers',
+    );
+    final selection = _currentSelection;
+    if (selection != null && selection.isValid && !selection.isCollapsed) {
+      _sessionSelection = selection;
+    }
     widget.onBeforeLookup?.call();
     DictionaryPanelHost.of(
       context,
     ).show(widget.origin.queryFor(text), owner: this);
+    _scheduleSelectionPresentationSync(requestToolbar: true);
   }
 
-  /// 选区因点击其它区域或路由切换而失焦时，只关闭本组件发起的词典面板。
-  void _handleFocusChanged() {
-    if (!_focusNode.hasFocus) _closeOwnedDictionary();
+  /// 把持久选区投影到 Flutter 的焦点、手柄与操作栏展示层。
+  ///
+  /// 面板遮住任一选区文本框时只隐藏操作栏；再次露出后自动恢复。所有异步
+  /// 回调执行前都重新核对 owner，防止旧帧复活已经结束的查词会话。
+  void _scheduleSelectionPresentationSync({
+    bool restoreSelection = false,
+    bool requestToolbar = false,
+  }) {
+    _pendingRestoreSelection |= restoreSelection;
+    _pendingRequestToolbar |= requestToolbar;
+    if (_selectionPresentationScheduled) return;
+    _selectionPresentationScheduled = true;
+    _traceDictionarySelection(
+      'presentation.schedule owner=${identityHashCode(this)} '
+      'restore=$restoreSelection toolbar=$requestToolbar',
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectionPresentationScheduled = false;
+      final shouldRestoreSelection = _pendingRestoreSelection;
+      final shouldRequestToolbar = _pendingRequestToolbar;
+      _pendingRestoreSelection = false;
+      _pendingRequestToolbar = false;
+      if (!mounted || !(_host?.isOwnedBy(this) ?? false)) {
+        _traceDictionarySelection(
+          'presentation.skip owner=${identityHashCode(this)} mounted=$mounted '
+          'owned=${_host?.isOwnedBy(this) ?? false}',
+        );
+        return;
+      }
+      final state = _editableState;
+      final selection = _sessionSelection;
+      if (state == null ||
+          selection == null ||
+          !selection.isValid ||
+          selection.isCollapsed) {
+        _traceDictionarySelection(
+          'presentation.skip owner=${identityHashCode(this)} '
+          'selection=$selection',
+        );
+        return;
+      }
+      final displayedSelection = state.textEditingValue.selection;
+      if (shouldRestoreSelection || displayedSelection != selection) {
+        _focusNode.requestFocus();
+        final value = state.textEditingValue;
+        state.userUpdateTextEditingValue(
+          value.copyWith(selection: selection),
+          SelectionChangedCause.toolbar,
+        );
+      }
+      final panelTop = _host?.panelTopListenable.value;
+      final obscured =
+          panelTop != null &&
+          _selectionCrossesPanelTop(state, selection, panelTop);
+      final wasHiddenByPanel = _toolbarHiddenByPanel;
+      if (obscured) {
+        state.hideToolbar(false);
+        _toolbarHiddenByPanel = true;
+      } else {
+        _toolbarHiddenByPanel = false;
+        if (shouldRequestToolbar ||
+            shouldRestoreSelection ||
+            wasHiddenByPanel) {
+          state.showToolbar();
+        }
+      }
+      _traceDictionarySelection(
+        'presentation.sync owner=${identityHashCode(this)} '
+        'selection=$selection panelTop=$panelTop obscured=$obscured '
+        'hiddenByPanel=$_toolbarHiddenByPanel',
+      );
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  bool _selectionCrossesPanelTop(
+    EditableTextState state,
+    TextSelection selection,
+    double panelTop,
+  ) {
+    final editable = state.renderEditable;
+    final boxes = editable.getBoxesForSelection(selection);
+    for (final box in boxes) {
+      final bottom = editable.localToGlobal(Offset(0, box.bottom)).dy;
+      if (bottom > panelTop) return true;
+    }
+    return false;
   }
 
   void _closeOwnedDictionary() {
@@ -280,16 +438,30 @@ class _SelectableSentenceTextState
     TextSelection selection,
     SelectionChangedCause? cause,
   ) {
+    final pendingBefore = _selectionLookupPending;
     _currentSelection = selection;
     if (!selection.isValid || selection.isCollapsed) {
       _selectionLookupPending = false;
-      _closeOwnedDictionary();
+      if (!(_host?.isOwnedBy(this) ?? false)) {
+        _sessionSelection = null;
+      }
+      _traceDictionarySelection(
+        'selection.changed owner=${identityHashCode(this)} cause=$cause '
+        'selection=$selection active=$_activePointers '
+        'pending=$pendingBefore->false',
+      );
       return;
     }
+    _sessionSelection = selection;
     if (cause == SelectionChangedCause.longPress ||
         cause == SelectionChangedCause.drag) {
       _selectionLookupPending = true;
     }
+    _traceDictionarySelection(
+      'selection.changed owner=${identityHashCode(this)} cause=$cause '
+      'selection=$selection active=$_activePointers '
+      'pending=$pendingBefore->$_selectionLookupPending',
+    );
     if (cause == SelectionChangedCause.longPress &&
         !_longPressFeedbackCompleted) {
       _longPressFeedbackCompleted = true;
@@ -301,36 +473,112 @@ class _SelectableSentenceTextState
   }
 
   void _handleGlobalPointerEvent(PointerEvent event) {
-    if (event is PointerCancelEvent) {
-      _selectionLookupPending = false;
-      _longPressFeedbackCompleted = false;
+    if (event is PointerDownEvent) {
+      _activePointers.add(event.pointer);
+      _traceDictionarySelection(
+        'pointer.down owner=${identityHashCode(this)} pointer=${event.pointer} '
+        'position=${event.position} active=$_activePointers '
+        'pending=$_selectionLookupPending',
+      );
       return;
     }
+    if (event is PointerCancelEvent) {
+      _activePointers.remove(event.pointer);
+      if (_activePointers.isEmpty) {
+        _selectionLookupPending = false;
+        _longPressFeedbackCompleted = false;
+        if (!(_host?.isOwnedBy(this) ?? false)) {
+          _sessionSelection = null;
+        }
+      }
+      _traceDictionarySelection(
+        'pointer.cancel owner=${identityHashCode(this)} '
+        'pointer=${event.pointer} active=$_activePointers '
+        'pending=$_selectionLookupPending',
+      );
+      return;
+    }
+    if (event is PointerUpEvent) {
+      _activePointers.remove(event.pointer);
+      _traceDictionarySelection(
+        'pointer.up owner=${identityHashCode(this)} pointer=${event.pointer} '
+        'active=$_activePointers pending=$_selectionLookupPending '
+        'scheduled=$_selectionCommitScheduled',
+      );
+    }
     if (event is! PointerUpEvent ||
-        !_selectionLookupPending ||
+        _activePointers.isNotEmpty ||
         _selectionCommitScheduled) {
       return;
     }
     _selectionCommitScheduled = true;
+    _traceDictionarySelection(
+      'commit.schedule owner=${identityHashCode(this)} '
+      'selection=$_currentSelection',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _selectionCommitScheduled = false;
-      if (mounted) _commitSelectionLookup();
+      _traceDictionarySelection(
+        'commit.frame owner=${identityHashCode(this)} mounted=$mounted '
+        'active=$_activePointers pending=$_selectionLookupPending '
+        'selection=$_currentSelection',
+      );
+      if (mounted) _finalizeSelectionGesture();
     });
+    // addPostFrameCallback 本身不会请求新帧；真机 PointerUp 后若界面静止，
+    // 回调会一直等到其它动画偶然产帧，造成多词查询秒级延迟。
+    WidgetsBinding.instance.ensureVisualUpdate();
     _longPressFeedbackCompleted = false;
+  }
+
+  /// 所有指针松开后再处理最终选区。
+  ///
+  /// PointerDown、长按等待和拖动期间绝不结束查词会话；普通点击的 selection
+  /// 变化发生在全局 PointerUp 之后，因此统一延迟一帧读取最终状态。折叠选区
+  /// 代表用户取消选择，非折叠选区则仅在长按/拖动产生待查询时提交查词。
+  void _finalizeSelectionGesture() {
+    final selection = _currentSelection;
+    if (selection == null || !selection.isValid || selection.isCollapsed) {
+      _selectionLookupPending = false;
+      _sessionSelection = null;
+      _toolbarHiddenByPanel = false;
+      _closeOwnedDictionary();
+      return;
+    }
+    if (_selectionLookupPending) _commitSelectionLookup();
   }
 
   /// 手指松开后，以系统最终选区查询；保留字符级边界，只裁掉首尾空白。
   void _commitSelectionLookup() {
-    if (!_selectionLookupPending) return;
+    if (!_selectionLookupPending) {
+      _traceDictionarySelection(
+        'commit.skip owner=${identityHashCode(this)} reason=notPending',
+      );
+      return;
+    }
     _selectionLookupPending = false;
     final selection = _currentSelection;
     if (selection == null || !selection.isValid || selection.isCollapsed) {
+      _traceDictionarySelection(
+        'commit.skip owner=${identityHashCode(this)} '
+        'reason=invalidSelection selection=$selection',
+      );
       return;
     }
     final start = selection.start.clamp(0, _fullText.length);
     final end = selection.end.clamp(0, _fullText.length);
     final selectedText = _fullText.substring(start, end).trim();
-    if (selectedText.isNotEmpty) _lookup(selectedText);
+    _traceDictionarySelection(
+      'commit.selection owner=${identityHashCode(this)} '
+      'range=$start..$end text="$selectedText"',
+    );
+    if (!hasDictionaryLookupContent(selectedText)) {
+      _sessionSelection = null;
+      _toolbarHiddenByPanel = false;
+      _closeOwnedDictionary();
+      return;
+    }
+    _lookup(selectedText);
   }
 
   // -- 选区操作条 --
@@ -386,6 +634,7 @@ class _SelectableSentenceTextState
       unawaited(Clipboard.setData(ClipboardData(text: text)));
     }
     _clearEditableSelection(state);
+    _closeOwnedDictionary();
   }
 
   /// 把选区按现有词汇规则收藏或取消收藏，并保留选区与查词面板。
@@ -425,24 +674,23 @@ class _SelectableSentenceTextState
       });
       // 收藏流会重建正文 TextSpan；在该帧结束后恢复同一字符选区，并重建
       // Overlay 操作条，使“收藏 / 取消收藏”文案原地切换而不离开查词现场。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !selection.isValid || selection.isCollapsed) return;
-        final value = state.textEditingValue;
-        state.userUpdateTextEditingValue(
-          value.copyWith(selection: selection),
-          SelectionChangedCause.toolbar,
+      if (selection.isValid && !selection.isCollapsed) {
+        _sessionSelection = selection;
+        _scheduleSelectionPresentationSync(
+          restoreSelection: true,
+          requestToolbar: true,
         );
-        state.hideToolbar();
-        state.showToolbar();
-      });
+      }
     } catch (error, stackTrace) {
       debugPrint('[SelectableSentenceText] 收藏选区失败: $error\n$stackTrace');
     }
   }
 
-  /// 清除系统选区会触发 [_handleSelectionChanged]，从而同步关闭当前查词面板。
+  /// 仅清除系统选区；是否结束查词会话由复制、问 AI 等显式动作决定。
   void _clearEditableSelection(EditableTextState state) {
     final value = state.textEditingValue;
+    _sessionSelection = null;
+    _toolbarHiddenByPanel = false;
     state.hideToolbar();
     state.userUpdateTextEditingValue(
       value.copyWith(
@@ -506,12 +754,27 @@ class _SelectableSentenceTextState
         for (final entry in _pendingSavedWordStates.entries)
           if (streamedWords.contains(entry.key) == entry.value) entry.key,
       ];
-      if (!mounted || acknowledgedWords.isEmpty) return;
-      setState(() {
-        for (final word in acknowledgedWords) {
-          _pendingSavedWordStates.remove(word);
-        }
-      });
+      if (!mounted) return;
+      if (acknowledgedWords.isNotEmpty) {
+        setState(() {
+          for (final word in acknowledgedWords) {
+            _pendingSavedWordStates.remove(word);
+          }
+        });
+      }
+      // 面板标题栏也能收藏。其数据库流会重建正文收藏下划线，Flutter
+      // 可能随之释放内部 selection；只要查词会话仍归本组件所有，就把同一
+      // 字符选区重新投影回来，收藏操作不得改变面板、选区或操作栏状态。
+      final selection = _sessionSelection;
+      if ((_host?.isOwnedBy(this) ?? false) &&
+          selection != null &&
+          selection.isValid &&
+          !selection.isCollapsed) {
+        _scheduleSelectionPresentationSync(
+          restoreSelection: true,
+          requestToolbar: true,
+        );
+      }
     });
     // 单词收藏集合同时供选区操作条判断“收藏 / 取消收藏”。
     _savedWordTexts =

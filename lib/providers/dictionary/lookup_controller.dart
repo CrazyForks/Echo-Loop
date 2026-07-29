@@ -6,6 +6,7 @@
 library;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -20,6 +21,13 @@ import 'dictionary_registry.dart';
 import 'visible_sources_provider.dart';
 
 part 'lookup_controller.g.dart';
+
+/// 词典数据层时序日志；仅 debug 构建输出，定位延迟位于触发前还是请求内。
+void _traceDictionaryLookup(String message) {
+  if (!kDebugMode) return;
+  final timestamp = DateTime.now().toIso8601String();
+  debugPrint('[DictionaryTrace][$timestamp][lookup] $message');
+}
 
 /// 单个源的查词态
 sealed class SourceLookupState {
@@ -162,6 +170,9 @@ class DictionaryLookupController extends _$DictionaryLookupController {
       }
     });
     final defaultId = _resolveInitialSourceId(preferredSourceId);
+    _traceDictionaryLookup(
+      'build word="$word" preferred=$preferredSourceId source=$defaultId',
+    );
     // 进入即查默认源；其它源懒加载（切到才查）
     Future.microtask(() => _lookup(defaultId));
     return DictionaryLookupState(
@@ -216,10 +227,16 @@ class DictionaryLookupController extends _$DictionaryLookupController {
 
   Future<void> _lookup(String id) async {
     final source = ref.read(dictionarySourcesByIdProvider)[id];
-    if (source == null) return;
+    if (source == null) {
+      _traceDictionaryLookup('skip word="$word" source=$id reason=missing');
+      return;
+    }
 
     final seq = (_seq[id] ?? 0) + 1;
     _seq[id] = seq;
+    _traceDictionaryLookup(
+      'start word="$word" source=$id seq=$seq network=${source.requiresNetwork}',
+    );
 
     // 取消该源上一次在途请求
     final prev = _tokens[id];
@@ -304,6 +321,9 @@ class DictionaryLookupController extends _$DictionaryLookupController {
   }
 
   void _setState(String id, SourceLookupState s) {
+    _traceDictionaryLookup(
+      'state word="$word" source=$id value=${s.runtimeType}',
+    );
     state = state.copyWith(bySource: {...state.bySource, id: s});
   }
 }

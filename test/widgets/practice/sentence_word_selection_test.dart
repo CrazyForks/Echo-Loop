@@ -61,6 +61,21 @@ void main() {
     });
   });
 
+  group('hasDictionaryLookupContent', () {
+    test('空白、标点和符号没有查词语义', () {
+      expect(hasDictionaryLookupContent('   \n'), isFalse);
+      expect(hasDictionaryLookupContent('.,!? —…'), isFalse);
+      expect(hasDictionaryLookupContent('★ →'), isFalse);
+    });
+
+    test('字母数字和内部标点词组保留查词语义', () {
+      expect(hasDictionaryLookupContent('co-op'), isTrue);
+      expect(hasDictionaryLookupContent('well, you know'), isTrue);
+      expect(hasDictionaryLookupContent('你好'), isTrue);
+      expect(hasDictionaryLookupContent('123'), isTrue);
+    });
+  });
+
   group('savedCharRanges', () {
     /// 便捷调用：从原始 key 集合建索引，返回命中区间对应的原文子串列表
     List<String> hitTexts(

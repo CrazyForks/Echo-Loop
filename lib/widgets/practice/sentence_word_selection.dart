@@ -67,6 +67,14 @@ int wordTokenAtChar(List<WordToken> tokens, int charOffset) {
   return -1;
 }
 
+/// 查询文本是否至少包含一个 Unicode 字母或数字。
+///
+/// 空白、标点和符号没有词典语义，不应创建或保留查词会话；内部包含标点的
+/// 正常单词或词组仍视为有效，例如 `co-op`、`well, you know`。
+bool hasDictionaryLookupContent(String text) {
+  return trimSavedRange(text, 0, text.length) != null;
+}
+
 // -- 收藏词标记（正文点状下划线）命中计算 --
 
 /// Unicode 字母/数字判定（区间修边用；比匹配侧的 ASCII 规则宽——修边只是

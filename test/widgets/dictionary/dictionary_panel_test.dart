@@ -136,6 +136,28 @@ void main() {
     expect(find.text('正文'), findsOneWidget);
   });
 
+  testWidgets('panelTopListenable 跟踪真实面板顶部并在关闭时清空', (tester) async {
+    await tester.pumpWidget(wrap());
+    expect(hostKey.currentState!.panelTopListenable.value, isNull);
+
+    hostKey.currentState!.show(const DictionaryPanelQuery(word: 'run'));
+    await tester.pumpAndSettle();
+
+    final panelTop = hostKey.currentState!.panelTopListenable.value;
+    expect(panelTop, isNotNull);
+    expect(
+      panelTop,
+      closeTo(
+        tester.getTopLeft(find.byKey(const Key('dict_sheet_sizer'))).dy,
+        0.5,
+      ),
+    );
+
+    hostKey.currentState!.close();
+    expect(hostKey.currentState!.panelTopListenable.value, isNull);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('点面板外：关面板并吸收点击（不触发正文交互）；关闭后正文恢复可点', (tester) async {
     bodyTaps = 0;
     await tester.pumpWidget(wrap());
@@ -194,10 +216,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(hostKey.currentState!.isOwnedBy(owner), isTrue);
+    expect(hostKey.currentState!.isOwnedBy(otherOwner), isFalse);
     expect(hostKey.currentState!.closeIfOwnedBy(otherOwner), isFalse);
     expect(hostKey.currentState!.isOpen, isTrue);
     expect(hostKey.currentState!.closeIfOwnedBy(owner), isTrue);
     await tester.pumpAndSettle();
+    expect(hostKey.currentState!.isOwnedBy(owner), isFalse);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
