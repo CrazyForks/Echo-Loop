@@ -1170,10 +1170,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get intensiveListenAutoMarkedDifficult => '已自动标记为难句，点此取消';
 
   @override
-  String get intensiveListenMarkedDifficult => '已标记为难句，点此取消';
+  String get intensiveListenMarkedDifficult => '取消收藏';
 
   @override
-  String get intensiveListenNotDifficult => '点击标记为难句';
+  String get intensiveListenNotDifficult => '收藏';
 
   @override
   String get aiTranslation => '翻译';
@@ -2599,10 +2599,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get demoModeSubtitle => '开启后使用演示数据，方便截图展示';
 
   @override
-  String get practiceRemoveMark => '取消标记';
+  String get practiceRemoveMark => '取消收藏';
 
   @override
-  String get practiceAddMark => '重新标记';
+  String get practiceAddMark => '重新收藏';
 
   @override
   String blindListenSegmentProgress(int current, int total) {

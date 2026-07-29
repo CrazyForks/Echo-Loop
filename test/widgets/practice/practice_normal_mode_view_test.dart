@@ -5,6 +5,87 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('中文难句操作按钮显示取消收藏与重新收藏', (tester) async {
+    Future<void> pumpView({required bool isDifficult}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: PracticeNormalModeView(
+                l10n: AppLocalizations.of(context)!,
+                theme: ThemeData.light(),
+                isTextRevealed: true,
+                sentenceText: 'A sentence.',
+                isDifficult: isDifficult,
+                onPeekToggle: () {},
+                onCantUnderstand: () {},
+                onToggleMark: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpView(isDifficult: true);
+    expect(find.widgetWithText(FilledButton, '取消收藏'), findsOneWidget);
+
+    await pumpView(isDifficult: false);
+    expect(find.widgetWithText(OutlinedButton, '重新收藏'), findsOneWidget);
+  });
+
+  testWidgets('难句收藏入口显示中英文收藏与取消收藏文案', (tester) async {
+    Future<void> pumpView({
+      required Locale locale,
+      required bool isDifficult,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: locale,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: PracticeNormalModeView(
+                l10n: AppLocalizations.of(context)!,
+                theme: ThemeData.light(),
+                isTextRevealed: true,
+                sentenceText: 'A sentence.',
+                isDifficult: isDifficult,
+                onPeekToggle: () {},
+                onCantUnderstand: () {},
+                onToggleMark: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpView(locale: const Locale('zh'), isDifficult: false);
+    expect(find.text('收藏'), findsOneWidget);
+
+    await pumpView(locale: const Locale('zh'), isDifficult: true);
+    expect(find.text('取消收藏'), findsWidgets);
+
+    await pumpView(locale: const Locale('en'), isDifficult: false);
+    expect(find.text('Save'), findsOneWidget);
+
+    await pumpView(locale: const Locale('en'), isDifficult: true);
+    expect(find.text('Unsave'), findsOneWidget);
+  });
+
   testWidgets('隐藏画面时耳朵、灰线与偷看入口在可利用区域整体居中', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 500));
     addTearDown(() => tester.binding.setSurfaceSize(null));

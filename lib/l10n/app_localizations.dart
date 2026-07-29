@@ -2201,13 +2201,13 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenMarkedDifficult.
   ///
   /// In en, this message translates to:
-  /// **'Marked difficult, tap to undo'**
+  /// **'Unsave'**
   String get intensiveListenMarkedDifficult;
 
   /// No description provided for @intensiveListenNotDifficult.
   ///
   /// In en, this message translates to:
-  /// **'Tap to mark as difficult'**
+  /// **'Save'**
   String get intensiveListenNotDifficult;
 
   /// No description provided for @aiTranslation.

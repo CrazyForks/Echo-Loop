@@ -1202,10 +1202,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-marked difficult, tap to undo';
 
   @override
-  String get intensiveListenMarkedDifficult => 'Marked difficult, tap to undo';
+  String get intensiveListenMarkedDifficult => 'Unsave';
 
   @override
-  String get intensiveListenNotDifficult => 'Tap to mark as difficult';
+  String get intensiveListenNotDifficult => 'Save';
 
   @override
   String get aiTranslation => 'Translation';
