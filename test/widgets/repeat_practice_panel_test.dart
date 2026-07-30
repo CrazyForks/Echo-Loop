@@ -13,7 +13,7 @@ import 'package:echo_loop/widgets/common/repeat_practice_panel.dart';
 /// - `permissionDenied` 状态下不再显示「前往设置」按钮（按钮槽位仍展示录音按钮）
 /// - 兜底场景：若上层仍把 `errorMessage` 传进来，文案以通用错误形式显示
 void main() {
-  Future<Widget> _wrap(Widget child) async {
+  Future<Widget> wrap(Widget child) async {
     return MaterialApp(
       locale: const Locale('en'),
       supportedLocales: const [Locale('en'), Locale('zh')],
@@ -32,7 +32,7 @@ void main() {
 
   testWidgets('permissionDenied 状态不再显示「前往设置」按钮', (tester) async {
     await tester.pumpWidget(
-      await _wrap(
+      await wrap(
         Builder(
           builder: (context) => RepeatPracticePanel(
             l10n: AppLocalizations.of(context)!,
@@ -60,7 +60,7 @@ void main() {
   testWidgets('errorMessage 兜底走通用错误状态文字', (tester) async {
     const message = 'Microphone permission was denied';
     await tester.pumpWidget(
-      await _wrap(
+      await wrap(
         Builder(
           builder: (context) => RepeatPracticePanel(
             l10n: AppLocalizations.of(context)!,
@@ -82,5 +82,32 @@ void main() {
 
     expect(find.text(message), findsOneWidget);
     expect(find.text('Go to Settings'), findsNothing);
+  });
+
+  testWidgets('仅显式启用时在录音 badge 生命周期内显示 AI 评测按钮', (tester) async {
+    const attempt = SpeechPracticeAttempt(
+      promptId: 'retell:a1:0',
+      filePath: '/tmp/retell.m4a',
+      status: SpeechPracticeAttemptStatus.passed,
+      score: .8,
+    );
+    await tester.pumpWidget(
+      await wrap(
+        Builder(
+          builder: (context) => RepeatPracticePanel(
+            l10n: AppLocalizations.of(context)!,
+            theme: Theme.of(context),
+            isInPause: true,
+            showCountdown: false,
+            currentAttempt: attempt,
+            onRecordTap: () {},
+            showAiReviewButton: true,
+            onAiReviewTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('retell_ai_review_button')), findsOneWidget);
   });
 }

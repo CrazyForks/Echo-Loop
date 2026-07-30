@@ -4874,4 +4874,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatQuoteRemove => 'Remove quote';
+
+  @override
+  String get retellAiReviewTooltip => 'AI review';
+
+  @override
+  String get retellAiReviewTitle => 'AI Retell Review';
+
+  @override
+  String get retellAiReviewTranscript => 'Transcription';
+
+  @override
+  String get retellAiReviewSummary => 'Overall feedback';
+
+  @override
+  String get retellAiReviewStrengths => 'What you did well';
+
+  @override
+  String get retellAiReviewCovered => 'Key points covered';
+
+  @override
+  String get retellAiReviewMissed => 'Key points to improve';
+
+  @override
+  String get retellAiReviewImprovements => 'Suggestions';
+
+  @override
+  String get retellAiReviewGrammar => 'Grammar corrections';
+
+  @override
+  String get retellAiReviewError =>
+      'The AI review could not be completed. Please try again.';
+
+  @override
+  String get retellAiReviewAudioPreparationError =>
+      'Couldn\'t prepare the recording for AI review.';
+
+  @override
+  String get retellAiReviewAudioTooLarge =>
+      'The prepared recording exceeds the 2 MB limit.';
+
+  @override
+  String get retellAiReviewPlayRecording => 'Play recording';
+
+  @override
+  String get retellAiReviewStopRecording => 'Stop recording';
 }

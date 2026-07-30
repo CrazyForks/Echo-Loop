@@ -4656,4 +4656,46 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatQuoteRemove => '移除引用';
+
+  @override
+  String get retellAiReviewTooltip => 'AI 评测';
+
+  @override
+  String get retellAiReviewTitle => 'AI 复述评测';
+
+  @override
+  String get retellAiReviewTranscript => '本次转录';
+
+  @override
+  String get retellAiReviewSummary => '总体评价';
+
+  @override
+  String get retellAiReviewStrengths => '做得好的地方';
+
+  @override
+  String get retellAiReviewCovered => '已覆盖要点';
+
+  @override
+  String get retellAiReviewMissed => '待改进要点';
+
+  @override
+  String get retellAiReviewImprovements => '改进建议';
+
+  @override
+  String get retellAiReviewGrammar => '语法纠错';
+
+  @override
+  String get retellAiReviewError => 'AI 评测未能完成，请重试。';
+
+  @override
+  String get retellAiReviewAudioPreparationError => '无法准备评测所需的录音文件。';
+
+  @override
+  String get retellAiReviewAudioTooLarge => '转换后的录音超过 2 MB 限制。';
+
+  @override
+  String get retellAiReviewPlayRecording => '播放录音';
+
+  @override
+  String get retellAiReviewStopRecording => '停止录音';
 }

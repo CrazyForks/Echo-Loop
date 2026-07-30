@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:universal_io/io.dart';
 
 import '../analytics/geo_interceptor.dart';
 import '../config/api_config.dart';
@@ -23,6 +24,7 @@ import 'ndjson_object_stream.dart';
 import 'ndjson_stream.dart';
 import '../models/sentence_ai_result.dart';
 import '../models/sense_group_result.dart';
+import '../models/retell_review_evaluation.dart';
 import '../models/dictionary/dictionary_entry.dart';
 
 part 'sentence_ai_api_client.g.dart';
@@ -533,6 +535,85 @@ class SentenceAiApiClient {
       }
     } on NdjsonStreamException {
       throw const SenseGroupsStreamException();
+    }
+  }
+
+  /// 复述效果 AI 评测（流式）。
+  ///
+  /// 该端点无登录态，但仍复用本 client 的 Dio、HTTP/2、NDJSON 记录与字段
+  /// 累积机制，保证与 AI 查词、翻译和解析的流式行为一致。
+  Stream<RetellReviewStreamFrame> evaluateReviewStream({
+    required File audioFile,
+    required String originalText,
+    required String targetLanguage,
+    CancelToken? cancelToken,
+  }) async* {
+    final response = await _dio.post<ResponseBody>(
+      '/api/v1/stream/evaluate-review',
+      data: FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          audioFile.path,
+          filename: 'retell-review.m4a',
+        ),
+        'originalText': originalText,
+        'language': 'en',
+        'targetLanguage': targetLanguage,
+      }),
+      options: Options(
+        responseType: ResponseType.stream,
+        validateStatus: (_) => true,
+      ),
+      cancelToken: cancelToken,
+    );
+
+    final body = response.data;
+    final status = response.statusCode ?? 0;
+    if (body == null) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+      );
+    }
+    if (status != 200) {
+      final errorMap = await _decodeErrorBody(body);
+      _logStreamHttpError(
+        response.requestOptions,
+        status: status,
+        errorMap: errorMap,
+      );
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: Response(
+          requestOptions: response.requestOptions,
+          statusCode: status,
+          data: errorMap,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+    }
+
+    var transcript = '';
+    try {
+      final frames = accumulateNdjsonObject<RetellReviewEvaluation>(
+        _decodeLoggedNdjson(body, response.requestOptions).map((event) {
+          final meta = event['meta'];
+          if (meta is Map) {
+            final value = meta['transcript'];
+            if (value is String) transcript = value;
+          }
+          return event;
+        }),
+        fromJson: RetellReviewEvaluation.fromJson,
+      );
+      await for (final frame in frames) {
+        yield RetellReviewStreamFrame(
+          evaluation: frame.value.copyWith(transcript: transcript),
+          isFinal: frame.isFinal,
+        );
+      }
+    } on NdjsonStreamException {
+      throw const RetellReviewStreamException();
     }
   }
 

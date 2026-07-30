@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:universal_io/io.dart';
+
 import 'package:dio/dio.dart';
 import 'package:dio_http2_adapter/dio_http2_adapter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/models/dictionary/dictionary_entry.dart';
+import 'package:echo_loop/models/retell_review_evaluation.dart';
 import 'package:echo_loop/services/ai_http_client_adapter.dart';
 import 'package:echo_loop/services/dictionary/dictionary_source.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
@@ -739,6 +742,71 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('evaluateReviewStream', () {
+    Response<ResponseBody> ndjsonResponse(String ndjson) {
+      final bytes = Uint8List.fromList(utf8.encode(ndjson));
+      return Response(
+        data: ResponseBody(Stream<Uint8List>.fromIterable([bytes]), 200),
+        statusCode: 200,
+        requestOptions: RequestOptions(
+          path: '/api/v1/stream/evaluate-review',
+          method: 'POST',
+        ),
+      );
+    }
+
+    test('复用 NDJSON ops 累积并带回首帧转录文本', () async {
+      final file = File(
+        '${Directory.systemTemp.path}/retell-review-client-test.m4a',
+      );
+      await file.writeAsBytes([0, 1, 2]);
+      addTearDown(() async {
+        if (await file.exists()) await file.delete();
+      });
+      when(
+        () => mockDio.post<ResponseBody>(
+          '/api/v1/stream/evaluate-review',
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => ndjsonResponse(
+          '${jsonEncode({
+            'meta': {'transcript': 'I practiced today.'},
+          })}\n'
+          '${jsonEncode({
+            'ops': [
+              {
+                'p': ['summary'],
+                'v': '表达清楚。',
+              },
+              {
+                'p': ['rating'],
+                'v': 'good',
+              },
+            ],
+          })}\n'
+          '${jsonEncode({'done': true})}\n',
+        ),
+      );
+
+      final frames = await client
+          .evaluateReviewStream(
+            audioFile: file,
+            originalText: 'Practice every day.',
+            targetLanguage: 'zh-CN',
+          )
+          .toList();
+
+      expect(frames, hasLength(2));
+      expect(frames.first.evaluation.transcript, 'I practiced today.');
+      expect(frames.first.evaluation.summary, '表达清楚。');
+      expect(frames.first.evaluation.rating, RetellReviewRating.good);
+      expect(frames.last.isFinal, isTrue);
     });
   });
 

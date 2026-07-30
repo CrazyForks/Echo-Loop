@@ -1939,5 +1939,19 @@
   "chatFollowUpTranslate": "翻译",
   "chatFollowUpExample": "举个例子",
   "chatFollowUpInstruction": "请仅根据下方引用的内容回答问题。",
-  "chatQuoteRemove": "移除引用"
+  "chatQuoteRemove": "移除引用",
+  "retellAiReviewTooltip": "AI 评测",
+  "retellAiReviewTitle": "AI 复述评测",
+  "retellAiReviewTranscript": "本次转录",
+  "retellAiReviewSummary": "总体评价",
+  "retellAiReviewStrengths": "做得好的地方",
+  "retellAiReviewCovered": "已覆盖要点",
+  "retellAiReviewMissed": "待改进要点",
+  "retellAiReviewImprovements": "改进建议",
+  "retellAiReviewGrammar": "语法纠错",
+  "retellAiReviewError": "AI 评测未能完成，请重试。",
+  "retellAiReviewAudioPreparationError": "无法准备评测所需的录音文件。",
+  "retellAiReviewAudioTooLarge": "转换后的录音超过 2 MB 限制。",
+  "retellAiReviewPlayRecording": "播放录音",
+  "retellAiReviewStopRecording": "停止录音"
 }

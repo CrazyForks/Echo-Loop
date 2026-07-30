@@ -8563,6 +8563,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove quote'**
   String get chatQuoteRemove;
+
+  /// No description provided for @retellAiReviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'AI review'**
+  String get retellAiReviewTooltip;
+
+  /// No description provided for @retellAiReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Retell Review'**
+  String get retellAiReviewTitle;
+
+  /// No description provided for @retellAiReviewTranscript.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription'**
+  String get retellAiReviewTranscript;
+
+  /// No description provided for @retellAiReviewSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Overall feedback'**
+  String get retellAiReviewSummary;
+
+  /// No description provided for @retellAiReviewStrengths.
+  ///
+  /// In en, this message translates to:
+  /// **'What you did well'**
+  String get retellAiReviewStrengths;
+
+  /// No description provided for @retellAiReviewCovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Key points covered'**
+  String get retellAiReviewCovered;
+
+  /// No description provided for @retellAiReviewMissed.
+  ///
+  /// In en, this message translates to:
+  /// **'Key points to improve'**
+  String get retellAiReviewMissed;
+
+  /// No description provided for @retellAiReviewImprovements.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggestions'**
+  String get retellAiReviewImprovements;
+
+  /// No description provided for @retellAiReviewGrammar.
+  ///
+  /// In en, this message translates to:
+  /// **'Grammar corrections'**
+  String get retellAiReviewGrammar;
+
+  /// No description provided for @retellAiReviewError.
+  ///
+  /// In en, this message translates to:
+  /// **'The AI review could not be completed. Please try again.'**
+  String get retellAiReviewError;
+
+  /// No description provided for @retellAiReviewAudioPreparationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t prepare the recording for AI review.'**
+  String get retellAiReviewAudioPreparationError;
+
+  /// No description provided for @retellAiReviewAudioTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The prepared recording exceeds the 2 MB limit.'**
+  String get retellAiReviewAudioTooLarge;
+
+  /// No description provided for @retellAiReviewPlayRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Play recording'**
+  String get retellAiReviewPlayRecording;
+
+  /// No description provided for @retellAiReviewStopRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop recording'**
+  String get retellAiReviewStopRecording;
 }
 
 class _AppLocalizationsDelegate

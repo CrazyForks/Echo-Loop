@@ -107,6 +107,17 @@ class RepeatPracticePanel extends StatelessWidget {
   /// 是否显示评级/录音胶囊。
   final bool showRatingBadge;
 
+  /// 是否为当前录音 badge 提供 AI 复述评测入口。
+  ///
+  /// 默认关闭，跟读等其他复用页面不会显示该入口。
+  final bool showAiReviewButton;
+
+  /// AI 评测请求是否正在准备或等待首个流式结果。
+  final bool isAiReviewLoading;
+
+  /// 点击 AI 评测入口。
+  final VoidCallback? onAiReviewTap;
+
   const RepeatPracticePanel({
     super.key,
     this.recordingMode = RecordingButtonMode.idle,
@@ -125,6 +136,9 @@ class RepeatPracticePanel extends StatelessWidget {
     this.ratingPlaybackServiceFactory,
     this.thresholds = RatingThresholds.listenAndRepeat,
     this.showRatingBadge = true,
+    this.showAiReviewButton = false,
+    this.isAiReviewLoading = false,
+    this.onAiReviewTap,
   });
 
   @override
@@ -147,6 +161,8 @@ class RepeatPracticePanel extends StatelessWidget {
     final currentBadgeAttempt = _badgeAttempt;
     final hasBadge = currentBadgeAttempt != null;
     final hasFF = onFastForward != null;
+    final hasAiReview = hasBadge && showAiReviewButton && onAiReviewTap != null;
+    final hasRightControl = hasAiReview || hasFF;
     final statusSlotHeight = _usesExpandedStatusSlot
         ? _kErrorStatusSlotHeight
         : _kStatusSlotHeight;
@@ -226,17 +242,49 @@ class RepeatPracticePanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 48),
-                      // 右槽位：快进按钮（与 next 按钮同宽同位）
+                      // 右槽位：复述 AI 评测（与左侧录音 badge 对称）；未启用
+                      // 时保留既有快进按钮，避免影响跟读等其他练习页面。
                       SizedBox(
                         width: PlaybackControls.controlButtonSize,
                         height: _kButtonRowHeight,
                         child: Center(
                           child: AnimatedOpacity(
-                            opacity: hasFF ? 1.0 : 0.0,
+                            opacity: hasRightControl ? 1.0 : 0.0,
                             duration: const Duration(milliseconds: 200),
                             child: IgnorePointer(
-                              ignoring: !hasFF,
-                              child: hasFF
+                              ignoring: !hasRightControl,
+                              child: hasAiReview
+                                  ? Semantics(
+                                      button: true,
+                                      label: l10n.retellAiReviewTooltip,
+                                      child: IconButton(
+                                        key: const Key(
+                                          'retell_ai_review_button',
+                                        ),
+                                        tooltip: l10n.retellAiReviewTooltip,
+                                        onPressed: isAiReviewLoading
+                                            ? null
+                                            : onAiReviewTap,
+                                        icon: isAiReviewLoading
+                                            ? const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : Icon(
+                                                Icons.auto_awesome_rounded,
+                                                size: 25,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withValues(alpha: 0.7),
+                                              ),
+                                      ),
+                                    )
+                                  : hasFF
                                   ? GestureDetector(
                                       onTap: onFastForward,
                                       child: Icon(
