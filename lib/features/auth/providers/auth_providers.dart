@@ -87,6 +87,14 @@ class SupabaseAuthRepository implements AuthRepository {
       nonce: rawNonce,
     );
 
+    if (response.user?.email == null) {
+      AppLogger.log(
+        'Auth',
+        'Apple sign-in without email claim: userId=${response.user?.id} '
+            'credentialHasEmail=${credential.email?.isNotEmpty ?? false}',
+      );
+    }
+
     final userMetadata = _appleUserMetadata(credential);
     if (userMetadata.isNotEmpty) {
       try {
@@ -174,6 +182,8 @@ String _sha256Hex(String input) {
   return sha256.convert(utf8.encode(input)).toString();
 }
 
+/// 从 Apple 凭证提取需要回写到 `auth.users.raw_user_meta_data` 的字段。
+///
 Map<String, String> _appleUserMetadata(
   AuthorizationCredentialAppleID credential,
 ) {
@@ -184,11 +194,13 @@ Map<String, String> _appleUserMetadata(
     if (familyName != null && familyName.isNotEmpty) familyName,
   ];
   final fullName = parts.join(' ').trim();
+  final email = credential.email?.trim();
 
   return {
     if (fullName.isNotEmpty) 'full_name': fullName,
     if (givenName != null && givenName.isNotEmpty) 'given_name': givenName,
     if (familyName != null && familyName.isNotEmpty) 'family_name': familyName,
+    if (email != null && email.isNotEmpty) 'apple_email': email,
   };
 }
 

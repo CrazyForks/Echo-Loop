@@ -543,13 +543,14 @@ void main() {
       String? identityToken = 'apple-id-token',
       String? givenName = ' Ada ',
       String? familyName = ' Lovelace ',
+      String? email = ' apple@example.com ',
     }) {
       return AuthorizationCredentialAppleID(
         userIdentifier: 'apple-user-id',
         givenName: givenName,
         familyName: familyName,
         authorizationCode: 'authorization-code',
-        email: 'apple@example.com',
+        email: email,
         identityToken: identityToken,
         state: null,
       );
@@ -590,7 +591,7 @@ void main() {
       expect(appleProvider.receivedNonce, matches(RegExp(r'^[0-9a-f]{64}$')));
     });
 
-    test('首次返回姓名时写入 user metadata', () async {
+    test('首次返回姓名和邮箱时一并写入 user metadata', () async {
       final appleProvider = _FakeAppleCredentialsProvider(appleCredential());
       final repository = SupabaseAuthRepository(
         auth,
@@ -617,7 +618,60 @@ void main() {
         'full_name': 'Ada Lovelace',
         'given_name': 'Ada',
         'family_name': 'Lovelace',
+        'apple_email': 'apple@example.com',
       });
+      expect(attributes.email, isNull);
+    });
+
+    test('凭证只返回邮箱时仍写入 apple_email', () async {
+      final appleProvider = _FakeAppleCredentialsProvider(
+        appleCredential(givenName: null, familyName: null),
+      );
+      final repository = SupabaseAuthRepository(
+        auth,
+        appleCredentialsProvider: appleProvider,
+      );
+
+      when(
+        () => auth.signInWithIdToken(
+          provider: any(named: 'provider'),
+          idToken: any(named: 'idToken'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer((_) async => AuthResponse(session: null, user: user));
+      when(
+        () => auth.updateUser(any()),
+      ).thenAnswer((_) async => UserResponse.fromJson(user.toJson()));
+
+      await repository.signInWithApple();
+
+      final attributes =
+          verify(() => auth.updateUser(captureAny())).captured.single
+              as UserAttributes;
+      expect(attributes.data, {'apple_email': 'apple@example.com'});
+    });
+
+    test('凭证无姓名无邮箱时不调用 updateUser', () async {
+      final appleProvider = _FakeAppleCredentialsProvider(
+        appleCredential(givenName: null, familyName: null, email: null),
+      );
+      final repository = SupabaseAuthRepository(
+        auth,
+        appleCredentialsProvider: appleProvider,
+      );
+
+      when(
+        () => auth.signInWithIdToken(
+          provider: any(named: 'provider'),
+          idToken: any(named: 'idToken'),
+          nonce: any(named: 'nonce'),
+        ),
+      ).thenAnswer((_) async => AuthResponse(session: null, user: user));
+
+      final response = await repository.signInWithApple();
+
+      expect(response.user?.id, 'apple-user-1');
+      verifyNever(() => auth.updateUser(any()));
     });
 
     test('缺少 identity token 时抛认证异常且不调用 Supabase', () async {
