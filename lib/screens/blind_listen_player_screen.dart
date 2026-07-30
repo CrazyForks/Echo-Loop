@@ -712,7 +712,6 @@ class _BlindListenPlayerScreenState
                                 ),
                               ),
                             );
-                            final hasFF = !s.paused && !s.fastForward;
                             return Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -729,41 +728,15 @@ class _BlindListenPlayerScreenState
                                       total: s.total,
                                       isPaused: s.paused,
                                       isFastForward: s.fastForward,
+                                      onTap: player.enterWaitingForUser,
                                       onPause: () => player.pauseCountdown(),
                                       onResume: () => player.resumeCountdown(),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 48),
-                                // 右槽位：快进按钮（与 next 按钮对齐）
-                                SizedBox(
+                                const SizedBox(
                                   width: PlaybackControls.controlButtonSize,
-                                  height: 48,
-                                  child: Center(
-                                    child: AnimatedOpacity(
-                                      opacity: hasFF ? 1.0 : 0.0,
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      child: IgnorePointer(
-                                        ignoring: !hasFF,
-                                        child: hasFF
-                                            ? GestureDetector(
-                                                onTap: player
-                                                    .toggleCountdownFastForward,
-                                                child: Icon(
-                                                  Icons.fast_forward_rounded,
-                                                  size: 32,
-                                                  color: theme
-                                                      .colorScheme
-                                                      .onSurface
-                                                      .withValues(alpha: 0.6),
-                                                ),
-                                              )
-                                            : const SizedBox.shrink(),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               ],
                             );

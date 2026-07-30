@@ -831,6 +831,8 @@ class _IntensiveListenPlayerScreenState
                                           total: s.total,
                                           isPaused: s.paused,
                                           isFastForward: s.fastForward,
+                                          onTap: player
+                                              .enterWaitingForUserInBlindMode,
                                           onPause: () =>
                                               player.pauseCountdown(),
                                           onResume: () =>
@@ -953,6 +955,7 @@ class _IntensiveListenPlayerScreenState
                                     total: countdown.total,
                                     isPaused: countdown.paused,
                                     isFastForward: countdown.fastForward,
+                                    onTap: player.onAnnotationUserInteraction,
                                     onPause: () => player.pauseCountdown(),
                                     onResume: () => player.resumeCountdown(),
                                   ),

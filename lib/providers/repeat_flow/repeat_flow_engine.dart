@@ -149,6 +149,9 @@ class RepeatFlowEngine {
   /// 当前原句播放完成后是否转入等待用户状态。
   bool _waitAfterCurrentPrompt = false;
 
+  /// 用户停止过当前句的自动倒计时；切到下一句前不再自动启动遍间等待。
+  bool _userTookOverCurrentSentence = false;
+
   RepeatFlowEngine({
     required this.onStateChanged,
     required this.callbacks,
@@ -228,6 +231,10 @@ class RepeatFlowEngine {
       _waitAfterCurrentPrompt = true;
       AppLogger.log(logTag, '→ WaitingForUser (当前句播完后)');
       return;
+    }
+
+    if (phase is WaitingInterval) {
+      _userTookOverCurrentSentence = true;
     }
 
     _stopActiveResources();
@@ -514,6 +521,16 @@ class RepeatFlowEngine {
       return;
     }
 
+    if (_userTookOverCurrentSentence) {
+      AppLogger.log(logTag, '→ 用户已接管当前句，评估后保持等待');
+      _updateState(
+        _state.copyWith(
+          phase: const WaitingForUser(WaitingReason.userInteraction),
+        ),
+      );
+      return;
+    }
+
     _startInterval(resetFull: true);
   }
 
@@ -703,6 +720,7 @@ class RepeatFlowEngine {
   /// 跳转到指定句子
   Future<void> _jumpToSentence(int index) async {
     _waitAfterCurrentPrompt = false;
+    _userTookOverCurrentSentence = false;
     _atomicReset();
     callbacks.clearRecording();
 

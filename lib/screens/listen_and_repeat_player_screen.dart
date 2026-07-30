@@ -585,6 +585,7 @@ class _ListenAndRepeatPlayerScreenState
                                   total: phase.total,
                                   isPaused: phase.isPaused,
                                   isFastForward: phase.speed > 1.0,
+                                  onTap: ctrl.enterWaitingForUser,
                                   onPause: ctrl.pauseInterval,
                                   onResume: ctrl.resumeInterval,
                                 );
@@ -598,12 +599,6 @@ class _ListenAndRepeatPlayerScreenState
                         (s) => s.listenAndRepeatRatingEnabled,
                       ),
                     ),
-                    onFastForward:
-                        showCountdown &&
-                            ctrlState.phase is WaitingInterval &&
-                            !(ctrlState.phase as WaitingInterval).isPaused
-                        ? ctrl.fastForwardInterval
-                        : null,
                     onBeforePlayback: () => ref
                         .read(listenAndRepeatControllerProvider.notifier)
                         .prepareForPlayback(),

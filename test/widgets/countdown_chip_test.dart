@@ -9,6 +9,7 @@ void main() {
     bool isFastForward = false,
     VoidCallback? onPause,
     VoidCallback? onResume,
+    VoidCallback? onTap,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -19,6 +20,7 @@ void main() {
             isFastForward: isFastForward,
             onPause: onPause ?? () {},
             onResume: onResume ?? () {},
+            onTap: onTap,
           ),
         ),
       ),
@@ -78,6 +80,29 @@ void main() {
 
       expect(pauseCalled, isFalse);
       expect(resumeCalled, isTrue);
+    });
+
+    testWidgets('提供自定义点击动作时不触发暂停或恢复', (tester) async {
+      var actionCalled = false;
+      var pauseCalled = false;
+      var resumeCalled = false;
+
+      await tester.pumpWidget(
+        buildChip(
+          onTap: () => actionCalled = true,
+          onPause: () => pauseCalled = true,
+          onResume: () => resumeCalled = true,
+        ),
+      );
+
+      await tester.tap(find.text('5'));
+      await tester.pump();
+
+      expect(actionCalled, isTrue);
+      expect(pauseCalled, isFalse);
+      expect(resumeCalled, isFalse);
+      expect(find.byIcon(Icons.pause_rounded), findsNothing);
+      expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
     });
 
     testWidgets('动画推进后进度环和秒数更新', (tester) async {

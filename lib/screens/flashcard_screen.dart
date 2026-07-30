@@ -307,6 +307,7 @@ class _BottomControls extends StatelessWidget {
               CountdownChip(
                 total: countdownTotal,
                 isPaused: false,
+                onTap: onCountdownTapped,
                 onPause: onCountdownTapped,
                 onResume: onCountdownTapped,
               )

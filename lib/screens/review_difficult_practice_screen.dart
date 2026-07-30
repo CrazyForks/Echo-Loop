@@ -643,6 +643,7 @@ class _ReviewDifficultPracticeScreenState
                                   total: s.total,
                                   isPaused: s.paused,
                                   isFastForward: s.fastForward,
+                                  onTap: player.enterWaitingForUserInBlindMode,
                                   onPause: () => player.pauseCountdown(),
                                   onResume: () => player.resumeCountdown(),
                                 );
@@ -758,6 +759,7 @@ class _ReviewDifficultPracticeScreenState
                     total: phase.total,
                     isPaused: phase.isPaused,
                     isFastForward: phase.speed > 1.0,
+                    onTap: engine?.enterWaitingForUser,
                     onPause: engine?.pauseInterval ?? noop,
                     onResume: engine?.resumeInterval ?? noop,
                   );
@@ -769,12 +771,6 @@ class _ReviewDifficultPracticeScreenState
         if (engine == null) return;
         unawaited(engine.onRecordButtonTapped());
       },
-      onFastForward:
-          showCountdown &&
-              flowState.phase is WaitingInterval &&
-              !(flowState.phase as WaitingInterval).isPaused
-          ? (engine?.fastForwardInterval ?? noop)
-          : null,
       onBeforePlayback: engine != null
           ? () => engine.prepareForPlayback()
           : null,

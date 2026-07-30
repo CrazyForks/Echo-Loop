@@ -1,7 +1,8 @@
 /// 倒计时控制按钮（共享组件）
 ///
 /// 56×56 圆形按钮，外围带进度环，内部显示倒计时秒数，
-/// 右下角显示暂停/恢复小徽章。点击自动切换暂停/恢复。
+/// 默认右下角显示暂停/恢复小徽章。调用方可提供 [onTap]，将点击改为
+/// 接管自动流程（例如进入等待用户操作）。
 ///
 /// **自驱动动画**：内部使用 [AnimationController] 驱动进度环和秒数，
 /// 不依赖外部高频传入 remaining，避免 Provider 每 100ms rebuild。
@@ -35,6 +36,9 @@ class CountdownChip extends StatefulWidget {
   /// 恢复回调
   final VoidCallback onResume;
 
+  /// 自定义点击动作。提供后优先于暂停/恢复。
+  final VoidCallback? onTap;
+
   const CountdownChip({
     super.key,
     required this.total,
@@ -42,6 +46,7 @@ class CountdownChip extends StatefulWidget {
     this.isFastForward = false,
     required this.onPause,
     required this.onResume,
+    this.onTap,
   });
 
   @override
@@ -139,7 +144,8 @@ class _CountdownChipState extends State<CountdownChip>
     final seconds = (remainingMs / 1000).ceil();
 
     return TappableWrapper(
-      onTap: widget.isPaused ? widget.onResume : widget.onPause,
+      onTap:
+          widget.onTap ?? (widget.isPaused ? widget.onResume : widget.onPause),
       feedbackType: TapFeedback.scale,
       scaleDown: 0.90,
       child: SizedBox(
@@ -170,7 +176,7 @@ class _CountdownChipState extends State<CountdownChip>
                 fontWeight: FontWeight.w700,
               ),
             ),
-            // 右下角状态徽章：暂停时 play，倒计时中 pause
+            // 自定义动作用停止脚标提示“点击后停止自动推进”。
             Positioned(
               right: 2,
               bottom: 2,
@@ -183,9 +189,11 @@ class _CountdownChipState extends State<CountdownChip>
                   border: Border.all(color: theme.colorScheme.surface),
                 ),
                 child: Icon(
-                  widget.isPaused
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
+                  widget.onTap != null
+                      ? Icons.stop_rounded
+                      : (widget.isPaused
+                            ? Icons.play_arrow_rounded
+                            : Icons.pause_rounded),
                   size: 12,
                   color: theme.colorScheme.primary,
                 ),

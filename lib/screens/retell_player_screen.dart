@@ -514,6 +514,11 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
             'badgePrompt=${_ratingBadgeController.attachedPromptId ?? "none"}, '
             'badgePath=${_ratingBadgeController.attachedFilePath ?? "none"}',
       );
+      if (_manualStoppedThisParagraph) {
+        AppLogger.log('RetellScreen', '评估完成后保持用户接管状态');
+        player.enterWaitingForUser();
+        return;
+      }
       if (state.settings.autoPlayRecordingAfterCompletion &&
           attempt?.hasRecording == true) {
         await _playAttemptRecordingAutomatically(token);
@@ -942,6 +947,12 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     await ref.read(retellPlayerProvider.notifier).replayDuringCountdown();
   }
 
+  /// 停止倒计时意味着当前段落后续都由用户手动接管。
+  void _takeOverCountdown() {
+    _manualStoppedThisParagraph = true;
+    ref.read(retellPlayerProvider.notifier).enterWaitingForUser();
+  }
+
   /// 切段：retelling 阶段走 completeRetellingTurn（记录统计 + 遍数逻辑）。
   ///
   /// 最后一段时保留录音结果（badge）和手动标记，避免完成弹窗期间
@@ -1287,6 +1298,7 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
                             total: s.total,
                             isPaused: s.paused,
                             isFastForward: s.fastForward,
+                            onTap: _takeOverCountdown,
                             onPause: () => ref
                                 .read(retellPlayerProvider.notifier)
                                 .pauseCountdown(),
@@ -1298,12 +1310,6 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
                       )
                     : null,
                 onRecordTap: _handleRecordTap,
-                onFastForward:
-                    state.isRetellCountdown && !state.isCountdownPaused
-                    ? () => ref
-                          .read(retellPlayerProvider.notifier)
-                          .toggleCountdownFastForward()
-                    : null,
                 onBeforePlayback: _prepareAttemptPlayback,
                 showRatingBadge: retellRatingEnabled,
                 ratingBadgeController: _ratingBadgeController,
