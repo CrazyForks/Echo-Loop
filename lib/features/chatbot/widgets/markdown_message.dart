@@ -23,19 +23,14 @@ final List<MarkdownComponent> _inlineComponents = [
 ];
 
 /// Markdown 消息渲染（流式期间 data 可能是半截 markdown，gpt_markdown 容忍）。
+///
+/// 本组件只负责渲染，**不含选区能力**：选区由外层的 `SelectableAssistantMarkdown`
+/// （自有选区内核 + 跨块后端）统一接管，与句子正文同一套实现。
 class MarkdownMessage extends StatelessWidget {
-  const MarkdownMessage({
-    super.key,
-    required this.data,
-    this.selectable = true,
-    this.style,
-  });
+  const MarkdownMessage({super.key, required this.data, this.style});
 
   /// markdown 源文本。
   final String data;
-
-  /// 是否可选中复制。
-  final bool selectable;
 
   /// 文本样式（颜色随气泡主题传入）。
   final TextStyle? style;
@@ -50,9 +45,7 @@ class MarkdownMessage extends StatelessWidget {
       tableBuilder: _table,
     );
     // 调淡 quote 竖条：库内 onSurfaceVariant 仅用于该竖条，局部覆盖不影响其它。
-    markdown = Theme(data: _softQuoteTheme(context), child: markdown);
-    if (!selectable) return markdown;
-    return SelectionArea(child: markdown);
+    return Theme(data: _softQuoteTheme(context), child: markdown);
   }
 
   /// 外开链接；无法启动时静默忽略（不阻断阅读）。
@@ -93,8 +86,8 @@ class _InlineCodeMd extends InlineMd {
         fontFamily: 'monospace',
         fontWeight: FontWeight.w400,
         color: scheme.onSurface,
-        // 半透明底色：TextSpan.background 绘制在选中高亮之上，不透明会遮挡
-        // SelectionArea 的蓝色高亮（表现为「代码块选不中」）。用半透明让选中色透出。
+        // 半透明底色：TextSpan.background 随文字绘制，位于选中高亮之上（高亮画在
+        // 文字下层），不透明会遮挡选中色，表现为「代码块选不中」。
         background: Paint()
           ..color = scheme.surfaceContainerHighest.withValues(alpha: 0.5)
           ..strokeCap = StrokeCap.round

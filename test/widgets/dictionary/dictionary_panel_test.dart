@@ -136,28 +136,6 @@ void main() {
     expect(find.text('正文'), findsOneWidget);
   });
 
-  testWidgets('panelTopListenable 跟踪真实面板顶部并在关闭时清空', (tester) async {
-    await tester.pumpWidget(wrap());
-    expect(hostKey.currentState!.panelTopListenable.value, isNull);
-
-    hostKey.currentState!.show(const DictionaryPanelQuery(word: 'run'));
-    await tester.pumpAndSettle();
-
-    final panelTop = hostKey.currentState!.panelTopListenable.value;
-    expect(panelTop, isNotNull);
-    expect(
-      panelTop,
-      closeTo(
-        tester.getTopLeft(find.byKey(const Key('dict_sheet_sizer'))).dy,
-        0.5,
-      ),
-    );
-
-    hostKey.currentState!.close();
-    expect(hostKey.currentState!.panelTopListenable.value, isNull);
-    await tester.pumpAndSettle();
-  });
-
   testWidgets('点面板外：关面板并吸收点击（不触发正文交互）；关闭后正文恢复可点', (tester) async {
     bodyTaps = 0;
     await tester.pumpWidget(wrap());
@@ -285,6 +263,80 @@ void main() {
     hostKey.currentState!.close();
     await tester.pumpAndSettle();
     expect(ownerLog.last, isNull);
+  });
+
+  testWidgets('isPanelOpenOf：面板开着时翻页器不接受滑动，关闭后恢复', (tester) async {
+    // 屏障是按区域放行的（豁免正文文本以支持连续点词），而触屏的水平拖拽不被
+    // 文本消费，会穿到下层 PageView → 切句成功但面板还开着。翻页器据这个依赖面
+    // 直接停用滑动，不影响文本区域的 tap / 长按 / 手柄拖拽。
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          analyticsOverride(),
+          dictionaryOverride(),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          dictionarySourcesProvider.overrideWithValue([local]),
+          dictionarySourcesByIdProvider.overrideWithValue({'local': local}),
+          resolvedDefaultSourceIdProvider.overrideWithValue('local'),
+          dictionaryLookupContextProvider.overrideWithValue(
+            const DictionaryLookupContext(
+              accessToken: 'tok',
+              targetLanguage: 'zh-CN',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('zh')],
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: DictionaryPanelHost(
+              key: hostKey,
+              child: Builder(
+                builder: (context) => PageView.builder(
+                  controller: pageController,
+                  physics: DictionaryPanelHost.isPanelOpenOf(context)
+                      ? const NeverScrollableScrollPhysics()
+                      : null,
+                  itemCount: 3,
+                  itemBuilder: (_, index) => Center(child: Text('第 $index 句')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('第 0 句'), findsOneWidget);
+
+    // 面板关闭：横滑正常切页
+    await tester.drag(find.byType(PageView), const Offset(-700, 0));
+    await tester.pumpAndSettle();
+    expect(pageController.page?.round(), 1);
+
+    hostKey.currentState!.show(const DictionaryPanelQuery(word: 'run'));
+    await tester.pumpAndSettle();
+
+    // 面板开着：横滑不切页
+    await tester.drag(find.byType(PageView), const Offset(-700, 0));
+    await tester.pumpAndSettle();
+    expect(pageController.page?.round(), 1);
+
+    hostKey.currentState!.close();
+    await tester.pumpAndSettle();
+
+    // 关闭后恢复可滑
+    await tester.drag(find.byType(PageView), const Offset(-700, 0));
+    await tester.pumpAndSettle();
+    expect(pageController.page?.round(), 2);
   });
 
   testWidgets('handleBackButton：面板开着时返回键先关面板，再返回才退页', (tester) async {

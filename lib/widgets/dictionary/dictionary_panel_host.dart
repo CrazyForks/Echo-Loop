@@ -21,6 +21,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../selection/selection_toolbar_host.dart';
+import '../selection/selection_toolbar_layer.dart';
 import 'dictionary_panel.dart';
 
 /// 面板查询切换日志；仅 debug 构建输出，与选区和 controller 日志共用前缀。
@@ -132,11 +134,25 @@ class DictionaryPanelHost extends StatefulWidget {
   static Object? activeOwnerOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<_DictionaryPanelScope>()
       ?.owner;
+
+  /// 面板是否打开（建立依赖）。
+  ///
+  /// 供与面板互斥的交互按**结构性状态**决定自身行为，而不是靠命令式回调同步。
+  /// 首个用途：面板开着时翻页器不接受滑动——屏障是按**区域**放行的（豁免正文
+  /// 文本 bounds 以支持连续点词），而 `SelectableText` 在触屏上不消费水平拖拽，
+  /// 于是文字区域上的横滑会穿到下层 PageView，导致切句成功而面板未关。
+  /// 这不影响文本区域的 tap / 长按 / 手柄拖拽。
+  static bool isPanelOpenOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_DictionaryPanelScope>()
+          ?.isOpen ??
+      false;
 }
 
 /// 宿主 state：持有当前查询与出入场动画
 class DictionaryPanelHostState extends State<DictionaryPanelHost>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin
+    implements SelectionToolbarMount {
   /// 当前查询；null = 面板关闭（不在树中）
   DictionaryPanelQuery? _query;
 
@@ -145,14 +161,6 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
 
   /// 是否正在滑出（滑出期间面板仍在树中播放退场动画）
   bool _closing = false;
-
-  /// 面板表面的渲染节点，用于把真实顶部位置同步给选区展示层。
-  final GlobalKey _panelSurfaceKey = GlobalKey();
-
-  /// 当前可见面板在全局坐标中的顶部；关闭时为 null。
-  final ValueNotifier<double?> _panelTop = ValueNotifier<double?>(null);
-
-  bool _panelTopUpdateScheduled = false;
 
   /// 面板滑入/滑出动画
   late final AnimationController _slide = AnimationController(
@@ -179,6 +187,42 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
     bool Function(Offset globalPosition) hitTest,
   ) {
     _tapThroughHitTests.remove(hitTest);
+  }
+
+  /// 当前挂载的选区操作条请求（由可选文本组件推送）。
+  SelectionToolbarRequest? _selectionToolbar;
+
+  /// 挂载/更新选区操作条。
+  ///
+  /// 操作条必须由页面级宿主渲染：它会溢出正文的 render box，而祖先按各自 box
+  /// 剪裁命中测试，挂在正文里溢出部分点不动；挂根 Overlay 则会盖在面板之上、
+  /// 遮挡与滚动跟随都要手算。这里在 Stack 中位于「屏障之上、面板之下」，于是
+  /// 点操作条不被屏障吸收、面板天然遮住操作条，全部由层序解决。
+  @override
+  void showSelectionToolbar(SelectionToolbarRequest request) {
+    // 请求可能来自已卸载内容的延迟回调，宿主自身也可能正在销毁。
+    if (!mounted || _selectionToolbar == request) return;
+    setState(() => _selectionToolbar = request);
+  }
+
+  /// 收起选区操作条（仅当前 owner 可收起自己的）。
+  @override
+  void hideSelectionToolbar(Object owner) {
+    if (!mounted || !identical(_selectionToolbar?.owner, owner)) return;
+    setState(() => _selectionToolbar = null);
+  }
+
+  /// 全局锚点 → 宿主 Stack 局部锚点。
+  TextSelectionToolbarAnchors _toLocalAnchors(
+    TextSelectionToolbarAnchors global,
+  ) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return global;
+    final secondary = global.secondaryAnchor;
+    return TextSelectionToolbarAnchors(
+      primaryAnchor: box.globalToLocal(global.primaryAnchor),
+      secondaryAnchor: secondary == null ? null : box.globalToLocal(secondary),
+    );
   }
 
   /// 注册词典面板开关状态监听器。
@@ -208,7 +252,6 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   @override
   void initState() {
     super.initState();
-    _slide.addListener(_schedulePanelTopUpdate);
     // 滑出到底后再把面板移出树（期间保留子树以播放退场动画）
     _slide.addStatusListener((status) {
       if (status == AnimationStatus.dismissed && mounted && _closing) {
@@ -224,20 +267,12 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
 
   @override
   void dispose() {
-    _slide.removeListener(_schedulePanelTopUpdate);
     _slide.dispose();
-    _panelTop.dispose();
     super.dispose();
   }
 
   /// 面板是否打开（滑出中视为已关闭，避免 closeIfOpen 重复消费返回键）
   bool get isOpen => _query != null && !_closing;
-
-  /// 当前面板真实顶部的只读通知。
-  ///
-  /// 选区操作栏据此判断正文是否被面板遮挡；通知覆盖入退场动画、内容
-  /// 自适应高度和用户拖拽，不要求调用方猜测面板比例。
-  ValueListenable<double?> get panelTopListenable => _panelTop;
 
   /// 当前打开的查词会话是否属于 [owner]。
   ///
@@ -260,7 +295,6 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
       _closing = false;
     });
     _slide.forward();
-    _schedulePanelTopUpdate();
     _notifyOpenStateListeners();
   }
 
@@ -268,38 +302,8 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   void close() {
     if (_query == null || _closing) return;
     setState(() => _closing = true);
-    _setPanelTop(null);
     _slide.reverse();
     _notifyOpenStateListeners();
-  }
-
-  void _schedulePanelTopUpdate() {
-    if (_panelTopUpdateScheduled) return;
-    _panelTopUpdateScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _panelTopUpdateScheduled = false;
-      if (!mounted) return;
-      if (!isOpen) {
-        _setPanelTop(null);
-        return;
-      }
-      final renderObject = _panelSurfaceKey.currentContext?.findRenderObject();
-      if (renderObject is! RenderBox ||
-          !renderObject.attached ||
-          !renderObject.hasSize) {
-        return;
-      }
-      _setPanelTop(renderObject.localToGlobal(Offset.zero).dy);
-    });
-  }
-
-  void _setPanelTop(double? value) {
-    final previous = _panelTop.value;
-    if (previous == value ||
-        (previous != null && value != null && (previous - value).abs() < 0.1)) {
-      return;
-    }
-    _panelTop.value = value;
   }
 
   /// 面板开着则关闭并返回 true；否则返回 false。
@@ -336,38 +340,37 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
               onDismiss: close,
             ),
           ),
+        // 选区操作条：在屏障之上（点它不被吸收）、面板之下（被面板天然遮挡）。
+        // 锚点在这里换算：宿主的 render box 上一帧已布局，而图层自身首次 build
+        // 时 findRenderObject() 还是 null，无法就地换算。
+        if (_selectionToolbar case final request?)
+          Positioned.fill(
+            child: SelectionToolbarLayer(
+              anchors: _toLocalAnchors(request.globalAnchors),
+              actions: request.actions,
+            ),
+          ),
         if (_query != null)
           // 非 Positioned 子节点拿 Stack 的宽松约束：面板最大高度天然
           // 不超过正文区域，宽度经内部拉满。
-          NotificationListener<SizeChangedLayoutNotification>(
-            onNotification: (_) {
-              _schedulePanelTopUpdate();
-              return false;
-            },
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: SlideTransition(
-                position:
-                    Tween<Offset>(
-                      begin: const Offset(0, 1),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: _slide,
-                        curve: Curves.easeOutCubic,
-                      ),
-                    ),
-                child: SizeChangedLayoutNotifier(
-                  child: TextFieldTapRegion(
-                    child: SizedBox(
-                      key: _panelSurfaceKey,
-                      width: double.infinity,
-                      child: DictionaryPanel(
-                        query: _query!,
-                        onClose: close,
-                        entryAnimation: _slide.view,
-                      ),
-                    ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SlideTransition(
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: _slide, curve: Curves.easeOutCubic),
+                  ),
+              child: TextFieldTapRegion(
+                child: SizedBox(
+                  key: const Key('dict_panel_surface'),
+                  width: double.infinity,
+                  child: DictionaryPanel(
+                    query: _query!,
+                    onClose: close,
+                    entryAnimation: _slide.view,
                   ),
                 ),
               ),
@@ -377,7 +380,9 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
     );
     result = _DictionaryPanelScope(
       owner: isOpen ? _owner : null,
-      child: result,
+      isOpen: isOpen,
+      // 本宿主同时是选区操作条的挂载点（AI 回答等非查词内容也能挂进来）。
+      child: SelectionToolbarScope(mount: this, child: result),
     );
     if (widget.handleBackButton) {
       result = PopScope(
@@ -392,15 +397,22 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
   }
 }
 
-/// 向子树暴露当前查词发起者（选区清理依赖面）
+/// 向子树暴露当前查词发起者（选区清理依赖面）与面板开关状态
 class _DictionaryPanelScope extends InheritedWidget {
   final Object? owner;
 
-  const _DictionaryPanelScope({required this.owner, required super.child});
+  /// 面板是否打开（滑出中视为已关闭，与 [DictionaryPanelHostState.isOpen] 一致）
+  final bool isOpen;
+
+  const _DictionaryPanelScope({
+    required this.owner,
+    required this.isOpen,
+    required super.child,
+  });
 
   @override
   bool updateShouldNotify(_DictionaryPanelScope oldWidget) =>
-      oldWidget.owner != owner;
+      oldWidget.owner != owner || oldWidget.isOpen != isOpen;
 }
 
 /// 关面板屏障：豁免区域内的点击穿透（不命中自身），其余点击按下即关面板。

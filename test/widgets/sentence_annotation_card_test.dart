@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/models/sense_group_result.dart';
@@ -65,11 +66,11 @@ void main() {
         createTestApp(SentenceAnnotationCard(text: 'Hello world')),
       );
 
-      // 句子正文使用系统标准可选文本。
-      final sentence = tester.widget<SelectableText>(
-        find.byType(SelectableText),
+      // 句子正文走自有选区组件（平台手柄画笔 + tight 高亮），不再用 SelectableText。
+      final sentence = tester.widget<AppSelectableText>(
+        find.byType(AppSelectableText),
       );
-      expect(sentence.textSpan?.toPlainText(), 'Hello world');
+      expect(sentence.text, 'Hello world');
     });
   });
 

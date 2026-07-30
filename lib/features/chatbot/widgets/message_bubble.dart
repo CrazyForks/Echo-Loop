@@ -30,7 +30,7 @@ const String _iconQuote = 'assets/icon/chat/arrow-right-turn.svg';
 /// - assistant done 态气泡下方常驻操作栏：复制 + 重新生成（左下）；
 /// - user 消息无常驻操作栏，长按（桌面右键）弹菜单：复制 + 编辑（编辑打开独立编辑页）；
 ///   带追问引用时气泡上方显示「↳ + 灰字」引用行；
-/// - assistant 内容为可选中 markdown（SelectionArea）：长按起选区、拖拽手柄自由选中
+/// - assistant 内容为可选中 markdown（自有选区内核）：长按起选区、拖拽手柄自由选中
 ///   任意连续文本（含行内代码），选区上方弹出「复制 / 问 AI」操作条。
 ///
 /// 颜色全部取 Theme/colorScheme（暗色模式适配），禁止硬编码色值。
@@ -87,7 +87,7 @@ class ChatMessageBubble extends StatelessWidget {
             _buildQuoteReference(context, width),
           GestureDetector(
             // user：长按（桌面右键）唤出复制/编辑菜单；
-            // assistant：不挂外层长按菜单——长按交给内部 SelectionArea 起选区。
+            // assistant：不挂外层长按菜单——长按交给内部选区内核起选区。
             onLongPressStart: (!_isUser || message.content.isEmpty)
                 ? null
                 : (details) => _showMenu(context, details.globalPosition),
@@ -222,15 +222,11 @@ class ChatMessageBubble extends StatelessWidget {
       return _ThinkingIndicator(color: textColor);
     }
     final textStyle = TextStyle(color: textColor);
-    // 流式期间 markdown 子节点会随数据帧频繁增删。此时挂载 SelectionArea 会让
-    // Flutter 的 selectable 注册表在帧末更新时发生重入，触发并发修改异常；待消息
-    // 进入稳定终态后再启用选区、复制和「问 AI」。
+    // 流式期间内容每帧变化，选区必然被内容身份校验作废，挂了也没意义（历史上
+    // 官方 SelectionArea 在这里还会因 selectable 注册表帧末重入而抛并发修改）；
+    // 待消息进入稳定终态后再启用选区、复制和「问 AI」。
     final Widget markdown = message.status == ChatMessageStatus.streaming
-        ? MarkdownMessage(
-            data: message.content,
-            selectable: false,
-            style: textStyle,
-          )
+        ? MarkdownMessage(data: message.content, style: textStyle)
         : SelectableAssistantMarkdown(
             data: message.content,
             style: textStyle,

@@ -9,6 +9,7 @@ import '../../models/sentence.dart';
 import '../../providers/sentence_ai_provider.dart';
 import '../../services/subtitle_parser.dart';
 import '../../theme/app_theme.dart';
+import '../dictionary/dictionary_panel_host.dart';
 import '../practice/annotation_content_view.dart';
 import 'bookmark_toggle_row.dart';
 
@@ -76,6 +77,19 @@ class _SingleSentenceStudyViewState
   bool _pagerSynced = false;
   bool _programmaticPageChange = false;
 
+  /// 切句即结束查词会话（本视图由播放器真相源的 [currentSentenceIndex] 驱动，
+  /// 横滑 / 自动推进 / 进度条跳句 / 底部切句最终都收敛到这里，是单一入口）。
+  ///
+  /// 面板与选区绑定在同一个句子上：`PageView` 每页是独立实例，跨句存活会让
+  /// 已离屏的旧 owner 继续把焦点和操作条投影到离屏页的几何上。
+  @override
+  void didUpdateWidget(SingleSentenceStudyView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentSentenceIndex != widget.currentSentenceIndex) {
+      DictionaryPanelHost.maybeOf(context)?.closeIfOpen();
+    }
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -95,6 +109,12 @@ class _SingleSentenceStudyViewState
       key: widget.scope == SingleSentenceStudyScope.bookmarks
           ? kBookmarkSingleSentenceSwipeAreaKey
           : kFullSingleSentenceSwipeAreaKey,
+      // 面板开着时不接受滑动：屏障按区域放行正文文本以支持连续点词，而触屏的
+      // 水平拖拽不被文本消费，会穿到这里造成「切句了但面板还开着」。
+      // 文本区域的 tap / 长按 / 手柄拖拽不受影响。
+      physics: DictionaryPanelHost.isPanelOpenOf(context)
+          ? const NeverScrollableScrollPhysics()
+          : null,
       controller: _pageController,
       itemCount: widget.sentences.length,
       onPageChanged: _onPageChanged,

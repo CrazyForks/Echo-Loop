@@ -36,7 +36,12 @@ class WordToken {
 /// 分词正则：空白段或非空白连续段（与标注卡既有实现一致）
 final RegExp _tokenPattern = RegExp(r'\s+|[^\s]+');
 
-/// 「词」判定：含至少一个字母或数字（纯标点段不可查词）
+/// 「词」判定：含至少一个 ASCII 字母或数字（纯标点段不可查词）。
+///
+/// 与 [hasDictionaryLookupContent] 是同一判据的廉价等价写法：[normalizeWord]
+/// 的边缘剥离类 `[^A-Za-z0-9]` 在整段不含 ASCII 字母数字时会吃掉全串，故
+/// 「含 ASCII 字母数字」⟺「归一化后非空」。分词按 token 逐个求值（可能每帧
+/// 走到），因此这里用单次正则而不调用 [normalizeWord]；等价性由测试固定。
 final RegExp _hasAlnum = RegExp(r'[A-Za-z0-9]');
 
 /// 把句子切分为带字符偏移的 token 列表
@@ -67,13 +72,20 @@ int wordTokenAtChar(List<WordToken> tokens, int charOffset) {
   return -1;
 }
 
-/// 查询文本是否至少包含一个 Unicode 字母或数字。
+/// 查询文本归一化后是否仍有可查内容。
 ///
-/// 空白、标点和符号没有词典语义，不应创建或保留查词会话；内部包含标点的
-/// 正常单词或词组仍视为有效，例如 `co-op`、`well, you know`。
-bool hasDictionaryLookupContent(String text) {
-  return trimSavedRange(text, 0, text.length) != null;
-}
+/// 判据必须与查词管线的**实际输入**一致：面板标题、TTS、收藏与各词典源统一
+/// 用 [normalizeWord] 的产出作查询词，所以「能不能查」只能由它是否为空决定。
+/// 早期用 Unicode 版 [trimSavedRange] 判定，导致纯 CJK 文本通过门控、却让面板
+/// 拿空串去查（[normalizeWord] 的边缘剥离是 ASCII 语义）。
+///
+/// 内部含标点的正常单词/词组仍有效，例如 `co-op`、`well, you know`。
+///
+/// 已知限制（[normalizeWord] 的 ASCII 语义所致，与点词判定 [_hasAlnum] 一致，
+/// 故两条路径行为统一）：纯 CJK 文本不可查；词首尾的非 ASCII 字母会被剥掉
+/// （`café` → `caf`、`résumé` → `résum`，词中间的不受影响，如 `naïve`）。
+/// 修正需同时 unicode 化 [normalizeWord] 并迁移已存收藏 key，见 TASKS.md。
+bool hasDictionaryLookupContent(String text) => normalizeWord(text).isNotEmpty;
 
 // -- 收藏词标记（正文点状下划线）命中计算 --
 

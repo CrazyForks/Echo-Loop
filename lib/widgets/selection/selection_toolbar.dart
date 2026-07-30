@@ -1,8 +1,14 @@
 /// 选区操作条：三端一致的横向灰色圆角胶囊，浮在选区上方（空间不足翻到下方）。
 ///
-/// 独立、可复用：不与「聊天/markdown」耦合，任何走 Flutter 文本选择（`SelectionArea`
-/// / `SelectableRegion` 的 `contextMenuBuilder`）的场景都可复用。传入选区锚点
-/// （[TextSelectionToolbarAnchors]）与若干动作项（[SelectionToolbarAction]）即可。
+/// 独立、可复用：不与「聊天/markdown」耦合。传入选区锚点
+/// （[TextSelectionToolbarAnchors]，**全局坐标**）与若干动作项
+/// （[SelectionToolbarAction]）即可，两类宿主都用它：
+/// - 走 Flutter 文本选择的场景（`SelectionArea` / `SelectableRegion` 的
+///   `contextMenuBuilder`）——本组件被放进根 Overlay，局部坐标即全局坐标；
+/// - 自有选区实现（`AppSelectableText`）——本组件被放进一个「负偏移对齐屏幕、
+///   尺寸等于屏幕」的图层，局部坐标同样等于全局坐标，因此上下避让、溢出分页
+///   全部照常工作，同时图层随正文滚动、被祖先 Scrollable 剪裁、在页面 Stack
+///   中天然位于词典面板之下。
 ///
 /// 为何用 [CupertinoTextSelectionToolbar] 而非 [AdaptiveTextSelectionToolbar]：
 /// 后者在 macOS 桌面自适应为纵向下拉菜单；前者可稳定复用横向布局、竖分隔线、
@@ -60,29 +66,6 @@ class SelectionToolbar extends StatelessWidget {
       startGlyphHeight: state.startGlyphHeight,
       endGlyphHeight: state.endGlyphHeight,
       selectionEndpoints: state.selectionEndpoints,
-    );
-  }
-
-  /// 按只读 [EditableTextState] 的真实选区几何计算锚点。
-  ///
-  /// `EditableTextState.contextMenuAnchors` 在桌面右键时会退化为鼠标位置；
-  /// 句子选区需要始终把气泡放在选区中间，因此与 [anchorsForSelection] 一样，
-  /// 直接从文字端点和首尾字形高度重建锚点。
-  static TextSelectionToolbarAnchors anchorsForEditableText(
-    EditableTextState state,
-  ) {
-    final selection = state.textEditingValue.selection;
-    if (!selection.isValid || selection.isCollapsed) {
-      return state.contextMenuAnchors;
-    }
-    final heights = state.getGlyphHeights();
-    return TextSelectionToolbarAnchors.fromSelection(
-      renderBox: state.renderEditable,
-      startGlyphHeight: heights.startGlyphHeight,
-      endGlyphHeight: heights.endGlyphHeight,
-      selectionEndpoints: state.renderEditable.getEndpointsForSelection(
-        selection,
-      ),
     );
   }
 

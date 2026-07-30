@@ -8,6 +8,7 @@ import 'package:echo_loop/features/chatbot/models/chat_message.dart';
 import 'package:echo_loop/features/chatbot/models/chat_role.dart';
 import 'package:echo_loop/features/chatbot/widgets/markdown_message.dart';
 import 'package:echo_loop/features/chatbot/widgets/message_bubble.dart';
+import 'package:echo_loop/widgets/selection/selectable_content.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -107,7 +108,7 @@ void main() {
   });
 
   testWidgets(
-    'assistant 内容渲染为可选中 markdown（SelectionArea → SelectableRegion）',
+    'assistant 内容渲染为可选中 markdown（自有选区内核）',
     (tester) async {
       await pumpChatWidget(
         tester,
@@ -116,16 +117,18 @@ void main() {
           onFollowUp: (_) {},
         ),
       );
-      // AI 回答用 SelectionArea 包裹，支持长按/拖拽自由选中连续文本。
+      // AI 回答用与句子正文同一套自有选区实现（不再是官方 SelectionArea），
+      // 支持长按/拖拽自由选中连续文本、跨 markdown 块。
       expect(find.byType(MarkdownMessage), findsOneWidget);
       expect(find.byType(GptMarkdown), findsOneWidget);
-      expect(find.byType(SelectableRegion), findsOneWidget);
+      expect(find.byType(SelectableContent), findsOneWidget);
+      expect(find.byType(SelectableRegion), findsNothing);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
   testWidgets(
-    'assistant 流式期间禁用选择，完成后再挂载 SelectionArea',
+    'assistant 流式期间禁用选择，完成后再挂载选区内核',
     (tester) async {
       final streaming = msg(
         content: '正在生成 **markdown**',
@@ -137,7 +140,7 @@ void main() {
       );
 
       expect(find.byType(GptMarkdown), findsOneWidget);
-      expect(find.byType(SelectableRegion), findsNothing);
+      expect(find.byType(SelectableContent), findsNothing);
 
       await pumpChatWidget(
         tester,
@@ -148,7 +151,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byType(SelectableRegion), findsOneWidget);
+      expect(find.byType(SelectableContent), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),

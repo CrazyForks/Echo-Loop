@@ -485,8 +485,11 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// [savedWord] 为小写归一化词形，用于收藏状态和保存内容。各源的词形还原/
   /// headword 原形仅用于内容展示，不占据标题，也不改变收藏内容。
   Widget _buildTitleRow(ThemeData theme, String displayWord, String savedWord) {
+    // 收藏态单一来源：与正文下划线、选区操作条共用同一个收藏词流，避免
+    // 面板书签与操作条按钮出现「同一个词两种状态」的瞬时分歧。
     final isSaved =
-        ref.watch(isWordSavedProvider(savedWord)).valueOrNull ?? false;
+        (ref.watch(savedWordTextsProvider).valueOrNull ?? const <String>{})
+            .contains(savedWord);
     return Row(
       children: [
         Expanded(

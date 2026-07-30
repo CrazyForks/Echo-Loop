@@ -123,10 +123,3 @@ Future<Map<String, DictEntry>> savedWordDictEntries(ref) async {
   final wordStrings = wordsAsync.map((w) => w.word).toList();
   return DictionaryService.instance.lookupAll(wordStrings);
 }
-
-/// 监听单个单词是否已收藏
-@riverpod
-Stream<bool> isWordSaved(ref, String word) {
-  final dao = ref.watch(savedWordDaoProvider);
-  return dao.watchIsWordSaved(word);
-}

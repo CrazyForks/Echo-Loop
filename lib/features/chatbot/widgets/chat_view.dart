@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../widgets/selection/selection_toolbar_host.dart';
 import '../../auth/sign_in_required_dialog.dart';
 import '../../subscription/widgets/feature_gate.dart';
 import '../models/chatbot_config.dart';
@@ -92,46 +93,50 @@ class _ChatViewState extends ConsumerState<ChatView> {
     // 整块统一底色（对标 ChatGPT：消息区 = 底栏 = scheme.surface，仅输入 pill /
     // 引用卡片保留边界）。载体（sheet / scaffold）也用 surface，明暗两套皆无接缝。
     final scheme = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: scheme.surface,
-      child: Column(
-        children: [
-          if (summary != null && summary.isNotEmpty)
-            ChatContextChip(summary: summary),
-          Expanded(
-            child: ChatMessageList(
-              config: config,
-              onRetry: (_) => notifier.retry(),
+    // AI 回答的选区操作条挂在本载体上：它会溢出气泡的 render box，而祖先按各自
+    // box 剪裁命中测试，挂在气泡里点不动（见 selection_toolbar_layer.dart）。
+    return SelectionToolbarHost(
+      child: ColoredBox(
+        color: scheme.surface,
+        child: Column(
+          children: [
+            if (summary != null && summary.isNotEmpty)
+              ChatContextChip(summary: summary),
+            Expanded(
+              child: ChatMessageList(
+                config: config,
+                onRetry: (_) => notifier.retry(),
+                onUpgrade: () => openPaywall(context, ref),
+                onSignIn: () => _signIn(context, ref, l10n, notifier),
+                onCopy: (content) => _copy(context, l10n, content),
+                onEdit: (messageId) => _handleEdit(notifier, messageId),
+                onRegenerate: (messageId) => notifier.regenerate(messageId),
+                onFollowUp: _startFollowUp,
+              ),
+            ),
+            ChatGateBanner(
+              gate: gate,
               onUpgrade: () => openPaywall(context, ref),
               onSignIn: () => _signIn(context, ref, l10n, notifier),
-              onCopy: (content) => _copy(context, l10n, content),
-              onEdit: (messageId) => _handleEdit(notifier, messageId),
-              onRegenerate: (messageId) => notifier.regenerate(messageId),
-              onFollowUp: _startFollowUp,
             ),
-          ),
-          ChatGateBanner(
-            gate: gate,
-            onUpgrade: () => openPaywall(context, ref),
-            onSignIn: () => _signIn(context, ref, l10n, notifier),
-          ),
-          if (_pendingQuote != null)
-            ChatQuoteBar(
-              quote: _pendingQuote!,
+            if (_pendingQuote != null)
+              ChatQuoteBar(
+                quote: _pendingQuote!,
+                isStreaming: isStreaming,
+                onClose: () => setState(() => _pendingQuote = null),
+                onCommand: (command) =>
+                    _handleSend(context, ref, l10n, notifier, command),
+              ),
+            ChatComposer(
+              placeholder: config.inputPlaceholder,
+              focusNode: _composerFocusNode,
+              attachedTop: _pendingQuote != null,
               isStreaming: isStreaming,
-              onClose: () => setState(() => _pendingQuote = null),
-              onCommand: (command) =>
-                  _handleSend(context, ref, l10n, notifier, command),
+              onSend: (text) => _handleSend(context, ref, l10n, notifier, text),
+              onStop: notifier.stop,
             ),
-          ChatComposer(
-            placeholder: config.inputPlaceholder,
-            focusNode: _composerFocusNode,
-            attachedTop: _pendingQuote != null,
-            isStreaming: isStreaming,
-            onSend: (text) => _handleSend(context, ref, l10n, notifier, text),
-            onStop: notifier.stop,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

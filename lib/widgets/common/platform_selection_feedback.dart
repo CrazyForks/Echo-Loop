@@ -1,8 +1,8 @@
-/// 统一 `SelectionArea` 与 `SelectableText` 的移动端长按反馈。
+/// 自有选区实现的移动端长按反馈。
 ///
-/// Flutter 3.41 的两套官方选区底层反馈不一致：`SelectionArea` 固定发送
-/// `selectionClick`，`SelectableText` 固定发送平台长按反馈。这里仅补齐另一半，
-/// 不接管手势识别和选区绘制，使两处最终反馈序列一致。
+/// 手势完全由 `SelectableContent` 自己识别，框架不会代发任何反馈，因此这里一次性
+/// 发齐平台标准序列（轻量选择反馈 + 长按反馈），与官方 `SelectableText` /
+/// `SelectionArea` 的最终反馈序列一致。
 library;
 
 import 'dart:async';
@@ -11,27 +11,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// 官方文本选择组件之间的反馈差异协调器。
+/// 选区触感/音效反馈。
 abstract final class PlatformSelectionFeedback {
-  /// `SelectionArea` 已发送轻量选择反馈；补发平台标准长按反馈。
-  static void completeSelectableRegionLongPress(BuildContext context) {
-    if (!_isMobilePlatform) return;
-    unawaited(Feedback.forLongPress(context));
-  }
-
-  /// `SelectableText` 将发送平台长按反馈；先补发轻量选择反馈。
-  ///
-  /// iOS 首次未聚焦长按是 Flutter 的特殊分支，不会发送标准长按反馈，因此由这里
-  /// 一并补齐；已聚焦时仍交给框架发送，避免重复震动。
-  static void completeEditableTextLongPress(
-    BuildContext context, {
-    required bool hadFocusOnPointerDown,
-  }) {
+  /// 长按建立选区时的反馈（桌面平台不发）。
+  static void forOwnedLongPressSelection(BuildContext context) {
     if (!_isMobilePlatform) return;
     unawaited(HapticFeedback.selectionClick());
-    if (defaultTargetPlatform == TargetPlatform.iOS && !hadFocusOnPointerDown) {
-      unawaited(Feedback.forLongPress(context));
-    }
+    unawaited(Feedback.forLongPress(context));
   }
 
   static bool get _isMobilePlatform =>

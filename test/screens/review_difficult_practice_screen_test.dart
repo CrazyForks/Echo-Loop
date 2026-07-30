@@ -1,6 +1,7 @@
 // 难句补练页面 Widget 测试
 //
 // 验证盲听模式和跟读模式的 UI 渲染、按钮交互、状态切换。
+import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -593,13 +594,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // SentenceAnnotationCard 使用系统标准可选文本。
+      // SentenceAnnotationCard 走自有选区组件（平台手柄画笔 + tight 高亮）。
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
       expect(
         find.byWidgetPredicate(
-          (w) =>
-              w is SelectableText &&
-              (w.textSpan?.toPlainText().contains('Test') ?? false),
+          (w) => w is AppSelectableText && w.text.contains('Test'),
         ),
         findsOneWidget,
       );

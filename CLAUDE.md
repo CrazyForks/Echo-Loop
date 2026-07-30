@@ -310,3 +310,92 @@ flutter test integration_test -d macos
 
 - 现在协议核心是“按路径设叶子”，避免 O(n²) 重发。
 - 规则：后续结构化流式对象继续优先用增量叶子协议，不回退到整对象快照。
+
+### 7.28 选区能力三层化：自有 selection model + 平台手柄画笔（取代 SelectableText）
+
+- **根因**：Flutter 两个官方选区机制都在**前台失焦时清空选区**（`material/selectable_text.dart`
+  `_handleFocusChanged`、`widgets/selectable_region.dart` `_handleFocusChanged`），
+  且 `SelectableText.didUpdateWidget` 在 `textSpan` 变化时重建 controller 让选区归零
+  （`_TextSpanEditingController._textSpan` 是 final）。而「选中文字 → 在页面内面板里
+  查词/切源/收藏 → 选区必须还在」与该契约直接冲突，只能靠反向投影补救（2026-07-29
+  一晚 7 个补丁的来源）。
+- **规则**：选区需跨交互存活 / 需自定义词边界 / 需自定义操作条时，用**自有 selection
+  model + 平台 `TextSelectionControls` 手柄画笔**（`SelectableRegion` 同款分层），
+  **不要**用 `SelectableText` 或 `SelectionArea`。分三层：L1 会话（唯一真相源，只存
+  字符区间 + 内容身份，不含焦点概念，`idle/selecting/active` 三态）、L2 呈现（平台
+  手柄、tight 高亮、操作条、放大镜）、L3 `SelectionBackend`（命中/词边界/几何/取文本，
+  单段与跨块的唯一差异点）。
+- **词边界单一来源**：点词一律用业务自己的分词，**不能**用 `selectWord()`/ICU 边界——
+  ICU 把 `co-op` 断成 `co`/`-`/`op`、`e.g.` 断成 `e`/`.`/`g`，会让高亮、查询与两个收藏
+  入口各存不同的词。
+- **操作条必须挂页面级宿主**：它会溢出内容的 render box，而**祖先按各自 box 剪裁命中
+  测试**，挂在内容自己的 Stack 里溢出部分点不动（跳过自身剪裁的 `UnboundedHitStack`
+  只解决自身那一层，够手柄用、不够操作条用）；挂根 Overlay 又会盖在页面内面板之上。
+  正确层序：`正文 → 关面板屏障 → 操作条 → 面板`，遮挡与可点性全由层序解决，不做几何
+  同步。锚点用全局坐标推送，由宿主换算（图层自身首次 build 时 `findRenderObject()`
+  仍为 null，不能就地换算）。操作条挂在 Scrollable 外，故正文滚出视口时要主动收起
+  （`rectsVisibleInViewport`）。
+- **不用 `SelectionOverlay`**：它把手柄挂到「最近包含 context 的 Overlay」，手柄会跑到
+  根 Overlay，遮挡与滚动跟随又得手算。手柄当普通 widget 放进内容 Stack 即可。
+- **平台行为对齐**：长按拖选在 Android/Fuchsia/Linux/Windows 按**词**粒度、iOS/macOS 按
+  字符（同框架 `selectWordsInRange` / `selectPositionAt`）；手柄拖拽所有平台都是字符级。
+  手柄命中区以平台 `getHandleAnchor`/`getHandleSize` 推导后放大到 36dp（框架自身用 48dp）。
+- **tight 高亮**：`Selectable` 协议内部硬编码 `boxHeightStyle: max`
+  （`rendering/paragraph.dart`），所以**只要不走该协议**（单段与跨块 backend 都自己
+  读段落几何）就能全程用 tight，两处观感一致。
+- **桌面交互必须自己补齐**（`SelectableText` 白送的，自有实现一样都不会有）：mouse
+  drag-select（限定 `PointerDeviceKind.mouse` 的 `PanGestureRecognizer`，且必须
+  `DragStartBehavior.down`——默认的 `.start` 报的是「拖动被识别时」的位置，选区起点
+  会偏移且触发识别的位移被并入 `onStart` 收不到 `onUpdate`）、**点击手抖兜底**（鼠标
+  slop 只有 1 逻辑像素 `kPrecisePointerHitSlop`，抖 2px 就让 pan 赢 tap 输，pan 结束
+  时未形成选区要按点击处理）、I-beam 光标、**双击选词 / Shift+点击扩选 / Shift+方向键
+  扩选 / Cmd+C**（2026-07-30 补齐）。尚未做：三击选段 / Cmd+A / 拖动已选文本。
+- **双击不能用 `DoubleTapGestureRecognizer`**：它会 hold 住手势竞技场，单击要等双击
+  超时（约 300ms）才生效，点词查词整体变迟钝。自己在 tap 里按「时间窗 + slop」判定
+  （`TapCadence`），单击零延迟。
+- **键盘扩选没有光标态**：本实现只有选区，没有 caret，所以无选区时 Shift+方向键不做
+  任何事；缩回固定端等于选区归零，按结束会话处理。上下行移动走**光标几何**
+  （`caretRectAt` + `offsetAt`），不假设行结构，跨块也能跨到相邻块。Cmd/Ctrl+C **保留**
+  选区（平台标准），与操作条里业务定义的「复制并结束会话」是两个动作。焦点只用于
+  键盘事件路由，且**只有鼠标交互才 requestFocus**（触屏 requestFocus 会收起软键盘）。
+- **长按落在词间空白**不能直接 return（会变成死手势）：把锚点定在该字符，拖出第一个
+  字符再建立会话。
+- **跨块 backend（AI 回答）不走 `SelectionContainer`/`Selectable`**：除了上面的 max
+  高亮与失焦清选区，官方注册表在流式 markdown 帧末增删子节点时还会重入
+  （`ConcurrentModificationError`，T16 修过）。改为直接读渲染树拼扁平字符空间。三个
+  非直觉点：①**文档顺序必须按占位符递归**——`gpt_markdown` 把整段渲染成一个根
+  `RichText`，块级元素（标题/列表/引用/表格）是 `WidgetSpan` 占位符，占位符里又是
+  新的 `RichText`，即**子块嵌在父段落内部**，按「渲染树遇到的先后」排会错乱；正确做法
+  是父段落文本被占位符切成多段、占位符处插入子块（`RenderParagraph` 的占位符子节点
+  顺序 == span 中出现顺序，下标即对应）。②命中判定要用**段自身文本的矩形**，不能用
+  段落 box——嵌套结构下父 box 覆盖子块，会命中外层。③相邻两段之间没有换行/空白时补
+  一个换行（表格相邻单元格），该换行占扁平偏移但不属于任何段。
+- **内容变化 / 卸载时通知宿主必须推迟一帧**：`didUpdateWidget`、`dispose` 里直接调
+  `onHideToolbar` / `onSessionEnded` 会 setState 到**祖先**宿主，触发
+  「markNeedsBuild called during build」；流式 AI 回答每帧都会走到这条路径。
+- **内容被整块摘掉时也要收操作条**（`dispose`，不只是 `didUpdateWidget`）：聊天
+  「新会话」清空消息会直接卸载 AI 回答，操作条否则孤零零留在空白页上。因此
+  「收操作条」的回调必须**携带 owner**、不依赖 `currentState` / `context`（卸载后
+  两者都失效），宿主 show/hide 也要加 `mounted` 守卫（延迟回调可能晚于宿主销毁）。
+- **操作条挂载点抽象为 `SelectionToolbarMount` + `SelectionToolbarScope`**：查词页由
+  `DictionaryPanelHost` 实现（层序 `正文 → 屏障 → 操作条 → 面板`），无面板的页面
+  （聊天载体 `ChatView`）用通用 `SelectionToolbarHost`；内容组件只认接口，不关心自己
+  被放进了哪种页面。
+- **已知代价**（明确接受）：不提供系统选区的无障碍语义；句子文本本身仍可被读屏朗读。依赖的 API 全部公开（`RenderParagraph` 几何、
+  `TextSelectionControls`、`TextMagnifier`、`DefaultSelectionStyle`），无私有状态依赖。
+- **相关代码**：`lib/widgets/selection/`——内核 `selectable_content`（L1+L2 组装、手势
+  语义）、`text_selection_session`（L1）、L2 `selection_presentation` /
+  `selection_gesture_detector` / `selection_extend` / `selection_keyboard` /
+  `platform_selection_handles` / `selection_highlight` / `selection_magnifier` /
+  `selection_toolbar(_layer/_host)` / `selection_geometry` / `unbounded_hit_stack`、
+  L3 `selection_backend` + `paragraph_selection_backend`（单段）+
+  `multi_paragraph_selection_backend`（跨块）、组装件 `app_selectable_text`（单段）；
+  `lib/widgets/practice/selectable_sentence_text.dart`（查词业务薄封装）、
+  `lib/features/chatbot/widgets/selectable_assistant_markdown.dart`（AI 回答薄封装）、
+  `lib/widgets/dictionary/dictionary_panel_host.dart`（操作条挂载 + `isPanelOpenOf`）。
+  测试：`test/widgets/selection/`（`text_selection_session_test` /
+  `selectable_content_desktop_test`）、`test/widgets/practice/selectable_sentence_text_test.dart`、
+  `test/features/chatbot/widgets/selectable_assistant_markdown_test.dart`。
+- **仍在用 `SelectableText` 的地方**（有意保留）：设置页/调试页/播客信息等纯只读文本，
+  没有「选区跨面板交互存活」「自定义词边界」「自定义操作条」的需求，用系统实现更省。
+- **完成时间**：2026-07-30（三层化 + 桌面补齐 + AI 回答迁移）

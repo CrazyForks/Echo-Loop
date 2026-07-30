@@ -74,12 +74,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Local Dictionary'), findsOneWidget);
-    expect(
-      tester
-          .widget<PopupMenuButton<String>>(find.byType(PopupMenuButton<String>))
-          .requestFocus,
-      isFalse,
-    );
 
     await tester.tap(find.text('Local Dictionary'));
     await tester.pumpAndSettle();

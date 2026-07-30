@@ -1,7 +1,8 @@
-/// SelectableSentenceText（可点词 + 系统自由选区）交互测试
+/// SelectableSentenceText（可点词 + 自有选区 + 平台手柄画笔）交互测试
 ///
-/// 组件与 DictionaryPanelHost 组合验证：点词查词、点空白不触发、
-/// 自定义操作条、字符级拖选、面板与选区同步关闭、onBeforeLookup 时机。
+/// 组件与 DictionaryPanelHost 组合验证：点词查词（词边界来自自家 tokenizer）、
+/// 点空白不触发、自定义操作条、字符级拖选、面板与选区同步关闭、
+/// onBeforeLookup 时机，以及「选区不依赖焦点」的一组回归。
 library;
 
 import 'dart:async';
@@ -28,6 +29,9 @@ import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
 import 'package:echo_loop/widgets/practice/selectable_sentence_text.dart';
+import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
+import 'package:echo_loop/widgets/selection/platform_selection_handles.dart';
+import 'package:echo_loop/widgets/selection/text_selection_session.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -83,10 +87,6 @@ class _RecordingSavedWordDao implements SavedWordDao {
     yield Set<String>.unmodifiable(storedWords);
     yield* _savedWordsController.stream;
   }
-
-  @override
-  Stream<bool> watchIsWordSaved(String word) =>
-      watchSavedWordTexts().map((words) => words.contains(word)).distinct();
 
   @override
   Future<void> saveWord({
@@ -266,20 +266,19 @@ void main() {
     ),
   );
 
-  /// 取句中某个词的系统文本几何中心。
+  /// 取自有选区组件的 state（选区真相源与几何入口）。
+  AppSelectableTextState selectionState(WidgetTester tester) =>
+      tester.state<AppSelectableTextState>(find.byType(AppSelectableText));
+
+  /// 取句中某个词的几何中心（全局坐标）。
   Offset wordCenter(WidgetTester tester, String word) {
-    final editable = tester
-        .state<EditableTextState>(find.byType(EditableText))
-        .renderEditable;
-    final text = tester
-        .widget<EditableText>(find.byType(EditableText))
-        .controller
-        .text;
+    final paragraph = selectionState(tester).contentParagraph!;
+    final text = (paragraph.text as TextSpan).toPlainText();
     final start = text.indexOf(word);
-    final boxes = editable.getBoxesForSelection(
+    final boxes = paragraph.getBoxesForSelection(
       TextSelection(baseOffset: start, extentOffset: start + word.length),
     );
-    return editable.localToGlobal(boxes.first.toRect().center);
+    return paragraph.localToGlobal(boxes.first.toRect().center);
   }
 
   /// 点击句中某个词的中心。
@@ -287,12 +286,66 @@ void main() {
     await tester.tapAt(wordCenter(tester, word));
   }
 
-  /// 取句子 SelectableText.rich 的全部子 span。
-  List<TextSpan> sentenceSpans(WidgetTester tester) {
-    final selectable = tester.widget<SelectableText>(
-      find.byType(SelectableText),
+  /// 当前选中文本。
+  String selectedText(WidgetTester tester) =>
+      selectionState(tester).selectedText;
+
+  /// 取句中某个词左边界的几何位置（从词首开始拖选用）。
+  Offset wordLeftEdge(WidgetTester tester, String word) {
+    final paragraph = selectionState(tester).contentParagraph!;
+    final text = (paragraph.text as TextSpan).toPlainText();
+    final start = text.indexOf(word);
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: start + word.length),
     );
-    return selectable.textSpan!.children!.cast<TextSpan>();
+    final rect = boxes.first.toRect();
+    return paragraph.localToGlobal(Offset(rect.left + 1, rect.center.dy));
+  }
+
+  /// 取句中某个词右边界的几何位置（拖选到「含该词」用）。
+  Offset wordRightEdge(WidgetTester tester, String word) {
+    final paragraph = selectionState(tester).contentParagraph!;
+    final text = (paragraph.text as TextSpan).toPlainText();
+    final start = text.indexOf(word);
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: start + word.length),
+    );
+    final rect = boxes.last.toRect();
+    return paragraph.localToGlobal(Offset(rect.right - 1, rect.center.dy));
+  }
+
+  /// 取某个字符偏移的几何中心（全局坐标）。
+  Offset charCenter(WidgetTester tester, int offset) {
+    final paragraph = selectionState(tester).contentParagraph!;
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: offset, extentOffset: offset + 1),
+    );
+    return paragraph.localToGlobal(boxes.first.toRect().center);
+  }
+
+  /// 走真实手势建立多词选区：长按 [from] 选中该词 → 拖到 [to] → 松手提交。
+  Future<void> longPressSelect(
+    WidgetTester tester, {
+    required Offset from,
+    required Offset to,
+  }) async {
+    final gesture = await tester.startGesture(from);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.moveTo(to);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
+  /// 操作条外壳（可见性断言用）。
+  final toolbarSurface = find.byKey(
+    const ValueKey('selection_toolbar_surface'),
+  );
+
+  /// 取正文的全部子 span。
+  List<TextSpan> sentenceSpans(WidgetTester tester) {
+    final paragraph = selectionState(tester).contentParagraph!;
+    return (paragraph.text as TextSpan).children!.cast<TextSpan>();
   }
 
   testWidgets('点词：打开面板查询该词（剥标点交给归一化），onBeforeLookup 先触发', (tester) async {
@@ -304,63 +357,111 @@ void main() {
     expect(beforeCalls, 1);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(source.queries, ['beta']);
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
-    expect(
-      editableState.textEditingValue.selection.textInside(
-        editableState.textEditingValue.text,
+    expect(selectedText(tester), 'beta');
+    expect(toolbarSurface, findsOneWidget);
+  });
+
+  testWidgets('点连字符/缩写词：高亮、查询与收藏三者同一个词', (tester) async {
+    // 词边界的唯一来源必须是自家 tokenizer。平台 ICU 边界会在连字符处断词
+    // （co-op → co/-/op），导致「高亮 / 面板查询 / 操作条收藏 / 面板书签收藏」
+    // 四处不一致。
+    final dao = _RecordingSavedWordDao();
+    await tester.pumpWidget(
+      wrap(
+        text: 'a co-op and e.g. here',
+        overrides: [
+          savedWordDaoProvider.overrideWithValue(dao),
+          usageOverride(),
+          notificationPermissionOverride(),
+        ],
       ),
-      'beta',
     );
-    expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
+    await tester.pumpAndSettle();
+    await tapWord(tester, 'co-op');
+    await tester.pumpAndSettle();
+
+    expect(selectedText(tester), 'co-op');
+    expect(source.queries, ['co-op']);
+
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Save')));
+    await tester.pumpAndSettle();
+    expect(dao.savedWord, 'co-op');
+  });
+
+  testWidgets('点缩写词：选区剥掉尾部句点，与归一化后的查询词一致', (tester) async {
+    await tester.pumpWidget(wrap(text: 'a co-op and e.g. here'));
+    await tester.pumpAndSettle();
+    await tapWord(tester, 'e.g');
+    await tester.pumpAndSettle();
+
+    expect(selectedText(tester), 'e.g');
+    expect(source.queries, ['e.g']);
   });
 
   testWidgets(
-    'Apple 平台使用系统蓝选区和系统手柄，并用 tight 高亮贴合文字中线',
+    'Apple 平台：选中背景用系统蓝、手柄用 Cupertino 平台画笔，高亮矩形贴字形',
     (tester) async {
       await tester.pumpWidget(wrap());
-      final selectable = tester.widget<SelectableText>(
-        find.byType(SelectableText),
-      );
-      expect(selectable.textSpan, isNotNull);
-      final context = tester.element(find.byType(SelectableText));
+      final context = tester.element(find.byType(AppSelectableText));
       final expectedColor = CupertinoColors.systemBlue
           .resolveFrom(context)
           .withValues(alpha: 0.2);
-      final expectedHandleColor = CupertinoColors.systemBlue.resolveFrom(
-        context,
-      );
       expect(DefaultSelectionStyle.of(context).selectionColor, expectedColor);
       expect(
-        tester.widget<EditableText>(find.byType(EditableText)).selectionColor,
-        expectedColor,
-      );
-      expect(
         CupertinoTheme.of(context).selectionHandleColor,
-        expectedHandleColor,
+        CupertinoColors.systemBlue.resolveFrom(context),
       );
-      expect(selectable.selectionHeightStyle, ui.BoxHeightStyle.tight);
-      expect(selectable.selectionControls, isNull);
-      expect(selectable.contextMenuBuilder, isNotNull);
-      expect(find.byKey(const Key('word_handle_start')), findsNothing);
-      expect(find.byKey(const Key('word_handle_end')), findsNothing);
+      // 手柄画笔取自平台，不自绘。
+      expect(
+        platformHandleControls(context),
+        same(cupertinoTextSelectionHandleControls),
+      );
+
+      await tapWord(tester, 'beta');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('selection_handle_start')), findsOneWidget);
+      expect(find.byKey(const Key('selection_handle_end')), findsOneWidget);
+
+      // 高亮矩形按 BoxHeightStyle.tight：高度贴字形，不含 1.6 行高的额外 leading。
+      final paragraph = selectionState(tester).contentParagraph!;
+      final range = selectionState(tester).selectionRange!;
+      final selection = TextSelection(
+        baseOffset: range.start,
+        extentOffset: range.end,
+      );
+      final tight = paragraph
+          .getBoxesForSelection(
+            selection,
+            boxHeightStyle: ui.BoxHeightStyle.tight,
+          )
+          .first
+          .toRect();
+      final max = paragraph
+          .getBoxesForSelection(
+            selection,
+            boxHeightStyle: ui.BoxHeightStyle.max,
+          )
+          .first
+          .toRect();
+      expect(tight.height, lessThan(max.height));
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
   testWidgets(
-    'Android 句子讲解文本使用平台选择蓝，不回落到 App 主题色',
+    'Android 句子讲解文本使用平台选择蓝与 Material 手柄画笔，不回落到 App 主题色',
     (tester) async {
       await tester.pumpWidget(wrap());
-      final context = tester.element(find.byType(SelectableText));
-      final expectedColor = Colors.blue.withValues(alpha: 0.4);
-      expect(DefaultSelectionStyle.of(context).selectionColor, expectedColor);
+      final context = tester.element(find.byType(AppSelectableText));
       expect(
-        tester.widget<EditableText>(find.byType(EditableText)).selectionColor,
-        expectedColor,
+        DefaultSelectionStyle.of(context).selectionColor,
+        Colors.blue.withValues(alpha: 0.4),
       );
       expect(TextSelectionTheme.of(context).selectionHandleColor, Colors.blue);
+      expect(
+        platformHandleControls(context),
+        same(materialTextSelectionHandleControls),
+      );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
@@ -448,21 +549,12 @@ void main() {
         ],
       ),
     );
-    await tapWord(tester, 'beta');
-    await tester.pumpAndSettle();
-
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
+    // 走真实手势：长按 Alpha 建立选区，拖到 beta 末尾，松手提交多词查询。
+    await longPressSelect(
+      tester,
+      from: wordCenter(tester, 'Alpha'),
+      to: wordRightEdge(tester, 'beta'),
     );
-    final value = editableState.textEditingValue;
-    editableState.userUpdateTextEditingValue(
-      value.copyWith(
-        selection: const TextSelection(baseOffset: 0, extentOffset: 13),
-      ),
-      SelectionChangedCause.toolbar,
-    );
-    editableState.showToolbar();
-    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('selection_toolbar_button_Save')));
     await tester.pumpAndSettle();
@@ -473,7 +565,7 @@ void main() {
     expect(dao.sentenceText, 'Alpha   beta, gamma');
     expect(dao.sentenceStartMs, 1200);
     expect(dao.sentenceEndMs, 3400);
-    expect(editableState.textEditingValue.selection.isCollapsed, isFalse);
+    expect(selectionState(tester).hasActiveSelection, isTrue);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(
       find.byKey(const Key('selection_toolbar_button_Save')),
@@ -507,11 +599,8 @@ void main() {
     await tester.tap(find.byKey(const Key('selection_toolbar_button_Remove')));
     await tester.pumpAndSettle();
 
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
     expect(dao.removedWord, 'beta');
-    expect(editableState.textEditingValue.selection.isCollapsed, isFalse);
+    expect(selectionState(tester).hasActiveSelection, isTrue);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(
       find.byKey(const Key('selection_toolbar_button_Remove')),
@@ -537,29 +626,39 @@ void main() {
     await tapWord(tester, 'beta');
     await tester.pumpAndSettle();
 
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
-    final originalSelection = editableState.textEditingValue.selection;
-    expect(originalSelection.textInside('alpha beta gamma'), 'beta');
+    final originalRange = selectionState(tester).selectionRange;
+    expect(selectedText(tester), 'beta');
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    // 收藏态单一来源：面板书签与操作条按钮必须始终同步。
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('dict_panel_bookmark')));
     await tester.pumpAndSettle();
 
     expect(dao.savedWord, 'beta');
-    expect(editableState.textEditingValue.selection, originalSelection);
+    expect(selectionState(tester).selectionRange, originalRange);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('dict_panel_bookmark')));
     await tester.pumpAndSettle();
 
     expect(dao.removedWord, 'beta');
-    expect(editableState.textEditingValue.selection, originalSelection);
+    expect(selectionState(tester).selectionRange, originalRange);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('中文取消收藏在选区操作栏中保持单行', (tester) async {
@@ -589,39 +688,149 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(clipboardText, 'beta');
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
-    expect(editableState.textEditingValue.selection.isCollapsed, isTrue);
+    expect(selectionState(tester).selectionRange, isNull);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
-  testWidgets('拖选保持字符级自由边界，不吸附到完整单词', (tester) async {
+  testWidgets('拖手柄保持字符级自由边界，不吸附到完整单词', (tester) async {
     await tester.pumpWidget(wrap());
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
+    await tapWord(tester, 'alpha');
+    await tester.pumpAndSettle();
+    expect(
+      selectionState(tester).selectionRange,
+      const TextRange(start: 0, end: 5),
     );
-    final value = editableState.textEditingValue;
-    const selection = TextSelection(baseOffset: 1, extentOffset: 8);
-    editableState.userUpdateTextEditingValue(
-      value.copyWith(selection: selection),
-      SelectionChangedCause.drag,
-    );
-    await tester.pump();
 
-    expect(editableState.textEditingValue.selection, selection);
-    expect(selection.textInside(value.text), 'lpha be');
+    // 把结束手柄拖到 beta 内部：手柄拖拽在所有平台都是字符级，不吸附到词边界。
+    final paragraph = selectionState(tester).contentParagraph!;
+    final midBeta = paragraph.localToGlobal(
+      paragraph
+          .getBoxesForSelection(
+            const TextSelection(baseOffset: 8, extentOffset: 9),
+          )
+          .first
+          .toRect()
+          .center,
+    );
+    final handle = tester.getCenter(
+      find.byKey(const Key('selection_handle_end')),
+    );
+    await tester.dragFrom(handle, midBeta - handle);
+    await tester.pumpAndSettle();
+
+    final range = selectionState(tester).selectionRange!;
+    expect(range.start, 0);
+    expect(range.end, greaterThan(6));
+    expect(range.end, lessThan(10), reason: '未被吸附到 beta 末尾');
+    expect(selectedText(tester), startsWith('alpha b'));
   });
 
-  testWidgets('正文内点击取消选区后关闭当前句子的词典面板', (tester) async {
+  testWidgets(
+    '长按落在词间空白后拖动仍能选择（不是死手势）',
+    (tester) async {
+      const text = 'alpha beta gamma';
+      await tester.pumpWidget(wrap(text: text));
+      final gesture = await tester.startGesture(
+        charCenter(tester, text.indexOf(' ')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      // 仅长按空白：不形成选区、不查词。
+      expect(selectionState(tester).selectionRange, isNull);
+      expect(source.queries, isEmpty);
+
+      await gesture.moveTo(wordRightEdge(tester, 'beta'));
+      await tester.pump();
+      expect(
+        selectionState(tester).hasActiveSelection ||
+            selectionState(tester).selectionPhase ==
+                TextSelectionPhase.selecting,
+        isTrue,
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(source.queries, isNotEmpty);
+      expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets('桌面鼠标按住拖动即可选择（不必长按）', (tester) async {
+    // 之前用 SelectableText 时这条是框架白送的；自有实现必须显式支持，否则桌面
+    // 只剩点选。recognizer 限定 mouse，触屏路径不受影响。
     await tester.pumpWidget(wrap());
+    // 桌面拖选是字符级、从**按下处**起算，所以从词首边缘起手。
+    final from = wordLeftEdge(tester, 'alpha');
+    final to = wordRightEdge(tester, 'beta');
+    final gesture = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveTo(Offset((from.dx + to.dx) / 2, from.dy));
+    await tester.pump();
+    await gesture.moveTo(to);
+    await tester.pump();
+    // 拖动过程中就有选区（尚未提交查询）。
+    expect(selectionState(tester).selectionPhase, TextSelectionPhase.selecting);
+    expect(source.queries, isEmpty);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(selectionState(tester).selectionPhase, TextSelectionPhase.active);
+    expect(selectedText(tester), 'alpha beta');
+    expect(source.queries, ['alpha beta']);
+    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+  }, variant: TargetPlatformVariant.desktop());
+
+  testWidgets(
+    '鼠标点击带 2px 手抖仍按点词处理（精确指针 slop 只有 1px）',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      final target = wordCenter(tester, 'beta');
+      final gesture = await tester.startGesture(
+        target,
+        kind: PointerDeviceKind.mouse,
+      );
+      // 抖 2px：足以让 pan 赢下竞技场、tap 落败，必须由 pan 结束时兜底成点击。
+      await gesture.moveTo(target + const Offset(2, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(selectedText(tester), 'beta');
+      expect(source.queries, ['beta']);
+      expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets('文字区域显示 I-beam 光标（桌面）', (tester) async {
+    await tester.pumpWidget(wrap());
+    final region = tester.widget<MouseRegion>(
+      find
+          .descendant(
+            of: find.byType(AppSelectableText),
+            matching: find.byType(MouseRegion),
+          )
+          .first,
+    );
+    expect(region.cursor, SystemMouseCursors.text);
+  });
+
+  testWidgets('正文内点击空白取消选区后关闭当前句子的词典面板', (tester) async {
+    // 取点必须远离两侧手柄：手柄命中区是以选区端点为中心的 36dp（Flutter 自己的
+    // 手柄用 48dp），紧贴选区的空白会被手柄拖拽抢走，那属于手柄交互而非取消选择。
+    const text = 'alpha beta gamma delta';
+    await tester.pumpWidget(wrap(text: text));
     await tapWord(tester, 'beta');
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
 
-    await tester.tapAt(wordCenter(tester, ' '));
+    await tester.tapAt(charCenter(tester, text.indexOf(' delta')));
     await tester.pumpAndSettle();
 
+    expect(selectionState(tester).selectionRange, isNull);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
@@ -639,7 +848,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
-  testWidgets('面板内切换 AI 即使正文临时失焦也恢复原选区与操作栏', (tester) async {
+  testWidgets('面板内切换 AI 后选区与操作条不变（选区不依赖焦点）', (tester) async {
     final ai = _EchoAiSource();
     await tester.pumpWidget(
       wrap(
@@ -655,30 +864,19 @@ void main() {
     await tapWord(tester, 'beta');
     await tester.pumpAndSettle();
 
+    // 选区归本组件所有，不挂在任何 FocusNode 上：面板内的交互不可能影响它，
+    // 因此不需要任何「失焦后恢复选区」的逻辑（那正是旧实现补丁的来源）。
     await tester.tap(find.text('AI'));
-    // 真机点击面板控件会让只读 EditableText 丢失焦点；测试中显式复现。
-    tester
-        .widget<SelectableText>(find.byType(SelectableText))
-        .focusNode!
-        .unfocus();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(ai.queries, ['beta']);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
-    expect(
-      editableState.textEditingValue.selection.textInside(
-        editableState.textEditingValue.text,
-      ),
-      'beta',
-    );
-    expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
+    expect(selectedText(tester), 'beta');
+    expect(toolbarSurface, findsOneWidget);
   });
 
   testWidgets(
-    '面板覆盖选区时仅隐藏操作栏，下拉露出后自动恢复且选区不变',
+    '面板覆盖选区：操作条被面板挡住是布局结果，选区全程不变',
     (tester) async {
       final ai = _EchoAiSource();
       await tester.pumpWidget(
@@ -700,65 +898,65 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump();
 
-      final editableState = tester.state<EditableTextState>(
-        find.byType(EditableText),
-      );
-      const expected = TextSelection(baseOffset: 6, extentOffset: 10);
-      expect(editableState.textEditingValue.selection, expected);
-      expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
+      const expected = TextRange(start: 6, end: 10);
+      expect(selectionState(tester).selectionRange, expected);
+      expect(toolbarSurface, findsOneWidget);
+      final toolbarTop = tester.getTopLeft(toolbarSurface).dy;
 
       final handle = find.byKey(const Key('dict_drag_handle'));
       await tester.drag(handle, const Offset(0, -220));
       await tester.pump();
       await tester.pump();
 
-      expect(editableState.textEditingValue.selection, expected);
-      expect(editableState.selectionOverlay?.toolbarIsVisible, isFalse);
+      // 操作条与手柄都在正文所在的 Stack 内、位于面板之下：被面板覆盖是层序的
+      // 自然结果，不再需要「算遮挡 → 隐藏 → 露出后恢复」那套状态机。
+      final panelTop = tester
+          .getTopLeft(find.byKey(const Key('dict_sheet_sizer')))
+          .dy;
+      expect(panelTop, lessThan(toolbarTop));
+      expect(selectionState(tester).selectionRange, expected);
+      expect(toolbarSurface, findsOneWidget);
 
       await tester.drag(handle, const Offset(0, 300));
       await tester.pump();
       await tester.pump();
 
-      expect(editableState.textEditingValue.selection, expected);
-      expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
+      expect(selectionState(tester).selectionRange, expected);
+      expect(toolbarSurface, findsOneWidget);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
-  testWidgets('前后台切换保留面板、选区与操作栏', (tester) async {
-    await tester.pumpWidget(wrap());
-    await tapWord(tester, 'beta');
-    await tester.pumpAndSettle();
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
+  testWidgets(
+    '前后台切换保留面板、选区与操作条（无需任何生命周期恢复代码）',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      await tapWord(tester, 'beta');
+      await tester.pumpAndSettle();
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-    await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
 
-    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
-    expect(editableState.textEditingValue.selection.isCollapsed, isFalse);
+      expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+      expect(selectionState(tester).hasActiveSelection, isTrue);
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-    await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    await tester.pump();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
-    expect(
-      editableState.textEditingValue.selection.textInside(
-        editableState.textEditingValue.text,
-      ),
-      'beta',
-    );
-    expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
+      expect(selectedText(tester), 'beta');
+      expect(toolbarSurface, findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'Android 长按期间不查词，松手后查询系统选中的单词',
@@ -859,10 +1057,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(source.queries, ['alpha beta gamma']);
       expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
-      final editableState = tester.state<EditableTextState>(
-        find.byType(EditableText),
-      );
-      expect(editableState.selectionOverlay?.toolbarIsVisible, isTrue);
+      expect(toolbarSurface, findsOneWidget);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
@@ -958,18 +1153,20 @@ void main() {
     expect(find.byKey(const Key('dict_sheet_sizer')), findsNothing);
   });
 
-  testWidgets('面板关闭后系统选区失去焦点', (tester) async {
+  testWidgets('面板关闭即结束查词会话：选区、手柄与操作条一起消失', (tester) async {
     await tester.pumpWidget(wrap());
     await tester.longPressAt(wordCenter(tester, 'beta'));
     await tester.pumpAndSettle();
-    final selectable = tester.widget<SelectableText>(
-      find.byType(SelectableText),
-    );
-    expect(selectable.focusNode?.hasFocus, isTrue);
+    expect(selectionState(tester).hasActiveSelection, isTrue);
+    expect(find.byKey(const Key('selection_handle_start')), findsOneWidget);
+    expect(toolbarSurface, findsOneWidget);
 
     hostKey.currentState!.close();
     await tester.pumpAndSettle();
-    expect(selectable.focusNode?.hasFocus, isFalse);
+
+    expect(selectionState(tester).selectionRange, isNull);
+    expect(find.byKey(const Key('selection_handle_start')), findsNothing);
+    expect(toolbarSurface, findsNothing);
   });
 
   testWidgets('评分片段染色仍生效（命中片段绿色）', (tester) async {
