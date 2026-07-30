@@ -3797,7 +3797,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get speechPermItemMic => '麦克风';
 
   @override
-  String get speechPermItemMicDesc => '录制你的朗读用于发音评测';
+  String get speechPermItemMicDesc => '录制你的朗读用于发音评估';
 
   @override
   String get speechPermItemSpeech => '语音识别';
@@ -4658,10 +4658,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatQuoteRemove => '移除引用';
 
   @override
-  String get retellAiReviewTooltip => 'AI 评测';
+  String get retellAiReviewTooltip => 'AI 评估';
 
   @override
-  String get retellAiReviewTitle => 'AI 复述评测';
+  String get retellAiReviewTitle => 'AI 复述评估';
 
   @override
   String get retellAiReviewTranscript => '本次转录';
@@ -4685,10 +4685,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retellAiReviewGrammar => '语法纠错';
 
   @override
-  String get retellAiReviewError => 'AI 评测未能完成，请重试。';
+  String get retellAiReviewError => 'AI 评估未能完成，请重试。';
 
   @override
-  String get retellAiReviewAudioPreparationError => '无法准备评测所需的录音文件。';
+  String get retellAiReviewAudioPreparationError => '无法准备评估所需的录音文件。';
 
   @override
   String get retellAiReviewAudioTooLarge => '转换后的录音超过 2 MB 限制。';

@@ -84,7 +84,7 @@ void main() {
     expect(find.text('Go to Settings'), findsNothing);
   });
 
-  testWidgets('仅显式启用时在录音 badge 生命周期内显示 AI 评测按钮', (tester) async {
+  testWidgets('仅显式启用时在录音 badge 生命周期内显示 AI 评估按钮', (tester) async {
     const attempt = SpeechPracticeAttempt(
       promptId: 'retell:a1:0',
       filePath: '/tmp/retell.m4a',
@@ -109,5 +109,36 @@ void main() {
     );
 
     expect(find.byKey(const Key('retell_ai_review_button')), findsOneWidget);
+    expect(find.text('AI review'), findsOneWidget);
+    expect(find.byIcon(Icons.auto_awesome_rounded), findsOneWidget);
+  });
+
+  testWidgets('AI 评估加载时仍保留可识别的胶囊标签', (tester) async {
+    const attempt = SpeechPracticeAttempt(
+      promptId: 'retell:a1:0',
+      filePath: '/tmp/retell.m4a',
+      status: SpeechPracticeAttemptStatus.passed,
+      score: .8,
+    );
+    await tester.pumpWidget(
+      await wrap(
+        Builder(
+          builder: (context) => RepeatPracticePanel(
+            l10n: AppLocalizations.of(context)!,
+            theme: Theme.of(context),
+            isInPause: true,
+            showCountdown: false,
+            currentAttempt: attempt,
+            onRecordTap: () {},
+            showAiReviewButton: true,
+            isAiReviewLoading: true,
+            onAiReviewTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('AI review'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

@@ -265,7 +265,7 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     }
   }
 
-  /// 将 AI 评测缓存精确绑定到 panel 中可见的录音 badge。
+  /// 将 AI 评估缓存精确绑定到 panel 中可见的录音 badge。
   void _syncReviewAttempt(RetellRecordingState recordingState) {
     final attempt = recordingState.currentAttempt;
     final showRating = ref.read(learningSettingsProvider).retellRatingEnabled;
@@ -345,7 +345,7 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     );
   }
 
-  /// AI 评测是用户主动操作：终止倒计时和自动流程，保留当前段给用户手动接管。
+  /// AI 评估是用户主动操作：终止倒计时和自动流程，保留当前段给用户手动接管。
   Future<void> _takeOverForAiReview() async {
     _manualStoppedThisParagraph = true;
     await _cancelAutoPlayback();

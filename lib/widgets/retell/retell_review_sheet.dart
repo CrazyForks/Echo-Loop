@@ -1,4 +1,4 @@
-/// 流式展示复述 AI 评测结果的下部弹窗。
+/// 流式展示复述 AI 评估结果的下部弹窗。
 library;
 
 import 'dart:async';
@@ -12,7 +12,7 @@ import '../../providers/retell_review_evaluation_provider.dart';
 import '../../services/audio_playback_service.dart';
 import '../../theme/app_theme.dart';
 
-/// 打开并持续订阅当前录音 attempt 的流式评测结果。
+/// 打开并持续订阅当前录音 attempt 的流式评估结果。
 Future<void> showRetellReviewSheet(
   BuildContext context, {
   required String recordingPath,
@@ -51,7 +51,7 @@ class _RetellReviewSheet extends ConsumerWidget {
     return SafeArea(
       top: false,
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .82,
+        height: MediaQuery.sizeOf(context).height * .84,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.l,
@@ -70,12 +70,7 @@ class _RetellReviewSheet extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.m),
-              Text(
-                l10n.retellAiReviewTitle,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
+              _SheetHeader(title: l10n.retellAiReviewTitle),
               const SizedBox(height: AppSpacing.m),
               Expanded(
                 child: state.phase == RetellReviewEvaluationPhase.failed
@@ -119,20 +114,18 @@ class _ReviewContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return ListView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.l),
       children: [
-        _RatingCard(
+        _ReviewHero(
           label: _ratingLabel(l10n, evaluation.rating),
-          summaryLabel: l10n.retellAiReviewSummary,
           summary: evaluation.summary,
+          recordingPath: recordingPath,
+          playbackService: playbackService,
+          onBeforePlayback: onBeforePlayback,
         ),
         if (evaluation.transcript.isNotEmpty)
           _Section(
             title: l10n.retellAiReviewTranscript,
-            trailing: _ReviewRecordingButton(
-              recordingPath: recordingPath,
-              playbackService: playbackService,
-              onBeforePlayback: onBeforePlayback,
-            ),
             children: [_TextCard(text: evaluation.transcript)],
           ),
         if (evaluation.strengths.isNotEmpty)
@@ -196,50 +189,121 @@ class _ReviewContent extends StatelessWidget {
       };
 }
 
-class _RatingCard extends StatelessWidget {
+/// 报告顶部以单一主色块聚合结论和录音入口，减少零碎卡片感。
+class _ReviewHero extends StatelessWidget {
   final String label;
-  final String summaryLabel;
   final String summary;
+  final String recordingPath;
+  final AudioPlaybackService playbackService;
+  final Future<void> Function() onBeforePlayback;
 
-  const _RatingCard({
+  const _ReviewHero({
     required this.label,
-    required this.summaryLabel,
     required this.summary,
+    required this.recordingPath,
+    required this.playbackService,
+    required this.onBeforePlayback,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(AppSpacing.m),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
-        if (summary.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.s),
-          Text(
-            summaryLabel,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: .16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: theme.colorScheme.primary,
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(summary),
+          const SizedBox(width: AppSpacing.m),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                if (summary.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    summary,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.4,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          _ReviewRecordingButton(
+            recordingPath: recordingPath,
+            playbackService: playbackService,
+            onBeforePlayback: onBeforePlayback,
+            tooltip: l10n.retellAiReviewPlayRecording,
+          ),
         ],
-      ],
-    ),
+      ),
+    );
+  }
+}
+
+class _SheetHeader extends StatelessWidget {
+  final String title;
+
+  const _SheetHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          Icons.auto_awesome_rounded,
+          size: 18,
+          color: Theme.of(context).colorScheme.tertiary,
+        ),
+      ),
+      const SizedBox(width: AppSpacing.s),
+      Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    ],
   );
 }
 
 class _Section extends StatelessWidget {
   final String title;
-  final Widget? trailing;
   final List<Widget> children;
 
-  const _Section({required this.title, this.trailing, required this.children});
+  const _Section({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -249,6 +313,15 @@ class _Section extends StatelessWidget {
       children: [
         Row(
           children: [
+            Container(
+              width: 4,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.tertiary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s),
             Expanded(
               child: Text(
                 title,
@@ -257,7 +330,6 @@ class _Section extends StatelessWidget {
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            if (trailing != null) trailing!,
           ],
         ),
         const SizedBox(height: AppSpacing.s),
@@ -272,11 +344,13 @@ class _ReviewRecordingButton extends StatefulWidget {
   final String recordingPath;
   final AudioPlaybackService playbackService;
   final Future<void> Function() onBeforePlayback;
+  final String tooltip;
 
   const _ReviewRecordingButton({
     required this.recordingPath,
     required this.playbackService,
     required this.onBeforePlayback,
+    required this.tooltip,
   });
 
   @override
@@ -316,13 +390,20 @@ class _ReviewRecordingButtonState extends State<_ReviewRecordingButton> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return IconButton(
       tooltip: _isPlaying
-          ? l10n.retellAiReviewStopRecording
-          : l10n.retellAiReviewPlayRecording,
+          ? AppLocalizations.of(context)!.retellAiReviewStopRecording
+          : widget.tooltip,
       onPressed: _handleTap,
-      icon: Icon(_isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded),
+      style: IconButton.styleFrom(
+        backgroundColor: Theme.of(
+          context,
+        ).colorScheme.surface.withValues(alpha: .7),
+      ),
+      icon: Icon(
+        _isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
     );
   }
 }
@@ -340,7 +421,12 @@ class _TextCard extends StatelessWidget {
     padding: const EdgeInsets.all(AppSpacing.m),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: Theme.of(
+          context,
+        ).colorScheme.outlineVariant.withValues(alpha: .55),
+      ),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

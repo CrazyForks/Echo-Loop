@@ -538,7 +538,7 @@ class SentenceAiApiClient {
     }
   }
 
-  /// 复述效果 AI 评测（流式）。
+  /// 复述效果 AI 评估（流式）。
   ///
   /// 该端点无登录态，但仍复用本 client 的 Dio、HTTP/2、NDJSON 记录与字段
   /// 累积机制，保证与 AI 查词、翻译和解析的流式行为一致。

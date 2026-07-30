@@ -107,15 +107,15 @@ class RepeatPracticePanel extends StatelessWidget {
   /// 是否显示评级/录音胶囊。
   final bool showRatingBadge;
 
-  /// 是否为当前录音 badge 提供 AI 复述评测入口。
+  /// 是否为当前录音 badge 提供 AI 复述评估入口。
   ///
   /// 默认关闭，跟读等其他复用页面不会显示该入口。
   final bool showAiReviewButton;
 
-  /// AI 评测请求是否正在准备或等待首个流式结果。
+  /// AI 评估请求是否正在准备或等待首个流式结果。
   final bool isAiReviewLoading;
 
-  /// 点击 AI 评测入口。
+  /// 点击 AI 评估入口。
   final VoidCallback? onAiReviewTap;
 
   const RepeatPracticePanel({
@@ -242,7 +242,7 @@ class RepeatPracticePanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 48),
-                      // 右槽位：复述 AI 评测（与左侧录音 badge 对称）；未启用
+                      // 右槽位：复述 AI 评估胶囊与左侧录音 badge 对称；未启用
                       // 时保留既有快进按钮，避免影响跟读等其他练习页面。
                       SizedBox(
                         width: PlaybackControls.controlButtonSize,
@@ -257,31 +257,87 @@ class RepeatPracticePanel extends StatelessWidget {
                                   ? Semantics(
                                       button: true,
                                       label: l10n.retellAiReviewTooltip,
-                                      child: IconButton(
-                                        key: const Key(
-                                          'retell_ai_review_button',
-                                        ),
-                                        tooltip: l10n.retellAiReviewTooltip,
-                                        onPressed: isAiReviewLoading
-                                            ? null
-                                            : onAiReviewTap,
-                                        icon: isAiReviewLoading
-                                            ? const SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : Icon(
-                                                Icons.auto_awesome_rounded,
-                                                size: 25,
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurface
-                                                    .withValues(alpha: 0.7),
+                                      child: OverflowBox(
+                                        maxWidth: 160,
+                                        minHeight: 0,
+                                        alignment: Alignment.center,
+                                        child: Tooltip(
+                                          message: l10n.retellAiReviewTooltip,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              key: const Key(
+                                                'retell_ai_review_button',
                                               ),
+                                              onTap: isAiReviewLoading
+                                                  ? null
+                                                  : onAiReviewTap,
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              child: Ink(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .tertiaryContainer,
+                                                  borderRadius:
+                                                      BorderRadius.circular(24),
+                                                  border: Border.all(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .tertiary
+                                                        .withValues(alpha: .35),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    isAiReviewLoading
+                                                        ? SizedBox(
+                                                            width: 18,
+                                                            height: 18,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: theme
+                                                                      .colorScheme
+                                                                      .tertiary,
+                                                                ),
+                                                          )
+                                                        : Icon(
+                                                            Icons
+                                                                .auto_awesome_rounded,
+                                                            size: 18,
+                                                            color: theme
+                                                                .colorScheme
+                                                                .tertiary,
+                                                          ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      l10n.retellAiReviewTooltip,
+                                                      style: theme
+                                                          .textTheme
+                                                          .labelMedium
+                                                          ?.copyWith(
+                                                            color: theme
+                                                                .colorScheme
+                                                                .onTertiaryContainer,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     )
                                   : hasFF

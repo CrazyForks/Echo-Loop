@@ -1,4 +1,4 @@
-/// 复述评测上传音频的临时转码服务。
+/// 复述评估上传音频的临时转码服务。
 library;
 
 import 'package:path/path.dart' as p;
@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../features/audio_import/audio_transcode_service.dart';
 
-/// 供复述评测 controller 注入的音频准备接口。
+/// 供复述评估 controller 注入的音频准备接口。
 abstract class RetellReviewAudioPreparer {
   /// 生成仅用于本次服务端转录的低码率音频。
   Future<File> prepare(File source);

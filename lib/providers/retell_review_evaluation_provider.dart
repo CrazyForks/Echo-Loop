@@ -1,4 +1,4 @@
-/// 复述 AI 评测的页面生命周期状态。
+/// 复述 AI 评估的页面生命周期状态。
 library;
 
 import 'dart:async';
@@ -15,10 +15,10 @@ import '../services/sentence_ai_api_client.dart';
 
 const _maxReviewAudioBytes = 2 * 1024 * 1024;
 
-/// 评测请求阶段。
+/// 评估请求阶段。
 enum RetellReviewEvaluationPhase { idle, loading, streaming, completed, failed }
 
-/// 当前录音 attempt 对应的评测 UI 状态。
+/// 当前录音 attempt 对应的评估 UI 状态。
 class RetellReviewEvaluationState {
   final String? attemptKey;
   final RetellReviewEvaluationPhase phase;
@@ -36,7 +36,7 @@ class RetellReviewEvaluationState {
       phase == RetellReviewEvaluationPhase.completed && evaluation != null;
 }
 
-/// 评测端超出上传上限时的本地 fail-fast 异常。
+/// 评估端超出上传上限时的本地 fail-fast 异常。
 class RetellReviewAudioTooLargeException implements Exception {
   const RetellReviewAudioTooLargeException();
 }
@@ -46,7 +46,7 @@ final retellReviewAudioPreparerProvider = Provider<RetellReviewAudioPreparer>(
   (_) => FfmpegRetellReviewAudioPreparer(),
 );
 
-/// 复述 AI 评测 controller。
+/// 复述 AI 评估 controller。
 ///
 /// 结果只缓存到当前录音 attempt；录音 badge 消失或换成新文件时，旧请求与旧数据
 /// 必须立刻失效，避免异步回调把上一段结果写到下一段。
@@ -75,7 +75,7 @@ class RetellReviewEvaluationController
     state = RetellReviewEvaluationState(attemptKey: attemptKey);
   }
 
-  /// 拉取当前录音的评测。完整结果由同一 attempt 生命周期内的后续点击复用。
+  /// 拉取当前录音的评估。完整结果由同一 attempt 生命周期内的后续点击复用。
   Future<void> evaluate({
     required String attemptKey,
     required String recordingPath,
@@ -145,7 +145,7 @@ class RetellReviewEvaluationController
     } catch (error, stackTrace) {
       AppLogger.log(
         'RetellReview',
-        '评测失败: error=$error stack=$stackTrace baseUrl=$apiBaseUrl',
+        '评估失败: error=$error stack=$stackTrace baseUrl=$apiBaseUrl',
       );
       _setFailure(generation, attemptKey, 'request_failed');
     } finally {
@@ -153,7 +153,7 @@ class RetellReviewEvaluationController
         try {
           if (await preparedFile.exists()) await preparedFile.delete();
         } catch (error) {
-          AppLogger.log('RetellReview', '临时评测音频清理失败: $error');
+          AppLogger.log('RetellReview', '临时评估音频清理失败: $error');
         }
       }
       if (identical(_cancelToken, cancelToken)) _cancelToken = null;

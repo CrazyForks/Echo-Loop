@@ -1,4 +1,4 @@
-/// 复述 AI 评测的流式结果模型。
+/// 复述 AI 评估的流式结果模型。
 library;
 
 String _stringValue(Object? value) => value is String ? value : '';
@@ -113,7 +113,7 @@ class RetellReviewGrammarError {
       );
 }
 
-/// 一次复述评测的完整或流式半成品快照。
+/// 一次复述评估的完整或流式半成品快照。
 class RetellReviewEvaluation {
   final String transcript;
   final String summary;
@@ -175,7 +175,7 @@ class RetellReviewEvaluation {
       );
 }
 
-/// 评测流的一帧完整对象快照。
+/// 评估流的一帧完整对象快照。
 class RetellReviewStreamFrame {
   final RetellReviewEvaluation evaluation;
   final bool isFinal;
@@ -186,7 +186,7 @@ class RetellReviewStreamFrame {
   });
 }
 
-/// 评测接口返回损坏或未正常结束时抛出的领域异常。
+/// 评估接口返回损坏或未正常结束时抛出的领域异常。
 class RetellReviewStreamException implements Exception {
   const RetellReviewStreamException();
 }
