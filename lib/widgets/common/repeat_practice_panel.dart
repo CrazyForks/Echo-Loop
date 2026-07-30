@@ -23,6 +23,7 @@ import 'processing_indicator.dart';
 import 'recording_button.dart' show RecordingButton, RecordingButtonMode;
 import 'speech_rating_badge.dart';
 import 'status_label.dart';
+import 'tappable_wrapper.dart';
 
 /// 正常状态文字槽位高度
 const double _kStatusSlotHeight = 20;
@@ -254,91 +255,11 @@ class RepeatPracticePanel extends StatelessWidget {
                             child: IgnorePointer(
                               ignoring: !hasRightControl,
                               child: hasAiReview
-                                  ? Semantics(
-                                      button: true,
-                                      label: l10n.retellAiReviewTooltip,
-                                      child: OverflowBox(
-                                        maxWidth: 160,
-                                        minHeight: 0,
-                                        alignment: Alignment.center,
-                                        child: Tooltip(
-                                          message: l10n.retellAiReviewTooltip,
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell(
-                                              key: const Key(
-                                                'retell_ai_review_button',
-                                              ),
-                                              onTap: isAiReviewLoading
-                                                  ? null
-                                                  : onAiReviewTap,
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
-                                              child: Ink(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 10,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .tertiaryContainer,
-                                                  borderRadius:
-                                                      BorderRadius.circular(24),
-                                                  border: Border.all(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .tertiary
-                                                        .withValues(alpha: .35),
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    isAiReviewLoading
-                                                        ? SizedBox(
-                                                            width: 18,
-                                                            height: 18,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                                  strokeWidth:
-                                                                      2,
-                                                                  color: theme
-                                                                      .colorScheme
-                                                                      .tertiary,
-                                                                ),
-                                                          )
-                                                        : Icon(
-                                                            Icons
-                                                                .auto_awesome_rounded,
-                                                            size: 18,
-                                                            color: theme
-                                                                .colorScheme
-                                                                .tertiary,
-                                                          ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      l10n.retellAiReviewTooltip,
-                                                      style: theme
-                                                          .textTheme
-                                                          .labelMedium
-                                                          ?.copyWith(
-                                                            color: theme
-                                                                .colorScheme
-                                                                .onTertiaryContainer,
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                  ? OverflowBox(
+                                      maxWidth: 160,
+                                      minHeight: 0,
+                                      alignment: Alignment.center,
+                                      child: _buildAiReviewPill(),
                                     )
                                   : hasFF
                                   ? GestureDetector(
@@ -365,6 +286,83 @@ class RepeatPracticePanel extends StatelessWidget {
             // 底部间距（与 footer 之间的间距）
             const SizedBox(height: _kBottomGap),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建右侧「AI 评估」胶囊。
+  ///
+  /// 与左侧 [SpeechRatingBadge] 共用同一套胶囊语言（999 圆角、
+  /// h10/v6 内边距、labelMedium 文字、16px 图标、中性表面色 + 细描边），
+  /// 只用 primary 色的星芒图标点出 AI 属性，避免抢视觉重心。
+  Widget _buildAiReviewPill() {
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.8)
+        : theme.colorScheme.onSurface.withValues(alpha: 0.7);
+    final bgColor = isDark
+        ? theme.colorScheme.surfaceContainerHighest
+        : theme.colorScheme.surfaceContainerHigh;
+    final borderColor = isDark
+        ? theme.colorScheme.outline.withValues(alpha: 0.3)
+        : theme.colorScheme.outline.withValues(alpha: 0.2);
+    final accentColor = theme.colorScheme.primary.withValues(
+      alpha: isDark ? 0.9 : 0.8,
+    );
+
+    return Semantics(
+      button: true,
+      label: l10n.retellAiReviewTooltip,
+      child: Tooltip(
+        message: l10n.retellAiReviewTooltip,
+        child: MouseRegion(
+          // 桌面端保留手型指针（原 InkWell 由框架提供）
+          cursor: isAiReviewLoading
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          child: TappableWrapper(
+            key: const Key('retell_ai_review_button'),
+            onTap: isAiReviewLoading ? null : onAiReviewTap,
+            feedbackType: TapFeedback.opacity,
+            pressedOpacity: 0.6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isAiReviewLoading)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accentColor,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: accentColor,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.retellAiReviewTooltip,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

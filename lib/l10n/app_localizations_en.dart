@@ -4885,22 +4885,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retellAiReviewTranscript => 'Transcription';
 
   @override
-  String get retellAiReviewSummary => 'Overall feedback';
+  String get retellAiReviewKeyPoints => 'Key point coverage';
 
   @override
-  String get retellAiReviewStrengths => 'What you did well';
+  String get retellAiReviewSuggestion => 'One suggestion';
 
   @override
-  String get retellAiReviewCovered => 'Key points covered';
+  String get retellAiReviewStatusCovered => 'Covered';
 
   @override
-  String get retellAiReviewMissed => 'Key points to improve';
+  String get retellAiReviewStatusPartial => 'Partial';
 
   @override
-  String get retellAiReviewImprovements => 'Suggestions';
+  String get retellAiReviewStatusMissed => 'Missed';
+
+  @override
+  String get retellAiReviewStatusDistorted => 'Distorted';
 
   @override
   String get retellAiReviewGrammar => 'Grammar corrections';
+
+  @override
+  String get retellAiReviewEvaluating => 'Evaluating…';
+
+  @override
+  String get retellAiReviewGenerating => 'Generating…';
+
+  @override
+  String get retellAiReviewRetry => 'Retry';
 
   @override
   String get retellAiReviewError =>

@@ -1,10 +1,11 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-07-30（统一练习倒计时为用户接管流程）
+> 最后更新：2026-07-31（复述评估对齐新 schema + 结果弹窗重设计）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 ## 最近完成
 
+- [x] 复述 AI 评估对齐服务端新 schema 并重设计结果弹窗：模型改为 `summary` / `keyPoints[]{keyPoint,status,feedback}` / `suggestion` / `grammarErrors[]{transcript,correction,explanation}` / `rating`（`keepGoing`→`poor`），`rating` 与 `status` 改为可空以免流式过程中先渲染出会被推翻的评级；弹窗重做为「评级着色 Hero + 五档进度」「要点清单分组容器 + 状态图标 + 计数条」「建议 callout」「原句→更正对照卡」「转录折叠」，失败态按 errorCode 给文案并支持重试；`meta` 首帧改写成 `transcript` 叶子后独立成帧，弹窗在流的首帧（转录）到达时即打开、内容随后逐段流入，不再等 AI 首批文本（2026-07-31）
 - [x] 复述页接入流式 AI 评估：录音 badge 同生命周期入口、16kHz 单声道临时转码与 2MB 前端限制、NDJSON 渐显结果弹窗；入口调整为对称的「图标 + AI 评估」badge，结果改为分层学习反馈报告；点击即用户接管，弹窗可播放录音（2026-07-30）
 - [x] 统一练习页倒计时点击为“用户接管流程”，保留停止脚标并移除快进入口：录音页完成后保持当前句/段手动接管，非录音页停在当前内容（2026-07-30）
 - [x] 修复 Chatbot widget 测试缺失 analytics provider 覆盖导致的 CI 失败（2026-07-28）

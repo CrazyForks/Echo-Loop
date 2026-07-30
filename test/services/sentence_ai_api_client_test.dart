@@ -758,7 +758,7 @@ void main() {
       );
     }
 
-    test('复用 NDJSON ops 累积并带回首帧转录文本', () async {
+    test('meta 首帧即产出一帧（先出转录），后续 ops 逐帧累积', () async {
       final file = File(
         '${Directory.systemTemp.path}/retell-review-client-test.m4a',
       );
@@ -785,6 +785,42 @@ void main() {
                 'v': '表达清楚。',
               },
               {
+                'p': ['keyPoints', 0, 'keyPoint'],
+                'v': '练习提升流利度',
+              },
+            ],
+          })}\n'
+          '${jsonEncode({
+            'ops': [
+              {
+                'p': ['keyPoints', 0, 'status'],
+                'v': 'covered',
+              },
+              {
+                'p': ['keyPoints', 1, 'keyPoint'],
+                'v': '睡眠巩固记忆',
+              },
+              {
+                'p': ['keyPoints', 1, 'status'],
+                'v': 'missed',
+              },
+              {
+                'p': ['keyPoints', 1, 'feedback'],
+                'v': '完全没有提到。',
+              },
+              {
+                'p': ['suggestion'],
+                'v': '复述前先列三个关键词。',
+              },
+              {
+                'p': ['grammarErrors', 0, 'transcript'],
+                'v': "he don't know",
+              },
+              {
+                'p': ['grammarErrors', 0, 'correction'],
+                'v': "he doesn't know",
+              },
+              {
                 'p': ['rating'],
                 'v': 'good',
               },
@@ -802,11 +838,34 @@ void main() {
           )
           .toList();
 
-      expect(frames, hasLength(2));
-      expect(frames.first.evaluation.transcript, 'I practiced today.');
-      expect(frames.first.evaluation.summary, '表达清楚。');
-      expect(frames.first.evaluation.rating, RetellReviewRating.good);
+      expect(frames, hasLength(4));
+      // meta 首帧独立成帧：AI 还没吐字，先让 UI 有转录可显示。
+      final metaFrame = frames.first.evaluation;
+      expect(metaFrame.transcript, 'I practiced today.');
+      expect(metaFrame.summary, '');
+      expect(metaFrame.keyPoints, isEmpty);
+      expect(frames.first.isFinal, isFalse);
+
+      // 第二帧：AI 首批文本到达，要点状态尚未到达。
+      final second = frames[1].evaluation;
+      expect(second.transcript, 'I practiced today.');
+      expect(second.summary, '表达清楚。');
+      expect(second.rating, isNull);
+      expect(second.keyPoints.single.keyPoint, '练习提升流利度');
+      expect(second.keyPoints.single.status, isNull);
+
+      final last = frames.last.evaluation;
       expect(frames.last.isFinal, isTrue);
+      expect(last.transcript, 'I practiced today.');
+      expect(last.rating, RetellReviewRating.good);
+      expect(last.suggestion, '复述前先列三个关键词。');
+      expect(last.keyPoints, hasLength(2));
+      expect(last.keyPoints.first.status, RetellReviewKeyPointStatus.covered);
+      expect(last.keyPoints.last.status, RetellReviewKeyPointStatus.missed);
+      expect(last.keyPoints.last.feedback, '完全没有提到。');
+      expect(last.grammarErrors.single.transcript, "he don't know");
+      expect(last.grammarErrors.single.correction, "he doesn't know");
+      expect(last.grammarErrors.single.explanation, '');
     });
   });
 

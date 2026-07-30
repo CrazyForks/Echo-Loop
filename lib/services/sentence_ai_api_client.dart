@@ -593,22 +593,30 @@ class SentenceAiApiClient {
       );
     }
 
-    var transcript = '';
     try {
+      // `meta` 首帧（转录文本）在转录完成、AI 尚未产出任何文本时就到达。把它改写成
+      // 一个 `transcript` 叶子的 ops 帧，让通用累积层照常 yield 一帧：UI 因此能在
+      // 等 AI 输出期间先显示转录，而不是一直停在骨架态。
       final frames = accumulateNdjsonObject<RetellReviewEvaluation>(
         _decodeLoggedNdjson(body, response.requestOptions).map((event) {
           final meta = event['meta'];
-          if (meta is Map) {
-            final value = meta['transcript'];
-            if (value is String) transcript = value;
-          }
-          return event;
+          if (meta is! Map) return event;
+          final transcript = meta['transcript'];
+          if (transcript is! String) return event;
+          return <String, dynamic>{
+            'ops': [
+              {
+                'p': ['transcript'],
+                'v': transcript,
+              },
+            ],
+          };
         }),
         fromJson: RetellReviewEvaluation.fromJson,
       );
       await for (final frame in frames) {
         yield RetellReviewStreamFrame(
-          evaluation: frame.value.copyWith(transcript: transcript),
+          evaluation: frame.value,
           isFinal: frame.isFinal,
         );
       }

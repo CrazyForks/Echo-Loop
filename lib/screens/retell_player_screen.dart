@@ -284,6 +284,8 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     RetellReviewEvaluationState next,
   ) {
     if (!mounted || _isExiting) return;
+    // 流一有返回就开弹窗：`meta` 首帧（转录）已在 client 层独立成帧，
+    // 因此这里的「首个带 evaluation 的帧」就是服务端最早的一次推送。
     if (next.phase == RetellReviewEvaluationPhase.streaming &&
         previous?.evaluation == null &&
         next.evaluation != null) {
@@ -292,12 +294,10 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     }
     if (next.phase == RetellReviewEvaluationPhase.failed &&
         !_isShowingReviewSheet) {
-      final l10n = AppLocalizations.of(context)!;
-      final message = switch (next.errorCode) {
-        'audio_preparation_failed' => l10n.retellAiReviewAudioPreparationError,
-        'audio_too_large' => l10n.retellAiReviewAudioTooLarge,
-        _ => l10n.retellAiReviewError,
-      };
+      final message = retellReviewErrorMessage(
+        AppLocalizations.of(context)!,
+        next.errorCode,
+      );
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(message)));
@@ -318,6 +318,7 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
         recordingPath: recordingPath,
         playbackService: ref.read(retellAutoPlaybackServiceProvider),
         onBeforePlayback: _takeOverForAiReview,
+        onRetry: _retryReviewEvaluation,
       );
     } finally {
       _isShowingReviewSheet = false;
@@ -328,21 +329,35 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     final path = attempt?.filePath;
     if (attempt == null || path == null || path.isEmpty) return;
     await _takeOverForAiReview();
-    final attemptKey = '${attempt.promptId}:$path';
-    final controller = ref.read(retellReviewEvaluationProvider.notifier);
     final reviewState = ref.read(retellReviewEvaluationProvider);
-    if (reviewState.attemptKey == attemptKey && reviewState.hasCachedResult) {
+    if (reviewState.attemptKey == '${attempt.promptId}:$path' &&
+        reviewState.hasCachedResult) {
       await _openRetellReviewSheet();
       return;
     }
-    await controller.evaluate(
-      attemptKey: attemptKey,
-      recordingPath: path,
-      originalText: ref
-          .read(retellPlayerProvider.notifier)
-          .currentParagraphReferenceText,
-      targetLanguage: ref.read(appSettingsProvider).nativeLanguage,
-    );
+    // 弹窗不在这里打开：等流的首帧到达后由 [_onRetellReviewStateChanged] 打开，
+    // 等待期间 badge 上是 loading 态。
+    await _startReviewEvaluation(attempt);
+  }
+
+  /// 弹窗内失败重试：此时已接管播放，不再重复 takeover。
+  Future<void> _retryReviewEvaluation() => _startReviewEvaluation(
+    ref.read(retellRecordingControllerProvider).currentAttempt,
+  );
+
+  Future<void> _startReviewEvaluation(SpeechPracticeAttempt? attempt) async {
+    final path = attempt?.filePath;
+    if (attempt == null || path == null || path.isEmpty) return;
+    await ref
+        .read(retellReviewEvaluationProvider.notifier)
+        .evaluate(
+          attemptKey: '${attempt.promptId}:$path',
+          recordingPath: path,
+          originalText: ref
+              .read(retellPlayerProvider.notifier)
+              .currentParagraphReferenceText,
+          targetLanguage: ref.read(appSettingsProvider).nativeLanguage,
+        );
   }
 
   /// AI 评估是用户主动操作：终止倒计时和自动流程，保留当前段给用户手动接管。

@@ -4667,22 +4667,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retellAiReviewTranscript => '本次转录';
 
   @override
-  String get retellAiReviewSummary => '总体评价';
+  String get retellAiReviewKeyPoints => '要点还原';
 
   @override
-  String get retellAiReviewStrengths => '做得好的地方';
+  String get retellAiReviewSuggestion => '一条建议';
 
   @override
-  String get retellAiReviewCovered => '已覆盖要点';
+  String get retellAiReviewStatusCovered => '覆盖';
 
   @override
-  String get retellAiReviewMissed => '待改进要点';
+  String get retellAiReviewStatusPartial => '部分';
 
   @override
-  String get retellAiReviewImprovements => '改进建议';
+  String get retellAiReviewStatusMissed => '遗漏';
+
+  @override
+  String get retellAiReviewStatusDistorted => '偏差';
 
   @override
   String get retellAiReviewGrammar => '语法纠错';
+
+  @override
+  String get retellAiReviewEvaluating => '正在评估…';
+
+  @override
+  String get retellAiReviewGenerating => '正在生成…';
+
+  @override
+  String get retellAiReviewRetry => '重试';
 
   @override
   String get retellAiReviewError => 'AI 评估未能完成，请重试。';
