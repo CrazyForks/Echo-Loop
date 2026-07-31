@@ -813,11 +813,15 @@ void main() {
                 'v': '复述前先列三个关键词。',
               },
               {
-                'p': ['grammarErrors', 0, 'transcript'],
+                'p': ['corrections', 0, 'type'],
+                'v': 'grammar',
+              },
+              {
+                'p': ['corrections', 0, 'transcript'],
                 'v': "he don't know",
               },
               {
-                'p': ['grammarErrors', 0, 'correction'],
+                'p': ['corrections', 0, 'correction'],
                 'v': "he doesn't know",
               },
               {
@@ -863,9 +867,10 @@ void main() {
       expect(last.keyPoints.first.status, RetellReviewKeyPointStatus.covered);
       expect(last.keyPoints.last.status, RetellReviewKeyPointStatus.missed);
       expect(last.keyPoints.last.feedback, '完全没有提到。');
-      expect(last.grammarErrors.single.transcript, "he don't know");
-      expect(last.grammarErrors.single.correction, "he doesn't know");
-      expect(last.grammarErrors.single.explanation, '');
+      expect(last.corrections.single.type, RetellReviewCorrectionType.grammar);
+      expect(last.corrections.single.transcript, "he don't know");
+      expect(last.corrections.single.correction, "he doesn't know");
+      expect(last.corrections.single.explanation, '');
     });
   });
 

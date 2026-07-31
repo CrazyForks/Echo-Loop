@@ -153,12 +153,75 @@ RetellKeyPointVisual retellKeyPointVisual(
   };
 }
 
-/// 语法更正句使用的成功色（与 covered 同色系，表示「这样说才对」）。
+/// 更正句使用的成功色（与 covered 同色系，表示「这样说更好」）。
 Color retellCorrectionColor(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
     ? _perfectDark
     : _perfectLight;
 
-/// 语法原句使用的错误色。
-Color retellGrammarIssueColor(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark ? _poorDark : _poorLight;
+/// 单条纠错类别的视觉描述。
+class RetellCorrectionTypeVisual {
+  /// 类别标签与原句共用的颜色。
+  final Color color;
+
+  /// 类别标签文案；类别未到达时为空串，调用方据此不渲染标签。
+  final String label;
+
+  /// 原句是否画删除线。
+  ///
+  /// 只有 grammar / wordChoice 是「说错了」；redundancy / phrasing / cohesion
+  /// 的原句本身不算错，划掉会误导用户，只用箭头 + 更正表达「可以更好」。
+  final bool strikeThrough;
+
+  const RetellCorrectionTypeVisual({
+    required this.color,
+    required this.label,
+    required this.strikeThrough,
+  });
+}
+
+/// 生成纠错类别的视觉描述。
+///
+/// [type] 为 null 表示该条纠错的类别尚未到达或无法识别，返回中性视觉且不带标签。
+RetellCorrectionTypeVisual retellCorrectionTypeVisual(
+  BuildContext context,
+  AppLocalizations l10n,
+  RetellReviewCorrectionType? type,
+) {
+  final theme = Theme.of(context);
+  final isDark = theme.brightness == Brightness.dark;
+  final errorColor = isDark ? _poorDark : _poorLight;
+  final softColor = isDark ? _fairDark : _fairLight;
+  return switch (type) {
+    null => RetellCorrectionTypeVisual(
+      color: theme.colorScheme.onSurfaceVariant,
+      label: '',
+      strikeThrough: false,
+    ),
+    RetellReviewCorrectionType.grammar => RetellCorrectionTypeVisual(
+      color: errorColor,
+      label: l10n.retellAiReviewCorrectionTypeGrammar,
+      strikeThrough: true,
+    ),
+    RetellReviewCorrectionType.wordChoice => RetellCorrectionTypeVisual(
+      color: errorColor,
+      label: l10n.retellAiReviewCorrectionTypeWordChoice,
+      strikeThrough: true,
+    ),
+    RetellReviewCorrectionType.redundancy => RetellCorrectionTypeVisual(
+      color: softColor,
+      label: l10n.retellAiReviewCorrectionTypeRedundancy,
+      strikeThrough: false,
+    ),
+    RetellReviewCorrectionType.phrasing => RetellCorrectionTypeVisual(
+      color: softColor,
+      label: l10n.retellAiReviewCorrectionTypePhrasing,
+      strikeThrough: false,
+    ),
+    RetellReviewCorrectionType.cohesion => RetellCorrectionTypeVisual(
+      color: softColor,
+      label: l10n.retellAiReviewCorrectionTypeCohesion,
+      strikeThrough: false,
+    ),
+  };
+}

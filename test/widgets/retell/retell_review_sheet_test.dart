@@ -150,7 +150,7 @@ void main() {
     expect(find.text('Cause and effect'), findsOneWidget);
   });
 
-  testWidgets('建议与语法纠错为空时不渲染对应区块', (tester) async {
+  testWidgets('建议与表达纠错为空时不渲染对应区块', (tester) async {
     await tester.pumpWidget(
       wrap(
         report(
@@ -165,25 +165,27 @@ void main() {
 
     expect(find.text('Perfect!'), findsOneWidget);
     expect(find.text('One suggestion'), findsNothing);
-    expect(find.text('Grammar corrections'), findsNothing);
+    expect(find.text('Expression corrections'), findsNothing);
     expect(find.byIcon(Icons.lightbulb_rounded), findsNothing);
   });
 
-  testWidgets('语法纠错渲染原句与更正，建议渲染为 callout', (tester) async {
+  testWidgets('表达纠错渲染类别标签、原句与更正，建议渲染为 callout', (tester) async {
     await tester.pumpWidget(
       wrap(
         report(
           const RetellReviewEvaluation(
             rating: RetellReviewRating.fair,
             suggestion: 'List three keywords before you start.',
-            grammarErrors: [
-              RetellReviewGrammarError(
+            corrections: [
+              RetellReviewCorrection(
+                type: RetellReviewCorrectionType.grammar,
                 transcript: "he don't know",
                 correction: "he doesn't know",
                 explanation: 'Third person singular takes doesn\'t.',
               ),
               // 原句未到达的半成品条目不渲染。
-              RetellReviewGrammarError(
+              RetellReviewCorrection(
+                type: null,
                 transcript: '',
                 correction: '',
                 explanation: '',
@@ -197,10 +199,54 @@ void main() {
 
     expect(find.text('One suggestion'), findsOneWidget);
     expect(find.text('List three keywords before you start.'), findsOneWidget);
-    expect(find.text('Grammar corrections'), findsOneWidget);
+    expect(find.text('Expression corrections'), findsOneWidget);
+    expect(find.text('Grammar'), findsOneWidget);
     expect(find.text("he don't know"), findsOneWidget);
     expect(find.text("he doesn't know"), findsOneWidget);
     expect(find.byIcon(Icons.subdirectory_arrow_right_rounded), findsOneWidget);
+  });
+
+  testWidgets('只有语法和用词类别的原句划删除线', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        report(
+          const RetellReviewEvaluation(
+            rating: RetellReviewRating.fair,
+            corrections: [
+              RetellReviewCorrection(
+                type: RetellReviewCorrectionType.wordChoice,
+                transcript: 'open the light',
+                correction: 'turn on the light',
+                explanation: 'Use turn on with a light.',
+              ),
+              RetellReviewCorrection(
+                type: RetellReviewCorrectionType.redundancy,
+                transcript: 'in my own personal opinion',
+                correction: 'in my opinion',
+                explanation: 'Own and personal repeat the same idea.',
+              ),
+              // 类别未到达时不渲染标签，也不划线。
+              RetellReviewCorrection(
+                type: null,
+                transcript: 'and then and then',
+                correction: '',
+                explanation: '',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    TextDecoration? decorationOf(String text) =>
+        tester.widget<Text>(find.text(text)).style?.decoration;
+
+    expect(decorationOf('open the light'), TextDecoration.lineThrough);
+    expect(decorationOf('in my own personal opinion'), TextDecoration.none);
+    expect(decorationOf('and then and then'), TextDecoration.none);
+    expect(find.text('Word choice'), findsOneWidget);
+    expect(find.text('Wordy'), findsOneWidget);
   });
 
   testWidgets('转录默认收起，点击标题后展开', (tester) async {

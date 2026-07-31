@@ -4903,7 +4903,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retellAiReviewStatusDistorted => 'Distorted';
 
   @override
-  String get retellAiReviewGrammar => 'Grammar corrections';
+  String get retellAiReviewCorrections => 'Expression corrections';
+
+  @override
+  String get retellAiReviewCorrectionTypeGrammar => 'Grammar';
+
+  @override
+  String get retellAiReviewCorrectionTypeWordChoice => 'Word choice';
+
+  @override
+  String get retellAiReviewCorrectionTypeRedundancy => 'Wordy';
+
+  @override
+  String get retellAiReviewCorrectionTypePhrasing => 'Phrasing';
+
+  @override
+  String get retellAiReviewCorrectionTypeCohesion => 'Cohesion';
 
   @override
   String get retellAiReviewEvaluating => 'Evaluating…';

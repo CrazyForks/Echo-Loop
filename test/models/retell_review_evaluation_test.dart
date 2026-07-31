@@ -12,8 +12,9 @@ void main() {
         {'keyPoint': '因果关系', 'status': 'distorted', 'feedback': '把因果说反了。'},
       ],
       'suggestion': '复述前先列三个关键词。',
-      'grammarErrors': [
+      'corrections': [
         {
+          'type': 'grammar',
           'transcript': 'he don\'t know',
           'correction': 'he doesn\'t know',
           'explanation': '第三人称单数用 doesn\'t。',
@@ -32,9 +33,49 @@ void main() {
     // 服务端 covered 时 feedback 为 null，模型统一收敛成空串。
     expect(result.keyPoints.first.feedback, '');
     expect(result.keyPoints[1].feedback, '只说了一半。');
-    expect(result.grammarErrors.single.transcript, 'he don\'t know');
-    expect(result.grammarErrors.single.correction, 'he doesn\'t know');
-    expect(result.grammarErrors.single.explanation, '第三人称单数用 doesn\'t。');
+    expect(result.corrections.single.type, RetellReviewCorrectionType.grammar);
+    expect(result.corrections.single.transcript, 'he don\'t know');
+    expect(result.corrections.single.correction, 'he doesn\'t know');
+    expect(result.corrections.single.explanation, '第三人称单数用 doesn\'t。');
+  });
+
+  test('五个纠错类别 token 全部正确映射', () {
+    final result = RetellReviewEvaluation.fromJson(<String, dynamic>{
+      'corrections': [
+        for (final type in [
+          'grammar',
+          'wordChoice',
+          'redundancy',
+          'phrasing',
+          'cohesion',
+        ])
+          {
+            'type': type,
+            'transcript': 'x',
+            'correction': 'y',
+            'explanation': 'z',
+          },
+      ],
+    });
+
+    expect(
+      result.corrections.map((e) => e.type).toList(),
+      RetellReviewCorrectionType.values,
+    );
+  });
+
+  test('纠错类别缺失或无法识别时为 null，条目本身仍保留', () {
+    final result = RetellReviewEvaluation.fromJson(<String, dynamic>{
+      'corrections': [
+        {'transcript': 'he don\'t know', 'correction': 'he doesn\'t know'},
+        {'type': 'pronunciation', 'transcript': 'x', 'correction': 'y'},
+      ],
+    });
+
+    expect(result.corrections, hasLength(2));
+    expect(result.corrections.first.type, isNull);
+    expect(result.corrections.first.explanation, '');
+    expect(result.corrections[1].type, isNull);
   });
 
   test('最低评级 token poor 正确映射', () {
@@ -62,7 +103,7 @@ void main() {
         {'keyPoint': '练习提升流利度'},
         null,
       ],
-      'grammarErrors': 'not-a-list',
+      'corrections': 'not-a-list',
     });
 
     expect(result.summary, '表达了核心意思。');
@@ -72,7 +113,7 @@ void main() {
     expect(result.keyPoints.single.status, isNull);
     expect(result.keyPoints.single.feedback, '');
     expect(result.suggestion, '');
-    expect(result.grammarErrors, isEmpty);
+    expect(result.corrections, isEmpty);
   });
 
   test('转录先到、AI 字段全空时也是合法快照', () {
@@ -85,6 +126,6 @@ void main() {
     expect(result.rating, isNull);
     expect(result.keyPoints, isEmpty);
     expect(result.suggestion, '');
-    expect(result.grammarErrors, isEmpty);
+    expect(result.corrections, isEmpty);
   });
 }

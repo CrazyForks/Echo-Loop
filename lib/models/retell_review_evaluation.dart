@@ -1,7 +1,7 @@
 /// 复述 AI 评估的流式结果模型。
 ///
 /// 字段与服务端 `POST /api/v1/stream/evaluate-review` 的 schema 一一对应：
-/// `summary` / `keyPoints[]` / `suggestion` / `grammarErrors[]` / `rating`。
+/// `summary` / `keyPoints[]` / `suggestion` / `corrections[]` / `rating`。
 /// `transcript` 不在 schema 内，由流的 `meta` 首帧改写成 `transcript` 叶子后进入同一累积对象。
 ///
 /// 流式协议是「按路径设叶子」的增量帧，任何字段都可能尚未到达，因此：
@@ -86,8 +86,42 @@ class RetellReviewKeyPoint {
       );
 }
 
-/// 一条明确的口语语法纠错。
-class RetellReviewGrammarError {
+/// 一条纠错的类别。
+///
+/// token 与服务端 `correctionTypeSchema` 一致；面向用户的标签与配色由 UI 层映射。
+enum RetellReviewCorrectionType {
+  /// 明确的语法结构错误。
+  grammar,
+
+  /// 用错的词、介词或搭配。
+  wordChoice,
+
+  /// 同义重复、空话、绕圈子。
+  redundancy,
+
+  /// 不算错但不地道的说法。
+  phrasing,
+
+  /// 缺少或用错连接词，逻辑关系不清。
+  cohesion,
+}
+
+/// null 表示类别尚未到达或无法识别。
+RetellReviewCorrectionType? _correctionTypeValue(Object? value) =>
+    switch (value) {
+      'grammar' => RetellReviewCorrectionType.grammar,
+      'wordChoice' => RetellReviewCorrectionType.wordChoice,
+      'redundancy' => RetellReviewCorrectionType.redundancy,
+      'phrasing' => RetellReviewCorrectionType.phrasing,
+      'cohesion' => RetellReviewCorrectionType.cohesion,
+      _ => null,
+    };
+
+/// 一条有转录依据的局部表达纠错。
+class RetellReviewCorrection {
+  /// 纠错类别；null 表示流式过程中尚未到达。
+  final RetellReviewCorrectionType? type;
+
   /// 转录中出问题的原始片段，保持口语语种。
   final String transcript;
 
@@ -97,14 +131,16 @@ class RetellReviewGrammarError {
   /// 用用户母语给出的简短说明。
   final String explanation;
 
-  const RetellReviewGrammarError({
+  const RetellReviewCorrection({
+    required this.type,
     required this.transcript,
     required this.correction,
     required this.explanation,
   });
 
-  factory RetellReviewGrammarError.fromJson(Map<String, dynamic> json) =>
-      RetellReviewGrammarError(
+  factory RetellReviewCorrection.fromJson(Map<String, dynamic> json) =>
+      RetellReviewCorrection(
+        type: _correctionTypeValue(json['type']),
         transcript: _stringValue(json['transcript']),
         correction: _stringValue(json['correction']),
         explanation: _stringValue(json['explanation']),
@@ -128,8 +164,8 @@ class RetellReviewEvaluation {
   /// 唯一一条高价值建议；服务端可能返回 null，此处为空串。
   final String suggestion;
 
-  /// 语法纠错，服务端上限 5 条；无错误时为空列表。
-  final List<RetellReviewGrammarError> grammarErrors;
+  /// 局部表达纠错，服务端上限 5 条；无问题时为空列表。
+  final List<RetellReviewCorrection> corrections;
 
   const RetellReviewEvaluation({
     this.transcript = '',
@@ -137,7 +173,7 @@ class RetellReviewEvaluation {
     this.rating,
     this.keyPoints = const [],
     this.suggestion = '',
-    this.grammarErrors = const [],
+    this.corrections = const [],
   });
 
   factory RetellReviewEvaluation.fromJson(Map<String, dynamic> json) =>
@@ -150,9 +186,9 @@ class RetellReviewEvaluation {
           RetellReviewKeyPoint.fromJson,
         ),
         suggestion: _stringValue(json['suggestion']),
-        grammarErrors: _objectList(
-          json['grammarErrors'],
-          RetellReviewGrammarError.fromJson,
+        corrections: _objectList(
+          json['corrections'],
+          RetellReviewCorrection.fromJson,
         ),
       );
 }

@@ -4685,7 +4685,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retellAiReviewStatusDistorted => '偏差';
 
   @override
-  String get retellAiReviewGrammar => '语法纠错';
+  String get retellAiReviewCorrections => '表达纠错';
+
+  @override
+  String get retellAiReviewCorrectionTypeGrammar => '语法';
+
+  @override
+  String get retellAiReviewCorrectionTypeWordChoice => '用词';
+
+  @override
+  String get retellAiReviewCorrectionTypeRedundancy => '冗余';
+
+  @override
+  String get retellAiReviewCorrectionTypePhrasing => '说法';
+
+  @override
+  String get retellAiReviewCorrectionTypeCohesion => '衔接';
 
   @override
   String get retellAiReviewEvaluating => '正在评估…';

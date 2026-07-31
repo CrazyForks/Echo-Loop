@@ -8618,11 +8618,41 @@ abstract class AppLocalizations {
   /// **'Distorted'**
   String get retellAiReviewStatusDistorted;
 
-  /// No description provided for @retellAiReviewGrammar.
+  /// No description provided for @retellAiReviewCorrections.
   ///
   /// In en, this message translates to:
-  /// **'Grammar corrections'**
-  String get retellAiReviewGrammar;
+  /// **'Expression corrections'**
+  String get retellAiReviewCorrections;
+
+  /// No description provided for @retellAiReviewCorrectionTypeGrammar.
+  ///
+  /// In en, this message translates to:
+  /// **'Grammar'**
+  String get retellAiReviewCorrectionTypeGrammar;
+
+  /// No description provided for @retellAiReviewCorrectionTypeWordChoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Word choice'**
+  String get retellAiReviewCorrectionTypeWordChoice;
+
+  /// No description provided for @retellAiReviewCorrectionTypeRedundancy.
+  ///
+  /// In en, this message translates to:
+  /// **'Wordy'**
+  String get retellAiReviewCorrectionTypeRedundancy;
+
+  /// No description provided for @retellAiReviewCorrectionTypePhrasing.
+  ///
+  /// In en, this message translates to:
+  /// **'Phrasing'**
+  String get retellAiReviewCorrectionTypePhrasing;
+
+  /// No description provided for @retellAiReviewCorrectionTypeCohesion.
+  ///
+  /// In en, this message translates to:
+  /// **'Cohesion'**
+  String get retellAiReviewCorrectionTypeCohesion;
 
   /// No description provided for @retellAiReviewEvaluating.
   ///

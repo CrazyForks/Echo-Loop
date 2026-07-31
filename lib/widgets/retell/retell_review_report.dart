@@ -43,8 +43,8 @@ class RetellReviewReport extends StatelessWidget {
       for (final item in evaluation.keyPoints)
         if (item.keyPoint.isNotEmpty) item,
     ];
-    final grammarErrors = [
-      for (final item in evaluation.grammarErrors)
+    final corrections = [
+      for (final item in evaluation.corrections)
         if (item.transcript.isNotEmpty) item,
     ];
     return ListView(
@@ -67,9 +67,9 @@ class RetellReviewReport extends StatelessWidget {
           const SizedBox(height: AppSpacing.l),
           _SuggestionCallout(text: evaluation.suggestion),
         ],
-        if (grammarErrors.isNotEmpty) ...[
-          _SectionLabel(title: l10n.retellAiReviewGrammar),
-          for (final item in grammarErrors) _GrammarCard(error: item),
+        if (corrections.isNotEmpty) ...[
+          _SectionLabel(title: l10n.retellAiReviewCorrections),
+          for (final item in corrections) _CorrectionCard(correction: item),
         ],
         if (evaluation.transcript.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.l),
@@ -423,16 +423,24 @@ class _SuggestionCallout extends StatelessWidget {
   }
 }
 
-/// 语法纠错：「原句（划掉）→ 更正（成功色）→ 说明」三层对照。
-class _GrammarCard extends StatelessWidget {
-  final RetellReviewGrammarError error;
+/// 表达纠错：「类别标签 → 原句 → 更正（成功色）→ 说明」四层对照。
+///
+/// 原句是否划掉由类别决定（见 [retellCorrectionTypeVisual]）：只有说错了的
+/// 语法和用词才划掉，冗余/说法/衔接的原句本身不算错。
+class _CorrectionCard extends StatelessWidget {
+  final RetellReviewCorrection correction;
 
-  const _GrammarCard({required this.error});
+  const _CorrectionCard({required this.correction});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final issueColor = retellGrammarIssueColor(context);
+    final l10n = AppLocalizations.of(context)!;
+    final typeVisual = retellCorrectionTypeVisual(
+      context,
+      l10n,
+      correction.type,
+    );
     final correctionColor = retellCorrectionColor(context);
     return Container(
       width: double.infinity,
@@ -448,16 +456,23 @@ class _GrammarCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 类别尚未到达时不占位，避免流式过程中标签闪现。
+          if (typeVisual.label.isNotEmpty) ...[
+            _CorrectionTypeChip(visual: typeVisual),
+            const SizedBox(height: AppSpacing.s),
+          ],
           Text(
-            error.transcript,
+            correction.transcript,
             style: theme.textTheme.bodyMedium?.copyWith(
               height: 1.4,
-              color: issueColor,
-              decoration: TextDecoration.lineThrough,
-              decorationColor: issueColor.withValues(alpha: .6),
+              color: typeVisual.color,
+              decoration: typeVisual.strikeThrough
+                  ? TextDecoration.lineThrough
+                  : TextDecoration.none,
+              decorationColor: typeVisual.color.withValues(alpha: .6),
             ),
           ),
-          if (error.correction.isNotEmpty) ...[
+          if (correction.correction.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs + 2),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,7 +485,7 @@ class _GrammarCard extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs + 2),
                 Expanded(
                   child: Text(
-                    error.correction,
+                    correction.correction,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       height: 1.4,
                       fontWeight: FontWeight.w700,
@@ -481,10 +496,10 @@ class _GrammarCard extends StatelessWidget {
               ],
             ),
           ],
-          if (error.explanation.isNotEmpty) ...[
+          if (correction.explanation.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s),
             Text(
-              error.explanation,
+              correction.explanation,
               style: theme.textTheme.bodySmall?.copyWith(
                 height: 1.45,
                 color: theme.colorScheme.onSurfaceVariant,
@@ -495,6 +510,32 @@ class _GrammarCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 纠错类别标签，用类别色淡染的小胶囊。
+class _CorrectionTypeChip extends StatelessWidget {
+  final RetellCorrectionTypeVisual visual;
+
+  const _CorrectionTypeChip({required this.visual});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.s,
+      vertical: AppSpacing.xs - 1,
+    ),
+    decoration: BoxDecoration(
+      color: visual.color.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      visual.label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: visual.color,
+      ),
+    ),
+  );
 }
 
 /// 转录原文默认收起：它最长、最不可操作，放在报告末尾按需展开。
