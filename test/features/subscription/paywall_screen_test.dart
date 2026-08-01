@@ -654,12 +654,17 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.text('More AI assistant chats')).dy <
-          tester.getTopLeft(find.text('Priority support')).dy,
+          tester.getTopLeft(find.text('More AI sentence chunking')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('Priority support')).dy <
-          tester.getTopLeft(find.text('More AI sentence chunking')).dy,
+      tester.getTopLeft(find.text('More AI sentence chunking')).dy <
+          tester.getTopLeft(find.text('More AI retell reviews')).dy,
+      isTrue,
+    );
+    expect(
+      tester.getTopLeft(find.text('More AI retell reviews')).dy <
+          tester.getTopLeft(find.text('Priority support')).dy,
       isTrue,
     );
     // 套餐卡片用派生简洁名（非冗长商店标题）
@@ -711,7 +716,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('更多 AI 助手对话次数'), findsOneWidget);
+    expect(find.text('更多 AI 句子解析'), findsOneWidget);
     expect(find.text('优先客户支持'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('更多 AI 复述评估')).dy <
+          tester.getTopLeft(find.text('优先客户支持')).dy,
+      isTrue,
+    );
   });
 
   testWidgets('选中月付套餐后 CTA 变为订阅', (tester) async {

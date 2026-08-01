@@ -51,7 +51,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumBenefitTranslation => '更多 AI 翻译';
 
   @override
-  String get premiumBenefitAnalysis => '更多 AI 句子拆解';
+  String get premiumBenefitAnalysis => '更多 AI 句子解析';
 
   @override
   String get premiumBenefitWordAnalysis => '更多 AI 词汇解析';
@@ -4781,6 +4781,7 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get retellAiReviewStopRecording => '停止录音';
 
+  @override
   String get videoHideTrack => '隐藏画面';
 
   @override

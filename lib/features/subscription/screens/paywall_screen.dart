@@ -800,9 +800,9 @@ class _BenefitCard extends StatelessWidget {
       l10n.premiumBenefitWordAnalysis,
       l10n.premiumBenefitAnalysis,
       l10n.premiumBenefitAiAssistant,
-      l10n.premiumBenefitPrioritySupport,
       l10n.premiumBenefitSenseGroups,
       l10n.premiumBenefitRetellReview,
+      l10n.premiumBenefitPrioritySupport,
     ];
     final theme = Theme.of(context);
     final color = AppTheme.premiumAccent(theme.brightness);
