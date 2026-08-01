@@ -70,22 +70,25 @@ void main() {
 
   tearDown(() => preview.dispose());
 
-  Widget wrap(Widget child, {List<Override> overrides = const []}) =>
-      ProviderScope(
-        overrides: overrides,
-        child: MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en'), Locale('zh')],
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          theme: AppTheme.light(),
-          home: Scaffold(body: child),
-        ),
-      );
+  Widget wrap(
+    Widget child, {
+    List<Override> overrides = const [],
+    Locale locale = const Locale('en'),
+  }) => ProviderScope(
+    overrides: overrides,
+    child: MaterialApp(
+      locale: locale,
+      supportedLocales: const [Locale('en'), Locale('zh')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light(),
+      home: Scaffold(body: child),
+    ),
+  );
 
   Widget report(
     RetellReviewEvaluation evaluation, {
@@ -247,6 +250,49 @@ void main() {
       );
       expect(tester.widget<Text>(chip.first).style?.color, visual.color);
     }
+  });
+
+  testWidgets('中文要点状态使用准确文案', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        report(
+          const RetellReviewEvaluation(
+            keyPoints: [
+              RetellReviewKeyPoint(
+                keyPoint: '练习提升流利度。',
+                original: 'Practice improves fluency.',
+                transcript: 'practice makes you fluent',
+                status: RetellReviewKeyPointStatus.covered,
+                feedback: '',
+              ),
+              RetellReviewKeyPoint(
+                keyPoint: '反馈很重要。',
+                original: 'Feedback matters.',
+                transcript: 'feedback helps',
+                status: RetellReviewKeyPointStatus.partial,
+                feedback: '',
+              ),
+              RetellReviewKeyPoint(
+                keyPoint: '因果关系。',
+                original: 'Practice makes you fluent.',
+                transcript: 'being fluent makes you practice',
+                status: RetellReviewKeyPointStatus.distorted,
+                feedback: '',
+              ),
+            ],
+          ),
+        ),
+        locale: const Locale('zh'),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('一致'), findsOneWidget);
+    expect(find.text('片面'), findsOneWidget);
+    expect(find.text('误解'), findsOneWidget);
+    expect(find.text('覆盖'), findsNothing);
+    expect(find.text('部分'), findsNothing);
+    expect(find.text('偏差'), findsNothing);
   });
 
   testWidgets('要点卡分行给出要点/原文/我说/提示：摘录为空的行整行不出现', (tester) async {

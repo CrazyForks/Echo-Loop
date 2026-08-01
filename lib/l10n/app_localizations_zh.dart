@@ -4718,16 +4718,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retellAiReviewSuggestion => '建议';
 
   @override
-  String get retellAiReviewStatusCovered => '覆盖';
+  String get retellAiReviewStatusCovered => '一致';
 
   @override
-  String get retellAiReviewStatusPartial => '部分';
+  String get retellAiReviewStatusPartial => '片面';
 
   @override
   String get retellAiReviewStatusMissed => '遗漏';
 
   @override
-  String get retellAiReviewStatusDistorted => '偏差';
+  String get retellAiReviewStatusDistorted => '误解';
 
   @override
   String get retellAiReviewStatusAdded => '多说';
