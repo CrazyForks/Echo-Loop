@@ -123,6 +123,26 @@
 				<string>text/vtt</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>top.echo-loop.lrc-lyrics</string>
+			<key>UTTypeDescription</key>
+			<string>LRC Lyrics</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.text</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>lrc</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-lrc</string>
+			</dict>
+		</dict>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -154,6 +174,16 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>top.echo-loop.webvtt</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>LRC Lyrics</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>top.echo-loop.lrc-lyrics</string>
 			</array>
 		</dict>
 	</array>

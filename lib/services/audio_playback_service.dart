@@ -1,7 +1,10 @@
-/// 通用音频播放服务。
+/// 通用单文件音频播放服务。
 ///
 /// 封装 just_audio 的 [AudioPlayer]，提供简洁的 play/stop API。
 /// [play] 返回 Future，播放完成或 [stop] 时 complete。
+///
+/// 只负责「播」，不持有面向 UI 的播放状态：UI 状态由 [AudioPreviewController]
+/// 基于 [play] 的 Future 维护，这样测试替身覆写 [play] 也不会丢状态。
 library;
 
 import 'dart:async';
@@ -10,25 +13,13 @@ import 'package:just_audio/just_audio.dart';
 
 import 'app_logger.dart';
 
-/// 通用音频播放服务。
+/// 通用单文件音频播放服务。
 class AudioPlaybackService {
   AudioPlayer? _player;
   StreamSubscription<PlayerState>? _playerStateSub;
   String? _currentFilePath;
   Completer<void> _playCompleter = Completer<void>()..complete();
-  final StreamController<bool> _isPlayingController =
-      StreamController<bool>.broadcast();
   bool _isDisposed = false;
-
-  /// 当前是否正在播放。
-  bool get isPlaying => _player?.playing ?? false;
-
-  /// 当前播放的文件路径。
-  String? get currentFilePath => _currentFilePath;
-
-  // TODO: 等其他页面迁移到新架构后删除，改用 play() 返回的 Future
-  /// 播放状态流（其他页面使用）。
-  Stream<bool> get isPlayingStream => _isPlayingController.stream;
 
   /// 播放音频文件，返回 Future 在播放完成或被 [stop] 时 complete。
   Future<void> play(String filePath) async {
@@ -50,9 +41,18 @@ class AudioPlaybackService {
     final player = await _ensurePlayer();
     _currentFilePath = filePath;
     AppLogger.log('AudioPlayback', '开始播放: path=$filePath');
-    _isPlayingController.add(true);
-    await player.setFilePath(filePath);
-    await player.play();
+    try {
+      await player.setFilePath(filePath);
+      await player.play();
+    } catch (error) {
+      // 起播失败必须把状态收回来，否则 UI 永久停在「正在播放」。
+      AppLogger.log('AudioPlayback', '起播失败: path=$filePath error=$error');
+      _currentFilePath = null;
+      if (!_playCompleter.isCompleted) {
+        _playCompleter.complete();
+      }
+      rethrow;
+    }
 
     return _playCompleter.future;
   }
@@ -66,7 +66,6 @@ class AudioPlaybackService {
 
     AppLogger.log('AudioPlayback', '停止播放: path=$_currentFilePath');
     _currentFilePath = null;
-    _isPlayingController.add(false);
     if (_player != null) {
       await _player!.stop();
     }
@@ -90,7 +89,6 @@ class AudioPlaybackService {
     if (!_playCompleter.isCompleted) {
       _playCompleter.complete();
     }
-    await _isPlayingController.close();
   }
 
   /// 懒初始化播放器。
@@ -106,7 +104,6 @@ class AudioPlaybackService {
       if (playerState.processingState == ProcessingState.completed) {
         AppLogger.log('AudioPlayback', '播放完成: path=$_currentFilePath');
         _currentFilePath = null;
-        _isPlayingController.add(false);
         if (!_playCompleter.isCompleted) {
           _playCompleter.complete();
         }

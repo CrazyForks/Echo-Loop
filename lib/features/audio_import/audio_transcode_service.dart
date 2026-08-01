@@ -136,9 +136,9 @@ class AudioTranscodeService {
     }
   }
 
-  /// 把短时语音压缩为复述 AI 评测的临时上传文件。
+  /// 把短时语音压缩为复述 AI 评估的临时上传文件。
   ///
-  /// 评测端硬限制为 2 MiB。手动复述最长可达 5 分钟，故使用 16kHz、单声道、
+  /// 评估端硬限制为 2 MiB。手动复述最长可达 5 分钟，故使用 16kHz、单声道、
   /// 24kbps AAC；该文件只供一次性云端转录，调用方负责在请求结束后删除。
   Future<bool> transcodeForReviewEvaluation({
     required File source,

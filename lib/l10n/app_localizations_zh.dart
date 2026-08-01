@@ -3797,7 +3797,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get speechPermItemMic => '麦克风';
 
   @override
-  String get speechPermItemMicDesc => '录制你的朗读用于发音评测';
+  String get speechPermItemMicDesc => '录制你的朗读用于发音评估';
 
   @override
   String get speechPermItemSpeech => '语音识别';
@@ -4658,37 +4658,73 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatQuoteRemove => '移除引用';
 
   @override
-  String get retellAiReviewTooltip => 'AI 评测';
+  String get retellAiReviewTooltip => 'AI 评估';
 
   @override
-  String get retellAiReviewTitle => 'AI 复述评测';
+  String get retellAiReviewTitle => 'AI 复述评估';
 
   @override
-  String get retellAiReviewTranscript => '本次转录';
+  String get retellAiReviewKeyPoints => '要点覆盖';
 
   @override
-  String get retellAiReviewSummary => '总体评价';
+  String get retellAiReviewLabelOriginal => '原文';
 
   @override
-  String get retellAiReviewStrengths => '做得好的地方';
+  String get retellAiReviewLabelYouSaid => '你说';
 
   @override
-  String get retellAiReviewCovered => '已覆盖要点';
+  String get retellAiReviewLabelTip => '提示';
 
   @override
-  String get retellAiReviewMissed => '待改进要点';
+  String get retellAiReviewSuggestion => '建议';
 
   @override
-  String get retellAiReviewImprovements => '改进建议';
+  String get retellAiReviewStatusCovered => '覆盖';
 
   @override
-  String get retellAiReviewGrammar => '语法纠错';
+  String get retellAiReviewStatusPartial => '部分';
 
   @override
-  String get retellAiReviewError => 'AI 评测未能完成，请重试。';
+  String get retellAiReviewStatusMissed => '遗漏';
 
   @override
-  String get retellAiReviewAudioPreparationError => '无法准备评测所需的录音文件。';
+  String get retellAiReviewStatusDistorted => '偏差';
+
+  @override
+  String get retellAiReviewStatusAdded => '多说';
+
+  @override
+  String get retellAiReviewCorrections => '表达纠错';
+
+  @override
+  String get retellAiReviewCorrectionTypeGrammar => '语法';
+
+  @override
+  String get retellAiReviewCorrectionTypeWordChoice => '用词';
+
+  @override
+  String get retellAiReviewCorrectionTypeRedundancy => '冗余';
+
+  @override
+  String get retellAiReviewCorrectionTypePhrasing => '说法';
+
+  @override
+  String get retellAiReviewCorrectionTypeCohesion => '衔接';
+
+  @override
+  String get retellAiReviewEvaluating => '正在评估…';
+
+  @override
+  String get retellAiReviewGenerating => '正在生成…';
+
+  @override
+  String get retellAiReviewRetry => '重试';
+
+  @override
+  String get retellAiReviewError => 'AI 评估未能完成，请重试。';
+
+  @override
+  String get retellAiReviewAudioPreparationError => '无法准备评估所需的录音文件。';
 
   @override
   String get retellAiReviewAudioTooLarge => '转换后的录音超过 2 MB 限制。';

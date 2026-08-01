@@ -26,11 +26,13 @@ void main() {
   test('iOS 字幕文档类型声明了 LSHandlerRank', () async {
     final content = await File('ios/Runner/Info.plist').readAsString();
     final subtitleDocumentTypes = RegExp(
-      r'<dict>\s*<key>CFBundleTypeName</key>\s*<string>(SubRip Subtitle|WebVTT Subtitle)</string>[\s\S]*?<key>LSHandlerRank</key>\s*<string>Alternate</string>',
+      r'<dict>\s*<key>CFBundleTypeName</key>\s*<string>(SubRip Subtitle|WebVTT Subtitle|LRC Lyrics)</string>[\s\S]*?<key>LSHandlerRank</key>\s*<string>Alternate</string>',
     ).allMatches(content);
 
-    expect(subtitleDocumentTypes.length, 2);
+    expect(subtitleDocumentTypes.length, 3);
     expect(content, contains('<string>SubRip Subtitle</string>'));
     expect(content, contains('<string>WebVTT Subtitle</string>'));
+    expect(content, contains('<string>LRC Lyrics</string>'));
+    expect(content, contains('<string>top.echo-loop.lrc-lyrics</string>'));
   });
 }

@@ -11,8 +11,8 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/rating_thresholds.dart';
 import '../../models/speech_practice_models.dart';
-import '../../services/audio_playback_service.dart';
 import '../../services/app_logger.dart';
+import '../../services/audio_preview_controller.dart';
 import 'tappable_wrapper.dart';
 
 // 重导出 RatingThresholds，保持现有 import 兼容
@@ -97,11 +97,12 @@ class SpeechRatingBadge extends StatefulWidget {
   /// 评分阈值，默认跟读阈值。
   final RatingThresholds thresholds;
 
-  /// 音频播放服务工厂。
+  /// 试听控制器工厂。
   ///
-  /// 默认使用真实播放服务，测试中可注入替身。若由外部注入服务，
-  /// 服务生命周期由注入方负责，Badge 不会在自身 dispose 时释放它。
-  final AudioPlaybackService Function()? playbackServiceFactory;
+  /// 默认自建一个，只服务这一个 Badge。需要与页面其他入口（如自动回放、
+  /// 评估弹窗的播放按钮）共用同一份播放状态时，注入同一个 controller；
+  /// 此时其生命周期归注入方，Badge 不会在自身 dispose 时释放它。
+  final AudioPreviewController Function()? previewControllerFactory;
 
   /// 外部播放控制器，用于自动回放时复用 Badge 的播放状态和停止图标。
   final SpeechRatingBadgeController? controller;
@@ -112,7 +113,7 @@ class SpeechRatingBadge extends StatefulWidget {
     required this.attempt,
     this.onBeforePlayback,
     this.thresholds = RatingThresholds.listenAndRepeat,
-    this.playbackServiceFactory,
+    this.previewControllerFactory,
     this.controller,
   });
 
@@ -121,15 +122,20 @@ class SpeechRatingBadge extends StatefulWidget {
 }
 
 class _SpeechRatingBadgeState extends State<SpeechRatingBadge> {
-  late final AudioPlaybackService _playbackService;
-  int _playbackToken = 0;
-  bool _isPlaying = false;
+  late final AudioPreviewController _preview;
+
+  /// 自建的 controller 由 Badge 释放，注入的归注入方。
+  late final bool _ownsPreview;
+
+  /// 播放状态的唯一来源是 [_preview]，Badge 不另存一份。
+  bool get _isPlaying => _preview.isPlaying;
 
   @override
   void initState() {
     super.initState();
-    _playbackService =
-        widget.playbackServiceFactory?.call() ?? AudioPlaybackService();
+    final injected = widget.previewControllerFactory?.call();
+    _ownsPreview = injected == null;
+    _preview = injected ?? AudioPreviewController();
     widget.controller?._attach(this);
   }
 
@@ -149,11 +155,8 @@ class _SpeechRatingBadgeState extends State<SpeechRatingBadge> {
 
   @override
   void dispose() {
-    _playbackToken += 1;
     widget.controller?._detach(this);
-    if (widget.playbackServiceFactory == null) {
-      unawaited(_playbackService.dispose());
-    }
+    if (_ownsPreview) unawaited(_preview.dispose());
     super.dispose();
   }
 
@@ -211,17 +214,26 @@ class _SpeechRatingBadgeState extends State<SpeechRatingBadge> {
             ),
             if (attempt.hasRecording) ...[
               const SizedBox(width: 6),
-              Icon(
-                _isPlaying ? Icons.stop_rounded : Icons.volume_up_outlined,
-                size: 16,
-                color: style.textColor.withValues(alpha: 0.7),
-              ),
+              _buildPlaybackIcon(style.textColor.withValues(alpha: 0.7)),
             ],
           ],
         ),
       ),
     );
   }
+
+  /// 播放/停止图标，直接跟随 service 的播放状态。
+  ///
+  /// 自动回放和用户手动点击共用同一个 service，所以两种来源的播放都会让图标切换，
+  /// 不需要 Badge 自己同步状态。
+  Widget _buildPlaybackIcon(Color color) => ValueListenableBuilder<bool>(
+    valueListenable: _preview.isPlayingListenable,
+    builder: (context, isPlaying, _) => Icon(
+      isPlaying ? Icons.stop_rounded : Icons.volume_up_outlined,
+      size: 16,
+      color: color,
+    ),
+  );
 
   Future<void> _handleTap() async {
     if (_isPlaying) {
@@ -257,32 +269,22 @@ class _SpeechRatingBadgeState extends State<SpeechRatingBadge> {
     await widget.onBeforePlayback?.call();
     if (!mounted) return;
 
-    final token = ++_playbackToken;
-    setState(() => _isPlaying = true);
-
-    try {
-      await _playbackService.play(filePath);
-      AppLogger.log(
-        'SpeechRatingBadge',
-        '录音播放结束: prompt=${widget.attempt.promptId}, path=$filePath',
-      );
-    } finally {
-      if (mounted && token == _playbackToken) {
-        setState(() => _isPlaying = false);
-      }
-    }
+    // 失败与被打断都不算播完，日志必须区分，否则失败后会误报「播放结束」。
+    final completed = await _preview.play(filePath);
+    AppLogger.log(
+      'SpeechRatingBadge',
+      '${completed ? "录音播放结束" : "录音播放未完成"}: '
+          'prompt=${widget.attempt.promptId}, path=$filePath',
+    );
   }
 
   Future<void> _stopPlayback() async {
-    _playbackToken += 1;
     AppLogger.log(
       'SpeechRatingBadge',
       '停止录音播放: prompt=${widget.attempt.promptId}, '
           'path=${widget.attempt.filePath ?? "none"}',
     );
-    await _playbackService.stop();
-    if (!mounted) return;
-    setState(() => _isPlaying = false);
+    await _preview.stop();
   }
 
   /// 无 ASR 结果但有录音时的降级胶囊：显示「录音」+ 播放图标。
@@ -320,11 +322,7 @@ class _SpeechRatingBadgeState extends State<SpeechRatingBadge> {
               ),
             ),
             const SizedBox(width: 6),
-            Icon(
-              _isPlaying ? Icons.stop_rounded : Icons.volume_up_outlined,
-              size: 16,
-              color: textColor.withValues(alpha: 0.7),
-            ),
+            _buildPlaybackIcon(textColor.withValues(alpha: 0.7)),
           ],
         ),
       ),

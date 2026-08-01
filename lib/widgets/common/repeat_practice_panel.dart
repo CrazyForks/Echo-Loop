@@ -16,13 +16,14 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/speech_practice_models.dart';
-import '../../services/audio_playback_service.dart';
+import '../../services/audio_preview_controller.dart';
 import '../../theme/app_theme.dart';
 import 'playback_controls.dart' show PlaybackControls;
 import 'processing_indicator.dart';
 import 'recording_button.dart' show RecordingButton, RecordingButtonMode;
 import 'speech_rating_badge.dart';
 import 'status_label.dart';
+import 'tappable_wrapper.dart';
 
 /// 正常状态文字槽位高度
 const double _kStatusSlotHeight = 20;
@@ -96,8 +97,8 @@ class RepeatPracticePanel extends StatelessWidget {
   /// badge 播放控制器，用于页面触发与用户点击 badge 相同的回放流程。
   final SpeechRatingBadgeController? ratingBadgeController;
 
-  /// badge 播放服务工厂，测试中可注入无平台依赖替身。
-  final AudioPlaybackService Function()? ratingPlaybackServiceFactory;
+  /// badge 试听控制器工厂，用于与页面其他播放入口共用同一份播放状态。
+  final AudioPreviewController Function()? ratingPreviewControllerFactory;
 
   // ========== 配置 ==========
 
@@ -107,15 +108,15 @@ class RepeatPracticePanel extends StatelessWidget {
   /// 是否显示评级/录音胶囊。
   final bool showRatingBadge;
 
-  /// 是否为当前录音 badge 提供 AI 复述评测入口。
+  /// 是否为当前录音 badge 提供 AI 复述评估入口。
   ///
   /// 默认关闭，跟读等其他复用页面不会显示该入口。
   final bool showAiReviewButton;
 
-  /// AI 评测请求是否正在准备或等待首个流式结果。
+  /// AI 评估请求是否正在准备或等待首个流式结果。
   final bool isAiReviewLoading;
 
-  /// 点击 AI 评测入口。
+  /// 点击 AI 评估入口。
   final VoidCallback? onAiReviewTap;
 
   const RepeatPracticePanel({
@@ -133,7 +134,7 @@ class RepeatPracticePanel extends StatelessWidget {
     this.onFastForward,
     this.onBeforePlayback,
     this.ratingBadgeController,
-    this.ratingPlaybackServiceFactory,
+    this.ratingPreviewControllerFactory,
     this.thresholds = RatingThresholds.listenAndRepeat,
     this.showRatingBadge = true,
     this.showAiReviewButton = false,
@@ -222,8 +223,8 @@ class RepeatPracticePanel extends StatelessWidget {
                                           : null,
                                       thresholds: thresholds,
                                       controller: ratingBadgeController,
-                                      playbackServiceFactory:
-                                          ratingPlaybackServiceFactory,
+                                      previewControllerFactory:
+                                          ratingPreviewControllerFactory,
                                     )
                                   : const SizedBox.shrink(),
                             ),
@@ -242,7 +243,7 @@ class RepeatPracticePanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 48),
-                      // 右槽位：复述 AI 评测（与左侧录音 badge 对称）；未启用
+                      // 右槽位：复述 AI 评估胶囊与左侧录音 badge 对称；未启用
                       // 时保留既有快进按钮，避免影响跟读等其他练习页面。
                       SizedBox(
                         width: PlaybackControls.controlButtonSize,
@@ -254,35 +255,11 @@ class RepeatPracticePanel extends StatelessWidget {
                             child: IgnorePointer(
                               ignoring: !hasRightControl,
                               child: hasAiReview
-                                  ? Semantics(
-                                      button: true,
-                                      label: l10n.retellAiReviewTooltip,
-                                      child: IconButton(
-                                        key: const Key(
-                                          'retell_ai_review_button',
-                                        ),
-                                        tooltip: l10n.retellAiReviewTooltip,
-                                        onPressed: isAiReviewLoading
-                                            ? null
-                                            : onAiReviewTap,
-                                        icon: isAiReviewLoading
-                                            ? const SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : Icon(
-                                                Icons.auto_awesome_rounded,
-                                                size: 25,
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurface
-                                                    .withValues(alpha: 0.7),
-                                              ),
-                                      ),
+                                  ? OverflowBox(
+                                      maxWidth: 160,
+                                      minHeight: 0,
+                                      alignment: Alignment.center,
+                                      child: _buildAiReviewPill(),
                                     )
                                   : hasFF
                                   ? GestureDetector(
@@ -309,6 +286,83 @@ class RepeatPracticePanel extends StatelessWidget {
             // 底部间距（与 footer 之间的间距）
             const SizedBox(height: _kBottomGap),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建右侧「AI 评估」胶囊。
+  ///
+  /// 与左侧 [SpeechRatingBadge] 共用同一套胶囊语言（999 圆角、
+  /// h10/v6 内边距、labelMedium 文字、16px 图标、中性表面色 + 细描边），
+  /// 只用 primary 色的星芒图标点出 AI 属性，避免抢视觉重心。
+  Widget _buildAiReviewPill() {
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.8)
+        : theme.colorScheme.onSurface.withValues(alpha: 0.7);
+    final bgColor = isDark
+        ? theme.colorScheme.surfaceContainerHighest
+        : theme.colorScheme.surfaceContainerHigh;
+    final borderColor = isDark
+        ? theme.colorScheme.outline.withValues(alpha: 0.3)
+        : theme.colorScheme.outline.withValues(alpha: 0.2);
+    final accentColor = theme.colorScheme.primary.withValues(
+      alpha: isDark ? 0.9 : 0.8,
+    );
+
+    return Semantics(
+      button: true,
+      label: l10n.retellAiReviewTooltip,
+      child: Tooltip(
+        message: l10n.retellAiReviewTooltip,
+        child: MouseRegion(
+          // 桌面端保留手型指针（原 InkWell 由框架提供）
+          cursor: isAiReviewLoading
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          child: TappableWrapper(
+            key: const Key('retell_ai_review_button'),
+            onTap: isAiReviewLoading ? null : onAiReviewTap,
+            feedbackType: TapFeedback.opacity,
+            pressedOpacity: 0.6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isAiReviewLoading)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accentColor,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: accentColor,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.retellAiReviewTooltip,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

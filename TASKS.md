@@ -1,11 +1,13 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-07-30（统一练习倒计时为用户接管流程）
+> 最后更新：2026-08-01（复述评估弹窗视觉降噪）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 ## 最近完成
 
-- [x] 复述页接入流式 AI 评测：录音 badge 同生命周期入口、16kHz 单声道临时转码与 2MB 前端限制、NDJSON 渐显结果弹窗；点击即用户接管，弹窗可播放录音（2026-07-30）
+- [x] 复述 AI 评估结果弹窗成型（对齐服务端评估结果结构 + 重做展示）：模型改为 `summary` / `keyPoints[]` / `corrections[]` / `suggestion` / `rating`，`rating` 与 `keyPoints[].status` 可空以免流式过程中先渲染出会被推翻的判定；要点条目携带母语要点陈述、原文摘录、转录摘录与反馈四段，状态覆盖「覆盖 / 部分 / 遗漏 / 偏差 / 多说」，纠错分为 grammar / wordChoice / redundancy / phrasing / cohesion 五类（冗余 / 说法 / 衔接不加删除线，原句本身不算错）。弹窗重做为「评级 Hero + 转录折叠卡 + 要点卡列表 + 纠错对照卡 + 建议 callout」，首帧改为独立的 transcript 帧，转录到达时弹窗即开、内容随后逐段流入；失败态按 errorCode 给文案并支持重试。视觉上判定色只出现在要点卡首行胶囊与状态图标，附属行退成中性文字，卡面统一收敛为 `retell_review_rating_style.dart` 里的 `retellCardDecoration()`（近白卡底 + 提亮细描边，替掉三处各自抄的 `surfaceContainerHighest` 大灰块）。`retell_review_report.dart` 按职责拆成 `retell_review_key_points.dart` / `retell_review_corrections.dart` / `retell_review_transcript_card.dart`；录音试听状态从 `AudioPlaybackService` 收敛到新的 `AudioPreviewController`（服务只负责播，UI 状态基于 `play()` 的 Future 维护，按钮滑出视口被回收后重建仍能读到真实状态）；新增 `lib/models/retell_review_sample.dart` 调试假数据，把 `retellReviewSampleEnabled` 改成 true 热重启即可离线调界面（2026-08-01）
+- [x] iOS 本地导入支持选择 LRC 字幕：补齐 `.lrc` 的 UTI 与文档类型声明，避免系统“文件”选择器将 LRC 置灰；iOS 配置测试覆盖 SRT / VTT / LRC 三种字幕格式（2026-07-31）
+- [x] 复述页接入流式 AI 评估：录音 badge 同生命周期入口、16kHz 单声道临时转码与 2MB 前端限制、NDJSON 渐显结果弹窗；入口调整为对称的「图标 + AI 评估」badge，结果改为分层学习反馈报告；点击即用户接管，弹窗可播放录音（2026-07-30）
 - [x] 统一练习页倒计时点击为“用户接管流程”，保留停止脚标并移除快进入口：录音页完成后保持当前句/段手动接管，非录音页停在当前内容（2026-07-30）
 - [x] 修复 Chatbot widget 测试缺失 analytics provider 覆盖导致的 CI 失败（2026-07-28）
 - [x] 版本号升级至 1.0.28（2026-07-28）

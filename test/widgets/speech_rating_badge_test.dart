@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/speech_practice_models.dart';
 import 'package:echo_loop/services/audio_playback_service.dart';
+import 'package:echo_loop/services/audio_preview_controller.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/common/speech_rating_badge.dart';
 
@@ -56,7 +57,8 @@ void main() {
             child: SpeechRatingBadge(
               l10n: AppLocalizations.of(context)!,
               attempt: attempt,
-              playbackServiceFactory: () => service,
+              previewControllerFactory: () =>
+                  AudioPreviewController(service: service),
             ),
           ),
         ),

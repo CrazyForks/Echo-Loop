@@ -8576,47 +8576,119 @@ abstract class AppLocalizations {
   /// **'AI Retell Review'**
   String get retellAiReviewTitle;
 
-  /// No description provided for @retellAiReviewTranscript.
+  /// No description provided for @retellAiReviewKeyPoints.
   ///
   /// In en, this message translates to:
-  /// **'Transcription'**
-  String get retellAiReviewTranscript;
+  /// **'Key point coverage'**
+  String get retellAiReviewKeyPoints;
 
-  /// No description provided for @retellAiReviewSummary.
+  /// No description provided for @retellAiReviewLabelOriginal.
   ///
   /// In en, this message translates to:
-  /// **'Overall feedback'**
-  String get retellAiReviewSummary;
+  /// **'Original'**
+  String get retellAiReviewLabelOriginal;
 
-  /// No description provided for @retellAiReviewStrengths.
+  /// No description provided for @retellAiReviewLabelYouSaid.
   ///
   /// In en, this message translates to:
-  /// **'What you did well'**
-  String get retellAiReviewStrengths;
+  /// **'You said'**
+  String get retellAiReviewLabelYouSaid;
 
-  /// No description provided for @retellAiReviewCovered.
+  /// No description provided for @retellAiReviewLabelTip.
   ///
   /// In en, this message translates to:
-  /// **'Key points covered'**
-  String get retellAiReviewCovered;
+  /// **'Tip'**
+  String get retellAiReviewLabelTip;
 
-  /// No description provided for @retellAiReviewMissed.
+  /// No description provided for @retellAiReviewSuggestion.
   ///
   /// In en, this message translates to:
-  /// **'Key points to improve'**
-  String get retellAiReviewMissed;
+  /// **'Suggestion'**
+  String get retellAiReviewSuggestion;
 
-  /// No description provided for @retellAiReviewImprovements.
+  /// No description provided for @retellAiReviewStatusCovered.
   ///
   /// In en, this message translates to:
-  /// **'Suggestions'**
-  String get retellAiReviewImprovements;
+  /// **'Covered'**
+  String get retellAiReviewStatusCovered;
 
-  /// No description provided for @retellAiReviewGrammar.
+  /// No description provided for @retellAiReviewStatusPartial.
   ///
   /// In en, this message translates to:
-  /// **'Grammar corrections'**
-  String get retellAiReviewGrammar;
+  /// **'Partial'**
+  String get retellAiReviewStatusPartial;
+
+  /// No description provided for @retellAiReviewStatusMissed.
+  ///
+  /// In en, this message translates to:
+  /// **'Missed'**
+  String get retellAiReviewStatusMissed;
+
+  /// No description provided for @retellAiReviewStatusDistorted.
+  ///
+  /// In en, this message translates to:
+  /// **'Distorted'**
+  String get retellAiReviewStatusDistorted;
+
+  /// No description provided for @retellAiReviewStatusAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get retellAiReviewStatusAdded;
+
+  /// No description provided for @retellAiReviewCorrections.
+  ///
+  /// In en, this message translates to:
+  /// **'Expression corrections'**
+  String get retellAiReviewCorrections;
+
+  /// No description provided for @retellAiReviewCorrectionTypeGrammar.
+  ///
+  /// In en, this message translates to:
+  /// **'Grammar'**
+  String get retellAiReviewCorrectionTypeGrammar;
+
+  /// No description provided for @retellAiReviewCorrectionTypeWordChoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Word choice'**
+  String get retellAiReviewCorrectionTypeWordChoice;
+
+  /// No description provided for @retellAiReviewCorrectionTypeRedundancy.
+  ///
+  /// In en, this message translates to:
+  /// **'Wordy'**
+  String get retellAiReviewCorrectionTypeRedundancy;
+
+  /// No description provided for @retellAiReviewCorrectionTypePhrasing.
+  ///
+  /// In en, this message translates to:
+  /// **'Phrasing'**
+  String get retellAiReviewCorrectionTypePhrasing;
+
+  /// No description provided for @retellAiReviewCorrectionTypeCohesion.
+  ///
+  /// In en, this message translates to:
+  /// **'Cohesion'**
+  String get retellAiReviewCorrectionTypeCohesion;
+
+  /// No description provided for @retellAiReviewEvaluating.
+  ///
+  /// In en, this message translates to:
+  /// **'Evaluating…'**
+  String get retellAiReviewEvaluating;
+
+  /// No description provided for @retellAiReviewGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating…'**
+  String get retellAiReviewGenerating;
+
+  /// No description provided for @retellAiReviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retellAiReviewRetry;
 
   /// No description provided for @retellAiReviewError.
   ///

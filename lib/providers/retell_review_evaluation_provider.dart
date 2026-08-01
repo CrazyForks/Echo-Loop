@@ -1,4 +1,4 @@
-/// 复述 AI 评测的页面生命周期状态。
+/// 复述 AI 评估的页面生命周期状态。
 library;
 
 import 'dart:async';
@@ -9,16 +9,17 @@ import 'package:universal_io/io.dart';
 
 import '../config/api_config.dart';
 import '../models/retell_review_evaluation.dart';
+import '../models/retell_review_sample.dart';
 import '../services/app_logger.dart';
 import '../services/retell_review_audio_preparer.dart';
 import '../services/sentence_ai_api_client.dart';
 
 const _maxReviewAudioBytes = 2 * 1024 * 1024;
 
-/// 评测请求阶段。
+/// 评估请求阶段。
 enum RetellReviewEvaluationPhase { idle, loading, streaming, completed, failed }
 
-/// 当前录音 attempt 对应的评测 UI 状态。
+/// 当前录音 attempt 对应的评估 UI 状态。
 class RetellReviewEvaluationState {
   final String? attemptKey;
   final RetellReviewEvaluationPhase phase;
@@ -36,7 +37,7 @@ class RetellReviewEvaluationState {
       phase == RetellReviewEvaluationPhase.completed && evaluation != null;
 }
 
-/// 评测端超出上传上限时的本地 fail-fast 异常。
+/// 评估端超出上传上限时的本地 fail-fast 异常。
 class RetellReviewAudioTooLargeException implements Exception {
   const RetellReviewAudioTooLargeException();
 }
@@ -46,7 +47,7 @@ final retellReviewAudioPreparerProvider = Provider<RetellReviewAudioPreparer>(
   (_) => FfmpegRetellReviewAudioPreparer(),
 );
 
-/// 复述 AI 评测 controller。
+/// 复述 AI 评估 controller。
 ///
 /// 结果只缓存到当前录音 attempt；录音 badge 消失或换成新文件时，旧请求与旧数据
 /// 必须立刻失效，避免异步回调把上一段结果写到下一段。
@@ -75,7 +76,7 @@ class RetellReviewEvaluationController
     state = RetellReviewEvaluationState(attemptKey: attemptKey);
   }
 
-  /// 拉取当前录音的评测。完整结果由同一 attempt 生命周期内的后续点击复用。
+  /// 拉取当前录音的评估。完整结果由同一 attempt 生命周期内的后续点击复用。
   Future<void> evaluate({
     required String attemptKey,
     required String recordingPath,
@@ -145,7 +146,7 @@ class RetellReviewEvaluationController
     } catch (error, stackTrace) {
       AppLogger.log(
         'RetellReview',
-        '评测失败: error=$error stack=$stackTrace baseUrl=$apiBaseUrl',
+        '评估失败: error=$error stack=$stackTrace baseUrl=$apiBaseUrl',
       );
       _setFailure(generation, attemptKey, 'request_failed');
     } finally {
@@ -153,11 +154,27 @@ class RetellReviewEvaluationController
         try {
           if (await preparedFile.exists()) await preparedFile.delete();
         } catch (error) {
-          AppLogger.log('RetellReview', '临时评测音频清理失败: $error');
+          AppLogger.log('RetellReview', '临时评估音频清理失败: $error');
         }
       }
       if (identical(_cancelToken, cancelToken)) _cancelToken = null;
     }
+  }
+
+  /// 用调试假数据填充结果，不发请求（见 [retellReviewSampleEnabled]）。
+  ///
+  /// 同样走 `_generation` 自增并取消在途请求：假数据也要能盖掉上一次真实评估，
+  /// 否则旧请求的回调仍会把结果写回来。
+  void loadSample({required String attemptKey}) {
+    assert(retellReviewSampleEnabled, 'loadSample 只在假数据模式下调用');
+    _generation += 1;
+    _cancelActiveRequest();
+    AppLogger.log('RetellReview', '使用调试假数据: attemptKey=$attemptKey');
+    state = RetellReviewEvaluationState(
+      attemptKey: attemptKey,
+      phase: RetellReviewEvaluationPhase.completed,
+      evaluation: retellReviewSampleEvaluation(),
+    );
   }
 
   bool _isCurrent(int generation, String attemptKey) =>

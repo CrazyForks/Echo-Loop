@@ -4882,25 +4882,61 @@ class AppLocalizationsEn extends AppLocalizations {
   String get retellAiReviewTitle => 'AI Retell Review';
 
   @override
-  String get retellAiReviewTranscript => 'Transcription';
+  String get retellAiReviewKeyPoints => 'Key point coverage';
 
   @override
-  String get retellAiReviewSummary => 'Overall feedback';
+  String get retellAiReviewLabelOriginal => 'Original';
 
   @override
-  String get retellAiReviewStrengths => 'What you did well';
+  String get retellAiReviewLabelYouSaid => 'You said';
 
   @override
-  String get retellAiReviewCovered => 'Key points covered';
+  String get retellAiReviewLabelTip => 'Tip';
 
   @override
-  String get retellAiReviewMissed => 'Key points to improve';
+  String get retellAiReviewSuggestion => 'Suggestion';
 
   @override
-  String get retellAiReviewImprovements => 'Suggestions';
+  String get retellAiReviewStatusCovered => 'Covered';
 
   @override
-  String get retellAiReviewGrammar => 'Grammar corrections';
+  String get retellAiReviewStatusPartial => 'Partial';
+
+  @override
+  String get retellAiReviewStatusMissed => 'Missed';
+
+  @override
+  String get retellAiReviewStatusDistorted => 'Distorted';
+
+  @override
+  String get retellAiReviewStatusAdded => 'Added';
+
+  @override
+  String get retellAiReviewCorrections => 'Expression corrections';
+
+  @override
+  String get retellAiReviewCorrectionTypeGrammar => 'Grammar';
+
+  @override
+  String get retellAiReviewCorrectionTypeWordChoice => 'Word choice';
+
+  @override
+  String get retellAiReviewCorrectionTypeRedundancy => 'Wordy';
+
+  @override
+  String get retellAiReviewCorrectionTypePhrasing => 'Phrasing';
+
+  @override
+  String get retellAiReviewCorrectionTypeCohesion => 'Cohesion';
+
+  @override
+  String get retellAiReviewEvaluating => 'Evaluating…';
+
+  @override
+  String get retellAiReviewGenerating => 'Generating…';
+
+  @override
+  String get retellAiReviewRetry => 'Retry';
 
   @override
   String get retellAiReviewError =>

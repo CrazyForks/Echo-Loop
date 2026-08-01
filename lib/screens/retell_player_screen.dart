@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import '../database/enums.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/playback_speed.dart';
+import '../models/retell_review_sample.dart';
 import '../models/retell_settings.dart';
 import '../models/sentence.dart';
 import '../models/speech_practice_models.dart';
@@ -29,7 +30,7 @@ import '../providers/new_user_guide_provider.dart';
 import '../widgets/common/recording_button.dart' show RecordingButtonMode;
 import '../providers/retell_recording_controller_provider.dart';
 import '../providers/retell_review_evaluation_provider.dart';
-import '../services/audio_playback_service.dart';
+import '../services/audio_preview_controller.dart';
 import '../services/app_logger.dart';
 import '../utils/wakelock_mixin.dart';
 import '../router/app_router.dart';
@@ -50,14 +51,15 @@ import '../widgets/speech_permission_dialog.dart';
 import '../widgets/practice/practice_play_count_label.dart';
 import '../widgets/retell/retell_review_sheet.dart';
 
-/// 复述录音 badge 回放使用的播放服务。
+/// 复述录音回放使用的试听控制器。
 ///
-/// 自动回放和用户手动点击 badge 共用这一个服务，保证播放状态、
-/// 停止图标和点击停止行为一致；测试中可注入无平台依赖的替身。
-final retellAutoPlaybackServiceProvider = Provider<AudioPlaybackService>((ref) {
-  final service = AudioPlaybackService();
-  ref.onDispose(() => unawaited(service.dispose()));
-  return service;
+/// 自动回放、用户手动点击 badge、评估弹窗里的播放按钮共用这一个 controller，
+/// 三个入口因此共享同一份播放状态，图标和点击停止行为天然一致；
+/// 测试中可注入包着无平台依赖 service 的替身。
+final retellRecordingPreviewProvider = Provider<AudioPreviewController>((ref) {
+  final preview = AudioPreviewController();
+  ref.onDispose(() => unawaited(preview.dispose()));
+  return preview;
 });
 
 /// 复述播放器页面
@@ -265,7 +267,7 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     }
   }
 
-  /// 将 AI 评测缓存精确绑定到 panel 中可见的录音 badge。
+  /// 将 AI 评估缓存精确绑定到 panel 中可见的录音 badge。
   void _syncReviewAttempt(RetellRecordingState recordingState) {
     final attempt = recordingState.currentAttempt;
     final showRating = ref.read(learningSettingsProvider).retellRatingEnabled;
@@ -284,6 +286,8 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     RetellReviewEvaluationState next,
   ) {
     if (!mounted || _isExiting) return;
+    // 流一有返回就开弹窗：`meta` 首帧（转录）已在 client 层独立成帧，
+    // 因此这里的「首个带 evaluation 的帧」就是服务端最早的一次推送。
     if (next.phase == RetellReviewEvaluationPhase.streaming &&
         previous?.evaluation == null &&
         next.evaluation != null) {
@@ -292,12 +296,10 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     }
     if (next.phase == RetellReviewEvaluationPhase.failed &&
         !_isShowingReviewSheet) {
-      final l10n = AppLocalizations.of(context)!;
-      final message = switch (next.errorCode) {
-        'audio_preparation_failed' => l10n.retellAiReviewAudioPreparationError,
-        'audio_too_large' => l10n.retellAiReviewAudioTooLarge,
-        _ => l10n.retellAiReviewError,
-      };
+      final message = retellReviewErrorMessage(
+        AppLocalizations.of(context)!,
+        next.errorCode,
+      );
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(message)));
@@ -316,8 +318,9 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
       await showRetellReviewSheet(
         context,
         recordingPath: recordingPath,
-        playbackService: ref.read(retellAutoPlaybackServiceProvider),
+        preview: ref.read(retellRecordingPreviewProvider),
         onBeforePlayback: _takeOverForAiReview,
+        onRetry: _retryReviewEvaluation,
       );
     } finally {
       _isShowingReviewSheet = false;
@@ -328,24 +331,46 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     final path = attempt?.filePath;
     if (attempt == null || path == null || path.isEmpty) return;
     await _takeOverForAiReview();
-    final attemptKey = '${attempt.promptId}:$path';
-    final controller = ref.read(retellReviewEvaluationProvider.notifier);
-    final reviewState = ref.read(retellReviewEvaluationProvider);
-    if (reviewState.attemptKey == attemptKey && reviewState.hasCachedResult) {
+    // 假数据模式下直接出弹窗，不发请求（见 [retellReviewSampleEnabled]）。
+    if (retellReviewSampleEnabled) {
+      ref
+          .read(retellReviewEvaluationProvider.notifier)
+          .loadSample(attemptKey: '${attempt.promptId}:$path');
       await _openRetellReviewSheet();
       return;
     }
-    await controller.evaluate(
-      attemptKey: attemptKey,
-      recordingPath: path,
-      originalText: ref
-          .read(retellPlayerProvider.notifier)
-          .currentParagraphReferenceText,
-      targetLanguage: ref.read(appSettingsProvider).nativeLanguage,
-    );
+    final reviewState = ref.read(retellReviewEvaluationProvider);
+    if (reviewState.attemptKey == '${attempt.promptId}:$path' &&
+        reviewState.hasCachedResult) {
+      await _openRetellReviewSheet();
+      return;
+    }
+    // 弹窗不在这里打开：等流的首帧到达后由 [_onRetellReviewStateChanged] 打开，
+    // 等待期间 badge 上是 loading 态。
+    await _startReviewEvaluation(attempt);
   }
 
-  /// AI 评测是用户主动操作：终止倒计时和自动流程，保留当前段给用户手动接管。
+  /// 弹窗内失败重试：此时已接管播放，不再重复 takeover。
+  Future<void> _retryReviewEvaluation() => _startReviewEvaluation(
+    ref.read(retellRecordingControllerProvider).currentAttempt,
+  );
+
+  Future<void> _startReviewEvaluation(SpeechPracticeAttempt? attempt) async {
+    final path = attempt?.filePath;
+    if (attempt == null || path == null || path.isEmpty) return;
+    await ref
+        .read(retellReviewEvaluationProvider.notifier)
+        .evaluate(
+          attemptKey: '${attempt.promptId}:$path',
+          recordingPath: path,
+          originalText: ref
+              .read(retellPlayerProvider.notifier)
+              .currentParagraphReferenceText,
+          targetLanguage: ref.read(appSettingsProvider).nativeLanguage,
+        );
+  }
+
+  /// AI 评估是用户主动操作：终止倒计时和自动流程，保留当前段给用户手动接管。
   Future<void> _takeOverForAiReview() async {
     _manualStoppedThisParagraph = true;
     await _cancelAutoPlayback();
@@ -1426,8 +1451,8 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
                 onBeforePlayback: _prepareAttemptPlayback,
                 showRatingBadge: retellRatingEnabled,
                 ratingBadgeController: _ratingBadgeController,
-                ratingPlaybackServiceFactory: () =>
-                    ref.read(retellAutoPlaybackServiceProvider),
+                ratingPreviewControllerFactory: () =>
+                    ref.read(retellRecordingPreviewProvider),
                 thresholds: RatingThresholds.retell,
                 showAiReviewButton: true,
                 isAiReviewLoading:
