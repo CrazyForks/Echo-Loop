@@ -191,7 +191,7 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - sherpa_onnx_macos (1.12.36):
+  - sherpa_onnx_macos (1.13.4):
     - FlutterMacOS
   - sign_in_with_apple (0.0.1):
     - FlutterMacOS
@@ -399,7 +399,7 @@ SPEC CHECKSUMS:
   RevenueCat: f3641992451c1426da8d8d1466cec3bbdb765962
   share_plus: 510bf0af1a42cd602274b4629920c9649c52f4cc
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
-  sherpa_onnx_macos: d7cc6a7149ca369ca234e5b169e3a5d9a4fb3346
+  sherpa_onnx_macos: e648c8a9f1a02ec1d7e2788a2963bc86e67e2dd7
   sign_in_with_apple: 6673c03c9e3643f6c8d33601943fbfa9ae99f94e
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
   sqlite3: 8d708bc63e9f4ce48f0ad9d6269e478c5ced1d9b

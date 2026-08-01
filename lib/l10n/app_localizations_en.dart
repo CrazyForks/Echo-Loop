@@ -5006,6 +5006,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get retellAiReviewStopRecording => 'Stop recording';
 
+  @override
   String get videoHideTrack => 'Hide video';
 
   @override
