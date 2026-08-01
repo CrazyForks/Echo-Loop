@@ -69,6 +69,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumBenefitSenseGroups => '更多 AI 句子意群拆分';
 
   @override
+  String get premiumBenefitRetellReview => '更多 AI 复述评估';
+
+  @override
   String get premiumSubscribe => '订阅';
 
   @override
@@ -4728,6 +4731,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retellAiReviewAudioTooLarge => '转换后的录音超过 2 MB 限制。';
+
+  @override
+  String get retellAiReviewSignInRequiredTitle => '登录后使用 AI 复述评估';
+
+  @override
+  String get retellAiReviewSignInRequiredMessage =>
+      'AI 复述评估使用云端 AI 服务，登录后即可获得复述反馈。';
 
   @override
   String get retellAiReviewPlayRecording => '播放录音';

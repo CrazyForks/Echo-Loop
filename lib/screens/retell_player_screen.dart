@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../database/enums.dart';
+import '../features/auth/sign_in_required_dialog.dart';
+import '../features/subscription/widgets/feature_gate.dart' show openPaywall;
 import '../l10n/app_localizations.dart';
 import '../utils/playback_speed.dart';
 import '../models/retell_review_sample.dart';
@@ -296,6 +298,15 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
     }
     if (next.phase == RetellReviewEvaluationPhase.failed &&
         !_isShowingReviewSheet) {
+      // 未登录与额度用尽有明确出路，走对应引导；其余仍是一次性 SnackBar。
+      switch (next.errorCode) {
+        case 'auth_required':
+          unawaited(_showRetellReviewSignInDialog());
+          return;
+        case 'quota_exceeded':
+          unawaited(_openRetellReviewPaywall());
+          return;
+      }
       final message = retellReviewErrorMessage(
         AppLocalizations.of(context)!,
         next.errorCode,
@@ -304,6 +315,29 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(message)));
     }
+  }
+
+  /// 云端 AI 复述评估的登录引导（与 AI 转录、意群共用同一个通用弹窗）。
+  Future<void> _showRetellReviewSignInDialog() async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    await ensureSignedInForAction(
+      context: context,
+      ref: ref,
+      title:
+          l10n?.retellAiReviewSignInRequiredTitle ??
+          'Sign in to use AI retell review',
+      message:
+          l10n?.retellAiReviewSignInRequiredMessage ??
+          'AI retell review uses the cloud AI service. Sign in to get '
+              'feedback on your retelling.',
+    );
+  }
+
+  /// 额度用尽引导订阅（平台是否支持订阅由 openPaywall 内部兜底）。
+  Future<void> _openRetellReviewPaywall() async {
+    if (!mounted) return;
+    await openPaywall(context, ref);
   }
 
   Future<void> _openRetellReviewSheet() async {
@@ -321,6 +355,8 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
         preview: ref.read(retellRecordingPreviewProvider),
         onBeforePlayback: _takeOverForAiReview,
         onRetry: _retryReviewEvaluation,
+        onUpgrade: _openRetellReviewPaywall,
+        onSignIn: _showRetellReviewSignInDialog,
       );
     } finally {
       _isShowingReviewSheet = false;

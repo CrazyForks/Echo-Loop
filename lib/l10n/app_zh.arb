@@ -20,6 +20,7 @@
   "premiumBenefitAiAssistant": "更多 AI 助手对话次数",
   "premiumBenefitPrioritySupport": "优先客户支持",
   "premiumBenefitSenseGroups": "更多 AI 句子意群拆分",
+  "premiumBenefitRetellReview": "更多 AI 复述评估",
   "premiumSubscribe": "订阅",
   "premiumStartTrial": "开始 {days} 天免费试用",
   "@premiumStartTrial": {
@@ -1964,6 +1965,8 @@
   "retellAiReviewError": "AI 评估未能完成，请重试。",
   "retellAiReviewAudioPreparationError": "无法准备评估所需的录音文件。",
   "retellAiReviewAudioTooLarge": "转换后的录音超过 2 MB 限制。",
+  "retellAiReviewSignInRequiredTitle": "登录后使用 AI 复述评估",
+  "retellAiReviewSignInRequiredMessage": "AI 复述评估使用云端 AI 服务，登录后即可获得复述反馈。",
   "retellAiReviewPlayRecording": "播放录音",
   "retellAiReviewStopRecording": "停止录音"
 }

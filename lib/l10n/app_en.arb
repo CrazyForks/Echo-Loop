@@ -20,6 +20,7 @@
   "premiumBenefitAiAssistant": "More AI assistant chats",
   "premiumBenefitPrioritySupport": "Priority support",
   "premiumBenefitSenseGroups": "More AI sentence chunking",
+  "premiumBenefitRetellReview": "More AI retell reviews",
   "premiumSubscribe": "Subscribe",
   "premiumStartTrial": "Start {days}-day free trial",
   "@premiumStartTrial": {
@@ -2461,6 +2462,8 @@
   "retellAiReviewError": "The AI review could not be completed. Please try again.",
   "retellAiReviewAudioPreparationError": "Couldn't prepare the recording for AI review.",
   "retellAiReviewAudioTooLarge": "The prepared recording exceeds the 2 MB limit.",
+  "retellAiReviewSignInRequiredTitle": "Sign in to use AI retell review",
+  "retellAiReviewSignInRequiredMessage": "AI retell review uses the cloud AI service. Sign in to get feedback on your retelling.",
   "retellAiReviewPlayRecording": "Play recording",
   "retellAiReviewStopRecording": "Stop recording"
 }

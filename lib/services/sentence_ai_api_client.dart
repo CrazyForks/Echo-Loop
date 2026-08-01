@@ -540,12 +540,14 @@ class SentenceAiApiClient {
 
   /// 复述效果 AI 评估（流式）。
   ///
-  /// 该端点无登录态，但仍复用本 client 的 Dio、HTTP/2、NDJSON 记录与字段
-  /// 累积机制，保证与 AI 查词、翻译和解析的流式行为一致。
+  /// 调用后端 `POST /api/v1/stream/evaluate-review`（需登录态，按后端
+  /// `retell_review` 口径计量）。错误处理同 [senseGroupsStream]：401/402 等
+  /// 非 200 抛带状态码的 [DioException]，由 controller 映射成登录 / 额度态。
   Stream<RetellReviewStreamFrame> evaluateReviewStream({
     required File audioFile,
     required String originalText,
     required String targetLanguage,
+    required String accessToken,
     CancelToken? cancelToken,
   }) async* {
     final response = await _dio.post<ResponseBody>(
@@ -562,6 +564,7 @@ class SentenceAiApiClient {
       options: Options(
         responseType: ResponseType.stream,
         validateStatus: (_) => true,
+        headers: {'Authorization': 'Bearer $accessToken'},
       ),
       cancelToken: cancelToken,
     );

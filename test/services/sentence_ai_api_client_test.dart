@@ -746,17 +746,20 @@ void main() {
   });
 
   group('evaluateReviewStream', () {
-    Response<ResponseBody> ndjsonResponse(String ndjson) {
-      final bytes = Uint8List.fromList(utf8.encode(ndjson));
+    Response<ResponseBody> bodyResponse(String body, {int status = 200}) {
+      final bytes = Uint8List.fromList(utf8.encode(body));
       return Response(
-        data: ResponseBody(Stream<Uint8List>.fromIterable([bytes]), 200),
-        statusCode: 200,
+        data: ResponseBody(Stream<Uint8List>.fromIterable([bytes]), status),
+        statusCode: status,
         requestOptions: RequestOptions(
           path: '/api/v1/stream/evaluate-review',
           method: 'POST',
         ),
       );
     }
+
+    Response<ResponseBody> ndjsonResponse(String ndjson) =>
+        bodyResponse(ndjson);
 
     test('meta 首帧即产出一帧（先出转录），后续 ops 逐帧累积', () async {
       final file = File(
@@ -770,7 +773,15 @@ void main() {
         () => mockDio.post<ResponseBody>(
           '/api/v1/stream/evaluate-review',
           data: any(named: 'data'),
-          options: any(named: 'options'),
+          // 端点已鉴权化：不带 Bearer 的请求打不中这个 stub。
+          options: any(
+            named: 'options',
+            that: isA<Options>().having(
+              (o) => o.headers?['Authorization'],
+              'Authorization',
+              'Bearer access-token',
+            ),
+          ),
           cancelToken: any(named: 'cancelToken'),
         ),
       ).thenAnswer(
@@ -839,6 +850,7 @@ void main() {
             audioFile: file,
             originalText: 'Practice every day.',
             targetLanguage: 'zh-CN',
+            accessToken: 'access-token',
           )
           .toList();
 
@@ -871,6 +883,47 @@ void main() {
       expect(last.corrections.single.transcript, "he don't know");
       expect(last.corrections.single.correction, "he doesn't know");
       expect(last.corrections.single.explanation, '');
+    });
+
+    test('402 → 带状态码的 DioException（供 controller 转额度态）', () async {
+      final file = File(
+        '${Directory.systemTemp.path}/retell-review-quota-test.m4a',
+      );
+      await file.writeAsBytes([0, 1, 2]);
+      addTearDown(() async {
+        if (await file.exists()) await file.delete();
+      });
+      when(
+        () => mockDio.post<ResponseBody>(
+          '/api/v1/stream/evaluate-review',
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => bodyResponse(
+          jsonEncode({'error': 'quota', 'code': 'quota_exceeded'}),
+          status: 402,
+        ),
+      );
+
+      await expectLater(
+        client
+            .evaluateReviewStream(
+              audioFile: file,
+              originalText: 'Practice every day.',
+              targetLanguage: 'zh-CN',
+              accessToken: 'access-token',
+            )
+            .toList(),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.response?.statusCode,
+            'statusCode',
+            402,
+          ),
+        ),
+      );
     });
   });
 

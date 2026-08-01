@@ -23,6 +23,7 @@ const Map<PremiumFeature, int> kAiTrialLimits = {
   PremiumFeature.aiWordAnalysis: 0,
   PremiumFeature.aiTranscription: 0,
   PremiumFeature.aiChat: 0,
+  PremiumFeature.aiRetellReview: 0,
 };
 
 /// 某功能的永久免费试用次数（未配置视为 0）。

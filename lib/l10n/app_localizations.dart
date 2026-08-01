@@ -218,6 +218,12 @@ abstract class AppLocalizations {
   /// **'More AI sentence chunking'**
   String get premiumBenefitSenseGroups;
 
+  /// No description provided for @premiumBenefitRetellReview.
+  ///
+  /// In en, this message translates to:
+  /// **'More AI retell reviews'**
+  String get premiumBenefitRetellReview;
+
   /// No description provided for @premiumSubscribe.
   ///
   /// In en, this message translates to:
@@ -8707,6 +8713,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The prepared recording exceeds the 2 MB limit.'**
   String get retellAiReviewAudioTooLarge;
+
+  /// No description provided for @retellAiReviewSignInRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to use AI retell review'**
+  String get retellAiReviewSignInRequiredTitle;
+
+  /// No description provided for @retellAiReviewSignInRequiredMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'AI retell review uses the cloud AI service. Sign in to get feedback on your retelling.'**
+  String get retellAiReviewSignInRequiredMessage;
 
   /// No description provided for @retellAiReviewPlayRecording.
   ///

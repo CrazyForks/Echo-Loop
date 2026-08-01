@@ -72,6 +72,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumBenefitSenseGroups => 'More AI sentence chunking';
 
   @override
+  String get premiumBenefitRetellReview => 'More AI retell reviews';
+
+  @override
   String get premiumSubscribe => 'Subscribe';
 
   @override
@@ -4949,6 +4952,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get retellAiReviewAudioTooLarge =>
       'The prepared recording exceeds the 2 MB limit.';
+
+  @override
+  String get retellAiReviewSignInRequiredTitle =>
+      'Sign in to use AI retell review';
+
+  @override
+  String get retellAiReviewSignInRequiredMessage =>
+      'AI retell review uses the cloud AI service. Sign in to get feedback on your retelling.';
 
   @override
   String get retellAiReviewPlayRecording => 'Play recording';

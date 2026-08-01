@@ -32,4 +32,11 @@ enum PremiumFeature {
 
   /// AI 对话助手（后端 LLM 多轮对话）。
   aiChat,
+
+  /// AI 复述评估（后端转录 + LLM 评估）。
+  ///
+  /// 对应后端 `UsageFeature.retell_review`
+  /// （`POST /api/v1/stream/evaluate-review`），免费用户每月 5 次，
+  /// 超额后端返回 402 `quota_exceeded`。
+  aiRetellReview,
 }

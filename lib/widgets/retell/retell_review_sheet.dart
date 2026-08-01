@@ -22,6 +22,8 @@ String retellReviewErrorMessage(AppLocalizations l10n, String? errorCode) =>
     switch (errorCode) {
       'audio_preparation_failed' => l10n.retellAiReviewAudioPreparationError,
       'audio_too_large' => l10n.retellAiReviewAudioTooLarge,
+      'auth_required' => l10n.retellAiReviewSignInRequiredTitle,
+      'quota_exceeded' => l10n.aiQuotaExceededTitle,
       _ => l10n.retellAiReviewError,
     };
 
@@ -32,6 +34,8 @@ Future<void> showRetellReviewSheet(
   required AudioPreviewController preview,
   required Future<void> Function() onBeforePlayback,
   required Future<void> Function() onRetry,
+  required Future<void> Function() onUpgrade,
+  required Future<void> Function() onSignIn,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -44,6 +48,8 @@ Future<void> showRetellReviewSheet(
     preview: preview,
     onBeforePlayback: onBeforePlayback,
     onRetry: onRetry,
+    onUpgrade: onUpgrade,
+    onSignIn: onSignIn,
   ),
 );
 
@@ -52,12 +58,16 @@ class _RetellReviewSheet extends ConsumerWidget {
   final AudioPreviewController preview;
   final Future<void> Function() onBeforePlayback;
   final Future<void> Function() onRetry;
+  final Future<void> Function() onUpgrade;
+  final Future<void> Function() onSignIn;
 
   const _RetellReviewSheet({
     required this.recordingPath,
     required this.preview,
     required this.onBeforePlayback,
     required this.onRetry,
+    required this.onUpgrade,
+    required this.onSignIn,
   });
 
   @override
@@ -102,8 +112,11 @@ class _RetellReviewSheet extends ConsumerWidget {
   ) {
     if (state.phase == RetellReviewEvaluationPhase.failed) {
       return _ReviewFailure(
+        errorCode: state.errorCode,
         message: retellReviewErrorMessage(l10n, state.errorCode),
         onRetry: onRetry,
+        onUpgrade: onUpgrade,
+        onSignIn: onSignIn,
       );
     }
     if (evaluation == null) return const _ReviewSkeleton();
@@ -248,17 +261,38 @@ class _SkeletonBlock extends StatelessWidget {
   );
 }
 
-/// 失败态：按 errorCode 说清原因，并提供一键重试。
+/// 失败态：按 errorCode 说清原因，并给出对应的唯一出路。
+///
+/// 未登录与额度用尽不能给「重试」——重试必然再撞同一堵墙，还白跑一次本地转码
+/// 与 2MB 上传。这两种码分别换成登录与升级入口。
 class _ReviewFailure extends StatelessWidget {
+  final String? errorCode;
   final String message;
   final Future<void> Function() onRetry;
+  final Future<void> Function() onUpgrade;
+  final Future<void> Function() onSignIn;
 
-  const _ReviewFailure({required this.message, required this.onRetry});
+  const _ReviewFailure({
+    required this.errorCode,
+    required this.message,
+    required this.onRetry,
+    required this.onUpgrade,
+    required this.onSignIn,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
+    final (actionLabel, actionIcon, onAction) = switch (errorCode) {
+      'quota_exceeded' => (
+        l10n.aiQuotaExceededSubscribe,
+        Icons.workspace_premium_rounded,
+        onUpgrade,
+      ),
+      'auth_required' => (l10n.authSignInButton, Icons.login_rounded, onSignIn),
+      _ => (l10n.retellAiReviewRetry, Icons.refresh_rounded, onRetry),
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
@@ -289,9 +323,9 @@ class _ReviewFailure extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.l),
             FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: Text(l10n.retellAiReviewRetry),
+              onPressed: onAction,
+              icon: Icon(actionIcon, size: 18),
+              label: Text(actionLabel),
             ),
           ],
         ),
