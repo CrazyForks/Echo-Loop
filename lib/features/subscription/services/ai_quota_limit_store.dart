@@ -10,6 +10,7 @@ import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../services/app_logger.dart';
+import '../models/ai_quota_rejection.dart';
 import '../models/premium_feature.dart';
 
 /// quota 提醒的最小展示间隔。
@@ -36,6 +37,24 @@ class AiQuotaLimitStore {
     return resetAt.isAfter(current.toUtc()) ? resetAt : null;
   }
 
+  /// 当前仍有效的配额拒绝信息；旧记录没有原因时按额度用尽兼容。
+  AiQuotaRejection? activeRejection(
+    String userId,
+    PremiumFeature feature, {
+    DateTime? now,
+  }) {
+    final resetAt = activeResetAt(userId, feature, now: now);
+    if (resetAt == null) return null;
+    final rawReason = _entry(userId, feature)['reason'];
+    final reason = AiQuotaRejectionReason.values
+        .where((value) => value.name == rawReason)
+        .firstOrNull;
+    return AiQuotaRejection(
+      reason: reason ?? AiQuotaRejectionReason.exhausted,
+      resetAt: resetAt,
+    );
+  }
+
   /// 是否应阻止后端请求。
   bool isBlocked(String userId, PremiumFeature feature, {DateTime? now}) {
     return activeResetAt(userId, feature, now: now) != null;
@@ -45,12 +64,14 @@ class AiQuotaLimitStore {
   Future<void> recordResetAt(
     String userId,
     PremiumFeature feature,
-    DateTime resetAt,
-  ) async {
+    DateTime resetAt, {
+    AiQuotaRejectionReason reason = AiQuotaRejectionReason.exhausted,
+  }) async {
     final all = _readAll();
     final user = Map<String, dynamic>.from(all[userId] as Map? ?? {});
     final entry = Map<String, dynamic>.from(user[feature.name] as Map? ?? {});
     entry['resetAt'] = resetAt.toUtc().toIso8601String();
+    entry['reason'] = reason.name;
     user[feature.name] = entry;
     all[userId] = user;
     await _writeAll(all);
@@ -62,7 +83,9 @@ class AiQuotaLimitStore {
     final user = Map<String, dynamic>.from(all[userId] as Map? ?? {});
     final entry = Map<String, dynamic>.from(user[feature.name] as Map? ?? {});
     if (!entry.containsKey('resetAt')) return;
-    entry.remove('resetAt');
+    entry
+      ..remove('resetAt')
+      ..remove('reason');
     user[feature.name] = entry;
     all[userId] = user;
     await _writeAll(all);
@@ -82,7 +105,9 @@ class AiQuotaLimitStore {
       final entry = Map<String, dynamic>.from(rawEntry);
       final resetAt = _parseDate(entry['resetAt']);
       if (resetAt != null && !resetAt.isAfter(current)) {
-        entry.remove('resetAt');
+        entry
+          ..remove('resetAt')
+          ..remove('reason');
         user[feature.name] = entry;
         changed = true;
       }
@@ -104,6 +129,7 @@ class AiQuotaLimitStore {
       if (rawEntry is! Map) continue;
       final entry = Map<String, dynamic>.from(rawEntry);
       if (entry.remove('resetAt') != null) {
+        entry.remove('reason');
         user[feature.name] = entry;
         changed = true;
       }

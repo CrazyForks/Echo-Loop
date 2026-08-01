@@ -1336,23 +1336,26 @@ void main() {
     source: EntitlementSource.paddle,
   );
 
-  test('Bug3：appleStore + 后端不可达 + 新鲜 Paddle premium 缓存 → premium 且 isStale', () async {
-    await withClock(Clock.fixed(now), () async {
-      final cache = FakeEntitlementCache()..stored = cached(paddlePremium);
-      final container = makeContainer(
-        identity: signedIn,
-        repo: FakeEntitlementRepository((_) async => null),
-        cache: cache,
-        paymentChannel: ClientPaymentChannel.appleStore,
-      );
-      container.read(subscriptionControllerProvider);
-      await pumpEventQueue();
+  test(
+    'Bug3：appleStore + 后端不可达 + 新鲜 Paddle premium 缓存 → premium 且 isStale',
+    () async {
+      await withClock(Clock.fixed(now), () async {
+        final cache = FakeEntitlementCache()..stored = cached(paddlePremium);
+        final container = makeContainer(
+          identity: signedIn,
+          repo: FakeEntitlementRepository((_) async => null),
+          cache: cache,
+          paymentChannel: ClientPaymentChannel.appleStore,
+        );
+        container.read(subscriptionControllerProvider);
+        await pumpEventQueue();
 
-      final state = container.read(subscriptionControllerProvider);
-      expect(state.status, EntitlementStatus.premium);
-      expect(state.isStale, isTrue);
-    });
-  });
+        final state = container.read(subscriptionControllerProvider);
+        expect(state.status, EntitlementStatus.premium);
+        expect(state.isStale, isTrue);
+      });
+    },
+  );
 
   test('Bug3b：appleStore + 后端明确 free + premium 缓存 → free（权威降级）', () async {
     await withClock(Clock.fixed(now), () async {
@@ -1372,29 +1375,32 @@ void main() {
     });
   });
 
-  test('Bug1：Paddle 会员在 appleStore 包 restore → premium 且不调 RC restore', () async {
-    await withClock(Clock.fixed(now), () async {
-      final purchases = FakePurchaseService();
-      final container = makeContainer(
-        identity: signedIn,
-        repo: FakeEntitlementRepository((_) async => paddlePremium),
-        cache: FakeEntitlementCache(),
-        purchases: purchases,
-        paymentChannel: ClientPaymentChannel.appleStore,
-      );
-      container.read(subscriptionControllerProvider);
-      await pumpEventQueue();
+  test(
+    'Bug1：Paddle 会员在 appleStore 包 restore → premium 且不调 RC restore',
+    () async {
+      await withClock(Clock.fixed(now), () async {
+        final purchases = FakePurchaseService();
+        final container = makeContainer(
+          identity: signedIn,
+          repo: FakeEntitlementRepository((_) async => paddlePremium),
+          cache: FakeEntitlementCache(),
+          purchases: purchases,
+          paymentChannel: ClientPaymentChannel.appleStore,
+        );
+        container.read(subscriptionControllerProvider);
+        await pumpEventQueue();
 
-      await container.read(subscriptionControllerProvider.notifier).restore();
-      await pumpEventQueue();
+        await container.read(subscriptionControllerProvider.notifier).restore();
+        await pumpEventQueue();
 
-      expect(purchases.restoreCalls, 0);
-      expect(
-        container.read(subscriptionControllerProvider).status,
-        EntitlementStatus.premium,
-      );
-    });
-  });
+        expect(purchases.restoreCalls, 0);
+        expect(
+          container.read(subscriptionControllerProvider).status,
+          EntitlementStatus.premium,
+        );
+      });
+    },
+  );
 
   test('R1：purchase 后首次读到旧投影 free，force 重试收敛 premium', () {
     fakeAsync((async) {
@@ -1789,4 +1795,103 @@ void main() {
       );
     });
   });
+
+  test('并发普通权益刷新 single-flight，只执行一次 GET', () async {
+    final gate = Completer<Entitlement?>();
+    var block = false;
+    final repo = FakeEntitlementRepository(
+      (_) => block ? gate.future : Future.value(Entitlement.free),
+    );
+    final container = makeContainer(
+      identity: signedIn,
+      repo: repo,
+      cache: FakeEntitlementCache(),
+    );
+    container.read(subscriptionControllerProvider);
+    await pumpEventQueue();
+    repo.calls.clear();
+    repo.forceCalls.clear();
+    block = true;
+
+    final controller = container.read(subscriptionControllerProvider.notifier);
+    final first = controller.refresh();
+    final second = controller.refresh();
+    await pumpEventQueue();
+
+    expect(repo.calls, hasLength(1));
+    gate.complete(Entitlement.free);
+    await Future.wait([first, second]);
+    expect(repo.calls, hasLength(1));
+  });
+
+  test('普通刷新期间到达 force，普通完成后补执行 force', () async {
+    final normalGate = Completer<Entitlement?>();
+    var call = 0;
+    final repo = FakeEntitlementRepository((_) {
+      final current = call++;
+      if (current == 0) return Future.value(Entitlement.free);
+      if (current == 1) return normalGate.future;
+      return Future.value(proEntitlement);
+    });
+    final container = makeContainer(
+      identity: signedIn,
+      repo: repo,
+      cache: FakeEntitlementCache(),
+    );
+    container.read(subscriptionControllerProvider);
+    await pumpEventQueue();
+    repo.calls.clear();
+    repo.forceCalls.clear();
+
+    final controller = container.read(subscriptionControllerProvider.notifier);
+    final normal = controller.refresh();
+    await pumpEventQueue();
+    final forced = controller.refresh(force: true);
+    await pumpEventQueue();
+    expect(repo.forceCalls, [false]);
+
+    normalGate.complete(Entitlement.free);
+    await Future.wait([normal, forced]);
+    expect(repo.forceCalls, [false, true]);
+    expect(container.read(subscriptionControllerProvider).isActive, isTrue);
+  });
+
+  test(
+    'clearLocalCacheAndRefresh 作废在途普通刷新后补执行 force 且不残留 refreshing',
+    () async {
+      final normalGate = Completer<Entitlement?>();
+      var call = 0;
+      final repo = FakeEntitlementRepository((_) {
+        final current = call++;
+        if (current == 0) return Future.value(Entitlement.free);
+        if (current == 1) return normalGate.future;
+        return Future.value(proEntitlement);
+      });
+      final container = makeContainer(
+        identity: signedIn,
+        repo: repo,
+        cache: FakeEntitlementCache(),
+      );
+      container.read(subscriptionControllerProvider);
+      await pumpEventQueue();
+      repo.calls.clear();
+      repo.forceCalls.clear();
+
+      final controller = container.read(
+        subscriptionControllerProvider.notifier,
+      );
+      final normal = controller.refresh();
+      await pumpEventQueue();
+      final cleared = controller.clearLocalCacheAndRefresh();
+      await pumpEventQueue();
+      expect(repo.forceCalls, [false]);
+
+      normalGate.complete(Entitlement.free);
+      await Future.wait([normal, cleared]);
+      expect(repo.forceCalls, [false, true]);
+      final state = container.read(subscriptionControllerProvider);
+      expect(state.isActive, isTrue);
+      expect(state.isRefreshing, isFalse);
+    },
+  );
 }

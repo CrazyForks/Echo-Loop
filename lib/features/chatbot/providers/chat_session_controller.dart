@@ -18,6 +18,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../services/app_logger.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../subscription/models/premium_feature.dart';
+import '../../subscription/models/ai_quota_rejection.dart';
 import '../../subscription/providers/ai_trial_usage_provider.dart';
 import '../../subscription/providers/feature_access_provider.dart';
 import '../../subscription/providers/subscription_controller.dart';
@@ -230,11 +231,12 @@ class ChatSessionController extends _$ChatSessionController {
     } catch (e) {
       if (_disposed || seq != _seq) return;
       final status = _mapRunError(e);
+      final quotaReason = _quotaReasonFor(e);
       // 用户主动取消（cancel→done）不算失败，不打 error 日志。
       if (status != ChatMessageStatus.done) {
         _log('流式失败 botId=$botId status=$status error=$e');
       }
-      _finishTurn(botId, status);
+      _finishTurn(botId, status, quotaReason: quotaReason);
     }
   }
 
@@ -255,6 +257,14 @@ class ChatSessionController extends _$ChatSessionController {
       return ChatMessageStatus.authRequired;
     }
     return ChatMessageStatus.error;
+  }
+
+  /// 只有后端明确返回 `quota.limit == 0` 时，才改用免费版不支持文案。
+  AiQuotaRejectionReason _quotaReasonFor(Object error) {
+    if (error is! DioException || error.response?.statusCode != 402) {
+      return AiQuotaRejectionReason.exhausted;
+    }
+    return AiQuotaRejection.fromResponseData(error.response?.data).reason;
   }
 
   /// 成功后消耗一次免费试用（会员不计）。
@@ -287,7 +297,11 @@ class ChatSessionController extends _$ChatSessionController {
   ///
   /// 特例：status==done 且 content 仍为空（首 token 前即停止）→ 直接移除该占位，
   /// 避免留下一条空气泡。
-  void _finishTurn(String id, ChatMessageStatus status) {
+  void _finishTurn(
+    String id,
+    ChatMessageStatus status, {
+    AiQuotaRejectionReason quotaReason = AiQuotaRejectionReason.exhausted,
+  }) {
     final target = state.messages.where((m) => m.id == id).firstOrNull;
     final removeEmpty =
         status == ChatMessageStatus.done &&
@@ -298,7 +312,7 @@ class ChatSessionController extends _$ChatSessionController {
       if (m.id != id) {
         next.add(m); // 非目标消息原样保留
       } else if (!removeEmpty) {
-        next.add(m.copyWith(status: status));
+        next.add(m.copyWith(status: status, quotaReason: quotaReason));
       }
       // removeEmpty && 目标 → 跳过（移除空占位）
     }

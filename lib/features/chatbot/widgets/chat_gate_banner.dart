@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_theme.dart';
+import '../../subscription/models/premium_feature.dart';
+import '../../subscription/utils/ai_quota_copy.dart';
 import '../state/chat_session_state.dart';
 
 /// 发送前闸门 banner：
@@ -35,7 +37,7 @@ class ChatGateBanner extends StatelessWidget {
     final bool isAuth = gate == ChatGate.authRequired;
     final String message = isAuth
         ? l10n.chatSignInMessage
-        : l10n.chatQuotaTitle;
+        : aiQuotaExceededTitleFor(l10n, PremiumFeature.aiChat);
     final String action = isAuth ? l10n.chatSignInTitle : l10n.chatUpgrade;
     final VoidCallback onAction = isAuth ? onSignIn : onUpgrade;
 

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:echo_loop/features/subscription/models/subscription_plan.dart';
 import 'package:echo_loop/features/subscription/services/paddle_billing_repository.dart';
+import 'package:echo_loop/features/subscription/services/purchase_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -181,6 +182,37 @@ void main() {
     expect(
       repository.createCheckout(accessToken: 'token', planId: 'plus_yearly'),
       throwsStateError,
+    );
+  });
+
+  test('409 already_entitled 映射为类型化 PurchaseException', () async {
+    when(
+      () => dio.post<Map<String, dynamic>>(
+        '/api/paddle/checkout',
+        data: any(named: 'data'),
+        options: any(named: 'options'),
+      ),
+    ).thenThrow(
+      DioException.badResponse(
+        statusCode: 409,
+        requestOptions: RequestOptions(path: '/api/paddle/checkout'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/api/paddle/checkout'),
+          statusCode: 409,
+          data: {'code': 'already_entitled', 'requestId': 'request-1'},
+        ),
+      ),
+    );
+
+    await expectLater(
+      repository.createCheckout(accessToken: 'token', planId: 'plus_yearly'),
+      throwsA(
+        isA<PurchaseException>().having(
+          (error) => error.alreadyEntitled,
+          'alreadyEntitled',
+          isTrue,
+        ),
+      ),
     );
   });
 }

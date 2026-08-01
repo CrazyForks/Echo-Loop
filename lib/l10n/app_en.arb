@@ -3,8 +3,29 @@
   "appTitle": "Echo Loop",
   "premiumTitle": "Echo Loop Premium",
   "premiumTagline": "Get more AI-powered learning",
-  "aiQuotaExceededTitle": "You've reached your free limit",
+  "aiQuotaExceededGenericTitle": "This month's free AI quota is used up",
+  "aiQuotaExceededTitle": "This month's free {feature} quota is used up",
+  "@aiQuotaExceededTitle": {
+    "placeholders": {
+      "feature": { "type": "String" }
+    }
+  },
+  "aiQuotaFeatureTranslation": "AI translation",
+  "aiQuotaFeatureAnalysis": "AI sentence analysis",
+  "aiQuotaFeatureSenseGroup": "AI sentence chunking",
+  "aiQuotaFeatureWordAnalysis": "AI word analysis",
+  "aiQuotaFeatureTranscription": "AI subtitle transcription",
+  "aiQuotaFeatureChat": "AI assistant",
+  "aiQuotaFeatureRetellReview": "AI retell review",
   "aiQuotaExceededMessage": "Upgrade to unlock more AI usage and features.",
+  "aiQuotaUnsupportedGenericTitle": "The free plan doesn't support this AI feature",
+  "aiQuotaUnsupportedTitle": "The free plan doesn't support {feature}",
+  "@aiQuotaUnsupportedTitle": {
+    "placeholders": {
+      "feature": { "type": "String" }
+    }
+  },
+  "aiQuotaUnsupportedMessage": "Upgrade to unlock this feature and more AI features.",
   "aiQuotaExceededCta": "Upgrade to Premium",
   "aiQuotaExceededDismiss": "Got it",
   "aiQuotaExceededSubscribe": "Upgrade Now",
@@ -66,6 +87,10 @@
   "premiumRefresh": "Refresh",
   "premiumRefreshStatus": "Refresh membership",
   "premiumPurchasePendingSync": "Purchase successful. Your membership is syncing and will activate shortly.",
+  "premiumCheckingEntitlement": "Checking your membership status…",
+  "premiumEntitlementCheckFailed": "We couldn't confirm your membership status. Retry before purchasing.",
+  "premiumEntitlementUpdated": "Your membership status has been updated.",
+  "premiumAlreadyEntitledSyncFailed": "An active subscription was found, but syncing failed. Tap Restore Purchases in the top-right corner.",
   "premiumPeriodMonthly": "Monthly",
   "premiumPeriodYearly": "Yearly",
   "premiumPeriodLifetime": "Lifetime",
@@ -1907,8 +1932,6 @@
   "guideFavoritesVocabularyListDescription": "Your saved words and phrases. Expand a card to see definitions and hear how they sound in the original sentences.",
   "guideFavoritesFlashcardDescription": "Tap here to enter flashcard mode and review every saved word. Seeing the word and hearing it in context makes memory stick.",
   "guideIntensiveListenCantUnderstandDescription": "Tap here when a sentence is hard to follow. It will be auto-marked as difficult and you'll enter explanation mode.",
-  "guideIntensiveListenAnnotationContinueDescription": "Once you understand this sentence, tap Continue to move on to the next one.",
-  "guideIntensiveListenAnnotationPlayDescription": "Tap the play button to play the current sentence.",
   "guideSentenceTileNumberDescription": "Tap the number to play from this sentence.",
   "guideSentenceTileBodyDescription": "Tap the sentence to view the explanation.",
   "guideSubtitleEditorBoundaryHandleDescription": "Drag the red or green handles on the waveform to adjust the current sentence's start and end time.",
@@ -2068,7 +2091,6 @@
   "speakingPracticeSection": "Speaking practice",
   "autoSkipRetellToggle": "Auto-skip speaking practice",
   "autoSkipRetellSubtitle": "Auto-skip speaking tasks in your learning plan",
-  "autoSkipRetellDescription": "When enabled, speaking practice tasks are auto-marked as skipped; you can complete them anytime in free practice.",
   "autoExpandCachedAnnotationToggle": "Auto-expand Analysis",
   "autoExpandCachedAnnotationSubtitle": "Auto-show cached translation, analysis and sense groups",
   "autoShowAiExplanationToggle": "Auto-show AI explanations",
@@ -2441,7 +2463,6 @@
   "chatEmptyGreeting": "Ask me anything about this sentence.",
   "chatErrorNetwork": "Network unavailable. Tap to retry.",
   "chatErrorGenerate": "Generation failed. Tap to retry.",
-  "chatQuotaTitle": "Free quota used up",
   "chatUpgrade": "Upgrade",
   "chatSignInTitle": "Sign in required",
   "chatSignInMessage": "Sign in to use the AI assistant.",

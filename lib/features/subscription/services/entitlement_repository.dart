@@ -9,6 +9,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/api_config.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../../services/supabase_token_coordinator.dart';
 import '../../../providers/package_info_provider.dart';
 import '../../../services/app_logger.dart';
 import '../../../services/backend_dio.dart';
@@ -59,14 +61,18 @@ class StubEntitlementRepository implements EntitlementRepository {
 ///   允许后端据此**降级**，而非误判为「获取失败」）。
 /// - 网络异常 / 非 2xx / 解析失败 → 返回 **null**（走缓存 / RC 兜底，绝不误降级）。
 class BackendEntitlementRepository implements EntitlementRepository {
-  BackendEntitlementRepository({required String baseUrl, String? appVersion})
-    : _dio = createBackendDio(
-        baseUrl: baseUrl,
-        appVersion: appVersion,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 15),
-        apiLogTag: 'ENTITLEMENT',
-      );
+  BackendEntitlementRepository({
+    required String baseUrl,
+    String? appVersion,
+    SupabaseTokenCoordinator? tokenCoordinator,
+  }) : _dio = createAuthenticatedBackendDio(
+         tokenCoordinator: tokenCoordinator,
+         baseUrl: baseUrl,
+         appVersion: appVersion,
+         connectTimeout: const Duration(seconds: 10),
+         receiveTimeout: const Duration(seconds: 15),
+         apiLogTag: 'ENTITLEMENT',
+       );
 
   /// 测试用构造：注入 Dio。
   BackendEntitlementRepository.withDio(this._dio);
@@ -83,7 +89,9 @@ class BackendEntitlementRepository implements EntitlementRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         '/api/entitlements',
         queryParameters: force ? const {'force': '1'} : null,
-        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+        options: authRetryOnceOptions(
+          headers: {'Authorization': 'Bearer $accessToken'},
+        ),
       );
       final data = response.data;
       if (data == null) {
@@ -166,5 +174,6 @@ final entitlementRepositoryProvider = Provider<EntitlementRepository>((ref) {
   return BackendEntitlementRepository(
     baseUrl: apiBaseUrl,
     appVersion: readAppVersion(ref),
+    tokenCoordinator: ref.read(supabaseTokenCoordinatorProvider),
   );
 });

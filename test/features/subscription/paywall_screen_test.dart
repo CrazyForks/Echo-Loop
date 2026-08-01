@@ -32,6 +32,11 @@ class _FixedController extends SubscriptionController {
   final EntitlementState _state;
   @override
   EntitlementState build() => _state;
+
+  @override
+  Future<void> refreshIfStale({
+    Duration maxAge = const Duration(hours: 24),
+  }) async {}
 }
 
 /// 记录购买 / 恢复调用次数的替身，用于验证登录门是否拦截了动作。
@@ -43,9 +48,12 @@ class _SpyController extends SubscriptionController {
   int refreshCalls = 0;
   int checkoutCalls = 0;
   int portalCalls = 0;
+  int refreshIfStaleCalls = 0;
   String? checkoutPlanId;
   bool? checkoutAllowStoreFallback;
   Object? restoreError;
+  Object? checkoutError;
+  EntitlementState? stateAfterCheckoutError;
   @override
   EntitlementState build() => _state;
   @override
@@ -60,6 +68,13 @@ class _SpyController extends SubscriptionController {
   @override
   Future<void> refresh({bool force = false}) async => refreshCalls++;
   @override
+  Future<void> refreshIfStale({
+    Duration maxAge = const Duration(hours: 24),
+  }) async {
+    refreshIfStaleCalls++;
+  }
+
+  @override
   Future<Uri> startPaddleCheckout(
     String planId, {
     bool allowStoreFallback = false,
@@ -67,6 +82,12 @@ class _SpyController extends SubscriptionController {
     checkoutCalls++;
     checkoutPlanId = planId;
     checkoutAllowStoreFallback = allowStoreFallback;
+    final error = checkoutError;
+    if (error != null) {
+      final next = stateAfterCheckoutError;
+      if (next != null) state = next;
+      throw error;
+    }
     return Uri.parse('https://checkout.paddle.test/txn_1');
   }
 
@@ -318,7 +339,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 权益列表仍展示
-    expect(find.text('More AI subtitle transcriptions'), findsOneWidget);
+    expect(find.text('More AI subtitle transcription'), findsOneWidget);
     expect(find.text('Special offer: 50% off your first year'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Subscribe'), findsOneWidget);
     expect(find.textContaining('RevenueCat'), findsNothing);
@@ -546,6 +567,95 @@ void main() {
     expect(spy.refreshCalls, 0);
   });
 
+  testWidgets('权益 unknown 时自动尝试刷新并禁止 checkout', (tester) async {
+    final spy = _SpyController(const EntitlementState.unknown());
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.unknown(),
+        plans: _paddlePlans,
+        webCheckout: true,
+        authenticated: true,
+        controller: () => spy,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(spy.refreshIfStaleCalls, 1);
+    expect(
+      find.text(
+        'We couldn\'t confirm your membership status. Retry before purchasing.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(FilledButton, 'Subscribe'), findsNothing);
+    expect(spy.checkoutCalls, 0);
+  });
+
+  testWidgets('已确认 fresh Free 后台刷新时保持套餐购买区', (tester) async {
+    const refreshingFree = EntitlementState(
+      status: EntitlementStatus.free,
+      entitlement: Entitlement(isPremium: false),
+      isRefreshing: true,
+    );
+    final spy = _SpyController(refreshingFree);
+    await tester.pumpWidget(
+      _harness(
+        state: refreshingFree,
+        plans: _paddlePlans,
+        webCheckout: true,
+        authenticated: true,
+        controller: () => spy,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Subscribe'), findsOneWidget);
+    expect(find.text('Checking your membership status…'), findsNothing);
+  });
+
+  testWidgets('checkout already_entitled 不打开浏览器并提示权益已更新', (tester) async {
+    final spy = _SpyController(const EntitlementState.free())
+      ..checkoutError = PurchaseException(
+        'already entitled',
+        alreadyEntitled: true,
+      )
+      ..stateAfterCheckoutError = const EntitlementState(
+        status: EntitlementStatus.premium,
+        entitlement: Entitlement(
+          isPremium: true,
+          source: EntitlementSource.paddle,
+        ),
+      );
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.free(),
+        plans: _paddlePlans,
+        webCheckout: true,
+        authenticated: true,
+        identity: const SubscriptionIdentity(
+          userId: 'user-1',
+          accessToken: 'token',
+        ),
+        controller: () => spy,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Subscribe'));
+    await tester.pumpAndSettle();
+
+    expect(spy.checkoutCalls, 1);
+    expect(urlLauncher.launched, isEmpty);
+    expect(
+      find.text('Your membership status has been updated.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Couldn\'t open the checkout page. Please try again.'),
+      findsNothing,
+    );
+  });
+
   testWidgets('direct Premium 用户：管理订阅打开 Paddle Customer Portal', (
     tester,
   ) async {
@@ -620,40 +730,38 @@ void main() {
 
     // 权益列表
     expect(find.text('Echo Loop Premium'), findsWidgets);
-    expect(find.text('Unlock more AI-powered features'), findsOneWidget);
-    expect(find.text('More AI subtitle transcriptions'), findsOneWidget);
-    expect(find.text('More AI translations'), findsOneWidget);
-    expect(find.text('More AI word and phrase explanation'), findsOneWidget);
-    expect(find.text('More AI sentence analysis'), findsOneWidget);
-    expect(find.text('More AI assistant chats'), findsOneWidget);
+    expect(find.text('Get more AI-powered learning'), findsOneWidget);
+    expect(find.text('More AI subtitle transcription'), findsOneWidget);
+    expect(find.text('More AI translation'), findsOneWidget);
+    expect(find.text('More AI word explanation'), findsOneWidget);
+    expect(find.text('More AI sentence breakdown'), findsOneWidget);
+    expect(find.text('More AI assistant conversations'), findsOneWidget);
     expect(find.text('Priority support'), findsOneWidget);
     expect(find.text('More AI sentence chunking'), findsOneWidget);
     expect(find.text('Special offer:'), findsNothing);
     expect(find.byKey(const ValueKey('paywall_header_logo')), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('More AI subtitle transcriptions')).dy <
-          tester.getTopLeft(find.text('More AI translations')).dy,
+      tester.getTopLeft(find.text('More AI subtitle transcription')).dy <
+          tester.getTopLeft(find.text('More AI translation')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI translations')).dy <
-          tester
-              .getTopLeft(find.text('More AI word and phrase explanation'))
-              .dy,
+      tester.getTopLeft(find.text('More AI translation')).dy <
+          tester.getTopLeft(find.text('More AI word explanation')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI word and phrase explanation')).dy <
-          tester.getTopLeft(find.text('More AI sentence analysis')).dy,
+      tester.getTopLeft(find.text('More AI word explanation')).dy <
+          tester.getTopLeft(find.text('More AI sentence breakdown')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI sentence analysis')).dy <
-          tester.getTopLeft(find.text('More AI assistant chats')).dy,
+      tester.getTopLeft(find.text('More AI sentence breakdown')).dy <
+          tester.getTopLeft(find.text('More AI assistant conversations')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI assistant chats')).dy <
+      tester.getTopLeft(find.text('More AI assistant conversations')).dy <
           tester.getTopLeft(find.text('More AI sentence chunking')).dy,
       isTrue,
     );
@@ -746,7 +854,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text("You're already on the Premium plan."), findsOneWidget);
+    expect(find.text("You're a member"), findsOneWidget);
     expect(find.text('Manage Subscription'), findsOneWidget);
     // 无到期时间 → 永久状态 + 永久说明；套餐无法判定 → 兜底「会员」徽章
     expect(find.text('Lifetime'), findsOneWidget);
@@ -1094,10 +1202,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Refresh premium status'), findsOneWidget);
+    expect(find.text('Refresh membership'), findsOneWidget);
     expect(find.text('Restore Purchases'), findsNothing);
 
-    await tester.tap(find.text('Refresh premium status'));
+    await tester.tap(find.text('Refresh membership'));
     await tester.pumpAndSettle();
 
     // 统一走 controller.restore()（无 webMode 分流）。

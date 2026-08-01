@@ -9,10 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../config/api_config.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../../providers/package_info_provider.dart';
 import '../../../services/backend_dio.dart';
 import '../../../services/app_logger.dart';
+import '../../../services/supabase_token_coordinator.dart';
 import '../models/subscription_plan.dart';
+import 'purchase_service.dart';
 import '../utils/plan_pricing.dart';
 
 const _uuid = Uuid();
@@ -30,25 +33,39 @@ class PaddleCheckoutSession {
 
 /// Paddle 后端 API 访问层；不负责登录状态或 UI 编排。
 class PaddleBillingRepository {
-  PaddleBillingRepository({required String baseUrl, String? appVersion})
-    : _dio = createBackendDio(
-        baseUrl: baseUrl,
-        appVersion: appVersion,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 20),
-        apiLogTag: 'PADDLE',
-      );
+  PaddleBillingRepository({
+    required String baseUrl,
+    String? appVersion,
+    SupabaseTokenCoordinator? tokenCoordinator,
+  }) : _publicDio = createBackendDio(
+         baseUrl: baseUrl,
+         appVersion: appVersion,
+         connectTimeout: const Duration(seconds: 10),
+         receiveTimeout: const Duration(seconds: 20),
+         apiLogTag: 'PADDLE',
+       ),
+       _authenticatedDio = createAuthenticatedBackendDio(
+         tokenCoordinator: tokenCoordinator,
+         baseUrl: baseUrl,
+         appVersion: appVersion,
+         connectTimeout: const Duration(seconds: 10),
+         receiveTimeout: const Duration(seconds: 20),
+         apiLogTag: 'PADDLE',
+       );
 
   @visibleForTesting
-  PaddleBillingRepository.withDio(this._dio);
+  PaddleBillingRepository.withDio(Dio dio)
+    : _publicDio = dio,
+      _authenticatedDio = dio;
 
-  final Dio _dio;
+  final Dio _publicDio;
+  final Dio _authenticatedDio;
 
   /// 从服务端读取 Paddle 套餐，地区化价格由后端按请求来源判定。
   Future<List<SubscriptionPlan>> fetchPlans() async {
     AppLogger.log('Subscription', 'Paddle plans 请求开始');
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _publicDio.get<Map<String, dynamic>>(
         '/api/paddle/plans',
       );
       final data = response.data;
@@ -87,13 +104,13 @@ class PaddleBillingRepository {
     AppLogger.log(
       'Subscription',
       'Paddle checkout 请求开始: planId=$planId locale=$locale '
-          'idempotencyKey=$idempotencyKey',
+          'hasIdempotencyKey=true',
     );
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
+      final response = await _authenticatedDio.post<Map<String, dynamic>>(
         '/api/paddle/checkout',
         data: {'planId': planId, 'locale': locale},
-        options: Options(
+        options: authRetryOnceOptions(
           headers: {
             'Authorization': 'Bearer $accessToken',
             'Idempotency-Key': idempotencyKey,
@@ -125,10 +142,30 @@ class PaddleBillingRepository {
             'attemptId=$attemptId host=${uri.host} path=${uri.path}',
       );
       return PaddleCheckoutSession(attemptId: attemptId, checkoutUrl: uri);
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      final code = data is Map<String, dynamic> ? data['code'] : null;
+      if (error.response?.statusCode == 409 && code == 'already_entitled') {
+        AppLogger.log(
+          'Subscription',
+          'Paddle checkout 已有权益: planId=$planId '
+              'requestId=${data is Map<String, dynamic> ? data['requestId'] : null}',
+        );
+        throw PurchaseException(
+          'User already has an active entitlement',
+          alreadyEntitled: true,
+        );
+      }
+      AppLogger.log(
+        'Subscription',
+        'Paddle checkout 请求失败: planId=$planId '
+            'http=${error.response?.statusCode ?? "none"}',
+      );
+      rethrow;
     } catch (error) {
       AppLogger.log(
         'Subscription',
-        'Paddle checkout 请求失败: planId=$planId error=$error',
+        'Paddle checkout 请求失败: planId=$planId type=${error.runtimeType}',
       );
       rethrow;
     }
@@ -138,9 +175,11 @@ class PaddleBillingRepository {
   Future<Uri> createPortal({required String accessToken}) async {
     AppLogger.log('Subscription', 'Paddle Portal 请求开始');
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
+      final response = await _authenticatedDio.post<Map<String, dynamic>>(
         '/api/paddle/portal',
-        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+        options: authRetryOnceOptions(
+          headers: {'Authorization': 'Bearer $accessToken'},
+        ),
       );
       final data = response.data;
       final raw = data?['portalUrl'];
@@ -245,5 +284,6 @@ final paddleBillingRepositoryProvider = Provider<PaddleBillingRepository>((
   return PaddleBillingRepository(
     baseUrl: apiBaseUrl,
     appVersion: readAppVersion(ref),
+    tokenCoordinator: ref.read(supabaseTokenCoordinatorProvider),
   );
 });

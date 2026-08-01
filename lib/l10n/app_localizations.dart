@@ -116,17 +116,83 @@ abstract class AppLocalizations {
   /// **'Get more AI-powered learning'**
   String get premiumTagline;
 
+  /// No description provided for @aiQuotaExceededGenericTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This month\'s free AI quota is used up'**
+  String get aiQuotaExceededGenericTitle;
+
   /// No description provided for @aiQuotaExceededTitle.
   ///
   /// In en, this message translates to:
-  /// **'You\'ve reached your free limit'**
-  String get aiQuotaExceededTitle;
+  /// **'This month\'s free {feature} quota is used up'**
+  String aiQuotaExceededTitle(String feature);
+
+  /// No description provided for @aiQuotaFeatureTranslation.
+  ///
+  /// In en, this message translates to:
+  /// **'AI translation'**
+  String get aiQuotaFeatureTranslation;
+
+  /// No description provided for @aiQuotaFeatureAnalysis.
+  ///
+  /// In en, this message translates to:
+  /// **'AI sentence analysis'**
+  String get aiQuotaFeatureAnalysis;
+
+  /// No description provided for @aiQuotaFeatureSenseGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'AI sentence chunking'**
+  String get aiQuotaFeatureSenseGroup;
+
+  /// No description provided for @aiQuotaFeatureWordAnalysis.
+  ///
+  /// In en, this message translates to:
+  /// **'AI word analysis'**
+  String get aiQuotaFeatureWordAnalysis;
+
+  /// No description provided for @aiQuotaFeatureTranscription.
+  ///
+  /// In en, this message translates to:
+  /// **'AI subtitle transcription'**
+  String get aiQuotaFeatureTranscription;
+
+  /// No description provided for @aiQuotaFeatureChat.
+  ///
+  /// In en, this message translates to:
+  /// **'AI assistant'**
+  String get aiQuotaFeatureChat;
+
+  /// No description provided for @aiQuotaFeatureRetellReview.
+  ///
+  /// In en, this message translates to:
+  /// **'AI retell review'**
+  String get aiQuotaFeatureRetellReview;
 
   /// No description provided for @aiQuotaExceededMessage.
   ///
   /// In en, this message translates to:
   /// **'Upgrade to unlock more AI usage and features.'**
   String get aiQuotaExceededMessage;
+
+  /// No description provided for @aiQuotaUnsupportedGenericTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The free plan doesn\'t support this AI feature'**
+  String get aiQuotaUnsupportedGenericTitle;
+
+  /// No description provided for @aiQuotaUnsupportedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The free plan doesn\'t support {feature}'**
+  String aiQuotaUnsupportedTitle(String feature);
+
+  /// No description provided for @aiQuotaUnsupportedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to unlock this feature and more AI features.'**
+  String get aiQuotaUnsupportedMessage;
 
   /// No description provided for @aiQuotaExceededCta.
   ///
@@ -403,6 +469,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Purchase successful. Your membership is syncing and will activate shortly.'**
   String get premiumPurchasePendingSync;
+
+  /// No description provided for @premiumCheckingEntitlement.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your membership status…'**
+  String get premiumCheckingEntitlement;
+
+  /// No description provided for @premiumEntitlementCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t confirm your membership status. Retry before purchasing.'**
+  String get premiumEntitlementCheckFailed;
+
+  /// No description provided for @premiumEntitlementUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership status has been updated.'**
+  String get premiumEntitlementUpdated;
+
+  /// No description provided for @premiumAlreadyEntitledSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'An active subscription was found, but syncing failed. Tap Restore Purchases in the top-right corner.'**
+  String get premiumAlreadyEntitledSyncFailed;
 
   /// No description provided for @premiumPeriodMonthly.
   ///
@@ -6086,18 +6176,6 @@ abstract class AppLocalizations {
   /// **'Tap here when a sentence is hard to follow. It will be auto-marked as difficult and you\'ll enter explanation mode.'**
   String get guideIntensiveListenCantUnderstandDescription;
 
-  /// No description provided for @guideIntensiveListenAnnotationContinueDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Once you understand this sentence, tap Continue to move on to the next one.'**
-  String get guideIntensiveListenAnnotationContinueDescription;
-
-  /// No description provided for @guideIntensiveListenAnnotationPlayDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap the play button to play the current sentence.'**
-  String get guideIntensiveListenAnnotationPlayDescription;
-
   /// No description provided for @guideSentenceTileNumberDescription.
   ///
   /// In en, this message translates to:
@@ -6853,12 +6931,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Auto-skip speaking tasks in your learning plan'**
   String get autoSkipRetellSubtitle;
-
-  /// No description provided for @autoSkipRetellDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'When enabled, speaking practice tasks are auto-marked as skipped; you can complete them anytime in free practice.'**
-  String get autoSkipRetellDescription;
 
   /// No description provided for @autoExpandCachedAnnotationToggle.
   ///
@@ -8557,12 +8629,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generation failed. Tap to retry.'**
   String get chatErrorGenerate;
-
-  /// No description provided for @chatQuotaTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Free quota used up'**
-  String get chatQuotaTitle;
 
   /// No description provided for @chatUpgrade.
   ///

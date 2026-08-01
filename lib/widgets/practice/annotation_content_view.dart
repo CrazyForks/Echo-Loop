@@ -14,9 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/auth/sign_in_required_dialog.dart';
-import '../../features/subscription/widgets/feature_gate.dart';
-import '../../features/subscription/providers/ai_quota_limit_provider.dart';
-import '../../features/subscription/providers/subscription_identity.dart';
+import '../../features/subscription/widgets/ai_quota_exceeded_dialog.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
 import '../../database/providers.dart';
@@ -447,50 +445,21 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     );
   }
 
-  /// 已登录但未解锁 AI 功能时引导订阅升级（登录优先逻辑见 openPaywall）。
+  /// 已登录但未解锁 AI 功能时展示统一额度提示。
   Future<void> _showAiQuotaExceededDialog(
     AiFeatureQuotaExceededException error, {
     bool force = false,
   }) async {
     if (_isShowingAiQuotaDialog || !mounted) return;
-    final feature = error.feature;
-    final userId = ref.read(subscriptionIdentityProvider).userId;
-    final store = ref.read(aiQuotaLimitStoreProvider);
-    if (userId != null &&
-        feature != null &&
-        !force &&
-        !store.shouldShowReminder(userId, feature)) {
-      return;
-    }
-
     _isShowingAiQuotaDialog = true;
     try {
-      final l10n = AppLocalizations.of(context)!;
-      final result = await showDialog<String>(
+      await showAiQuotaExceededDialog(
         context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.aiQuotaExceededTitle),
-          content: Text(l10n.aiQuotaExceededMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop('dismiss'),
-              child: Text(l10n.aiQuotaExceededDismiss),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop('subscribe'),
-              child: Text(l10n.aiQuotaExceededSubscribe),
-            ),
-          ],
-        ),
+        ref: ref,
+        feature: error.feature,
+        reason: error.reason,
+        respectReminderCooldown: !force,
       );
-      if (!mounted) return;
-      if (userId != null && feature != null) {
-        await store.markReminderShown(userId, feature);
-      }
-      if (result == 'subscribe' && mounted) {
-        await openPaywall(context, ref);
-      }
     } finally {
       _isShowingAiQuotaDialog = false;
     }

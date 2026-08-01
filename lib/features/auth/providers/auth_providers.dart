@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../analytics/analytics_providers.dart';
 import '../../../config/auth_config.dart' as auth_config;
 import '../../../services/app_logger.dart';
+import '../../../services/supabase_token_coordinator.dart';
 import '../../../services/user_id_service.dart';
 import '../apple_sign_in_credentials.dart';
 import '../google_sign_in_credentials.dart';
@@ -361,6 +362,20 @@ final supabaseSessionProvider = StreamProvider<Session?>((ref) {
   });
 
   return controller.stream;
+});
+
+/// 自建后端鉴权请求共享的 Token Gate。
+///
+/// 未配置 Supabase 的离线构建返回 null；生产 API client 只在非空时安装鉴权拦截器。
+final supabaseTokenCoordinatorProvider = Provider<SupabaseTokenCoordinator?>((
+  ref,
+) {
+  if (!auth_config.isAuthConfigured) return null;
+  final coordinator = SupabaseTokenCoordinator(
+    SupabaseAuthSessionSource(Supabase.instance.client.auth),
+  );
+  ref.onDispose(coordinator.dispose);
+  return coordinator;
 });
 
 /// 当前是否已登录的便捷 Provider。

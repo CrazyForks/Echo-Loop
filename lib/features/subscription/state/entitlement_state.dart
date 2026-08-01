@@ -23,6 +23,13 @@ enum EntitlementStatus {
   premium,
 }
 
+/// 最近一次权益确认失败的稳定分类，UI 不依赖底层异常字符串。
+enum EntitlementFailureReason {
+  temporarilyUnavailable,
+  notSignedIn,
+  identityChanged,
+}
+
 /// 不可变权益运行态。
 class EntitlementState {
   /// 当前权益状态。
@@ -36,6 +43,12 @@ class EntitlementState {
   /// 失败不静默吞：在线对账失败时保留上次结果并置 [isStale]，供 UI 提示 / 重试。
   final bool isStale;
 
+  /// 是否正在向在线权威源确认权益。
+  final bool isRefreshing;
+
+  /// 最近一次失败分类；在线确认成功后清空。
+  final EntitlementFailureReason? failureReason;
+
   /// 最近一次对账的错误描述（成功时为 null）。
   final String? error;
 
@@ -43,6 +56,8 @@ class EntitlementState {
     required this.status,
     this.entitlement,
     this.isStale = false,
+    this.isRefreshing = false,
+    this.failureReason,
     this.error,
   });
 
@@ -51,6 +66,8 @@ class EntitlementState {
     : status = EntitlementStatus.unknown,
       entitlement = null,
       isStale = false,
+      isRefreshing = false,
+      failureReason = null,
       error = null;
 
   /// 已确认的免费态。
@@ -58,6 +75,8 @@ class EntitlementState {
     : status = EntitlementStatus.free,
       entitlement = Entitlement.free,
       isStale = false,
+      isRefreshing = false,
+      failureReason = null,
       error = null;
 
   /// 是否解锁付费权益（仅 premium 态为真；unknown / free 均为否）。
@@ -68,6 +87,9 @@ class EntitlementState {
     Entitlement? entitlement,
     bool clearEntitlement = false,
     bool? isStale,
+    bool? isRefreshing,
+    EntitlementFailureReason? failureReason,
+    bool clearFailureReason = false,
     String? error,
     bool clearError = false,
   }) {
@@ -75,6 +97,10 @@ class EntitlementState {
       status: status ?? this.status,
       entitlement: clearEntitlement ? null : entitlement ?? this.entitlement,
       isStale: isStale ?? this.isStale,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      failureReason: clearFailureReason
+          ? null
+          : failureReason ?? this.failureReason,
       error: clearError ? null : error ?? this.error,
     );
   }
@@ -86,8 +112,17 @@ class EntitlementState {
           status == other.status &&
           entitlement == other.entitlement &&
           isStale == other.isStale &&
+          isRefreshing == other.isRefreshing &&
+          failureReason == other.failureReason &&
           error == other.error;
 
   @override
-  int get hashCode => Object.hash(status, entitlement, isStale, error);
+  int get hashCode => Object.hash(
+    status,
+    entitlement,
+    isStale,
+    isRefreshing,
+    failureReason,
+    error,
+  );
 }

@@ -18,11 +18,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumTagline => 'Get more AI-powered learning';
 
   @override
-  String get aiQuotaExceededTitle => 'You\'ve reached your free limit';
+  String get aiQuotaExceededGenericTitle =>
+      'This month\'s free AI quota is used up';
+
+  @override
+  String aiQuotaExceededTitle(String feature) {
+    return 'This month\'s free $feature quota is used up';
+  }
+
+  @override
+  String get aiQuotaFeatureTranslation => 'AI translation';
+
+  @override
+  String get aiQuotaFeatureAnalysis => 'AI sentence analysis';
+
+  @override
+  String get aiQuotaFeatureSenseGroup => 'AI sentence chunking';
+
+  @override
+  String get aiQuotaFeatureWordAnalysis => 'AI word analysis';
+
+  @override
+  String get aiQuotaFeatureTranscription => 'AI subtitle transcription';
+
+  @override
+  String get aiQuotaFeatureChat => 'AI assistant';
+
+  @override
+  String get aiQuotaFeatureRetellReview => 'AI retell review';
 
   @override
   String get aiQuotaExceededMessage =>
       'Upgrade to unlock more AI usage and features.';
+
+  @override
+  String get aiQuotaUnsupportedGenericTitle =>
+      'The free plan doesn\'t support this AI feature';
+
+  @override
+  String aiQuotaUnsupportedTitle(String feature) {
+    return 'The free plan doesn\'t support $feature';
+  }
+
+  @override
+  String get aiQuotaUnsupportedMessage =>
+      'Upgrade to unlock this feature and more AI features.';
 
   @override
   String get aiQuotaExceededCta => 'Upgrade to Premium';
@@ -174,6 +214,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get premiumPurchasePendingSync =>
       'Purchase successful. Your membership is syncing and will activate shortly.';
+
+  @override
+  String get premiumCheckingEntitlement => 'Checking your membership status…';
+
+  @override
+  String get premiumEntitlementCheckFailed =>
+      'We couldn\'t confirm your membership status. Retry before purchasing.';
+
+  @override
+  String get premiumEntitlementUpdated =>
+      'Your membership status has been updated.';
+
+  @override
+  String get premiumAlreadyEntitledSyncFailed =>
+      'An active subscription was found, but syncing failed. Tap Restore Purchases in the top-right corner.';
 
   @override
   String get premiumPeriodMonthly => 'Monthly';
@@ -3496,14 +3551,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap here when a sentence is hard to follow. It will be auto-marked as difficult and you\'ll enter explanation mode.';
 
   @override
-  String get guideIntensiveListenAnnotationContinueDescription =>
-      'Once you understand this sentence, tap Continue to move on to the next one.';
-
-  @override
-  String get guideIntensiveListenAnnotationPlayDescription =>
-      'Tap the play button to play the current sentence.';
-
-  @override
   String get guideSentenceTileNumberDescription =>
       'Tap the number to play from this sentence.';
 
@@ -3929,10 +3976,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get autoSkipRetellSubtitle =>
       'Auto-skip speaking tasks in your learning plan';
-
-  @override
-  String get autoSkipRetellDescription =>
-      'When enabled, speaking practice tasks are auto-marked as skipped; you can complete them anytime in free practice.';
 
   @override
   String get autoExpandCachedAnnotationToggle => 'Auto-expand Analysis';
@@ -4879,9 +4922,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatErrorGenerate => 'Generation failed. Tap to retry.';
-
-  @override
-  String get chatQuotaTitle => 'Free quota used up';
 
   @override
   String get chatUpgrade => 'Upgrade';

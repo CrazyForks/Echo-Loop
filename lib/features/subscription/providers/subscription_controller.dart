@@ -84,6 +84,10 @@ class SubscriptionController extends _$SubscriptionController {
   /// E6 信号触发的对账是否在途（去重：一批并发响应只触发一次 refresh）。
   bool _signalRefreshInFlight = false;
 
+  /// 权益请求级 single-flight；force 比普通刷新强，不能被普通刷新吞掉。
+  Future<void>? _normalRefreshInFlight;
+  Future<void>? _forceRefreshInFlight;
+
   @override
   EntitlementState build() {
     // 监听身份变化：登出清权益、切换用户重对账。
@@ -143,7 +147,57 @@ class SubscriptionController extends _$SubscriptionController {
   /// [force] 让后端绕过节流回源 RC（成交收敛 / 用户主动刷新用）。
   Future<void> refresh({bool force = false}) async {
     await _waitForIdentitySync();
-    await _refreshOnline(force: force);
+    if (!force) {
+      final stronger = _forceRefreshInFlight;
+      if (stronger != null) {
+        AppLogger.log('Subscription', '权益刷新合并: requested=normal joined=force');
+        return stronger;
+      }
+      final existing = _normalRefreshInFlight;
+      if (existing != null) {
+        AppLogger.log('Subscription', '权益刷新合并: requested=normal joined=normal');
+        return existing;
+      }
+      final operation = _refreshOnline();
+      _normalRefreshInFlight = operation;
+      try {
+        await operation;
+      } finally {
+        if (identical(_normalRefreshInFlight, operation)) {
+          _normalRefreshInFlight = null;
+        }
+      }
+      return;
+    }
+
+    final existingForce = _forceRefreshInFlight;
+    if (existingForce != null) {
+      AppLogger.log('Subscription', '权益刷新合并: requested=force joined=force');
+      return existingForce;
+    }
+    final normal = _normalRefreshInFlight;
+    if (normal != null) {
+      AppLogger.log('Subscription', '强制权益刷新排队: waitingFor=normal');
+      await normal;
+      AppLogger.log('Subscription', '强制权益刷新开始补执行: after=normal');
+    }
+    final forceAfterWait = _forceRefreshInFlight;
+    if (forceAfterWait != null) {
+      AppLogger.log(
+        'Subscription',
+        '权益刷新合并: requested=force joined=forceAfterWait',
+      );
+      return forceAfterWait;
+    }
+    final operation = _refreshOnline(force: true);
+    _forceRefreshInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_forceRefreshInFlight, operation)) {
+        _forceRefreshInFlight = null;
+      }
+    }
   }
 
   /// 等待当前最新身份同步完成。等待过程中若身份再次切换，会继续等待新的任务，
@@ -178,47 +232,95 @@ class SubscriptionController extends _$SubscriptionController {
     );
 
     final cached = await _readValidCache(userId);
-    Entitlement? remote;
-    if (userId != null && accessToken != null) {
-      // 唯一权威源：后端 /api/entitlements（服务端已合并 RC + Paddle）。
-      // fetchRemote 约定：成功有权益→premium；成功无权益→Entitlement.free（权威降级）；
-      // 网络/超时/非2xx/解析异常→null（内部已捕获，不抛），交由 reconciler 走缓存兜底。
-      remote = await _repository.fetchRemote(
-        userId: userId,
-        accessToken: accessToken,
-        force: force,
+    if (generation != _generation) {
+      AppLogger.log(
+        'Subscription',
+        '权益刷新丢弃: phase=afterCache generation=$generation '
+            'currentGeneration=$_generation',
       );
-    } else if (userId == null) {
-      // 匿名：无账号可绑定的权益，明确 free（购买/恢复均强制登录，不存在匿名会员）。
-      remote = Entitlement.free;
+      return;
     }
-    // userId != null 但 token 未就绪：remote 保持 null → 缓存兜底，不误判 free。
-
-    if (generation != _generation) return; // 竞态：被更新的对账/登录切换作废。
-
-    final next = reconcileEntitlement(
-      remote: remote,
-      cached: cached,
-      now: clock.now(),
+    _setEntitlementState(
+      state.copyWith(
+        isRefreshing: true,
+        clearError: true,
+        clearFailureReason: true,
+      ),
     );
-    _setEntitlementState(next);
-    if (remote != null) {
-      _lastOnlineSyncAt = clock.now(); // E8：记录在线权威确认时刻。
-    }
+    var settled = false;
+    try {
+      Entitlement? remote;
+      if (userId != null && accessToken != null) {
+        // 唯一权威源：后端 /api/entitlements（服务端已合并 RC + Paddle）。
+        remote = await _repository.fetchRemote(
+          userId: userId,
+          accessToken: accessToken,
+          force: force,
+        );
+      } else if (userId == null) {
+        // 匿名：无账号可绑定的权益，明确 free。
+        remote = Entitlement.free;
+      } else {
+        AppLogger.log(
+          'Subscription',
+          '权益请求跳过: reason=tokenUnavailable generation=$generation '
+              'hasCached=${cached != null}',
+        );
+      }
 
-    // 对账关键日志：在线源 / 缓存各自结果 + 合并后最终态，便于排查
-    // 「删了订阅仍显示已订阅」「在线不可达走缓存」等问题。
-    AppLogger.log(
-      'Subscription',
-      '对账完成: remote=${remote != null ? "isPremium=${remote.isPremium}" : "无"} '
-          'cached=${cached != null ? "isPremium=${cached.entitlement.isPremium}" : "无"} '
-          '→ status=${state.status.name} isStale=${state.isStale} '
-          'source=${state.entitlement?.source.name ?? "none"} '
-          'channel=${_paymentChannel.name}',
-    );
+      if (generation != _generation) {
+        AppLogger.log(
+          'Subscription',
+          '权益刷新丢弃: phase=afterRemote generation=$generation '
+              'currentGeneration=$_generation',
+        );
+        return;
+      }
 
-    if (remote != null) {
-      await _writeCache(remote, userId);
+      final next = reconcileEntitlement(
+        remote: remote,
+        cached: cached,
+        now: clock.now(),
+      );
+      _setEntitlementState(
+        next.copyWith(
+          isRefreshing: false,
+          failureReason: remote == null
+              ? EntitlementFailureReason.temporarilyUnavailable
+              : null,
+          clearFailureReason: remote != null,
+          error: remote == null ? 'entitlement_temporarily_unavailable' : null,
+          clearError: remote != null,
+        ),
+      );
+      settled = true;
+      if (remote != null) {
+        _lastOnlineSyncAt = clock.now();
+      }
+
+      AppLogger.log(
+        'Subscription',
+        '对账完成: remote=${remote != null ? "isPremium=${remote.isPremium}" : "无"} '
+            'cached=${cached != null ? "isPremium=${cached.entitlement.isPremium}" : "无"} '
+            '→ status=${state.status.name} isStale=${state.isStale} '
+            'source=${state.entitlement?.source.name ?? "none"} '
+            'channel=${_paymentChannel.name}',
+      );
+
+      if (remote != null) {
+        await _writeCache(remote, userId);
+      }
+    } finally {
+      // 仅当前代际仍属于本请求时收尾，旧请求不能关闭新请求的刷新态。
+      if (!settled && generation == _generation && state.isRefreshing) {
+        _setEntitlementState(
+          state.copyWith(
+            isRefreshing: false,
+            failureReason: EntitlementFailureReason.temporarilyUnavailable,
+            error: 'entitlement_temporarily_unavailable',
+          ),
+        );
+      }
     }
   }
 
@@ -301,10 +403,21 @@ class SubscriptionController extends _$SubscriptionController {
             'attemptId=${session.attemptId} host=${session.checkoutUrl.host}',
       );
       return session.checkoutUrl;
+    } on PurchaseException catch (error) {
+      if (error.alreadyEntitled) {
+        AppLogger.log('Subscription', 'Paddle checkout 已有权益，开始强制对账');
+        await refresh(force: true);
+      }
+      AppLogger.log(
+        'Subscription',
+        'Paddle checkout 创建失败: planId=$planId type=${error.runtimeType} '
+            'alreadyEntitled=${error.alreadyEntitled}',
+      );
+      rethrow;
     } catch (error) {
       AppLogger.log(
         'Subscription',
-        'Paddle checkout 创建失败: planId=$planId error=$error',
+        'Paddle checkout 创建失败: planId=$planId type=${error.runtimeType}',
       );
       rethrow;
     }
@@ -426,6 +539,9 @@ class SubscriptionController extends _$SubscriptionController {
   Future<void> refreshIfStale({
     Duration maxAge = const Duration(hours: 24),
   }) async {
+    // 冷启动身份绑定本身会完成首次对账；先等它落定再判断，避免 Paywall 进入事件
+    // 与启动对账并发造成第二次 entitlement GET。
+    await _waitForIdentitySync();
     final lastSync = _lastOnlineSyncAt;
     final now = clock.now();
     final expiresAt = state.entitlement?.expiresAt;
@@ -469,9 +585,7 @@ class SubscriptionController extends _$SubscriptionController {
           'path=$path，触发对账',
     );
     _signalRefreshInFlight = true;
-    unawaited(
-      refresh().whenComplete(() => _signalRefreshInFlight = false),
-    );
+    unawaited(refresh().whenComplete(() => _signalRefreshInFlight = false));
   }
 
   /// E7：后端按权威权益拒绝请求（402 配额超限）而本地仍 premium 时的收敛入口。
@@ -498,7 +612,8 @@ class SubscriptionController extends _$SubscriptionController {
     _generation++; // 作废在途对账。
     await _cache.clear();
     await _purchases.invalidateCustomerInfoCache();
-    await refresh();
+    // force 会等待被 generation 作废的普通刷新结束，并保证补执行一次新对账。
+    await refresh(force: true);
   }
 
   /// 手动覆盖权益状态（仅 debug 构建）。传 null 解除覆盖并重新对账。
@@ -508,7 +623,8 @@ class SubscriptionController extends _$SubscriptionController {
     if (!kDebugMode) return;
     _debugOverride = status;
     if (status == null) {
-      unawaited(refresh());
+      // 解除覆盖后必须真实回源；不能合并进可能已被作废的普通刷新。
+      unawaited(refresh(force: true));
       return;
     }
     _generation++; // 作废在途对账，避免被真实结果覆盖。
@@ -541,7 +657,10 @@ class SubscriptionController extends _$SubscriptionController {
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       await refresh(force: true);
       if (state.isActive) {
-        AppLogger.log('Subscription', '成交收敛完成: reason=$reason attempt=$attempt');
+        AppLogger.log(
+          'Subscription',
+          '成交收敛完成: reason=$reason attempt=$attempt',
+        );
         return;
       }
       if (attempt < maxAttempts) await Future<void>.delayed(interval);
@@ -579,7 +698,11 @@ class SubscriptionController extends _$SubscriptionController {
     final previousUserId = previous?.userId;
     final nextUserId = next.userId;
     if (!isInitialIdentity && previousUserId == nextUserId) {
-      return; // 仅 token 刷新，忽略。
+      if (previous.accessToken != next.accessToken &&
+          (state.status == EntitlementStatus.unknown || state.isStale)) {
+        Future.microtask(() => refreshIfStale());
+      }
+      return;
     }
 
     _generation++; // 作废在途对账。

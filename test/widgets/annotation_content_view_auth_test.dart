@@ -14,6 +14,8 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/daos/saved_sense_group_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
+import 'package:echo_loop/features/subscription/models/premium_feature.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_availability.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/sense_group_result.dart';
@@ -32,7 +34,13 @@ class _NoopSentenceAiApiClient extends SentenceAiApiClient {
 }
 
 class _QuotaSentenceAiNotifier extends SentenceAiNotifier {
-  _QuotaSentenceAiNotifier({required super.cacheDao, required super.apiClient});
+  _QuotaSentenceAiNotifier({
+    required super.cacheDao,
+    required super.apiClient,
+    this.reason = AiQuotaRejectionReason.exhausted,
+  });
+
+  final AiQuotaRejectionReason reason;
 
   final translationRespectLocalQuotaResetValues = <bool>[];
   final analysisRespectLocalQuotaResetValues = <bool>[];
@@ -49,7 +57,10 @@ class _QuotaSentenceAiNotifier extends SentenceAiNotifier {
     bool respectLocalQuotaReset = false,
   }) async* {
     translationRespectLocalQuotaResetValues.add(respectLocalQuotaReset);
-    throw const AiFeatureQuotaExceededException();
+    throw AiFeatureQuotaExceededException(
+      feature: PremiumFeature.aiTranslation,
+      reason: reason,
+    );
   }
 
   @override
@@ -61,7 +72,10 @@ class _QuotaSentenceAiNotifier extends SentenceAiNotifier {
     bool respectLocalQuotaReset = false,
   }) async* {
     analysisRespectLocalQuotaResetValues.add(respectLocalQuotaReset);
-    throw const AiFeatureQuotaExceededException();
+    throw AiFeatureQuotaExceededException(
+      feature: PremiumFeature.aiAnalysis,
+      reason: reason,
+    );
   }
 
   @override
@@ -72,7 +86,10 @@ class _QuotaSentenceAiNotifier extends SentenceAiNotifier {
     bool respectLocalQuotaReset = false,
   }) async* {
     senseGroupRespectLocalQuotaResetValues.add(respectLocalQuotaReset);
-    throw const AiFeatureQuotaExceededException();
+    throw AiFeatureQuotaExceededException(
+      feature: PremiumFeature.aiSenseGroup,
+      reason: reason,
+    );
   }
 }
 
@@ -352,11 +369,14 @@ void main() {
       final respectLocalQuotaResetValues = button == 'Translate'
           ? aiNotifier.translationRespectLocalQuotaResetValues
           : aiNotifier.analysisRespectLocalQuotaResetValues;
+      final quotaTitle = button == 'Translate'
+          ? "This month's free AI translation quota is used up"
+          : "This month's free AI sentence analysis quota is used up";
       expect(respectLocalQuotaResetValues, [false]);
-      expect(
-        find.text('You\'ve reached your free monthly limit'),
-        findsOneWidget,
-      );
+      expect(find.text(quotaTitle), findsOneWidget);
+      final dialogTitle = tester.widget<Text>(find.text(quotaTitle));
+      final dialogTheme = Theme.of(tester.element(find.byType(AlertDialog)));
+      expect(dialogTitle.style, dialogTheme.textTheme.titleLarge);
       expect(find.text('Got it'), findsOneWidget);
       expect(find.text('Upgrade Now'), findsOneWidget);
       expect(find.text('Paywall page'), findsNothing);
@@ -368,6 +388,39 @@ void main() {
       expect(find.text('Paywall page'), findsOneWidget);
     });
   }
+
+  testWidgets('后端 limit=0 时句子 AI 弹窗显示免费版不支持文案', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      aiNotifier: _QuotaSentenceAiNotifier(
+        cacheDao: cacheDao,
+        apiClient: _NoopSentenceAiApiClient(),
+        reason: AiQuotaRejectionReason.unsupportedForFreePlan,
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('translation')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text("The free plan doesn't support AI translation"),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Upgrade to unlock this feature and more AI features.'),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('手动点击超额弹窗关闭后，按钮可再次点击并再次弹窗', (tester) async {
     final cacheDao = _MockCacheDao();
@@ -392,7 +445,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text('You\'ve reached your free monthly limit'),
+      find.text("This month's free AI translation quota is used up"),
       findsOneWidget,
     );
 
@@ -400,14 +453,17 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free monthly limit'), findsNothing);
+    expect(
+      find.text("This month's free AI translation quota is used up"),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const ValueKey('translation')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text('You\'ve reached your free monthly limit'),
+      find.text("This month's free AI translation quota is used up"),
       findsOneWidget,
     );
   });
@@ -435,7 +491,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text('You\'ve reached your free monthly limit'),
+      find.text("This month's free AI sentence chunking quota is used up"),
       findsOneWidget,
     );
 
@@ -443,14 +499,17 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('You\'ve reached your free monthly limit'), findsNothing);
+    expect(
+      find.text("This month's free AI sentence chunking quota is used up"),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const ValueKey('senseGroup')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text('You\'ve reached your free monthly limit'),
+      find.text("This month's free AI sentence chunking quota is used up"),
       findsOneWidget,
     );
   });
@@ -480,7 +539,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.text('You\'ve reached your free monthly limit'),
+      find.text("This month's free AI translation quota is used up"),
       findsOneWidget,
     );
     expect(find.text('Got it'), findsOneWidget);

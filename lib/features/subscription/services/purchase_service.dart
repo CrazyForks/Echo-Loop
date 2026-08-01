@@ -16,6 +16,7 @@ class PurchaseException implements Exception {
     this.cancelled = false,
     this.ownershipConflict = false,
     this.receiptInUse = false,
+    this.alreadyEntitled = false,
   });
 
   /// 错误描述。
@@ -32,10 +33,14 @@ class PurchaseException implements Exception {
   /// 而不是当作「购买失败」。
   final bool receiptInUse;
 
+  /// Paddle 后端确认当前账号已有有效权益，客户端应转为强制对账。
+  final bool alreadyEntitled;
+
   @override
   String toString() =>
       'PurchaseException($message, cancelled: $cancelled, '
-      'ownershipConflict: $ownershipConflict, receiptInUse: $receiptInUse)';
+      'ownershipConflict: $ownershipConflict, receiptInUse: $receiptInUse, '
+      'alreadyEntitled: $alreadyEntitled)';
 }
 
 /// 恢复购买结果。

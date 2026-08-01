@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/auth/providers/auth_providers.dart';
+import '../../features/subscription/models/ai_quota_rejection.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
 import '../../models/dictionary/dictionary_lookup_result.dart';
@@ -70,7 +71,9 @@ class LookupPhraseTooLong extends SourceLookupState {
 
 /// 本月免费额度用尽（后端返回 402）——由 UI 引导订阅升级。
 class LookupQuotaExceeded extends SourceLookupState {
-  const LookupQuotaExceeded();
+  const LookupQuotaExceeded({this.reason = AiQuotaRejectionReason.exhausted});
+
+  final AiQuotaRejectionReason reason;
 }
 
 /// 查询失败（网络/服务端等）
@@ -290,7 +293,8 @@ class DictionaryLookupController extends _$DictionaryLookupController {
       if (_dropResult(id, seq)) return;
       // 后端本月免费额度用尽 → 由 UI 引导订阅（区别于普通网络错误）。
       if (e.response?.statusCode == 402) {
-        _setState(id, const LookupQuotaExceeded());
+        final rejection = AiQuotaRejection.fromResponseData(e.response?.data);
+        _setState(id, LookupQuotaExceeded(reason: rejection.reason));
         return;
       }
       _setState(id, LookupError(e));

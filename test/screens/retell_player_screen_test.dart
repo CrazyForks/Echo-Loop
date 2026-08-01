@@ -29,12 +29,15 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/app_database.dart' show Bookmark;
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/providers/retell_recording_controller_provider.dart';
+import 'package:echo_loop/providers/retell_review_evaluation_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/services/notification_permission_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/services/audio_playback_service.dart';
 import 'package:echo_loop/services/audio_preview_controller.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/features/subscription/providers/subscription_availability.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/widgets/common/playback_controls.dart';
 import 'package:echo_loop/widgets/common/recording_button.dart';
 import 'package:echo_loop/widgets/common/masked_sentence_tile.dart';
@@ -174,6 +177,19 @@ class _SeenGuideRegistry extends GuideRegistry {
   Future<void> reset(String flowId) async {}
 }
 
+/// 可在页面已完成初始化后推送评估状态的测试 controller。
+class _ManualRetellReviewController extends RetellReviewEvaluationController {
+  @override
+  RetellReviewEvaluationState build() => const RetellReviewEvaluationState();
+
+  @override
+  void syncAttempt(String? attemptKey) {}
+
+  void emit(RetellReviewEvaluationState next) {
+    state = next;
+  }
+}
+
 void main() {
   /// 创建测试段落
   List<List<Sentence>> createTestParagraphs() {
@@ -220,6 +236,10 @@ void main() {
               audioItemId: audioId,
             );
           },
+        ),
+        GoRoute(
+          path: '/paywall',
+          builder: (context, state) => const Scaffold(body: Text('Paywall')),
         ),
       ],
     );
@@ -278,6 +298,71 @@ void main() {
   }
 
   group('RetellPlayerScreen — SegmentedButton 位置', () {
+    testWidgets('AI 复述评估额度用尽时先提示，确认升级后才进入订阅页', (tester) async {
+      final reviewController = _ManualRetellReviewController();
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        createTestWidget(
+          extraOverrides: [
+            retellReviewEvaluationProvider.overrideWith(() => reviewController),
+            subscriptionAvailabilityProvider.overrideWithValue(true),
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      reviewController.emit(
+        const RetellReviewEvaluationState(
+          attemptKey: 'retell:a1:0:/tmp/retell-review.m4a',
+          phase: RetellReviewEvaluationPhase.failed,
+          errorCode: 'quota_exceeded',
+          quotaReason: AiQuotaRejectionReason.unsupportedForFreePlan,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("The free plan doesn't support AI retell review"),
+        findsOneWidget,
+      );
+      expect(find.text('Paywall'), findsNothing);
+
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text("The free plan doesn't support AI retell review"),
+        findsNothing,
+      );
+
+      // 用户再次主动评估时仍应可看到提示，而不是被已展示记录静默抑制。
+      reviewController.emit(
+        const RetellReviewEvaluationState(
+          attemptKey: 'retell:a1:0:/tmp/retell-review.m4a',
+          phase: RetellReviewEvaluationPhase.loading,
+        ),
+      );
+      reviewController.emit(
+        const RetellReviewEvaluationState(
+          attemptKey: 'retell:a1:0:/tmp/retell-review.m4a',
+          phase: RetellReviewEvaluationPhase.failed,
+          errorCode: 'quota_exceeded',
+          quotaReason: AiQuotaRejectionReason.unsupportedForFreePlan,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text("The free plan doesn't support AI retell review"),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Upgrade Now'));
+      await tester.pumpAndSettle();
+      expect(find.text('Paywall'), findsOneWidget);
+    });
+
     testWidgets('SegmentedButton 存在且位于句子列表之后', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();

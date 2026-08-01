@@ -42,6 +42,10 @@ void main() {
       tester,
       banner(ChatGate.quotaExceeded, onUpgrade: () => upgrade = true),
     );
+    expect(
+      find.text("This month's free AI assistant quota is used up"),
+      findsOneWidget,
+    );
     expect(find.text('Upgrade'), findsOneWidget);
     await tester.tap(find.byType(TextButton));
     expect(upgrade, isTrue);

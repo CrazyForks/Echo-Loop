@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/features/subscription/models/premium_feature.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/models/sense_group_result.dart';
 import 'package:echo_loop/models/sentence_ai_result.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
@@ -150,6 +151,45 @@ void main() {
             (e) => e.resetAt,
             'resetAt',
             resetAt,
+          ),
+        ),
+      );
+    });
+
+    test('后端 quota_exceeded 且 limit=0 时透传免费版不支持原因', () async {
+      when(
+        () => mockDao.getByHash(any(), l2TranslationType),
+      ).thenAnswer((_) async => null);
+      stubTranslateStream(
+        text,
+        () => _errorTranslation(
+          DioException(
+            requestOptions: RequestOptions(path: '/api/v1/stream/translate'),
+            response: Response(
+              requestOptions: RequestOptions(path: '/api/v1/stream/translate'),
+              statusCode: 402,
+              data: {
+                'code': 'quota_exceeded',
+                'quota': {'used': 0, 'limit': 0},
+              },
+            ),
+          ),
+        ),
+      );
+
+      await expectLater(
+        notifier
+            .getTranslationStream(
+              text,
+              targetLanguage: lang,
+              accessToken: 'token',
+            )
+            .toList(),
+        throwsA(
+          isA<AiFeatureQuotaExceededException>().having(
+            (error) => error.reason,
+            'reason',
+            AiQuotaRejectionReason.unsupportedForFreePlan,
           ),
         ),
       );

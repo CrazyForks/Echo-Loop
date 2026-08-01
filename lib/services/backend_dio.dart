@@ -16,8 +16,22 @@ library;
 import 'package:dio/dio.dart';
 
 import 'api_log_interceptor.dart';
+import 'app_logger.dart';
 import 'client_info.dart';
 import 'entitlement_signal_interceptor.dart';
+import 'supabase_token_coordinator.dart';
+
+/// 响应 401 后的端点级重试策略；默认禁止重放业务请求。
+enum AuthRetryPolicy { none, once }
+
+const _authRetryPolicyKey = 'authRetryPolicy';
+const _authRetryAttemptKey = 'authRetryAttempt';
+
+/// 为明确允许重放的端点标记一次鉴权重试。
+Options authRetryOnceOptions({Map<String, Object?>? headers}) => Options(
+  headers: headers,
+  extra: const {_authRetryPolicyKey: AuthRetryPolicy.once},
+);
 
 /// 构造一个已注入 client-info 公共 header 的后端 Dio。
 ///
@@ -47,4 +61,162 @@ Dio createBackendDio({
   // E6：读取权益信号响应头，服务端权益变化（退款/到期）时提示订阅层回源对账。
   dio.interceptors.add(EntitlementSignalInterceptor());
   return dio;
+}
+
+/// 构造需要 Supabase 登录的自建后端 Dio。
+///
+/// Token Gate 只保证请求发送前 token 有效；响应 401 仅在请求通过
+/// [authRetryOnceOptions] 显式 opt-in 时刷新并重放一次。
+Dio createAuthenticatedBackendDio({
+  required SupabaseTokenCoordinator? tokenCoordinator,
+  String baseUrl = '',
+  String? appVersion,
+  Duration connectTimeout = const Duration(seconds: 15),
+  Duration receiveTimeout = const Duration(seconds: 30),
+  String apiLogTag = 'BACKEND',
+  void Function(String message)? apiLogPrint,
+}) {
+  final dio = createBackendDio(
+    baseUrl: baseUrl,
+    appVersion: appVersion,
+    connectTimeout: connectTimeout,
+    receiveTimeout: receiveTimeout,
+    apiLogTag: apiLogTag,
+    apiLogPrint: apiLogPrint,
+  );
+  if (tokenCoordinator != null) {
+    dio.interceptors.insert(
+      0,
+      _AuthenticatedBackendInterceptor(dio, tokenCoordinator),
+    );
+  }
+  return dio;
+}
+
+class _AuthenticatedBackendInterceptor extends Interceptor {
+  _AuthenticatedBackendInterceptor(this._dio, this._coordinator);
+
+  final Dio _dio;
+  final SupabaseTokenCoordinator _coordinator;
+
+  @override
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final requestLabel = '${options.method} ${options.path}';
+    try {
+      if (options.cancelToken?.isCancelled ?? false) {
+        AppLogger.log(
+          'AuthHttp',
+          '鉴权请求取消: phase=beforeGate request=$requestLabel',
+        );
+        handler.reject(
+          DioException.requestCancelled(
+            requestOptions: options,
+            reason: options.cancelToken?.cancelError?.error,
+          ),
+        );
+        return;
+      }
+      AppLogger.log('AuthHttp', '鉴权请求等待 Token Gate: request=$requestLabel');
+      final token = await _coordinator.requireValidAccessToken();
+      if (options.cancelToken?.isCancelled ?? false) {
+        AppLogger.log(
+          'AuthHttp',
+          '鉴权请求取消: phase=afterGate request=$requestLabel',
+        );
+        handler.reject(
+          DioException.requestCancelled(
+            requestOptions: options,
+            reason: options.cancelToken?.cancelError?.error,
+          ),
+        );
+        return;
+      }
+      options.headers['Authorization'] = 'Bearer $token';
+      AppLogger.log('AuthHttp', '鉴权请求放行: request=$requestLabel');
+      handler.next(options);
+    } catch (error, stackTrace) {
+      final gateFailure = error is TokenGateException ? error.reason : null;
+      AppLogger.log(
+        'AuthHttp',
+        '鉴权请求拒绝: request=$requestLabel type=${error.runtimeType} '
+            'reason=${error is TokenGateException ? error.reason.name : "unknown"}',
+      );
+      if (gateFailure == TokenGateFailure.identityChanged) {
+        handler.reject(
+          DioException.requestCancelled(requestOptions: options, reason: error),
+        );
+        return;
+      }
+      final unauthorized = gateFailure == TokenGateFailure.notSignedIn;
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: error,
+          stackTrace: stackTrace,
+          type: unauthorized
+              ? DioExceptionType.badResponse
+              : DioExceptionType.connectionError,
+          response: unauthorized
+              ? Response<Object?>(requestOptions: options, statusCode: 401)
+              : null,
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> onError(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final request = error.requestOptions;
+    final policy = request.extra[_authRetryPolicyKey];
+    final attempt = request.extra[_authRetryAttemptKey];
+    if (error.response?.statusCode != 401) {
+      handler.next(error);
+      return;
+    }
+    final requestLabel = '${request.method} ${request.path}';
+    final cancelled = request.cancelToken?.isCancelled ?? false;
+    if (policy != AuthRetryPolicy.once || attempt == 1 || cancelled) {
+      AppLogger.log(
+        'AuthHttp',
+        '401 不重放: request=$requestLabel policy=${policy?.toString() ?? "none"} '
+            'attempt=${attempt ?? 0} cancelled=$cancelled',
+      );
+      handler.next(error);
+      return;
+    }
+    AppLogger.log('AuthHttp', '401 开始单次鉴权重试: request=$requestLabel attempt=1');
+    try {
+      final token = await _coordinator.requireValidAccessToken(
+        forceRefresh: true,
+      );
+      if (request.cancelToken?.isCancelled ?? false) {
+        AppLogger.log(
+          'AuthHttp',
+          '401 重试取消: phase=afterRefresh request=$requestLabel',
+        );
+        handler.next(error);
+        return;
+      }
+      request.headers['Authorization'] = 'Bearer $token';
+      request.extra[_authRetryAttemptKey] = 1;
+      final response = await _dio.fetch<Object?>(request);
+      AppLogger.log(
+        'AuthHttp',
+        '401 重试成功: request=$requestLabel status=${response.statusCode}',
+      );
+      handler.resolve(response);
+    } catch (retryError) {
+      AppLogger.log(
+        'AuthHttp',
+        '401 重试失败: request=$requestLabel type=${retryError.runtimeType}',
+      );
+      handler.next(error);
+    }
+  }
 }

@@ -16,6 +16,7 @@ import '../../../services/ai_http_client_adapter.dart';
 import '../../../services/app_logger.dart';
 import '../../../services/backend_dio.dart';
 import '../../../services/ndjson_stream.dart';
+import '../../../services/supabase_token_coordinator.dart';
 import '../models/chat_message.dart';
 import 'ndjson_text_stream.dart';
 
@@ -59,9 +60,11 @@ class ChatApiClient implements ChatApi {
   ChatApiClient({
     required String baseUrl,
     String? appVersion,
+    SupabaseTokenCoordinator? tokenCoordinator,
     bool http2Enabled = aiHttp2EnabledByDefault,
     void Function(String message)? streamLogPrint,
-  }) : _dio = createBackendDio(
+  }) : _dio = createAuthenticatedBackendDio(
+         tokenCoordinator: tokenCoordinator,
          baseUrl: baseUrl,
          appVersion: appVersion,
          connectTimeout: const Duration(seconds: 15),

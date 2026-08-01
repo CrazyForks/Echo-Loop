@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../features/subscription/models/premium_feature.dart';
+import '../../features/subscription/models/ai_quota_rejection.dart';
+import '../../features/subscription/utils/ai_quota_copy.dart';
 import '../../models/retell_review_evaluation.dart';
 import '../../providers/retell_review_evaluation_provider.dart';
 import '../../services/audio_preview_controller.dart';
@@ -18,14 +21,21 @@ import 'retell_review_report.dart';
 /// 把 controller 的 `errorCode` 映射成用户可见文案。
 ///
 /// 弹窗内失败态和页面级 SnackBar 共用，保证同一失败说的是同一句话。
-String retellReviewErrorMessage(AppLocalizations l10n, String? errorCode) =>
-    switch (errorCode) {
-      'audio_preparation_failed' => l10n.retellAiReviewAudioPreparationError,
-      'audio_too_large' => l10n.retellAiReviewAudioTooLarge,
-      'auth_required' => l10n.retellAiReviewSignInRequiredTitle,
-      'quota_exceeded' => l10n.aiQuotaExceededTitle,
-      _ => l10n.retellAiReviewError,
-    };
+String retellReviewErrorMessage(
+  AppLocalizations l10n,
+  String? errorCode, {
+  AiQuotaRejectionReason quotaReason = AiQuotaRejectionReason.exhausted,
+}) => switch (errorCode) {
+  'audio_preparation_failed' => l10n.retellAiReviewAudioPreparationError,
+  'audio_too_large' => l10n.retellAiReviewAudioTooLarge,
+  'auth_required' => l10n.retellAiReviewSignInRequiredTitle,
+  'quota_exceeded' => aiQuotaTitleFor(
+    l10n,
+    PremiumFeature.aiRetellReview,
+    quotaReason,
+  ),
+  _ => l10n.retellAiReviewError,
+};
 
 /// 打开并持续订阅当前录音 attempt 的流式评估结果。
 Future<void> showRetellReviewSheet(
@@ -113,7 +123,11 @@ class _RetellReviewSheet extends ConsumerWidget {
     if (state.phase == RetellReviewEvaluationPhase.failed) {
       return _ReviewFailure(
         errorCode: state.errorCode,
-        message: retellReviewErrorMessage(l10n, state.errorCode),
+        message: retellReviewErrorMessage(
+          l10n,
+          state.errorCode,
+          quotaReason: state.quotaReason,
+        ),
         onRetry: onRetry,
         onUpgrade: onUpgrade,
         onSignIn: onSignIn,

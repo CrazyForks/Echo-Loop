@@ -8,6 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_theme.dart';
+import '../../subscription/models/premium_feature.dart';
+import '../../subscription/utils/ai_quota_copy.dart';
 import '../models/chat_message.dart';
 import '../models/chat_role.dart';
 import 'markdown_message.dart';
@@ -245,12 +247,7 @@ class ChatMessageBubble extends StatelessWidget {
             onTap: onRetry,
           ),
         if (message.status == ChatMessageStatus.quotaBlocked)
-          _inlineAction(
-            context,
-            icon: Icons.workspace_premium_outlined,
-            label: AppLocalizations.of(context)!.chatUpgrade,
-            onTap: onUpgrade,
-          ),
+          _quotaBlockedAction(context),
         if (message.status == ChatMessageStatus.authRequired)
           _inlineAction(
             context,
@@ -288,6 +285,54 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// AI 助手额度用尽时，明确说明升级收益并给出可辨识的主操作按钮。
+  Widget _quotaBlockedAction(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                size: 18,
+                color: scheme.error,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(
+                  aiQuotaTitleFor(
+                    l10n,
+                    PremiumFeature.aiChat,
+                    message.quotaReason,
+                  ),
+                  style: TextStyle(
+                    color: scheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            aiQuotaMessageFor(l10n, message.quotaReason),
+            style: TextStyle(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          FilledButton(
+            onPressed: onUpgrade,
+            child: Text(l10n.aiQuotaExceededSubscribe),
+          ),
+        ],
       ),
     );
   }

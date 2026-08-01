@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/features/subscription/models/premium_feature.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/services/ai_quota_limit_store.dart';
 
 void main() {
@@ -42,6 +43,20 @@ void main() {
     await store.clearExpiredResets(userId, now: now);
 
     expect(store.activeResetAt(userId, feature, now: now), isNull);
+  });
+
+  test('有效 reset 同时保留免费版不支持原因', () async {
+    await store.recordResetAt(
+      userId,
+      feature,
+      now.add(const Duration(days: 1)),
+      reason: AiQuotaRejectionReason.unsupportedForFreePlan,
+    );
+
+    expect(
+      store.activeRejection(userId, feature, now: now)?.reason,
+      AiQuotaRejectionReason.unsupportedForFreePlan,
+    );
   });
 
   test('clearAllResets 清除所有功能 reset，但保留提醒节流时间', () async {

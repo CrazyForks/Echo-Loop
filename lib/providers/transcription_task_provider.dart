@@ -23,6 +23,7 @@ import '../features/audio_import/transcription_audio_extractor.dart';
 import '../features/remote_config/remote_config_providers.dart';
 import '../features/subscription/providers/subscription_controller.dart'
     show entitlementQuotaDivergenceHandlerProvider;
+import '../features/subscription/models/ai_quota_rejection.dart';
 import '../models/audio_item.dart';
 import '../models/word_timestamp.dart';
 import '../providers/audio_library_provider.dart';
@@ -126,7 +127,11 @@ class TranscriptionEmptyResult extends TranscriptionTaskState {
 
 /// 本月免费额度用尽（后端返回 402）——由 UI 引导订阅升级。
 class TranscriptionQuotaExceeded extends TranscriptionTaskState {
-  const TranscriptionQuotaExceeded();
+  const TranscriptionQuotaExceeded({
+    this.reason = AiQuotaRejectionReason.exhausted,
+  });
+
+  final AiQuotaRejectionReason reason;
 }
 
 // ─── Provider ──────────────────────────────────────────────
@@ -246,13 +251,19 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
             );
         if (cancelToken.isCancelled) return;
         if (!compressed) {
-          _updateState(audioId, const TranscriptionFailed(message: 'compression'));
+          _updateState(
+            audioId,
+            const TranscriptionFailed(message: 'compression'),
+          );
           return;
         }
         uploadPath = temporaryUploadFile.path;
         fileSize = await fileOps.getFileSize(uploadPath);
         if (fileSize > maxUploadBytes) {
-          _updateState(audioId, const TranscriptionFailed(message: 'fileTooLarge'));
+          _updateState(
+            audioId,
+            const TranscriptionFailed(message: 'fileTooLarge'),
+          );
           return;
         }
         transcriptionSha256 = await fileOps.computeSha256(uploadPath);
@@ -353,7 +364,11 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
       if (e.response?.statusCode == 402) {
         // E7：后端 402 与本地 premium 分歧时回源对账（handler 内部判 isActive）。
         ref.read(entitlementQuotaDivergenceHandlerProvider)('transcription');
-        _updateState(audioId, const TranscriptionQuotaExceeded());
+        final rejection = AiQuotaRejection.fromResponseData(e.response?.data);
+        _updateState(
+          audioId,
+          TranscriptionQuotaExceeded(reason: rejection.reason),
+        );
         return;
       }
       _updateState(

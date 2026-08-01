@@ -14,6 +14,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../database/enums.dart';
 import '../features/auth/sign_in_required_dialog.dart';
+import '../features/subscription/models/premium_feature.dart';
+import '../features/subscription/widgets/ai_quota_exceeded_dialog.dart';
 import '../features/subscription/widgets/feature_gate.dart' show openPaywall;
 import '../l10n/app_localizations.dart';
 import '../utils/playback_speed.dart';
@@ -112,6 +114,9 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
       SpeechRatingBadgeController();
   bool _isHandlingEvaluationComplete = false;
   bool _isShowingReviewSheet = false;
+
+  /// 防止同一轮评估的状态更新叠加多个额度提示。
+  bool _isShowingAiQuotaDialog = false;
 
   ProviderSubscription<RetellPlayerState>? _playerSubscription;
   ProviderSubscription<RetellRecordingState>? _recordingSubscription;
@@ -304,12 +309,13 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
           unawaited(_showRetellReviewSignInDialog());
           return;
         case 'quota_exceeded':
-          unawaited(_openRetellReviewPaywall());
+          unawaited(_showRetellReviewQuotaDialog());
           return;
       }
       final message = retellReviewErrorMessage(
         AppLocalizations.of(context)!,
         next.errorCode,
+        quotaReason: next.quotaReason,
       );
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -332,6 +338,25 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
           'AI retell review uses the cloud AI service. Sign in to get '
               'feedback on your retelling.',
     );
+  }
+
+  /// 复述评估额度用尽时先明确告知用户，再由用户选择是否进入订阅页。
+  ///
+  /// 用户主动点击 AI 评估时，和句子翻译/解析一致，不受全局提醒冷却期限制；
+  /// 仍记录已展示时间，使其它自动触发的 AI 提醒遵守统一节流规则。
+  Future<void> _showRetellReviewQuotaDialog() async {
+    if (_isShowingAiQuotaDialog || !mounted) return;
+    _isShowingAiQuotaDialog = true;
+    try {
+      await showAiQuotaExceededDialog(
+        context: context,
+        ref: ref,
+        feature: PremiumFeature.aiRetellReview,
+        reason: ref.read(retellReviewEvaluationProvider).quotaReason,
+      );
+    } finally {
+      _isShowingAiQuotaDialog = false;
+    }
   }
 
   /// 额度用尽引导订阅（平台是否支持订阅由 openPaywall 内部兜底）。

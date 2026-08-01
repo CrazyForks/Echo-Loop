@@ -734,7 +734,10 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    expect(find.text("You've reached your free monthly limit"), findsOneWidget);
+    expect(
+      find.text("This month's free AI retell review quota is used up"),
+      findsOneWidget,
+    );
     expect(find.text('Retry'), findsNothing);
 
     await tester.tap(find.text('Upgrade Now'));

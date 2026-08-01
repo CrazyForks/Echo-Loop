@@ -11,11 +11,12 @@ import 'package:universal_io/io.dart';
 import '../analytics/models/event_names.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/auth/sign_in_required_dialog.dart';
+import '../features/subscription/models/ai_quota_rejection.dart';
 import '../features/subscription/models/premium_feature.dart';
 import '../features/subscription/providers/ai_trial_usage_provider.dart';
 import '../features/subscription/providers/feature_access_provider.dart';
 import '../features/subscription/providers/subscription_controller.dart';
-import '../features/subscription/widgets/feature_gate.dart';
+import '../features/subscription/widgets/ai_quota_exceeded_dialog.dart';
 import '../features/remote_config/remote_config_providers.dart';
 import '../features/usage/usage_event.dart';
 import '../features/usage/usage_providers.dart';
@@ -107,6 +108,9 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
   /// 用 sheet 内联卡片而非 SnackBar，是为了规避 modal bottom sheet 内 SnackBar 被遮挡的问题。
   _InlineError? _error;
   Timer? _errorClearTimer;
+
+  /// 防止本地门禁与后端 402 同时抵达时叠加额度提示。
+  bool _isShowingAiQuotaDialog = false;
 
   // Guide step keys
   final _keyAiTranscription = GlobalKey();
@@ -246,12 +250,12 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
             Navigator.pop(context);
           });
         } else if (next is TranscriptionQuotaExceeded) {
-          // 本月免费额度用尽 → 清状态并引导订阅升级。
+          // 本月免费额度用尽：清状态后由用户决定是否进入订阅页。
           ref
               .read(transcriptionTaskManagerProvider.notifier)
               .clearState(audioItem.id);
           if (mounted && context.mounted) {
-            openPaywall(context, ref);
+            unawaited(_showAiTranscriptionQuotaDialog(reason: next.reason));
           }
         }
       },
@@ -1793,9 +1797,9 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       await _showTranscriptionSignInDialog(context);
       return;
     }
-    // 已登录但未解锁（非会员且 AI 转录试用用尽）→ 引导订阅升级。
+    // 已登录但未解锁（非会员且 AI 转录试用用尽）→ 先明确提示额度。
     if (!ref.read(featureAccessProvider(PremiumFeature.aiTranscription))) {
-      await openPaywall(context, ref);
+      await _showAiTranscriptionQuotaDialog();
       return;
     }
 
@@ -1881,6 +1885,24 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
             EventParams.audioName: audioItem.name,
           },
         );
+  }
+
+  /// AI 转录额度用尽提示；同一时间只允许一个弹窗存在。
+  Future<void> _showAiTranscriptionQuotaDialog({
+    AiQuotaRejectionReason reason = AiQuotaRejectionReason.exhausted,
+  }) async {
+    if (_isShowingAiQuotaDialog || !mounted) return;
+    _isShowingAiQuotaDialog = true;
+    try {
+      await showAiQuotaExceededDialog(
+        context: context,
+        ref: ref,
+        feature: PremiumFeature.aiTranscription,
+        reason: reason,
+      );
+    } finally {
+      _isShowingAiQuotaDialog = false;
+    }
   }
 
   Future<bool> _showContentStatusConfirmDialog(

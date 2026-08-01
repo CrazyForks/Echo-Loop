@@ -9,6 +9,7 @@ import 'package:universal_io/io.dart';
 
 import '../config/api_config.dart';
 import '../features/auth/providers/auth_providers.dart';
+import '../features/subscription/models/ai_quota_rejection.dart';
 import '../features/subscription/models/premium_feature.dart';
 import '../features/subscription/providers/ai_trial_usage_provider.dart';
 import '../features/subscription/providers/feature_access_provider.dart';
@@ -34,12 +35,14 @@ class RetellReviewEvaluationState {
   final RetellReviewEvaluationPhase phase;
   final RetellReviewEvaluation? evaluation;
   final String? errorCode;
+  final AiQuotaRejectionReason quotaReason;
 
   const RetellReviewEvaluationState({
     this.attemptKey,
     this.phase = RetellReviewEvaluationPhase.idle,
     this.evaluation,
     this.errorCode,
+    this.quotaReason = AiQuotaRejectionReason.exhausted,
   });
 
   bool get hasCachedResult =>
@@ -175,7 +178,15 @@ class RetellReviewEvaluationController
         case 402:
           // E7：后端权威裁决为「无额度」，回源对账收敛本地权益分歧。
           ref.read(entitlementQuotaDivergenceHandlerProvider)('retellReview');
-          _setFailure(generation, attemptKey, 'quota_exceeded');
+          final rejection = AiQuotaRejection.fromResponseData(
+            error.response?.data,
+          );
+          _setFailure(
+            generation,
+            attemptKey,
+            'quota_exceeded',
+            quotaReason: rejection.reason,
+          );
         default:
           _setFailure(generation, attemptKey, 'request_failed');
       }
@@ -238,12 +249,18 @@ class RetellReviewEvaluationController
         .consume(PremiumFeature.aiRetellReview);
   }
 
-  void _setFailure(int generation, String attemptKey, String errorCode) {
+  void _setFailure(
+    int generation,
+    String attemptKey,
+    String errorCode, {
+    AiQuotaRejectionReason quotaReason = AiQuotaRejectionReason.exhausted,
+  }) {
     if (!_isCurrent(generation, attemptKey)) return;
     state = RetellReviewEvaluationState(
       attemptKey: attemptKey,
       phase: RetellReviewEvaluationPhase.failed,
       errorCode: errorCode,
+      quotaReason: quotaReason,
     );
   }
 

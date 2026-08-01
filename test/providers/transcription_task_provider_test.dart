@@ -14,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/audio_import/audio_finalization_service.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_controller.dart'
     show entitlementQuotaDivergenceHandlerProvider;
 import 'package:echo_loop/features/audio_import/audio_import_models.dart';
@@ -576,6 +577,10 @@ void main() {
               path: '/api/v2/user-audio/submit-transcription',
             ),
             statusCode: 402,
+            data: {
+              'code': 'quota_exceeded',
+              'quota': {'used': 0, 'limit': 0},
+            },
           ),
         ),
       );
@@ -598,6 +603,11 @@ void main() {
       expect(
         notifier.getTaskState('test-audio-1'),
         isA<TranscriptionQuotaExceeded>(),
+      );
+      expect(
+        (notifier.getTaskState('test-audio-1') as TranscriptionQuotaExceeded)
+            .reason,
+        AiQuotaRejectionReason.unsupportedForFreePlan,
       );
       // E7：402 触发权益分歧收敛信号。
       expect(quotaSignals, ['transcription']);
@@ -1660,7 +1670,9 @@ void main() {
     });
 
     test('视频条目转录 — 只上传音轨、但缓存 key 仍用视频 sha、不计算音轨 sha、清理临时文件', () async {
-      final dataDir = await Directory.systemTemp.createTemp('tx_video_extract_');
+      final dataDir = await Directory.systemTemp.createTemp(
+        'tx_video_extract_',
+      );
       addTearDown(() async {
         if (await dataDir.exists()) await dataDir.delete(recursive: true);
       });

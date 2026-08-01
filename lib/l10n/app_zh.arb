@@ -3,8 +3,29 @@
   "appTitle": "Echo Loop",
   "premiumTitle": "Echo Loop 会员",
   "premiumTagline": "使用更多 AI，学习更高效。",
-  "aiQuotaExceededTitle": "本月免费额度已用完",
+  "aiQuotaExceededGenericTitle": "本月 AI 免费额度已用完",
+  "aiQuotaExceededTitle": "本月 {feature}免费额度已用完",
+  "@aiQuotaExceededTitle": {
+    "placeholders": {
+      "feature": { "type": "String" }
+    }
+  },
+  "aiQuotaFeatureTranslation": "AI 翻译",
+  "aiQuotaFeatureAnalysis": "AI 句子解析",
+  "aiQuotaFeatureSenseGroup": "AI 句子意群拆分",
+  "aiQuotaFeatureWordAnalysis": "AI 词汇解析",
+  "aiQuotaFeatureTranscription": "AI 转录",
+  "aiQuotaFeatureChat": "AI 助手",
+  "aiQuotaFeatureRetellReview": "AI 复述评估",
   "aiQuotaExceededMessage": "升级会员，获得更多 AI 额度和 AI 功能。",
+  "aiQuotaUnsupportedGenericTitle": "免费版暂不支持此 AI 功能",
+  "aiQuotaUnsupportedTitle": "免费版暂不支持 {feature}",
+  "@aiQuotaUnsupportedTitle": {
+    "placeholders": {
+      "feature": { "type": "String" }
+    }
+  },
+  "aiQuotaUnsupportedMessage": "升级会员，解锁该功能和更多 AI 功能。",
   "aiQuotaExceededCta": "升级会员",
   "aiQuotaExceededDismiss": "知道了",
   "aiQuotaExceededSubscribe": "立即升级",
@@ -66,6 +87,10 @@
   "premiumRefresh": "刷新",
   "premiumRefreshStatus": "刷新会员状态",
   "premiumPurchasePendingSync": "购买成功，会员权益同步中，稍后自动生效。",
+  "premiumCheckingEntitlement": "正在确认会员状态…",
+  "premiumEntitlementCheckFailed": "暂时无法确认会员状态，请重试。确认完成前无法购买。",
+  "premiumEntitlementUpdated": "会员状态已更新。",
+  "premiumAlreadyEntitledSyncFailed": "检测到已有有效订阅，但同步失败，请点击右上角恢复购买。",
   "premiumPeriodMonthly": "月付",
   "premiumPeriodYearly": "年付",
   "premiumPeriodLifetime": "终身",
@@ -1941,7 +1966,6 @@
   "chatEmptyGreeting": "关于这句话，有什么想问的？",
   "chatErrorNetwork": "网络不可用，点击重试。",
   "chatErrorGenerate": "生成失败，点击重试。",
-  "chatQuotaTitle": "免费额度已用完",
   "chatUpgrade": "升级",
   "chatSignInTitle": "需要登录",
   "chatSignInMessage": "登录后即可使用 AI 助手。",

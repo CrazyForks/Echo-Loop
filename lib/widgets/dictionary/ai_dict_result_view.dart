@@ -13,6 +13,9 @@ import '../../l10n/app_localizations.dart';
 import '../../models/dictionary/dictionary_entry.dart';
 import '../../models/dictionary/dictionary_lookup_result.dart';
 import '../../providers/dictionary/lookup_controller.dart';
+import '../../features/subscription/models/premium_feature.dart';
+import '../../features/subscription/models/ai_quota_rejection.dart';
+import '../../features/subscription/utils/ai_quota_copy.dart';
 import '../../providers/tts/tts_controller_provider.dart';
 import '../../theme/app_theme.dart';
 import '../common/shimmer_placeholder.dart';
@@ -71,7 +74,9 @@ class AiDictResultView extends StatelessWidget {
     }
     if (s is LookupAuthRequired) return _authRequired(context);
     if (s is LookupPhraseTooLong) return _phraseTooLong(context);
-    if (s is LookupQuotaExceeded) return _quotaExceeded(context);
+    if (s is LookupQuotaExceeded) {
+      return _quotaExceeded(context, s.reason);
+    }
     if (s is LookupError) return _error(context);
     if (s is LookupNotFound) return _empty(context);
     return const Padding(
@@ -146,7 +151,7 @@ class AiDictResultView extends StatelessWidget {
   /// 本月免费额度用尽：业界标准内联升级引导卡（说明额度用尽 + 高亮升级按钮）。
   ///
   /// 用户点击「升级」按钮才进入订阅页（不自动跳转）。
-  Widget _quotaExceeded(BuildContext context) {
+  Widget _quotaExceeded(BuildContext context, AiQuotaRejectionReason reason) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
@@ -167,7 +172,11 @@ class AiDictResultView extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: Text(
-                    l10n.aiQuotaExceededTitle,
+                    aiQuotaTitleFor(
+                      l10n,
+                      PremiumFeature.aiWordAnalysis,
+                      reason,
+                    ),
                     style: theme.textTheme.titleSmall?.copyWith(
                       color: cs.onSurface,
                       fontWeight: FontWeight.w600,
@@ -178,7 +187,7 @@ class AiDictResultView extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              l10n.aiQuotaExceededMessage,
+              aiQuotaMessageFor(l10n, reason),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
               ),

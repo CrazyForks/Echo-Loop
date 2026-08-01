@@ -19,6 +19,9 @@ import 'package:echo_loop/providers/settings_provider.dart';
 import 'package:echo_loop/providers/transcription_task_provider.dart';
 import 'package:echo_loop/providers/local_transcription_task_provider.dart';
 import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart';
+import 'package:echo_loop/features/subscription/models/premium_feature.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
+import 'package:echo_loop/features/subscription/services/free_allowance_policy.dart';
 import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/transcription_api_client.dart';
 import 'package:echo_loop/utils/transcript_picker.dart';
@@ -30,6 +33,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../helpers/mock_providers.dart';
 import '../helpers/test_app.dart';
+
+/// 可在字幕管理面板已打开后推送转录任务状态的测试 controller。
+class _ManualTranscriptionTaskManager extends TestTranscriptionTaskManager {
+  void emit(String audioId, TranscriptionTaskState taskState) {
+    state = Map.of(state)..[audioId] = taskState;
+  }
+}
+
+class _DenyAiAllowancePolicy implements FreeAllowancePolicy {
+  const _DenyAiAllowancePolicy();
+
+  @override
+  bool allows(PremiumFeature feature) => false;
+}
 
 void main() {
   Session signedInSession() {
@@ -58,6 +75,7 @@ void main() {
       AppSettingsState appSettingsState = const AppSettingsState(
         locale: Locale('en'),
       ),
+      bool subscriptionPro = true,
       Future<TranscriptDecodeResult?> Function()? transcriptContentPicker,
       List<Override> extraOverrides = const [],
     }) {
@@ -107,7 +125,7 @@ void main() {
             (ref) => Stream<Session?>.value(session),
           ),
           // 已登录用户视为已解锁（Pro），使转录机制测试不被额度闸拦截。
-          subscriptionEntitlementOverride(),
+          subscriptionEntitlementOverride(pro: subscriptionPro),
           ...extraOverrides,
         ],
       );
@@ -309,6 +327,81 @@ void main() {
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
         expect(find.text('Sign in to use AI transcription'), findsNothing);
+      });
+
+      testWidgets('免费用户点击 AI 转录时先显示额度提示', (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final item = createTestAudioItem(transcriptPath: null);
+        await tester.pumpWidget(
+          buildSheet(
+            item,
+            session: signedInSession(),
+            subscriptionPro: false,
+            extraOverrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              freeAllowancePolicyProvider.overrideWithValue(
+                const _DenyAiAllowancePolicy(),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Start Transcription'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            "This month's free AI subtitle transcription quota is used up",
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Got it'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ManageSubtitlesSheet), findsOneWidget);
+      });
+
+      testWidgets('后端转录额度用尽时清状态并显示额度提示', (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final item = createTestAudioItem(transcriptPath: null);
+        final manager = _ManualTranscriptionTaskManager();
+        await tester.pumpWidget(
+          buildSheet(
+            item,
+            session: signedInSession(),
+            extraOverrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              transcriptionTaskManagerProvider.overrideWith(() => manager),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+        manager.emit(
+          item.id,
+          const TranscriptionQuotaExceeded(
+            reason: AiQuotaRejectionReason.unsupportedForFreePlan,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text("The free plan doesn't support AI subtitle transcription"),
+          findsOneWidget,
+        );
+        expect(manager.getTaskState(item.id), isA<TranscriptionIdle>());
+
+        await tester.tap(find.text('Got it'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ManageSubtitlesSheet), findsOneWidget);
       });
 
       testWidgets('AI 转录读取远程时长限制并在弹窗内显示错误提示', (tester) async {

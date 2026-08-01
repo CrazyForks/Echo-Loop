@@ -32,6 +32,7 @@ import '../providers/subscription_controller.dart';
 import '../providers/subscription_plans_provider.dart';
 import '../services/purchase_service.dart';
 import '../services/subscription_management_launcher.dart';
+import '../state/entitlement_state.dart';
 import '../utils/member_status.dart';
 import '../utils/plan_pricing.dart';
 
@@ -75,6 +76,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       );
       unawaited(
         ref.read(subscriptionPlansProvider.notifier).refresh(force: true),
+      );
+      unawaited(
+        ref.read(subscriptionControllerProvider.notifier).refreshIfStale(),
       );
     });
   }
@@ -313,6 +317,41 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     required bool showStoreWebCheckoutFallback,
     required bool usingStoreWebCheckoutFallback,
   }) {
+    final entitlement = ref.watch(subscriptionControllerProvider);
+    final purchaseAllowed =
+        entitlement.status == EntitlementStatus.free && !entitlement.isStale;
+    if (!purchaseAllowed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (entitlement.isRefreshing)
+              const CircularProgressIndicator()
+            else
+              const Icon(Icons.cloud_off_outlined, size: 30),
+            const SizedBox(height: 12),
+            Text(
+              entitlement.isRefreshing
+                  ? l10n.premiumCheckingEntitlement
+                  : l10n.premiumEntitlementCheckFailed,
+              textAlign: TextAlign.center,
+            ),
+            if (!entitlement.isRefreshing) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => ref
+                          .read(subscriptionControllerProvider.notifier)
+                          .refresh(force: true),
+                child: Text(l10n.retry),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
     final plansAsync = ref.watch(
       usingStoreWebCheckoutFallback
           ? paddleSubscriptionPlansProvider
@@ -449,8 +488,28 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             'host=${uri.host} path=${uri.path}',
       );
       opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    } on PurchaseException catch (error) {
+      AppLogger.log(
+        'Subscription',
+        'Paddle checkout 异常: type=${error.runtimeType} '
+            'alreadyEntitled=${error.alreadyEntitled}',
+      );
+      if (mounted && error.alreadyEntitled) {
+        final active = ref.read(subscriptionControllerProvider).isActive;
+        _showMessage(
+          active
+              ? AppLocalizations.of(context)!.premiumEntitlementUpdated
+              : AppLocalizations.of(context)!.premiumAlreadyEntitledSyncFailed,
+        );
+        setState(() => _busy = false);
+        return;
+      }
+      opened = false;
     } catch (e) {
-      AppLogger.log('Subscription', 'Paddle checkout 异常: $e');
+      AppLogger.log(
+        'Subscription',
+        'Paddle checkout 异常: type=${e.runtimeType}',
+      );
       opened = false;
     }
     AppLogger.log(

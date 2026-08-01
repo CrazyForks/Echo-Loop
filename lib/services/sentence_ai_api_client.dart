@@ -15,6 +15,7 @@ import 'package:universal_io/io.dart';
 
 import '../analytics/geo_interceptor.dart';
 import '../config/api_config.dart';
+import '../features/auth/providers/auth_providers.dart';
 import '../providers/package_info_provider.dart';
 import 'ai_http_client_adapter.dart';
 import 'app_logger.dart';
@@ -22,6 +23,7 @@ import 'backend_dio.dart';
 import 'dictionary/dictionary_source.dart';
 import 'ndjson_object_stream.dart';
 import 'ndjson_stream.dart';
+import 'supabase_token_coordinator.dart';
 import '../models/sentence_ai_result.dart';
 import '../models/sense_group_result.dart';
 import '../models/retell_review_evaluation.dart';
@@ -113,9 +115,11 @@ class SentenceAiApiClient {
   SentenceAiApiClient({
     required String baseUrl,
     String? appVersion,
+    SupabaseTokenCoordinator? tokenCoordinator,
     bool http2Enabled = aiHttp2EnabledByDefault,
     void Function(String message)? streamLogPrint,
-  }) : _dio = createBackendDio(
+  }) : _dio = createAuthenticatedBackendDio(
+         tokenCoordinator: tokenCoordinator,
          baseUrl: baseUrl,
          appVersion: appVersion,
          connectTimeout: const Duration(seconds: 15),
@@ -663,6 +667,7 @@ SentenceAiApiClient sentenceAiApiClient(Ref ref) {
   final client = SentenceAiApiClient(
     baseUrl: apiBaseUrl,
     appVersion: readAppVersion(ref),
+    tokenCoordinator: ref.read(supabaseTokenCoordinatorProvider),
   );
   ref.onDispose(client.dispose);
   return client;

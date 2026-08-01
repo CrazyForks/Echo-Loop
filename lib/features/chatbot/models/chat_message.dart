@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../../subscription/models/ai_quota_rejection.dart';
 import '../follow_up.dart';
 import 'chat_role.dart';
 
@@ -33,6 +34,9 @@ class ChatMessage {
   /// 消息状态。
   final ChatMessageStatus status;
 
+  /// 仅 [ChatMessageStatus.quotaBlocked] 使用的后端拒绝原因。
+  final AiQuotaRejectionReason quotaReason;
+
   /// 创建时间。
   final DateTime createdAt;
 
@@ -51,6 +55,7 @@ class ChatMessage {
     required this.content,
     required this.status,
     required this.createdAt,
+    this.quotaReason = AiQuotaRejectionReason.exhausted,
     this.includeInHistory = true,
     this.quote,
   });
@@ -97,16 +102,20 @@ class ChatMessage {
   );
 
   /// 复制并覆盖 content / status（其余字段不可变，quote 原样保留）。
-  ChatMessage copyWith({String? content, ChatMessageStatus? status}) =>
-      ChatMessage(
-        id: id,
-        role: role,
-        content: content ?? this.content,
-        status: status ?? this.status,
-        createdAt: createdAt,
-        includeInHistory: includeInHistory,
-        quote: quote,
-      );
+  ChatMessage copyWith({
+    String? content,
+    ChatMessageStatus? status,
+    AiQuotaRejectionReason? quotaReason,
+  }) => ChatMessage(
+    id: id,
+    role: role,
+    content: content ?? this.content,
+    status: status ?? this.status,
+    quotaReason: quotaReason ?? this.quotaReason,
+    createdAt: createdAt,
+    includeInHistory: includeInHistory,
+    quote: quote,
+  );
 
   /// 序列化为后端历史条目（仅 role/content）。
   ///

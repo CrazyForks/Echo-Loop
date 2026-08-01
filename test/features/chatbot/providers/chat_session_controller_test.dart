@@ -14,6 +14,7 @@ import 'package:echo_loop/features/chatbot/services/chat_api_client.dart';
 import 'package:echo_loop/features/chatbot/services/ndjson_text_stream.dart';
 import 'package:echo_loop/features/chatbot/state/chat_session_state.dart';
 import 'package:echo_loop/features/subscription/models/entitlement.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/models/premium_feature.dart';
 import 'package:echo_loop/features/subscription/providers/ai_trial_usage_provider.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_controller.dart';
@@ -235,6 +236,32 @@ void main() {
     expect(st(c).messages.last.status, ChatMessageStatus.quotaBlocked);
     expect(st(c).gate, ChatGate.none);
     expect(trialUsage.consumeCount, 0);
+  });
+
+  test('后端 402 quota_exceeded + limit=0 → 消息保留免费版不支持原因', () async {
+    final api = _ScriptApi(
+      (_) => Stream<ChatTextFrame>.error(
+        DioException(
+          requestOptions: RequestOptions(path: '/chat'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/chat'),
+            statusCode: 402,
+            data: {
+              'code': 'quota_exceeded',
+              'quota': {'used': 0, 'limit': 0},
+            },
+          ),
+          type: DioExceptionType.badResponse,
+        ),
+      ),
+    );
+    final c = await make(api);
+    await ctrl(c).send('hi');
+
+    expect(
+      st(c).messages.last.quotaReason,
+      AiQuotaRejectionReason.unsupportedForFreePlan,
+    );
   });
 
   test('后端 401（token 过期）→ 该条 authRequired（gate 不变）', () async {

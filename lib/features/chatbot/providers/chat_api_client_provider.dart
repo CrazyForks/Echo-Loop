@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../config/api_config.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../../providers/package_info_provider.dart';
 import '../chatbot_flags.dart';
 import '../services/chat_api_client.dart';
@@ -21,6 +22,7 @@ ChatApi chatApiClient(Ref ref) {
   final client = ChatApiClient(
     baseUrl: apiBaseUrl,
     appVersion: readAppVersion(ref),
+    tokenCoordinator: ref.read(supabaseTokenCoordinatorProvider),
   );
   ref.onDispose(client.dispose);
   return client;

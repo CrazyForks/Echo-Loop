@@ -1,10 +1,11 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-02（Android 本地导入改为 content URI 按需读取）
+> 最后更新：2026-08-02（统一登录鉴权与订阅状态可靠性修复）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 ## 最近完成
 
+- [x] 统一登录鉴权与订阅状态可靠性修复：新增共享 Supabase Token Coordinator，以 `currentSession` 为唯一 token 来源，在鉴权自建后端请求出站前校验并以 single-flight 刷新过期 token，同时用 identity generation 防止刷新期间登出、切号或 session 替换造成旧请求落地；公开 API 与第三方域名继续使用普通 Dio。401 默认不重放，只有 entitlement 与 Paddle checkout/portal 显式允许刷新后重试一次，checkout 全程复用同一幂等键，AI、Chat、转录等生成/计费请求维持零自动重放。Token Gate 的 `notSignedIn` 本地映射为 401，保留现有登录失效引导；临时失败映射为连接错误，`identityChanged` 按取消处理，避免切号时误弹登录。权益刷新增加普通/强制两级业务 single-flight、显式 refreshing/失败状态和 Paywall 进入自动重试；unknown/stale-free 禁止购买，fresh Free 后台刷新不替换套餐/等待到账 UI，Premium 缓存失败时保持 stale Premium。清缓存和解除调试覆盖统一通过 force 排队补执行真实回源，异常路径按 generation 安全收尾 refreshing。精确处理 Paddle `409 + already_entitled`：不打开浏览器，强制同步权益，成功提示会员状态已更新，失败提示使用右上角恢复购买。补齐 token 并发/身份竞态、Dio 重试边界与幂等、权益状态流和 Paywall 交互测试；关键链路日志覆盖 Token Gate 放行/刷新/失败、鉴权请求门禁、401 重放决策、身份竞态丢弃、权益刷新合并与 force 排队，且不输出 token、Authorization 或幂等键值。（2026-08-02）
 - [x] Android 本地音频导入改用原生 SAF 通道并按需读取：file_picker 的 Android 实现取名用 `getColumnIndexOrThrow(DISPLAY_NAME)` 且兜底写在同一个 try 里，遇到不返回该列的第三方 DocumentsProvider 会回传 null 撞上 non-null 的 `PlatformFile.name`，异常在插件内部抛出、调用方接不住（10.3.10 / 11.0.3 均未修）；且它选完就把每个 content URI 抄进 cache，只为造出一个 `path`。选择器为不误灰 m4a/flac 用的是 `type = "*/*"`，用户很容易连带选中大文件——实测选中 18 项要抄 722MB 的 apk，真正的音频只有 3.5MB，被接受的音频还会被抄两遍（cache + `tmp/audio_import`）。
 
   改为自家通道，`ACTION_OPEN_DOCUMENT` 多选、不申请广泛存储权限，**选择阶段零落盘**：只回 `{uri, name, size}`，URI 放进 `PlatformFile.identifier`、`path` 恒为 null；字幕配对时走 `readBytes`（按实际字节数卡 16MiB 上限，不信 provider 报的 size——会漏报 DISPLAY_NAME 的 provider 同样可能不报 size），音频在点导入时走 `copyToFile` 从 URI 一次性流进暂存区、写失败即删半成品，复制次数与桌面端一致。
@@ -12,6 +13,13 @@
   取名按 null projection 查整行（部分 provider 点名要 DISPLAY_NAME 反而给不出来，要整行却是全的），从 `_display_name` → `_data` → 文档 ID → URI 末段收集候选并**优先取带扩展名的**（文档 ID 常形如 `primary:Download/talk.mp3`）——只退到 URI 末段拿到的多是 `msf:1234`，没后缀，正常音频会被白名单当成「不支持的格式」静默拒掉。不看 MIME、不看文件头、不改写已有扩展名，是否受支持仍由 `classifyImportFiles` 判定。挑名逻辑抽成纯 Kotlin 的 `PickedFileNaming`，JVM 单测 11 条覆盖各种畸形回传。`Activity Result` 走 `startActivityForResult` + `MainActivity.onActivityResult` 转发，`MainActivity` 保持 `AudioServiceActivity` 基类不变；iOS 与桌面端仍走 file_picker。（2026-08-02）
 - [x] 修复本地导入面板「空态死界面」：embedded 面板内没有独立的「选择音频文件」按钮（那个只在独立弹窗里渲染），此前 `_pickedFiles` 为空时底部主按钮是禁用的「导入」，用户没有任何重新唤起选择器的入口——只选中字幕（字幕不能单独导入）或把已选文件全部删掉都会落到这个状态，只能点左上返回箭头退回来源页重进。现在空态主按钮改为可点的「选择音频文件」。同时补上第二个缺陷：只选中字幕时既不进「不支持格式」提示分支也不进列表 setState 分支，面板完全静默，现按 `_AudioErrorKind.noAudioSelected` 给出「未选择音频文件」内联提示（有不支持格式时不叠加，`_error` 是单值）。已选列表非空时再选一次只有字幕仍不清空列表。回归测试覆盖「只选字幕后提示 + 可再次唤起选择器」与「删空列表后可重新选择」（2026-08-02）
 - [x] 复述 AI 评估结果弹窗成型（对齐服务端评估结果结构 + 重做展示）：模型改为 `summary` / `keyPoints[]` / `corrections[]` / `suggestion` / `rating`，`rating` 与 `keyPoints[].status` 可空以免流式过程中先渲染出会被推翻的判定；要点条目携带母语要点陈述、原文摘录、转录摘录与反馈四段，状态覆盖「覆盖 / 部分 / 遗漏 / 偏差 / 多说」，纠错分为 grammar / wordChoice / redundancy / phrasing / cohesion 五类（冗余 / 说法 / 衔接不加删除线，原句本身不算错）。弹窗重做为「评级 Hero + 转录折叠卡 + 要点卡列表 + 纠错对照卡 + 建议 callout」，首帧改为独立的 transcript 帧，转录到达时弹窗即开、内容随后逐段流入；失败态按 errorCode 给文案并支持重试。视觉上判定色只出现在要点卡首行胶囊与状态图标，附属行退成中性文字，卡面统一收敛为 `retell_review_rating_style.dart` 里的 `retellCardDecoration()`（近白卡底 + 提亮细描边，替掉三处各自抄的 `surfaceContainerHighest` 大灰块）。`retell_review_report.dart` 按职责拆成 `retell_review_key_points.dart` / `retell_review_corrections.dart` / `retell_review_transcript_card.dart`；录音试听状态从 `AudioPlaybackService` 收敛到新的 `AudioPreviewController`（服务只负责播，UI 状态基于 `play()` 的 Future 维护，按钮滑出视口被回收后重建仍能读到真实状态）；新增 `lib/models/retell_review_sample.dart` 调试假数据，把 `retellReviewSampleEnabled` 改成 true 热重启即可离线调界面（2026-08-01）
+- [x] 清理 3 个无业务引用的英文本地化键：删除 `autoSkipRetellDescription`、`guideIntensiveListenAnnotationContinueDescription`、`guideIntensiveListenAnnotationPlayDescription` 并重新生成 AppLocalizations，消除中文缺失翻译警告（2026-08-02）
+- [x] 区分 AI 额度用尽与免费版禁用：仅当后端返回 HTTP 402 + `code=quota_exceeded` + 数值型 `quota.limit=0` 时，翻译、句子解析、意群拆分、词汇解析、转录、AI 助手和复述评估统一显示“免费版暂不支持 XX / 升级会员，解锁该功能和更多 AI 功能”；其它配额响应继续显示本月免费额度用尽，HTTP 200 不受影响。新增共享拒绝原因模型并贯通异常、状态、句子 AI reset 缓存、确认弹窗和内联提示，补齐解析、持久化、controller 与 widget 回归测试（2026-08-02）
+- [x] AI 助手额度阻断气泡补齐升级引导：额度标题下新增“升级会员，获得更多 AI 额度和 AI 功能。”说明，并将整行隐式点击改为无图标的实心「立即升级」按钮，明确可操作性且与其它 CTA 一致；保留原订阅跳转回调与红色额度告警层级（2026-08-01）
+- [x] AI 免费额度用尽文案按功能细分：新增统一的 `PremiumFeature` 本地化标题映射，翻译、句子解析、意群拆分、词汇解析、转录、AI 助手和复述评估分别显示“本月 XX 免费额度已用完”；统一确认弹窗标题降为 `titleLarge`，保留“知道了 / 立即升级”。同时补齐句子 AI 本地门禁的功能标识，并覆盖词典内联卡、聊天门禁/气泡与复述失败态；新增中英文映射和标题样式回归测试（2026-08-01）
+- [x] 统一 AI 额度用尽确认弹窗：句子翻译、解析与意群拆分改为复用共享 helper；helper 统一处理冷却判断、提醒记录和订阅跳转，同时保留主动触发强制提示及无功能标识本地门禁不记录的语义；AI 词典内联卡与聊天门禁横幅保持不变（2026-08-01）
+- [x] AI 转录免费额度用尽时改为复用统一确认弹窗：本地门禁和后端 402 均先显示“知道了 / 立即升级”，关闭后保留字幕管理面板；同时将复述评估迁移到共享弹窗 helper，并补齐字幕管理面板回归测试（2026-08-01）
+- [x] AI 复述评估免费额度用尽时先展示与翻译/解析一致的确认弹窗（知道了 / 立即升级），仅在用户点击升级后进入订阅页；关闭后再次主动评估仍可提示，并补充页面 widget 回归测试（2026-08-01）
 - [x] 订阅页中文权益文案由“更多 AI 句子拆解”调整为“更多 AI 句子解析”，并补充中文 widget 回归断言（2026-08-01）
 - [x] 订阅页权益列表将“优先客户支持”固定放在最底部，并补充中文 widget 顺序回归测试（2026-08-01）
 - [x] 复述 AI 评估要点状态中文案：将 `covered` / `partial` / `distorted` 分别调整为「一致」/「片面」/「误解」，使判定语义更准确；补充中文 widget 回归测试（2026-08-01）

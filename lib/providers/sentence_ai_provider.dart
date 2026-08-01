@@ -14,6 +14,7 @@ import '../services/app_logger.dart';
 import '../database/daos/sentence_ai_cache_dao.dart';
 import '../database/providers.dart';
 import '../features/subscription/models/premium_feature.dart';
+import '../features/subscription/models/ai_quota_rejection.dart';
 import '../features/subscription/providers/ai_trial_usage_provider.dart';
 import '../features/subscription/providers/ai_quota_limit_provider.dart';
 import '../features/subscription/providers/feature_access_provider.dart';
@@ -38,7 +39,11 @@ class AiFeatureAuthRequiredException implements Exception {
 /// 由额度闸在发起 L3 请求前抛出，UI 捕获后引导订阅升级（Paywall）。
 /// 仅在缓存未命中、确需消耗后端算力时触发，已缓存结果不受影响。
 class AiFeatureQuotaExceededException implements Exception {
-  const AiFeatureQuotaExceededException({this.feature, this.resetAt});
+  const AiFeatureQuotaExceededException({
+    this.feature,
+    this.resetAt,
+    this.reason = AiQuotaRejectionReason.exhausted,
+  });
 
   /// 被后端或本地 quota reset 阻断的功能。
   final PremiumFeature? feature;
@@ -46,10 +51,14 @@ class AiFeatureQuotaExceededException implements Exception {
   /// 后端返回的本轮免费额度重置时间。
   final DateTime? resetAt;
 
+  /// 本次请求是额度用尽，还是免费版未开放该功能。
+  final AiQuotaRejectionReason reason;
+
   @override
   String toString() =>
       'AiFeatureQuotaExceededException'
       '${feature != null ? '(feature=${feature!.name})' : ''}'
+      '(reason=${reason.name})'
       '${resetAt != null ? '(resetAt=${resetAt!.toIso8601String()})' : ''}';
 }
 
@@ -228,7 +237,10 @@ class SentenceAiNotifier {
   _beforeApiRequest;
 
   /// 后端返回 quota exceeded 后记录 resetAt。
-  final Future<void> Function(PremiumFeature feature, DateTime resetAt)?
+  final Future<void> Function(
+    PremiumFeature feature,
+    AiQuotaRejection rejection,
+  )?
   _onQuotaExceeded;
 
   /// 后端确认 402 配额超限时调用（E7）：本地若仍 premium 说明权益已过时，
@@ -258,7 +270,7 @@ class SentenceAiNotifier {
       required bool respectLocalQuotaReset,
     })?
     beforeApiRequest,
-    Future<void> Function(PremiumFeature feature, DateTime resetAt)?
+    Future<void> Function(PremiumFeature feature, AiQuotaRejection rejection)?
     onQuotaExceeded,
     void Function(PremiumFeature feature)? onBackendQuotaRejected,
     Future<void> Function(PremiumFeature feature)? onApiSucceeded,
@@ -700,10 +712,7 @@ class SentenceAiNotifier {
             await pending.close();
             return;
           }
-          final mapped = await _backendErrorFor(
-            PremiumFeature.aiSenseGroup,
-            e,
-          );
+          final mapped = await _backendErrorFor(PremiumFeature.aiSenseGroup, e);
           if (mapped != null) {
             await pending.addError(mapped, stackTrace);
             return;
@@ -907,20 +916,15 @@ class SentenceAiNotifier {
     if (data is Map && data['code'] != 'quota_exceeded') return null;
     // E7：后端权威裁决为「无额度」；本地若仍 premium 由订阅层收敛分歧。
     _onBackendQuotaRejected?.call(feature);
-    final resetAt = _quotaResetAtFrom(data);
-    if (resetAt != null) {
-      await _onQuotaExceeded?.call(feature, resetAt);
+    final rejection = AiQuotaRejection.fromResponseData(data);
+    if (rejection.resetAt != null) {
+      await _onQuotaExceeded?.call(feature, rejection);
     }
-    return AiFeatureQuotaExceededException(feature: feature, resetAt: resetAt);
-  }
-
-  DateTime? _quotaResetAtFrom(Object? data) {
-    if (data is! Map) return null;
-    final quota = data['quota'];
-    if (quota is! Map) return null;
-    final rawResetAt = quota['resetAt'];
-    if (rawResetAt is! String || rawResetAt.isEmpty) return null;
-    return DateTime.tryParse(rawResetAt)?.toUtc();
+    return AiFeatureQuotaExceededException(
+      feature: feature,
+      resetAt: rejection.resetAt,
+      reason: rejection.reason,
+    );
   }
 }
 
@@ -933,7 +937,7 @@ final sentenceAiNotifierProvider = Provider<SentenceAiNotifier>((ref) {
     // 额度闸：已登录前提下未解锁（非会员且试用用尽）→ 抛配额超限。
     guardFeature: (feature) {
       if (!ref.read(featureAccessProvider(feature))) {
-        throw const AiFeatureQuotaExceededException();
+        throw AiFeatureQuotaExceededException(feature: feature);
       }
     },
     // 消耗一次免费试用；会员无限不计数。
@@ -951,20 +955,22 @@ final sentenceAiNotifierProvider = Provider<SentenceAiNotifier>((ref) {
       }
       await store.clearExpiredResets(userId);
       if (!respectLocalQuotaReset) return;
-      final resetAt = store.activeResetAt(userId, feature);
-      if (resetAt != null) {
+      final rejection = store.activeRejection(userId, feature);
+      if (rejection != null) {
         throw AiFeatureQuotaExceededException(
           feature: feature,
-          resetAt: resetAt,
+          resetAt: rejection.resetAt,
+          reason: rejection.reason,
         );
       }
     },
-    onQuotaExceeded: (feature, resetAt) async {
+    onQuotaExceeded: (feature, rejection) async {
       final userId = ref.read(subscriptionIdentityProvider).userId;
-      if (userId == null) return;
+      final resetAt = rejection.resetAt;
+      if (userId == null || resetAt == null) return;
       await ref
           .read(aiQuotaLimitStoreProvider)
-          .recordResetAt(userId, feature, resetAt);
+          .recordResetAt(userId, feature, resetAt, reason: rejection.reason);
     },
     // E7：后端 402 与本地 premium 分歧时回源对账（handler 内部判 isActive）。
     onBackendQuotaRejected: (feature) => ref.read(

@@ -4,6 +4,7 @@ library;
 import 'package:dio/dio.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/features/subscription/models/entitlement.dart';
+import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/models/premium_feature.dart';
 import 'package:echo_loop/features/subscription/providers/ai_trial_usage_provider.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_controller.dart';
@@ -94,11 +95,12 @@ const _pro = EntitlementState(
   entitlement: Entitlement(isPremium: true),
 );
 
-DioException _httpError(int status) => DioException(
+DioException _httpError(int status, {Object? data}) => DioException(
   requestOptions: RequestOptions(path: '/api/v1/stream/evaluate-review'),
   response: Response(
     requestOptions: RequestOptions(path: '/api/v1/stream/evaluate-review'),
     statusCode: status,
+    data: data,
   ),
   type: DioExceptionType.badResponse,
 );
@@ -238,11 +240,22 @@ void main() {
   });
 
   test('后端 402 → quota_exceeded，并触发权益分歧收敛', () async {
-    final api = _ScriptApi(() => Stream.error(_httpError(402)));
+    final api = _ScriptApi(
+      () => Stream.error(
+        _httpError(
+          402,
+          data: {
+            'code': 'quota_exceeded',
+            'quota': {'used': 0, 'limit': 0},
+          },
+        ),
+      ),
+    );
     final c = await make(api);
     await evaluate(c);
 
     expect(st(c).errorCode, 'quota_exceeded');
+    expect(st(c).quotaReason, AiQuotaRejectionReason.unsupportedForFreePlan);
     expect(divergenceContexts, ['retellReview']);
     expect(trialUsage.consumed, isEmpty);
   });

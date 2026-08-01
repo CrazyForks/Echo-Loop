@@ -18,10 +18,47 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumTagline => '使用更多 AI，学习更高效。';
 
   @override
-  String get aiQuotaExceededTitle => '本月免费额度已用完';
+  String get aiQuotaExceededGenericTitle => '本月 AI 免费额度已用完';
+
+  @override
+  String aiQuotaExceededTitle(String feature) {
+    return '本月 $feature免费额度已用完';
+  }
+
+  @override
+  String get aiQuotaFeatureTranslation => 'AI 翻译';
+
+  @override
+  String get aiQuotaFeatureAnalysis => 'AI 句子解析';
+
+  @override
+  String get aiQuotaFeatureSenseGroup => 'AI 句子意群拆分';
+
+  @override
+  String get aiQuotaFeatureWordAnalysis => 'AI 词汇解析';
+
+  @override
+  String get aiQuotaFeatureTranscription => 'AI 转录';
+
+  @override
+  String get aiQuotaFeatureChat => 'AI 助手';
+
+  @override
+  String get aiQuotaFeatureRetellReview => 'AI 复述评估';
 
   @override
   String get aiQuotaExceededMessage => '升级会员，获得更多 AI 额度和 AI 功能。';
+
+  @override
+  String get aiQuotaUnsupportedGenericTitle => '免费版暂不支持此 AI 功能';
+
+  @override
+  String aiQuotaUnsupportedTitle(String feature) {
+    return '免费版暂不支持 $feature';
+  }
+
+  @override
+  String get aiQuotaUnsupportedMessage => '升级会员，解锁该功能和更多 AI 功能。';
 
   @override
   String get aiQuotaExceededCta => '升级会员';
@@ -167,6 +204,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get premiumPurchasePendingSync => '购买成功，会员权益同步中，稍后自动生效。';
+
+  @override
+  String get premiumCheckingEntitlement => '正在确认会员状态…';
+
+  @override
+  String get premiumEntitlementCheckFailed => '暂时无法确认会员状态，请重试。确认完成前无法购买。';
+
+  @override
+  String get premiumEntitlementUpdated => '会员状态已更新。';
+
+  @override
+  String get premiumAlreadyEntitledSyncFailed => '检测到已有有效订阅，但同步失败，请点击右上角恢复购买。';
 
   @override
   String get premiumPeriodMonthly => '月付';
@@ -3350,14 +3399,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '遇到听不懂的句子时点这里，会自动标记为难句并进入讲解模式。';
 
   @override
-  String get guideIntensiveListenAnnotationContinueDescription =>
-      'Once you understand this sentence, tap Continue to move on to the next one.';
-
-  @override
-  String get guideIntensiveListenAnnotationPlayDescription =>
-      'Tap the play button to play the current sentence.';
-
-  @override
   String get guideSentenceTileNumberDescription => '点击编号从这句开始播放。';
 
   @override
@@ -3754,10 +3795,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get autoSkipRetellSubtitle => '学习计划遇到复述任务时自动跳过';
-
-  @override
-  String get autoSkipRetellDescription =>
-      'When enabled, speaking practice tasks are auto-marked as skipped; you can complete them anytime in free practice.';
 
   @override
   String get autoExpandCachedAnnotationToggle => '自动展开句子讲解';
@@ -4659,9 +4696,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatErrorGenerate => '生成失败，点击重试。';
-
-  @override
-  String get chatQuotaTitle => '免费额度已用完';
 
   @override
   String get chatUpgrade => '升级';
