@@ -466,6 +466,30 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
+  testWidgets(
+    'Android 句子查词手柄位于选区下方',
+    (tester) async {
+      await tester.pumpWidget(wrap());
+      await tapWord(tester, 'beta');
+      await tester.pumpAndSettle();
+
+      final paragraph = selectionState(tester).contentParagraph!;
+      final range = selectionState(tester).selectionRange!;
+      final selectedBox = paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: range.start, extentOffset: range.end),
+          )
+          .first
+          .toRect();
+      final handleCenter = paragraph.globalToLocal(
+        tester.getRect(find.byKey(const Key('selection_handle_end'))).center,
+      );
+
+      expect(handleCenter.dy, greaterThan(selectedBox.bottom));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
   testWidgets('自定义操作条显示复制、收藏和问 AI', (tester) async {
     await tester.pumpWidget(
       wrap(
@@ -712,9 +736,12 @@ void main() {
           .toRect()
           .center,
     );
-    final handle = tester.getCenter(
+    // Android 手柄视觉中心悬在文字下方；从命中区域靠近文字的一侧开始，
+    // 避免测试指针落到可选文本宿主的外层布局边界之外。
+    final handleRect = tester.getRect(
       find.byKey(const Key('selection_handle_end')),
     );
+    final handle = handleRect.topCenter + const Offset(0, 2);
     await tester.dragFrom(handle, midBeta - handle);
     await tester.pumpAndSettle();
 

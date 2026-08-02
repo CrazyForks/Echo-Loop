@@ -7,14 +7,142 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'selection_backend.dart';
+
+const double _kVisualMagnifierVerticalOffset = -10;
+
+/// Android 放大镜的 Material 位置与轮廓绘制。
+///
+/// Flutter 默认 [TextMagnifier] 的 Android 阴影很淡，复杂背景下不容易看出镜框；
+/// 这里保留相同的定位规则，只增强常见的细边框和外阴影。
+class _AndroidSelectionMagnifier extends StatefulWidget {
+  const _AndroidSelectionMagnifier({required this.magnifierInfo});
+
+  final ValueNotifier<MagnifierInfo> magnifierInfo;
+
+  @override
+  State<_AndroidSelectionMagnifier> createState() =>
+      _AndroidSelectionMagnifierState();
+}
+
+class _AndroidSelectionMagnifierState
+    extends State<_AndroidSelectionMagnifier> {
+  Offset? _position;
+  Offset _focalPointAdjustment = Offset.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.magnifierInfo.addListener(_updatePosition);
+  }
+
+  @override
+  void didChangeDependencies() {
+    _updatePosition();
+    super.didChangeDependencies();
+  }
+
+  @override
+  void dispose() {
+    widget.magnifierInfo.removeListener(_updatePosition);
+    super.dispose();
+  }
+
+  void _updatePosition() {
+    final info = widget.magnifierInfo.value;
+    final screenRect = Offset.zero & MediaQuery.sizeOf(context);
+    const size = Magnifier.kDefaultMagnifierSize;
+    const verticalFocalPointShift = Magnifier.kStandardVerticalFocalPointShift;
+    final magnifierX = info.globalGesturePosition.dx
+        .clamp(
+          info.currentLineBoundaries.left,
+          info.currentLineBoundaries.right,
+        )
+        .toDouble();
+    final unadjustedRect =
+        Offset(
+              magnifierX,
+              info.caretRect.center.dy + _kVisualMagnifierVerticalOffset,
+            ) -
+            Offset(size.width / 2, size.height + verticalFocalPointShift) &
+        size;
+    final position = MagnifierController.shiftWithinBounds(
+      bounds: screenRect,
+      rect: unadjustedRect,
+    );
+    const magnificationScale = 1.25;
+    final horizontalMaxFocalPointEdgeInsets =
+        (size.width / 2) / magnificationScale;
+    final focalPointX =
+        info.fieldBounds.width < horizontalMaxFocalPointEdgeInsets * 2
+        ? info.fieldBounds.center.dx
+        : info.globalGesturePosition.dx.clamp(
+            info.fieldBounds.left + horizontalMaxFocalPointEdgeInsets,
+            info.fieldBounds.right - horizontalMaxFocalPointEdgeInsets,
+          );
+    final focalPointAdjustment = Offset(
+      focalPointX - position.center.dx,
+      unadjustedRect.top - position.top - _kVisualMagnifierVerticalOffset,
+    );
+    if (!mounted) {
+      _position = position.topLeft;
+      _focalPointAdjustment = focalPointAdjustment;
+      return;
+    }
+    setState(() {
+      _position = position.topLeft;
+      _focalPointAdjustment = focalPointAdjustment;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final position = _position;
+    if (position == null) return const SizedBox.shrink();
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      child: RawMagnifier(
+        size: Magnifier.kDefaultMagnifierSize,
+        magnificationScale: 1.25,
+        focalPointOffset:
+            _focalPointAdjustment +
+            Offset(
+              0,
+              Magnifier.kStandardVerticalFocalPointShift +
+                  Magnifier.kDefaultMagnifierSize.height / 2,
+            ),
+        decoration: const MagnifierDecoration(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(40)),
+            side: BorderSide(color: Color.fromARGB(70, 0, 0, 0), width: 0.75),
+          ),
+          shadows: <BoxShadow>[
+            BoxShadow(
+              color: Color.fromARGB(35, 0, 0, 0),
+              blurRadius: 3,
+              offset: Offset(0, 1.5),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: const ColoredBox(color: Color.fromARGB(8, 158, 158, 158)),
+      ),
+    );
+  }
+}
 
 /// 拖选期间的放大镜。
 ///
 /// 谁创建谁销毁：拥有它的组件在 dispose 里调 [dispose]。
 class SelectionMagnifier {
+  /// 在平台默认位置基础上把放大镜再向上移一点，避免镜框贴近手指和手柄。
+  ///
+  /// 这不改变选区和手柄的几何，平台放大、边界处理和 iOS 隐藏阈值仍按 Flutter
+  /// 默认规则执行；平台放大镜相对自身焦点的间距也保持不变。
   /// 按当前选区显示/更新放大镜（跟手的那一端由 [isStart] 指定）。
   ///
   /// 锚点直接问后端现算，**不用** post-frame 的几何缓存——缓存会慢一帧，放大镜
@@ -68,6 +196,8 @@ class SelectionMagnifier {
     // 内容局部坐标 → overlay 局部坐标：两者原点之差即平移量。
     final shift =
         localToGlobal(Offset.zero) - overlayObject.localToGlobal(Offset.zero);
+    // Android 位置器会单独把镜框上移，caretRect 保持在原文字位置，避免放大内容
+    // 跟着镜框一起偏移；iOS 继续使用 Flutter 自带的位置器。
     final caretInOverlay = caretRect.shift(shift);
     final boundsInOverlay = contentBounds.shift(shift);
     _info.value = MagnifierInfo(
@@ -87,8 +217,16 @@ class SelectionMagnifier {
       ),
     );
     if (_controller.overlayEntry != null) return;
-    final magnifier = TextMagnifier.adaptiveMagnifierConfiguration
-        .magnifierBuilder(context, _controller, _info);
+    final magnifier = switch (defaultTargetPlatform) {
+      TargetPlatform.android => _AndroidSelectionMagnifier(
+        magnifierInfo: _info,
+      ),
+      _ => TextMagnifier.adaptiveMagnifierConfiguration.magnifierBuilder(
+        context,
+        _controller,
+        _info,
+      ),
+    };
     if (magnifier == null) return;
     _controller.show(
       context: context,

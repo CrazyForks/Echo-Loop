@@ -245,6 +245,48 @@ void main() {
     expect(hapticCalls, ['HapticFeedbackType.selectionClick', null]);
   }, variant: android);
 
+  testWidgets('Android AI Chat 选择手柄位于选区下方', (tester) async {
+    await pumpMarkdown(
+      tester,
+      const SelectableAssistantMarkdown(data: 'hello world'),
+    );
+    await longPressSelect(tester, from: wordPoint(tester, 'hello'));
+
+    final paragraph = markdownParagraphs(tester).first;
+    final start = paragraph.text.toPlainText().indexOf('hello');
+    final selectedBox = paragraph
+        .getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: start + 5),
+        )
+        .first
+        .toRect();
+    final handleCenter = paragraph.localToGlobal(selectedBox.bottomCenter);
+    final actualHandleCenter = tester
+        .getRect(find.byKey(const Key('selection_handle_end')))
+        .center;
+
+    expect(actualHandleCenter.dy, greaterThan(handleCenter.dy));
+  }, variant: android);
+
+  testWidgets('Android AI Chat 放大镜有清晰边框和阴影', (tester) async {
+    await pumpMarkdown(
+      tester,
+      const SelectableAssistantMarkdown(data: 'hello world'),
+    );
+
+    final gesture = await tester.startGesture(wordPoint(tester, 'hello'));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await tester.pump();
+
+    final magnifier = tester.widget<RawMagnifier>(find.byType(RawMagnifier));
+    final shape = magnifier.decoration.shape as RoundedRectangleBorder;
+    expect(shape.side.width, 0.75);
+    expect(magnifier.decoration.shadows, isNotEmpty);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }, variant: android);
+
   testWidgets('长按拖选期间显示放大镜，松手后移除', (tester) async {
     await pumpMarkdown(
       tester,

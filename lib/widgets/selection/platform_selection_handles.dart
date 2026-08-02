@@ -68,10 +68,13 @@ Offset _handleVisualCenter({
     isStart ? TextSelectionHandleType.left : TextSelectionHandleType.right,
     lineHeight,
   );
-  // 平台约定：把手柄自身的 handleAnchor 点对齐到选区端点（起始=左上，结束=右下）。
+  // 平台约定：把手柄自身的 handleAnchor 点对齐到选区端点底部。
+  //
+  // Flutter 的 RenderParagraph / RenderEditable 都把非折叠选区端点定义在
+  // TextBox.bottom；使用 top 会让 Android 水滴和 iOS 手柄整体跑到文字上方。
   final endpoint = isStart
-      ? Offset(anchor.left, anchor.top)
-      : Offset(anchor.right, anchor.top);
+      ? Offset(anchor.left, anchor.bottom)
+      : Offset(anchor.right, anchor.bottom);
   final topLeft = endpoint - handleAnchor;
   return topLeft + Offset(size.width / 2, size.height / 2);
 }

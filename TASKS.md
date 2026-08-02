@@ -5,6 +5,10 @@
 
 ## 最近完成
 
+- [x] 修复 Android / iOS 文本选择手柄位置：共享 `SelectableContent` 原先用选区矩形顶部作为平台手柄锚点，导致 Android 水滴手柄显示在文字上方；改为 Flutter 官方端点语义使用选区底部，AI 查词与 AI Chat 共用路径同步修复，并补充平台几何及两个调用方 widget 回归测试。（2026-08-02）
+- [x] 调整 Android / iOS 文本选择放大镜间距：保留 Flutter 平台默认的放大、边界与隐藏规则，将共享放大镜锚点额外上移 10 logical px，避免镜框贴近手指和手柄；相关 AI Chat 放大镜显示回归继续覆盖。（2026-08-02）
+- [x] 增强 Android 文本选择放大镜可见性：保留平台定位与放大比例，补充常见的 1px 半透明边框和柔和外阴影，复杂背景下可辨认镜框；补充 AI Chat widget 回归测试。（2026-08-02）
+
 - [x] 统一登录鉴权与订阅状态可靠性修复：新增共享 Supabase Token Coordinator，以 `currentSession` 为唯一 token 来源，在鉴权自建后端请求出站前校验并以 single-flight 刷新过期 token，同时用 identity generation 防止刷新期间登出、切号或 session 替换造成旧请求落地；公开 API 与第三方域名继续使用普通 Dio。401 默认不重放，只有 entitlement 与 Paddle checkout/portal 显式允许刷新后重试一次，checkout 全程复用同一幂等键，AI、Chat、转录等生成/计费请求维持零自动重放。Token Gate 的 `notSignedIn` 本地映射为 401，保留现有登录失效引导；临时失败映射为连接错误，`identityChanged` 按取消处理，避免切号时误弹登录。权益刷新增加普通/强制两级业务 single-flight、显式 refreshing/失败状态和 Paywall 进入自动重试；unknown/stale-free 禁止购买，fresh Free 后台刷新不替换套餐/等待到账 UI，Premium 缓存失败时保持 stale Premium。清缓存和解除调试覆盖统一通过 force 排队补执行真实回源，异常路径按 generation 安全收尾 refreshing。精确处理 Paddle `409 + already_entitled`：不打开浏览器，强制同步权益，成功提示会员状态已更新，失败提示使用右上角恢复购买。补齐 token 并发/身份竞态、Dio 重试边界与幂等、权益状态流和 Paywall 交互测试；关键链路日志覆盖 Token Gate 放行/刷新/失败、鉴权请求门禁、401 重放决策、身份竞态丢弃、权益刷新合并与 force 排队，且不输出 token、Authorization 或幂等键值。（2026-08-02）
 - [x] Android 本地音频导入改用原生 SAF 通道并按需读取：file_picker 的 Android 实现取名用 `getColumnIndexOrThrow(DISPLAY_NAME)` 且兜底写在同一个 try 里，遇到不返回该列的第三方 DocumentsProvider 会回传 null 撞上 non-null 的 `PlatformFile.name`，异常在插件内部抛出、调用方接不住（10.3.10 / 11.0.3 均未修）；且它选完就把每个 content URI 抄进 cache，只为造出一个 `path`。选择器为不误灰 m4a/flac 用的是 `type = "*/*"`，用户很容易连带选中大文件——实测选中 18 项要抄 722MB 的 apk，真正的音频只有 3.5MB，被接受的音频还会被抄两遍（cache + `tmp/audio_import`）。
 
