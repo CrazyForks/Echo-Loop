@@ -6,6 +6,37 @@ import '../helpers/test_app.dart';
 
 void main() {
   group('BlindListenBriefingSheet', () {
+    testWidgets('底部开始按钮避让系统安全区', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = const FakeViewPadding(bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+
+      await tester.pumpWidget(
+        createTestApp(
+          Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showBlindListenBriefingSheet(
+                context: context,
+                isFirstStudy: true,
+                onStartPractice: () {},
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      final actionButton = tester.getRect(find.byType(FilledButton));
+      expect(actionButton.bottom, lessThanOrEqualTo(844 - 34));
+    });
+
     testWidgets('首次学习模式 — 显示正确标题和提示', (tester) async {
       bool startPracticeCalled = false;
 

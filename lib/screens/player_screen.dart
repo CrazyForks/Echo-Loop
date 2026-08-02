@@ -517,7 +517,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           child: SafeArea(
-            bottom: false,
+            top: false,
+            bottom: true,
+            maintainBottomViewPadding: true,
+            minimum: const EdgeInsets.only(bottom: AppSpacing.s),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -662,22 +665,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ],
     );
 
-    final mediaPadding = MediaQuery.paddingOf(context);
-    final viewPadding = MediaQuery.viewPaddingOf(context);
-    final bottomInset = mediaPadding.bottom > viewPadding.bottom
-        ? mediaPadding.bottom
-        : viewPadding.bottom;
-    final bottomPadding = centered
-        ? (bottomInset * 0.5).clamp(AppSpacing.s, AppSpacing.m).toDouble()
-        : AppSpacing.s;
-
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        AppSpacing.s,
-        AppSpacing.m,
-        bottomPadding,
-      ),
+      padding: EdgeInsets.fromLTRB(AppSpacing.m, AppSpacing.s, AppSpacing.m, 0),
       child: centered
           ? Center(child: statusRow)
           : Row(

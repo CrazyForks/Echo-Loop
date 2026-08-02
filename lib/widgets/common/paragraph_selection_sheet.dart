@@ -17,6 +17,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
 import '../../utils/paragraph_grouping.dart';
 import '../guide_flow.dart';
+import 'learning_briefing_sheet_content.dart';
 import '../review/review_briefing_sheet.dart' show formatEstimatedDuration;
 
 /// 目标段落时长选项（秒）
@@ -234,269 +235,260 @@ class _ParagraphSelectionSheetState extends State<_ParagraphSelectionSheet> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    final body = SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.l,
-          AppSpacing.s,
-          AppSpacing.l,
-          AppSpacing.l,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 拖拽指示条
-            Center(
-              child: Container(
-                width: 32,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.m),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.4,
-                  ),
-                  borderRadius: BorderRadius.circular(2),
+    final body = LearningBriefingSheetContent(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 拖拽指示条
+          Center(
+            child: Container(
+              width: 32,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: AppSpacing.m),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.4,
                 ),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
+          ),
 
-            // 图标
-            Icon(widget.icon, size: 56, color: theme.colorScheme.primary),
-            const SizedBox(height: AppSpacing.s),
+          // 图标
+          Icon(widget.icon, size: 56, color: theme.colorScheme.primary),
+          const SizedBox(height: AppSpacing.s),
 
-            // 标题
-            Text(
-              widget.title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          // 标题
+          Text(
+            widget.title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
+          ),
 
-            // 阶段名（可选，如"第三轮复习"）
-            if (widget.stageLabel != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                widget.stageLabel!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-
+          // 阶段名（可选，如"第三轮复习"）
+          if (widget.stageLabel != null) ...[
             const SizedBox(height: AppSpacing.xs),
-
-            // 说明
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
-              child: Text(
-                widget.subtitle,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            Text(
+              widget.stageLabel!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+          ],
 
-            const SizedBox(height: AppSpacing.m),
+          const SizedBox(height: AppSpacing.xs),
 
-            // 段落时长行
+          // 说明
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: Text(
+              widget.subtitle,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.m),
+
+          // 段落时长行
+          SettingLabeledRow(
+            label: Text(
+              l10n.blindListenTargetDuration,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: AppDropdown<int>(
+              value: _targetSeconds,
+              isExpanded: true,
+              isDense: true,
+              items: paragraphDurationOptions.map((s) {
+                final label = switch (s) {
+                  0 => l10n.retellBriefingSentenceLevel,
+                  -1 => l10n.blindListenNoParagraph,
+                  _ => '${s}s',
+                };
+                return DropdownMenuItem(value: s, child: Text(label));
+              }).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _targetSeconds = v);
+                  _notifyChanged();
+                }
+              },
+            ),
+          ),
+
+          // 段间停顿行（仅盲听显示，且不分段时无段间隔可言，隐藏）
+          if (widget.showPauseMultiplier && _targetSeconds != -1) ...[
+            const SizedBox(height: AppSpacing.s),
             SettingLabeledRow(
               label: Text(
-                l10n.blindListenTargetDuration,
+                l10n.blindListenPauseBetween,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              trailing: AppDropdown<int>(
-                value: _targetSeconds,
+              trailing: PauseChoiceDropdown(
+                value: _pause,
+                fixedOptions: widget.fixedPauseOptions ?? const [],
+                multiplierOptions:
+                    widget.pauseMultiplierOptions ??
+                    BlindListenSettings.multiplierOptions,
+                onChanged: (v) {
+                  setState(() => _pause = v);
+                  _notifyChanged();
+                },
+              ),
+            ),
+          ],
+
+          if (widget.showPlaybackSpeed) ...[
+            const SizedBox(height: AppSpacing.s),
+            SettingLabeledRow(
+              label: Text(
+                l10n.playbackSpeed,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              trailing: AppDropdown<double>(
+                value: _playbackSpeed,
                 isExpanded: true,
                 isDense: true,
-                items: paragraphDurationOptions.map((s) {
-                  final label = switch (s) {
-                    0 => l10n.retellBriefingSentenceLevel,
-                    -1 => l10n.blindListenNoParagraph,
-                    _ => '${s}s',
-                  };
-                  return DropdownMenuItem(value: s, child: Text(label));
-                }).toList(),
+                items:
+                    (widget.playbackSpeedOptions ??
+                            BlindListenSettings.briefingPlaybackSpeedOptions)
+                        .map(
+                          (speed) => DropdownMenuItem(
+                            value: speed,
+                            child: Text(_formatSpeed(speed)),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (v) {
                   if (v != null) {
-                    setState(() => _targetSeconds = v);
+                    setState(() => _playbackSpeed = v);
                     _notifyChanged();
                   }
                 },
               ),
             ),
+          ],
 
-            // 段间停顿行（仅盲听显示，且不分段时无段间隔可言，隐藏）
-            if (widget.showPauseMultiplier && _targetSeconds != -1) ...[
-              const SizedBox(height: AppSpacing.s),
-              SettingLabeledRow(
-                label: Text(
-                  l10n.blindListenPauseBetween,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+          // 可见词比例行（仅复述时传入 defaultKeywordRatio 才显示）
+          if (_keywordRatio != null) ...[
+            const SizedBox(height: AppSpacing.s),
+            SettingLabeledRow(
+              label: Text(
+                l10n.retellKeywordRatio,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                trailing: PauseChoiceDropdown(
-                  value: _pause,
-                  fixedOptions: widget.fixedPauseOptions ?? const [],
-                  multiplierOptions:
-                      widget.pauseMultiplierOptions ??
-                      BlindListenSettings.multiplierOptions,
-                  onChanged: (v) {
-                    setState(() => _pause = v);
+              ),
+              trailing: AppDropdown<KeywordRatio>(
+                value: _keywordRatio,
+                isExpanded: true,
+                isDense: true,
+                items: KeywordRatio.values
+                    .map(
+                      (r) => DropdownMenuItem(
+                        value: r,
+                        child: Text('${r.percent}%'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _keywordRatio = v);
                     _notifyChanged();
-                  },
-                ),
+                  }
+                },
               ),
-            ],
+            ),
+          ],
 
-            if (widget.showPlaybackSpeed) ...[
-              const SizedBox(height: AppSpacing.s),
-              SettingLabeledRow(
-                label: Text(
-                  l10n.playbackSpeed,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+          // 段落数 + 预计时长（同一行节省空间）
+          // 不分段时段落数无意义，仅显示预计时长（若有）
+          Builder(
+            builder: (_) {
+              final showParagraphCount = _targetSeconds != -1;
+              final dynamicText = widget.estimateDurationBuilder != null
+                  ? formatEstimatedDuration(
+                      l10n,
+                      widget.estimateDurationBuilder!(
+                        _targetSeconds,
+                        // 固定/自动 走 smart 估算(-1);仅倍数模式用真实倍数。
+                        // 固定模式的精确预估为次要,显示近似值可接受。
+                        _pause.legacyPauseMultiplier,
+                      ),
+                    )
+                  : null;
+              final estimatedText = dynamicText ?? widget.estimatedDurationText;
+              if (!showParagraphCount && estimatedText == null) {
+                return const SizedBox.shrink();
+              }
+              final pieces = <Widget>[];
+              if (showParagraphCount) {
+                pieces.add(
+                  Text(
+                    l10n.blindListenParagraphCount(_paragraphCount),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                trailing: AppDropdown<double>(
-                  value: _playbackSpeed,
-                  isExpanded: true,
-                  isDense: true,
-                  items:
-                      (widget.playbackSpeedOptions ??
-                              BlindListenSettings.briefingPlaybackSpeedOptions)
-                          .map(
-                            (speed) => DropdownMenuItem(
-                              value: speed,
-                              child: Text(_formatSpeed(speed)),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _playbackSpeed = v);
-                      _notifyChanged();
-                    }
-                  },
-                ),
-              ),
-            ],
-
-            // 可见词比例行（仅复述时传入 defaultKeywordRatio 才显示）
-            if (_keywordRatio != null) ...[
-              const SizedBox(height: AppSpacing.s),
-              SettingLabeledRow(
-                label: Text(
-                  l10n.retellKeywordRatio,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                trailing: AppDropdown<KeywordRatio>(
-                  value: _keywordRatio,
-                  isExpanded: true,
-                  isDense: true,
-                  items: KeywordRatio.values
-                      .map(
-                        (r) => DropdownMenuItem(
-                          value: r,
-                          child: Text('${r.percent}%'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _keywordRatio = v);
-                      _notifyChanged();
-                    }
-                  },
-                ),
-              ),
-            ],
-
-            // 段落数 + 预计时长（同一行节省空间）
-            // 不分段时段落数无意义，仅显示预计时长（若有）
-            Builder(
-              builder: (_) {
-                final showParagraphCount = _targetSeconds != -1;
-                final dynamicText = widget.estimateDurationBuilder != null
-                    ? formatEstimatedDuration(
-                        l10n,
-                        widget.estimateDurationBuilder!(
-                          _targetSeconds,
-                          // 固定/自动 走 smart 估算(-1);仅倍数模式用真实倍数。
-                          // 固定模式的精确预估为次要,显示近似值可接受。
-                          _pause.legacyPauseMultiplier,
-                        ),
-                      )
-                    : null;
-                final estimatedText =
-                    dynamicText ?? widget.estimatedDurationText;
-                if (!showParagraphCount && estimatedText == null) {
-                  return const SizedBox.shrink();
-                }
-                final pieces = <Widget>[];
-                if (showParagraphCount) {
+                );
+              }
+              if (estimatedText != null) {
+                if (pieces.isNotEmpty) {
                   pieces.add(
-                    Text(
-                      l10n.blindListenParagraphCount(_paragraphCount),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s,
+                      ),
+                      child: Text(
+                        '·',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   );
                 }
-                if (estimatedText != null) {
-                  if (pieces.isNotEmpty) {
-                    pieces.add(
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s,
-                        ),
-                        child: Text(
-                          '·',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  pieces.addAll([
-                    Icon(
-                      Icons.timer_outlined,
-                      size: 16,
+                pieces.addAll([
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    estimatedText,
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      estimatedText,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ]);
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.s),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: pieces,
                   ),
-                );
-              },
-            ),
+                ]);
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.s),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: pieces,
+                ),
+              );
+            },
+          ),
 
-            const SizedBox(height: AppSpacing.m),
+          const SizedBox(height: AppSpacing.m),
 
-            // 跳过 + 开始练习按钮（宽度 1:2，仅当 onSkip 提供时显示跳过）
-            _buildActionButtons(context, l10n),
-          ],
-        ),
+          // 跳过 + 开始练习按钮（宽度 1:2，仅当 onSkip 提供时显示跳过）
+          _buildActionButtons(context, l10n),
+        ],
       ),
     );
 

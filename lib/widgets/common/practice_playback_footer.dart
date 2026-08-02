@@ -71,44 +71,40 @@ class PracticePlaybackFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mediaPadding = MediaQuery.paddingOf(context);
-    final viewPadding = MediaQuery.viewPaddingOf(context);
-    final bottomInset = mediaPadding.bottom > viewPadding.bottom
-        ? mediaPadding.bottom
-        : viewPadding.bottom;
     final isMobile = MediaQuery.sizeOf(context).width < 600;
-    final bottomPadding = isMobile
-        ? (bottomInset * 0.5).clamp(AppSpacing.s, AppSpacing.m).toDouble()
-        : AppSpacing.m;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.l,
-        right: AppSpacing.l,
-        bottom: bottomPadding,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PlaybackControls(
-            canGoPrev: canGoPrev,
-            isLast: isLast,
-            centerIcon: centerIcon,
-            onPrevious: onPrevious,
-            onNext: onNext,
-            onCenter: onCenter,
-            centerGuideStep: centerGuideStep,
-          ),
-          const SizedBox(height: AppSpacing.s),
-          PracticePlayCountLabel(
-            key: kPracticePlaybackFooterLabelKey,
-            isManualMode: isManualMode,
-            playCountText: playCountText,
-            statusSuffixText: statusSuffixText,
-            l10n: l10n,
-            theme: theme,
-          ),
-        ],
+    // 播放按钮和遍数标签都属于底部固定控制区，必须整体避让 Android 导航栏和
+    // iOS Home Indicator。SafeArea 的 minimum 保留桌面端及无 inset 时的原有留白。
+    return SafeArea(
+      top: false,
+      bottom: true,
+      maintainBottomViewPadding: true,
+      minimum: EdgeInsets.only(bottom: isMobile ? AppSpacing.s : AppSpacing.m),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PlaybackControls(
+              canGoPrev: canGoPrev,
+              isLast: isLast,
+              centerIcon: centerIcon,
+              onPrevious: onPrevious,
+              onNext: onNext,
+              onCenter: onCenter,
+              centerGuideStep: centerGuideStep,
+            ),
+            const SizedBox(height: AppSpacing.s),
+            PracticePlayCountLabel(
+              key: kPracticePlaybackFooterLabelKey,
+              isManualMode: isManualMode,
+              playCountText: playCountText,
+              statusSuffixText: statusSuffixText,
+              l10n: l10n,
+              theme: theme,
+            ),
+          ],
+        ),
       ),
     );
   }

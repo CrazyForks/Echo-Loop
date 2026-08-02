@@ -14,6 +14,7 @@ import '../../models/stage_settings_overrides.dart' show BriefingPauseChoice;
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
 import '../common/briefing_action_row.dart';
+import '../common/learning_briefing_sheet_content.dart';
 
 /// 显示跟读简报底部弹窗
 ///
@@ -117,13 +118,7 @@ class _ListenAndRepeatBriefingSheetState
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.xl,
-      ),
+    return LearningBriefingSheetContent(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

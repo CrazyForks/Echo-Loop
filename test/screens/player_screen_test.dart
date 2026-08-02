@@ -329,7 +329,7 @@ void main() {
         await _disposeTree(tester);
       });
 
-      testWidgets('移动端状态 label 不再占用完整底部安全区', (tester) async {
+      testWidgets('移动端播放器控制区完整避让底部安全区', (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1.0;
         tester.view.padding = const FakeViewPadding(bottom: 34);
@@ -363,9 +363,46 @@ void main() {
         final screenBottom =
             tester.view.physicalSize.height / tester.view.devicePixelRatio;
 
-        // 底部状态行保留约 16px 压缩安全区，避免贴住 Home indicator，
-        // 同时不使用 34px 全量安全区把播放器控制面板顶高。
-        expect(screenBottom - statusRowBottom, closeTo(16, 0.1));
+        // 状态行与播放按钮属于同一个控制区，统一避让完整的底部安全区。
+        expect(screenBottom - statusRowBottom, closeTo(34, 0.1));
+        await _disposeTree(tester);
+      });
+
+      testWidgets('无字幕播放按钮不落入底部安全区', (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        // 模拟退出沉浸式全屏后的瞬间：普通 padding 可能暂时为 0，
+        // 但系统导航栏的 viewPadding 已经恢复。
+        tester.view.padding = const FakeViewPadding();
+        tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPadding);
+        addTearDown(tester.view.resetViewPadding);
+
+        final item = createTestAudioItem();
+        await tester.pumpWidget(
+          createTestScreen(
+            const PlayerScreen(),
+            overrides: _audioOverrides(
+              practiceState: ListeningPracticeState(
+                currentAudioItem: item,
+                sentences: const [],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final button = tester.getRect(
+          find.descendant(
+            of: find.byType(PlaybackControls),
+            matching: find.byIcon(Icons.play_arrow),
+          ),
+        );
+        final safeBottom =
+            tester.view.physicalSize.height / tester.view.devicePixelRatio - 34;
+        expect(button.bottom, lessThanOrEqualTo(safeBottom));
         await _disposeTree(tester);
       });
 

@@ -3,10 +3,42 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/models/stage_settings_overrides.dart'
     show BriefingPauseChoice;
 import 'package:echo_loop/widgets/intensive_listen/intensive_listen_briefing_sheet.dart';
+import 'package:echo_loop/widgets/common/briefing_action_row.dart';
 
 import '../helpers/test_app.dart';
 
 void main() {
+  testWidgets('底部开始按钮避让 Android/iOS 底部安全区', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showIntensiveListenBriefingSheet(
+              context: context,
+              sentenceCount: 10,
+              onStartPractice: (_, _) {},
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final actionRow = tester.getRect(find.byType(BriefingActionRow));
+    expect(actionRow.bottom, lessThanOrEqualTo(844 - 34));
+  });
+
   testWidgets('入口面板默认显示 1.0x 播放速度下拉菜单', (tester) async {
     await tester.pumpWidget(
       createTestApp(

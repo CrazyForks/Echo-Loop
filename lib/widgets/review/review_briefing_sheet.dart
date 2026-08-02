@@ -12,6 +12,7 @@ import '../../models/stage_settings_overrides.dart' show BriefingPauseChoice;
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
 import '../common/briefing_action_row.dart';
+import '../common/learning_briefing_sheet_content.dart';
 
 /// 复习步骤提示弹窗。
 ///
@@ -99,13 +100,7 @@ class _ReviewBriefingSheetState extends State<_ReviewBriefingSheet> {
     final theme = Theme.of(context);
     final isZh = Localizations.localeOf(context).languageCode == 'zh';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.xl,
-      ),
+    return LearningBriefingSheetContent(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

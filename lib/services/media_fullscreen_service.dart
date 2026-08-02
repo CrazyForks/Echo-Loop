@@ -21,6 +21,7 @@ class MediaFullscreenService {
   final _changes = StreamController<bool>.broadcast(sync: true);
   late final StreamSubscription<bool> _windowSubscription;
   bool _isFullscreen = false;
+  bool _mobileSystemUiWasChanged = false;
   bool? _macosRequestedFullscreen;
 
   Stream<bool> get changes => _changes.stream;
@@ -42,6 +43,7 @@ class MediaFullscreenService {
           ]);
         }
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+        _mobileSystemUiWasChanged = true;
         _setFullscreen(true);
         return true;
       case TargetPlatform.fuchsia:
@@ -63,8 +65,15 @@ class MediaFullscreenService {
         return;
       case TargetPlatform.android:
       case TargetPlatform.iOS:
+        if (!_mobileSystemUiWasChanged) return;
         await SystemChrome.setPreferredOrientations(const []);
-        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        // 退出沉浸式全屏后必须恢复为普通系统栏布局。edgeToEdge 会让导航栏
+        // 虽然重新显示，但仍覆盖在 Flutter 内容上，导致底部 SafeArea 没有 inset。
+        await SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.manual,
+          overlays: SystemUiOverlay.values,
+        );
+        _mobileSystemUiWasChanged = false;
         _setFullscreen(false);
         return;
       case TargetPlatform.fuchsia:

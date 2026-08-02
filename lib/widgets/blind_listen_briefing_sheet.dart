@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
+import 'common/learning_briefing_sheet_content.dart';
 
 /// 显示盲听简报底部弹窗
 ///
@@ -88,13 +89,7 @@ class BlindListenBriefingSheet extends StatelessWidget {
         ? l10n.blindListenBriefingSubtitle
         : l10n.blindListenBriefingReviewSubtitle(reviewRound);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.l,
-        AppSpacing.xl,
-      ),
+    return LearningBriefingSheetContent(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -188,6 +188,42 @@ void main() {
     expect(backend.videoTrackCalls, contains(false));
   });
 
+  testWidgets('视频播放控制区避让底部系统安全区', (tester) async {
+    final originalPhysicalSize = tester.view.physicalSize;
+    final originalDevicePixelRatio = tester.view.devicePixelRatio;
+    final originalPadding = tester.view.padding;
+    final originalViewPadding = tester.view.viewPadding;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    // 模拟退出沉浸式全屏后的瞬间：普通 padding 可能暂时为 0，
+    // 但系统导航栏的 viewPadding 已经恢复。
+    tester.view.padding = const FakeViewPadding();
+    tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+
+    await tester.pumpWidget(
+      createTestApp(
+        MediaPlaybackScreen(audioItem: item),
+        overrides: mediaOverrides(),
+      ),
+    );
+    await pumpMediaReady(tester);
+
+    final playButton = tester.getRect(
+      find.descendant(
+        of: find.byKey(const ValueKey('media-control-panel')),
+        matching: find.byIcon(Icons.play_arrow),
+      ),
+    );
+    expect(playButton.bottom, lessThanOrEqualTo(844 - 34));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    tester.view.devicePixelRatio = originalDevicePixelRatio;
+    tester.view.physicalSize = originalPhysicalSize;
+    tester.view.padding = originalPadding;
+    tester.view.viewPadding = originalViewPadding;
+    await tester.pump();
+  });
+
   testWidgets('键盘快捷键控制播放和切换字幕句', (tester) async {
     await tester.pumpWidget(
       createTestApp(

@@ -5,6 +5,8 @@
 
 ## 最近完成
 
+- [x] 修复 Android / iOS 播放器退出全屏后的底部遮挡：播放器、视频播放器、共享练习 footer 及全部学习任务简报统一使用 `SafeArea` 完整避让系统导航栏 / Home Indicator，并启用 `maintainBottomViewPadding` 处理退出沉浸式全屏时普通 `padding` 暂时归零的窗口 inset 竞态；退出沉浸式全屏时恢复普通系统栏 overlay，避免导航栏显示但仍覆盖 Flutter 内容；四类任务简报及盲听/复述共用的段落选择简报统一收敛到共享 `LearningBriefingSheetContent`，统一按钮底部留白机制，并将视觉最小留白从 32dp 调整为 16dp；避免未进入全屏时无条件改写系统栏状态，补充 Android / iOS 安全区几何回归测试。（2026-08-03）
+
 - [x] 修复 Android / iOS 文本选择手柄位置：共享 `SelectableContent` 原先用选区矩形顶部作为平台手柄锚点，导致 Android 水滴手柄显示在文字上方；改为 Flutter 官方端点语义使用选区底部，AI 查词与 AI Chat 共用路径同步修复，并补充平台几何及两个调用方 widget 回归测试。（2026-08-02）
 - [x] 调整 Android / iOS 文本选择放大镜间距：保留 Flutter 平台默认的放大、边界与隐藏规则，将共享放大镜锚点额外上移 10 logical px，避免镜框贴近手指和手柄；相关 AI Chat 放大镜显示回归继续覆盖。（2026-08-02）
 - [x] 增强 Android 文本选择放大镜可见性：保留平台定位与放大比例，补充常见的 1px 半透明边框和柔和外阴影，复杂背景下可辨认镜框；补充 AI Chat widget 回归测试。（2026-08-02）

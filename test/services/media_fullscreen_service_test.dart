@@ -40,6 +40,10 @@ void main() {
     await service.exit();
 
     expect(await exited, isFalse);
+    expect(
+      calls.map((call) => call.method),
+      contains('SystemChrome.setEnabledSystemUIOverlays'),
+    );
     await service.dispose();
   });
 
@@ -62,6 +66,22 @@ void main() {
       isEmpty,
     );
     await service.exit();
+    await service.dispose();
+  });
+
+  test('未进入全屏时退出不会改写全局系统栏状态', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          calls.add(call);
+          return null;
+        });
+    final service = MediaFullscreenService();
+
+    await service.exit();
+
+    expect(calls, isEmpty);
     await service.dispose();
   });
 

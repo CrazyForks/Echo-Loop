@@ -7,7 +7,7 @@ import 'package:echo_loop/widgets/practice/practice_play_count_label.dart';
 import '../helpers/test_app.dart';
 
 void main() {
-  testWidgets('移动端学习页底部 label 只保留压缩后的安全区间距', (tester) async {
+  testWidgets('移动端学习页底部控制区完整避让系统安全区', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     tester.view.padding = const FakeViewPadding(bottom: 34);
@@ -57,8 +57,7 @@ void main() {
     final screenBottom =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
 
-    // 学习页共用 footer 不再叠加 label 内部 16px + footer 外部 16px；
-    // 有 Home indicator 时保留约 16px 压缩安全区，避免 label 贴底重叠。
-    expect(screenBottom - labelBottom, closeTo(16, 0.1));
+    // footer 的播放按钮和 label 统一避让底部系统区域，不再只给 label 留半个 inset。
+    expect(screenBottom - labelBottom, closeTo(34, 0.1));
   });
 }

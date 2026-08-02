@@ -528,7 +528,10 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
           ),
         ),
         child: SafeArea(
-          bottom: false,
+          top: false,
+          bottom: true,
+          maintainBottomViewPadding: true,
+          minimum: const EdgeInsets.only(bottom: AppSpacing.s),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1082,18 +1085,9 @@ class _MediaInfoBar extends StatelessWidget {
         ],
       ],
     );
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    final bottomPadding = (bottomInset * 0.5)
-        .clamp(AppSpacing.s, AppSpacing.m)
-        .toDouble();
     return Padding(
       key: const ValueKey('media-info-bar'),
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        AppSpacing.s,
-        AppSpacing.m,
-        bottomPadding,
-      ),
+      padding: EdgeInsets.fromLTRB(AppSpacing.m, AppSpacing.s, AppSpacing.m, 0),
       child: Center(child: row),
     );
   }
