@@ -296,6 +296,8 @@
     }
   },
   "audioErrorUnsupportedTitle": "Unsupported audio format",
+  "audioErrorNoAudioTitle": "No audio file selected",
+  "audioNoAudioSelected": "Subtitles are imported together with their audio. Select the audio file too — MP3, WAV, M4A, AAC, FLAC.",
   "audioErrorGenericTitle": "Failed to add audio",
   "pickTranscriptFileFailed": "Failed to select subtitle file",
   "subtitleUnsupportedFormat": "Unsupported subtitle format: .{ext}. Only SRT and VTT files are supported.",

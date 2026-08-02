@@ -127,7 +127,13 @@ class _PendingBaiduNetdiskApi implements BaiduNetdiskApi {
 }
 
 class _RecordingFilePicker extends FilePicker {
+  _RecordingFilePicker({this.result});
+
+  /// 选择器回传的结果；null 表示用户取消。
+  final FilePickerResult? result;
+
   bool? lastAllowMultiple;
+  int pickCount = 0;
 
   @override
   Future<FilePickerResult?> pickFiles({
@@ -148,7 +154,8 @@ class _RecordingFilePicker extends FilePicker {
     bool readSequential = false,
   }) async {
     lastAllowMultiple = allowMultiple;
-    return null;
+    pickCount++;
+    return result;
   }
 }
 
@@ -1320,25 +1327,81 @@ void main() {
   });
 
   testWidgets('本地文件入口进入后不再展示选择按钮与网盘提示', (tester) async {
+    // 选择器取消（回传 null）且无已选文件时会退回来源选择页，此处正是该路径。
+    FilePicker.platform = _RecordingFilePicker();
+
     await tester.pumpWidget(_buildApp());
     await tester.tap(find.text('Open Import'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Import from File'));
     await tester.pumpAndSettle();
 
-    // 点入口即自动唤起选择器，面板内不再有手动选择按钮和网盘提示。
+    // 点入口即自动唤起选择器，面板内不再有独立的手动选择按钮和网盘提示。
     expect(
       find.byKey(const ValueKey('select-audio-file-button')),
-      findsNothing,
-    );
-    expect(
-      find.widgetWithText(FilledButton, 'Select Audio File'),
       findsNothing,
     );
     expect(
       find.textContaining('Before choosing from a cloud drive'),
       findsNothing,
     );
+  });
+
+  testWidgets('本地文件只选中字幕时提示未选择音频且可重新选择', (tester) async {
+    // 回归防线：字幕不能单独导入，此前这种情况面板既无提示、底部按钮又是禁用的
+    // 「导入」，用户在 embedded 面板里没有任何重新唤起选择器的入口。
+    final picker = _RecordingFilePicker(
+      result: FilePickerResult([
+        PlatformFile(path: '/cache/0/talk.srt', name: 'talk.srt', size: 46),
+      ]),
+    );
+    FilePicker.platform = picker;
+
+    await tester.pumpWidget(_buildApp());
+    await tester.tap(find.text('Open Import'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Import from File'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No audio file selected'), findsOneWidget);
+
+    final button = find.widgetWithText(FilledButton, 'Select Audio File');
+    expect(button, findsOneWidget);
+    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+
+    // 点击可再次唤起选择器。
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(picker.pickCount, 2);
+  });
+
+  testWidgets('本地文件删空已选列表后可重新选择', (tester) async {
+    final picker = _RecordingFilePicker(
+      result: FilePickerResult([
+        PlatformFile(path: '/cache/0/talk.mp3', name: 'talk.mp3', size: 2048),
+      ]),
+    );
+    FilePicker.platform = picker;
+
+    await tester.pumpWidget(_buildApp());
+    await tester.tap(find.text('Open Import'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Import from File'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('talk.mp3'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Select Audio File'),
+      findsNothing,
+    );
+
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+
+    expect(find.text('talk.mp3'), findsNothing);
+    final button = find.widgetWithText(FilledButton, 'Select Audio File');
+    expect(button, findsOneWidget);
+    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
   });
 
   testWidgets('链接导入页可从剪切板粘贴链接并启用提交', (tester) async {

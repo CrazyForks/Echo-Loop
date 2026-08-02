@@ -206,7 +206,6 @@ class _ImportAudioFlowSheetState extends ConsumerState<ImportAudioFlowSheet> {
           collectionId: widget.collectionId,
           embedded: true,
           autoPickOnStart: true,
-          onComplete: _handleImported,
           onPickerDismissedEmpty: _goBackToSource,
         ),
         _ImportStep.directUrl => _DirectUrlPanel(
@@ -312,6 +311,10 @@ class _ImportAudioFlowSheetState extends ConsumerState<ImportAudioFlowSheet> {
     Navigator.pop(context);
   }
 
+  /// 切到独立完成页。
+  ///
+  /// 只服务链接导入：它一次只导一个文件、没有列表可展示结果。本地文件与网盘导入
+  /// 都把成功/跳过状态就地渲染在各自的已选列表里，不经过这里。
   void _handleImported(AudioImportOutcome outcome) {
     // 无任何结果（既没成功也没跳过）时不前进，停留原页供用户重选。
     if (outcome.added.isEmpty && outcome.duplicates.isEmpty) return;

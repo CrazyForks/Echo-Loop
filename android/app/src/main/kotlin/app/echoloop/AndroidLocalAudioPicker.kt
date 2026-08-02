@@ -1,0 +1,333 @@
+package app.echoloop
+
+import android.app.Activity
+import android.content.Intent
+import android.database.Cursor
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.util.Log
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+/**
+ * Android 本地音频选择器。
+ *
+ * 用 Storage Access Framework 的 `ACTION_OPEN_DOCUMENT` 让用户多选，**只回传 content
+ * URI 与元数据，不在选择阶段落盘**。字节按需读取：字幕在配对时走 [readBytes] 直接取
+ * 内存，音频在点击导入时走 [copyToFile] 从 URI 一次性流进目标暂存路径。
+ *
+ * 之所以不像 file_picker 那样先抄进 cache 造出一个 `path`：选择器为了不误灰
+ * m4a/flac 没做系统端 MIME 过滤，用户很容易连带选中几百 MB 的无关文件，全量落盘会
+ * 让列表迟迟出不来（实测选中 18 项抄了 722MB，其中真正要导入的音频只有 3.5MB）；
+ * 且被接受的音频还会因此被复制两遍（cache 一次、暂存区一次）。
+ *
+ * 文件名**不推断、不改写扩展名**，是否受支持一律由 Dart 侧白名单判断；怎么从 provider
+ * 的一堆列里挑出真实名字见 [PickedFileNaming]。file_picker 取名用
+ * `getColumnIndexOrThrow(DISPLAY_NAME)` 且兜底写在同一个 try 里，遇到不返回该列的第三方
+ * DocumentsProvider 会回传 `null` 名字（详见 [resolveFileName]）。
+ */
+class AndroidLocalAudioPicker(
+    private val activity: Activity,
+    binaryMessenger: BinaryMessenger,
+) : MethodChannel.MethodCallHandler {
+    companion object {
+        /** 与 Dart 侧 `local_audio_file_picker.dart` 约定的通道名。 */
+        private const val CHANNEL_NAME = "top.echo-loop/local_audio_picker"
+
+        /**
+         * 旧版本在选择阶段落盘用的缓存子目录，现已不再写入，仅在启动时清理残留。
+         * 前缀 `echoloop_import_` 同时也在设置页「清除缓存」的白名单里
+         * （`temp_cleanup_service.dart`）。
+         */
+        private const val LEGACY_CACHE_DIRECTORY = "echoloop_import_picker"
+
+        private const val LOG_TAG = "LocalAudioPicker"
+
+        /** [readBytes] 的体积上限。该方法只服务字幕（KB 级）。 */
+        private const val MAX_IN_MEMORY_BYTES = 16 * 1024 * 1024
+
+        /** `startActivityForResult` 请求码，由 `MainActivity` 转发时比对。 */
+        private const val REQUEST_CODE = 0x51A7
+    }
+
+    private val methodChannel = MethodChannel(binaryMessenger, CHANNEL_NAME)
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "LocalAudioPicker").apply { isDaemon = true }
+    }
+    private var pendingResult: MethodChannel.Result? = null
+
+    init {
+        methodChannel.setMethodCallHandler(this)
+        worker.execute(::removeLegacyCache)
+    }
+
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "pickAudioFiles" -> pickAudioFiles(result)
+            "readBytes" -> readBytes(call, result)
+            "copyToFile" -> copyToFile(call, result)
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun pickAudioFiles(result: MethodChannel.Result) {
+        if (pendingResult != null) {
+            result.error("picker_in_progress", "A file picker is already open.", null)
+            return
+        }
+        // 保持所有文件可见：音频和字幕要能在同一次多选里选中，且部分设备给 m4a/flac
+        // 标注的 MIME 不规范，不能由系统端的严格 MIME 过滤决定可选性。
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        pendingResult = result
+        try {
+            activity.startActivityForResult(intent, REQUEST_CODE)
+        } catch (error: Exception) {
+            pendingResult = null
+            result.error("audio_picker_launch_failed", "Unable to open file picker.", error.message)
+        }
+    }
+
+    /**
+     * 由 `MainActivity.onActivityResult` 转发。
+     *
+     * @return true 表示本次结果已被消费，调用方不应再继续分发。
+     */
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != REQUEST_CODE) return false
+        val result = pendingResult ?: return true
+        pendingResult = null
+
+        val uris = if (resultCode == Activity.RESULT_OK) extractUris(data) else emptyList()
+        if (uris.isEmpty()) {
+            result.success(null)
+            return true
+        }
+        // 只查 cursor 元数据，没有 IO；仍放到 worker 上，避免个别 provider 查询卡主线程。
+        worker.execute {
+            val described = runCatching { uris.map(::describe) }
+            activity.runOnUiThread {
+                described
+                    .onSuccess { files -> result.success(files) }
+                    .onFailure { error ->
+                        result.error(
+                            "audio_picker_failed",
+                            "Unable to read the selected file.",
+                            error.message,
+                        )
+                    }
+            }
+        }
+        return true
+    }
+
+    /** 多选走 `clipData`，单选走 `data`。 */
+    private fun extractUris(data: Intent?): List<Uri> {
+        if (data == null) return emptyList()
+        val clipData = data.clipData ?: return listOfNotNull(data.data)
+        return (0 until clipData.itemCount).mapNotNull { index -> clipData.getItemAt(index).uri }
+    }
+
+    /** 单个选中项的元数据；`uri` 是后续读取字节的唯一凭据。 */
+    private fun describe(uri: Uri): Map<String, Any> {
+        val metadata = queryMetadata(uri)
+        val name = resolveFileName(uri, metadata)
+        val size = metadata?.size ?: 0L
+        Log.i(LOG_TAG, "picked authority=${uri.authority ?: "unknown"} name=$name size=$size")
+        return mapOf("uri" to uri.toString(), "name" to name, "size" to size)
+    }
+
+    /**
+     * 把 URI 内容整体读进内存回传，仅供字幕这类小文件使用。
+     *
+     * 上限按**实际读到的字节数**卡，不看 provider 报的 size——会漏报 DISPLAY_NAME 的
+     * provider 同样可能不报 size。
+     */
+    private fun readBytes(call: MethodCall, result: MethodChannel.Result) {
+        val uri = parseUri(call, result) ?: return
+        worker.execute {
+            val bytes = runCatching {
+                activity.contentResolver.openInputStream(uri)?.use { input ->
+                    input.readAtMost(MAX_IN_MEMORY_BYTES)
+                } ?: throw IOException("Unable to open selected file")
+            }
+            activity.runOnUiThread {
+                bytes
+                    .onSuccess(result::success)
+                    .onFailure { error ->
+                        result.error(
+                            "audio_picker_read_failed",
+                            "Unable to read the selected file.",
+                            error.message,
+                        )
+                    }
+            }
+        }
+    }
+
+    /**
+     * 把 URI 内容流式写入 [targetPath]（Dart 侧给的暂存区绝对路径）。
+     *
+     * 写失败时删掉半成品，不给暂存区留下会被后续 finalize 误当成完整文件的残骸。
+     */
+    private fun copyToFile(call: MethodCall, result: MethodChannel.Result) {
+        val uri = parseUri(call, result) ?: return
+        val targetPath = call.argument<String>("targetPath")
+        if (targetPath.isNullOrEmpty()) {
+            result.error("invalid_argument", "targetPath is required.", null)
+            return
+        }
+        worker.execute {
+            val target = File(targetPath)
+            val copied = runCatching {
+                target.parentFile?.mkdirs()
+                activity.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(target).use { output -> input.copyTo(output) }
+                } ?: throw IOException("Unable to open selected file")
+                target.length()
+            }
+            activity.runOnUiThread {
+                copied
+                    .onSuccess { size ->
+                        Log.i(LOG_TAG, "copied name=${target.name} size=$size")
+                        result.success(null)
+                    }
+                    .onFailure { error ->
+                        target.delete()
+                        result.error(
+                            "audio_picker_copy_failed",
+                            "Unable to read the selected file.",
+                            error.message,
+                        )
+                    }
+            }
+        }
+    }
+
+    /** 解析 `uri` 参数；缺失时就地回错并返回 null。 */
+    private fun parseUri(call: MethodCall, result: MethodChannel.Result): Uri? {
+        val raw = call.argument<String>("uri")
+        if (raw.isNullOrEmpty()) {
+            result.error("invalid_argument", "uri is required.", null)
+            return null
+        }
+        return Uri.parse(raw)
+    }
+
+    /** 读满 [limit] 就报错，避免把大文件整个吃进内存。 */
+    private fun InputStream.readAtMost(limit: Int): ByteArray {
+        val buffer = ByteArrayOutputStream()
+        val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = read(chunk)
+            if (read < 0) return buffer.toByteArray()
+            if (buffer.size() + read > limit) {
+                throw IOException("File is too large to read into memory")
+            }
+            buffer.write(chunk, 0, read)
+        }
+    }
+
+    /**
+     * 解析文件名：把所有可能带着真实名字的来源按可信度排好，交给
+     * [PickedFileNaming.resolve] 挑一个。
+     *
+     * 关键差异（file_picker 的 bug 所在）：[queryMetadata] 用 `getColumnIndex` 而非
+     * `getColumnIndexOrThrow`，并且兜底逻辑放在查询之外——否则 provider 不返回
+     * DISPLAY_NAME 列时异常会跳过兜底，最终回传 null 文件名。
+     */
+    private fun resolveFileName(uri: Uri, metadata: DocumentMetadata?): String {
+        return PickedFileNaming.resolve(
+            buildList {
+                metadata?.let { addAll(it.nameCandidates) }
+                add(documentId(uri))
+                add(uri.lastPathSegment)
+            },
+        )
+    }
+
+    /**
+     * 文档 ID 常常就是真实路径，如 ExternalStorageProvider 的
+     * `primary:Download/talk.mp3` 或 `raw:/storage/emulated/0/Download/talk.mp3`。
+     * 非 document URI 会抛 `IllegalArgumentException`，兜住即可。
+     */
+    private fun documentId(uri: Uri): String? {
+        return try {
+            DocumentsContract.getDocumentId(uri)
+        } catch (error: Exception) {
+            null
+        }
+    }
+
+    private data class DocumentMetadata(val nameCandidates: List<String?>, val size: Long?)
+
+    /**
+     * 查元数据。
+     *
+     * 用 **null projection**（要整行）而不是只点名 DISPLAY_NAME + SIZE：部分第三方
+     * DocumentsProvider 对指定 projection 处理不当，点名要反而给不出来，问它要整行却是
+     * 全的。拿到整行后按 [PickedFileNaming.NAME_COLUMNS] 逐列取候选名字。
+     */
+    private fun queryMetadata(uri: Uri): DocumentMetadata? {
+        return try {
+            activity.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                DocumentMetadata(
+                    nameCandidates = PickedFileNaming.NAME_COLUMNS.map { column ->
+                        readString(cursor, column)
+                    },
+                    size = readLong(cursor, OpenableColumns.SIZE)?.coerceAtLeast(0L),
+                )
+            }
+        } catch (error: Exception) {
+            Log.w(LOG_TAG, "metadata query failed for authority=${uri.authority}", error)
+            null
+        }
+    }
+
+    /** 列可能不存在、为 null、或类型对不上（对 BLOB 列取字符串会抛），逐层兜住。 */
+    private fun readString(cursor: Cursor, column: String): String? {
+        val index = cursor.getColumnIndex(column)
+        if (index < 0 || cursor.isNull(index)) return null
+        return try {
+            cursor.getString(index)
+        } catch (error: Exception) {
+            null
+        }
+    }
+
+    private fun readLong(cursor: Cursor, column: String): Long? {
+        val index = cursor.getColumnIndex(column)
+        if (index < 0 || cursor.isNull(index)) return null
+        return try {
+            cursor.getLong(index)
+        } catch (error: Exception) {
+            null
+        }
+    }
+
+    /** 清掉旧版本在选择阶段落盘留下的缓存；当前实现不再往这里写任何东西。 */
+    private fun removeLegacyCache() {
+        File(activity.cacheDir, LEGACY_CACHE_DIRECTORY).deleteRecursively()
+    }
+
+    fun dispose() {
+        methodChannel.setMethodCallHandler(null)
+        pendingResult?.error("picker_disposed", "File picker was disposed.", null)
+        pendingResult = null
+        // 用 shutdown 而非 shutdownNow：让在途复制自然结束，避免留下半个文件。
+        worker.shutdown()
+    }
+}

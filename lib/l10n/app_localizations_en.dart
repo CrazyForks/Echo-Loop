@@ -607,6 +607,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get audioErrorUnsupportedTitle => 'Unsupported audio format';
 
   @override
+  String get audioErrorNoAudioTitle => 'No audio file selected';
+
+  @override
+  String get audioNoAudioSelected =>
+      'Subtitles are imported together with their audio. Select the audio file too — MP3, WAV, M4A, AAC, FLAC.';
+
+  @override
   String get audioErrorGenericTitle => 'Failed to add audio';
 
   @override

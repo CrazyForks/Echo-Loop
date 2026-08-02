@@ -1184,6 +1184,18 @@ abstract class AppLocalizations {
   /// **'Unsupported audio format'**
   String get audioErrorUnsupportedTitle;
 
+  /// No description provided for @audioErrorNoAudioTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No audio file selected'**
+  String get audioErrorNoAudioTitle;
+
+  /// No description provided for @audioNoAudioSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitles are imported together with their audio. Select the audio file too — MP3, WAV, M4A, AAC, FLAC.'**
+  String get audioNoAudioSelected;
+
   /// No description provided for @audioErrorGenericTitle.
   ///
   /// In en, this message translates to:

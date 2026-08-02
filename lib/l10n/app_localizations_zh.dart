@@ -596,6 +596,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get audioErrorUnsupportedTitle => '不支持的音频格式';
 
   @override
+  String get audioErrorNoAudioTitle => '未选择音频文件';
+
+  @override
+  String get audioNoAudioSelected =>
+      '字幕需要和音频一起导入，请把音频文件也选上：MP3、WAV、M4A、AAC、FLAC。';
+
+  @override
   String get audioErrorGenericTitle => '添加音频失败';
 
   @override

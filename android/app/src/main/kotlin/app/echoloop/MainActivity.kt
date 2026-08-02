@@ -1,5 +1,6 @@
 package app.echoloop
 
+import android.content.Intent
 import android.os.Build
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -14,6 +15,7 @@ class MainActivity : AudioServiceActivity() {
     private var deviceInfoChannel: MethodChannel? = null
     private var speechPracticeHandler: AndroidSpeechPracticeHandler? = null
     private var audioDecodeHandler: AndroidAudioDecodeHandler? = null
+    private var localAudioPicker: AndroidLocalAudioPicker? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -57,6 +59,10 @@ class MainActivity : AudioServiceActivity() {
         audioDecodeHandler = AndroidAudioDecodeHandler(
             flutterEngine.dartExecutor.binaryMessenger,
         )
+        localAudioPicker = AndroidLocalAudioPicker(
+            this,
+            flutterEngine.dartExecutor.binaryMessenger,
+        )
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -70,7 +76,15 @@ class MainActivity : AudioServiceActivity() {
         speechPracticeHandler = null
         audioDecodeHandler?.dispose()
         audioDecodeHandler = null
+        localAudioPicker?.dispose()
+        localAudioPicker = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        // 本地音频选择器消费掉自己的请求码，其余一律继续交给插件体系分发。
+        if (localAudioPicker?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onRequestPermissionsResult(

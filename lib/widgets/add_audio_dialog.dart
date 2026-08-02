@@ -19,6 +19,7 @@ import 'package:path/path.dart' as path;
 import '../features/audio_import/audio_finalization_service.dart';
 import '../features/audio_import/audio_import_models.dart';
 import '../features/audio_import/audio_registration_service.dart';
+import '../features/audio_import/local_audio_file_picker.dart';
 import '../features/audio_import/subtitle_pairing.dart';
 import '../models/audio_item.dart';
 import '../providers/collection_provider.dart';
@@ -52,7 +53,7 @@ typedef _SavedPickedAudio = ({
 });
 
 /// 内联错误提示种类
-enum _AudioErrorKind { unsupportedFormat, generic }
+enum _AudioErrorKind { unsupportedFormat, noAudioSelected, generic }
 
 /// 内联错误条数据
 class _InlineError {
@@ -70,7 +71,6 @@ class AddAudioDialog extends ConsumerStatefulWidget {
   /// 合集 ID（为 null 时显示合集下拉框）
   final String? collectionId;
   final bool embedded;
-  final ValueChanged<AudioImportOutcome>? onComplete;
   final AudioImportSourceType importSourceType;
   final bool preferDownloadsDirectory;
 
@@ -84,7 +84,6 @@ class AddAudioDialog extends ConsumerStatefulWidget {
     super.key,
     this.collectionId,
     this.embedded = false,
-    this.onComplete,
     this.importSourceType = AudioImportSourceType.local,
     this.preferDownloadsDirectory = true,
     this.autoPickOnStart = false,
@@ -96,6 +95,9 @@ class AddAudioDialog extends ConsumerStatefulWidget {
 }
 
 class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
+  final AndroidLocalAudioFilePicker _localAudioFilePicker =
+      AndroidLocalAudioFilePicker();
+
   /// 已选中的音频文件列表
   List<_PickedAudio> _pickedFiles = [];
 
@@ -208,6 +210,19 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
         child: FilledButton(
           onPressed: () => Navigator.pop(context, _completedOutcome),
           child: Text(l10n.done),
+        ),
+      );
+    }
+
+    // embedded 面板内没有独立的「选择音频文件」按钮（那个只在独立弹窗里渲染），
+    // 空列表时若主按钮仍是禁用的「导入」，用户就没有任何重新唤起选择器的入口了
+    // ——只选中字幕、或把已选文件全删掉都会落到这个状态。此时主按钮改为选择入口。
+    if (widget.embedded && _pickedFiles.isEmpty) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _isPicking ? null : _pickAudioFiles,
+          child: Text(l10n.selectAudioFile),
         ),
       );
     }
@@ -409,6 +424,10 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
         Icons.audiotrack_outlined,
         l10n.audioErrorUnsupportedTitle,
       ),
+      _AudioErrorKind.noAudioSelected => (
+        Icons.audiotrack_outlined,
+        l10n.audioErrorNoAudioTitle,
+      ),
       _AudioErrorKind.generic => (
         Icons.error_outline,
         l10n.audioErrorGenericTitle,
@@ -595,6 +614,17 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
             l10n.audioUnsupportedFormat(extList),
           ),
         );
+      } else if (picked.isEmpty) {
+        // 只选中了字幕（字幕不能单独导入）：不给提示的话面板会一直空着，
+        // 用户不知道为什么什么都没发生。有不支持格式时上面那条已经解释过了，
+        // 两条错误只能显示一条，不叠加。
+        final l10n = AppLocalizations.of(context)!;
+        _showInlineError(
+          _InlineError(
+            _AudioErrorKind.noAudioSelected,
+            l10n.audioNoAudioSelected,
+          ),
+        );
       }
       if (picked.isNotEmpty) {
         setState(() {
@@ -628,11 +658,10 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
     if (!kIsWeb && Platform.isAndroid) {
       // Android SAF 在 FileType.custom + 多扩展名场景会按精确 MIME 匹配，
       // 导致 m4a/flac 等被设备索引成非标 MIME 的文件被灰掉、无法选中；且 FileType.audio
-      // 会隐藏字幕文件。改用 FileType.any（不过滤），选中后我们自己按白名单过滤。
-      return FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: true,
-      );
+      // 会隐藏字幕文件。故不做系统端过滤，选中后我们自己按白名单过滤。
+      // 走自家 SAF 通道而非 file_picker：后者在 DocumentsProvider 缺 DISPLAY_NAME 时
+      // 会回传 null 文件名并在插件内部抛类型异常，见 [AndroidLocalAudioFilePicker]。
+      return _localAudioFilePicker.pickFiles();
     }
     if (!kIsWeb && Platform.isIOS) {
       return FilePicker.platform.pickFiles(
@@ -654,12 +683,19 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
     });
   }
 
-  /// 读取选中文件的字节（路径 / bytes / 流三种来源）。
+  /// 读取选中文件的字节（路径 / bytes / content URI / 流四种来源）。
+  ///
+  /// 只服务字幕（KB 级）。Android 的选中项没有文件路径，只有 content URI，
+  /// 走原生通道整体读入内存；音频不能走这里，见 [_savePickedFileToSandbox]。
   Future<Uint8List> _readPlatformFileBytes(PlatformFile file) async {
     final sourcePath = file.path;
     if (sourcePath != null) return File(sourcePath).readAsBytes();
     final bytes = file.bytes;
     if (bytes != null) return bytes;
+    final identifier = file.identifier;
+    if (identifier != null && !kIsWeb && Platform.isAndroid) {
+      return _localAudioFilePicker.readBytes(identifier);
+    }
     final readStream = file.readStream;
     if (readStream != null) {
       final chunks = <int>[];
@@ -706,10 +742,15 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
     final tmpPath = path.join(tmpDir.path, tmpName);
 
     // 先复制到临时目录，转码/落盘交给与链接导入共用的 finalize 流程。
+    // Android 的选中项只有 content URI：由原生一次性流进暂存区，不经中间缓存——
+    // 选择阶段就落盘会让整个导入把每个音频抄两遍。
     final bytes = file.bytes;
     final readStream = file.readStream;
+    final identifier = file.identifier;
     if (sourcePath != null) {
       await File(sourcePath).copy(tmpPath);
+    } else if (identifier != null && !kIsWeb && Platform.isAndroid) {
+      await _localAudioFilePicker.copyToFile(identifier, tmpPath);
     } else if (bytes != null) {
       await File(tmpPath).writeAsBytes(bytes);
     } else if (readStream != null) {
