@@ -105,8 +105,9 @@ class PracticeProgressSection extends StatelessWidget {
                 Text(ts, style: timestampStyle),
               ],
               const Spacer(),
-              if (trailing case final action?)
-                Flexible(fit: FlexFit.loose, child: action),
+              // 右侧操作按自身宽度布局，只让 Spacer 消化剩余空间。
+              // 若再用 Flexible，它会与 Spacer 平分剩余宽度，使按钮停在页面中部。
+              if (trailing case final action?) action,
             ],
           ),
           // 来源音频名称

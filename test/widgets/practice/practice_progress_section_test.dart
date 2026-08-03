@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/practice/practice_progress_section.dart';
 
 /// 创建简易测试 App（PracticeProgressSection 不依赖 Riverpod）
@@ -18,6 +19,7 @@ Widget _buildTestWidget({
   return MaterialApp(
     home: Scaffold(
       body: PracticeProgressSection(
+        key: const ValueKey('practice-progress-section'),
         current: current,
         total: total,
         progressText: '第 $current/$total 句',
@@ -76,6 +78,18 @@ void main() {
       expect(
         tester.getCenter(find.byIcon(Icons.bookmark_border)).dy,
         closeTo(progress, 3),
+      );
+      expect(
+        tester.getTopRight(find.byIcon(Icons.bookmark_border)).dx,
+        closeTo(
+          tester
+                  .getTopRight(
+                    find.byKey(const ValueKey('practice-progress-section')),
+                  )
+                  .dx -
+              AppSpacing.m,
+          1,
+        ),
       );
     });
 

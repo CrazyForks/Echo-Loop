@@ -28,6 +28,7 @@ import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/services/notification_permission_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 
 import '../helpers/mock_providers.dart';
@@ -436,6 +437,10 @@ void main() {
 
       // "Sentence 3/10" (1-based)
       expect(find.text('Sentence 3/10'), findsOneWidget);
+      expect(
+        tester.getTopRight(find.byType(BookmarkToggleRow)).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
     });
 
     testWidgets('普通模式显示偷看和听不懂按钮', (tester) async {

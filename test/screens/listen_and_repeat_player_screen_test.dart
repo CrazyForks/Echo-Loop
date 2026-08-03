@@ -474,6 +474,10 @@ void main() {
         tester.getCenter(find.byType(BookmarkToggleRow)).dy,
         closeTo(progressY, 3),
       );
+      expect(
+        tester.getTopRight(find.byType(BookmarkToggleRow)).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
     });
 
     testWidgets('显示底部控制按钮', (tester) async {
