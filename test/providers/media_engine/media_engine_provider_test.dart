@@ -5,6 +5,7 @@ import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_playback_driver.dart';
 import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
+import 'package:echo_loop/providers/media_engine/media_sense_group_range_playback.dart';
 import 'package:echo_loop/services/media_session_router.dart';
 import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,6 +98,29 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await engine.pause();
     backend.emitPosition(const Duration(seconds: 5));
+    await playing;
+
+    expect(backend.pauseCalls, 1);
+  });
+
+  test('媒体意群播放按当前速度播放区间，取消后旧 session 不再生效', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    final playback = MediaSenseGroupRangePlayback(
+      engine: engine,
+      playbackSpeed: () => 1.25,
+    );
+
+    final playing = playback.play(
+      const Duration(seconds: 2),
+      const Duration(seconds: 4),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.rateCalls.last, 1.25);
+    expect(backend.seekCalls.last, const Duration(seconds: 2));
+
+    await playback.cancel();
+    backend.emitPosition(const Duration(seconds: 4));
     await playing;
 
     expect(backend.pauseCalls, 1);

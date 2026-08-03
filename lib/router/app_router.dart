@@ -38,7 +38,7 @@ import '../screens/player_screen.dart';
 import '../screens/media_playback_screen.dart';
 import '../screens/blind_listen_player_screen.dart';
 import '../screens/intensive_listen_player_screen.dart';
-import '../models/media_intensive_listen_startup.dart';
+import '../models/media_learning_startup.dart';
 import '../screens/listen_and_repeat_player_screen.dart';
 import '../screens/retell_player_screen.dart';
 import '../screens/review_difficult_practice_screen.dart';
@@ -361,7 +361,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           return IntensiveListenPlayerScreen(
                             collectionId: collectionId,
                             audioItemId: audioId,
-                            mediaStartup: startup is MediaIntensiveListenStartup
+                            mediaStartup: startup is MediaLearningStartup
                                 ? startup
                                 : null,
                           );
@@ -374,9 +374,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           final collectionId =
                               state.pathParameters['collectionId']!;
                           final audioId = state.pathParameters['audioId']!;
+                          final startup = state.extra;
                           return ListenAndRepeatPlayerScreen(
                             collectionId: collectionId,
                             audioItemId: audioId,
+                            mediaStartup: startup is MediaLearningStartup
+                                ? startup
+                                : null,
                           );
                         },
                       ),
@@ -602,9 +606,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return IntensiveListenPlayerScreen(
             collectionId: null,
             audioItemId: audioId,
-            mediaStartup: startup is MediaIntensiveListenStartup
-                ? startup
-                : null,
+            mediaStartup: startup is MediaLearningStartup ? startup : null,
           );
         },
       ),
@@ -613,9 +615,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final audioId = state.pathParameters['audioId']!;
+          final startup = state.extra;
           return ListenAndRepeatPlayerScreen(
             collectionId: null,
             audioItemId: audioId,
+            mediaStartup: startup is MediaLearningStartup ? startup : null,
           );
         },
       ),

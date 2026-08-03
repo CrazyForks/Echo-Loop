@@ -13,7 +13,7 @@ import '../database/enums.dart';
 import '../models/audio_item.dart';
 import '../models/learning_plan.dart';
 import '../models/learning_progress.dart';
-import '../models/media_intensive_listen_startup.dart';
+import '../models/media_learning_startup.dart';
 import '../models/media_load_result.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
 import '../providers/audio_library_provider.dart';
@@ -1225,7 +1225,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               widget.collectionId,
               widget.audioItemId,
             ),
-            extra: MediaIntensiveListenStartup(
+            extra: MediaLearningStartup(
               loadKey: '${audioItem.id}:planned',
               load: () => session.enterMediaIntensiveListenMode(
                 audioItem,
@@ -1266,11 +1266,17 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = await _ensureAudioLoaded();
-    if (!context.mounted || lpState == null) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : (await _ensureAudioLoaded())?.sentences;
+    if (!context.mounted || sentences == null) return;
     final l10n = AppLocalizations.of(context)!;
 
-    if (lpState.sentences.isEmpty) {
+    if (sentences.isEmpty) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -1318,10 +1324,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     // 比例下降 → 难度降低 → 速度回升），同时用于跟读遍数 playCount。
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(
-          widget.audioItemId,
-          lpState.sentences.length,
-        );
+        .refreshDifficultyFromBookmarks(widget.audioItemId, sentences.length);
     if (!context.mounted) return;
     final playCount = targetPlayCountForDifficulty(liveDifficulty.index);
 
@@ -1329,9 +1332,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       Duration.zero,
       (sum, idx) =>
           sum +
-          (idx < lpState.sentences.length
-              ? lpState.sentences[idx].duration
-              : Duration.zero),
+          (idx < sentences.length ? sentences[idx].duration : Duration.zero),
     );
     final repeatEstimate = difficultDuration * playCount * 2;
 
@@ -1352,11 +1353,33 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
       onStartPractice: (playbackSpeed, pause) async {
+        final controller = ref.read(listenAndRepeatControllerProvider.notifier);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.listenAndRepeatPlayer(
+              widget.collectionId,
+              widget.audioItemId,
+            ),
+            extra: MediaLearningStartup(
+              loadKey: '${audioItem.id}:listen-and-repeat:planned',
+              load: () => controller.initializeMedia(
+                mediaItem: audioItem,
+                allSentences: sentences,
+                isFreePlay: false,
+                smartSpeed: smartSpeed,
+                stage: stage,
+              ),
+              cancel: controller.cancelMediaEntry,
+            ),
+          );
+          return;
+        }
         await ref
             .read(listenAndRepeatControllerProvider.notifier)
             .initialize(
               audioItemId: widget.audioItemId,
-              allSentences: lpState.sentences,
+              allSentences: sentences,
               isFreePlay: false,
               smartSpeed: smartSpeed,
               stage: stage,
@@ -2643,7 +2666,7 @@ class _FirstStudySection extends ConsumerWidget {
           if (!context.mounted) return;
           context.push(
             AppRoutes.intensiveListenPlayer(collectionId, audioItemId),
-            extra: MediaIntensiveListenStartup(
+            extra: MediaLearningStartup(
               loadKey: '${audioItem.id}:free-play',
               load: () async {
                 final result = await notifier.enterMediaIntensiveListenMode(
@@ -2701,8 +2724,14 @@ class _FirstStudySection extends ConsumerWidget {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = ref.read(listeningPracticeProvider);
-    if (lpState.sentences.isEmpty) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (!context.mounted || sentences.isEmpty) return;
 
     final bookmarkDao = ref.read(bookmarkDaoProvider);
     final difficultIndices = await BookmarkManager.loadBookmarks(
@@ -2725,16 +2754,14 @@ class _FirstStudySection extends ConsumerWidget {
     // 比例下降 → 难度降低 → 速度回升），同时用于跟读遍数 playCount。
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(audioItemId, lpState.sentences.length);
+        .refreshDifficultyFromBookmarks(audioItemId, sentences.length);
     if (!context.mounted) return;
     final playCount = targetPlayCountForDifficulty(liveDifficulty.index);
     final difficultDuration = difficultIndices.fold<Duration>(
       Duration.zero,
       (sum, idx) =>
           sum +
-          (idx < lpState.sentences.length
-              ? lpState.sentences[idx].duration
-              : Duration.zero),
+          (idx < sentences.length ? sentences[idx].duration : Duration.zero),
     );
     final repeatEstimate = difficultDuration * playCount * 2;
 
@@ -2757,11 +2784,40 @@ class _FirstStudySection extends ConsumerWidget {
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
       onStartPractice: (playbackSpeed, pause) async {
+        final controller = ref.read(listenAndRepeatControllerProvider.notifier);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.listenAndRepeatPlayer(collectionId, audioItemId),
+            extra: MediaLearningStartup(
+              loadKey: '${audioItem.id}:listen-and-repeat:free-play',
+              load: () async {
+                final result = await controller.initializeMedia(
+                  mediaItem: audioItem,
+                  allSentences: sentences,
+                  isFreePlay: true,
+                  smartSpeed: smartSpeed,
+                );
+                if (result == MediaLoadResult.ready) {
+                  ref
+                      .read(learningSessionProvider.notifier)
+                      .setCatchUp(
+                        LearningStage.firstLearn,
+                        SubStageType.listenAndRepeat,
+                      );
+                }
+                return result;
+              },
+              cancel: controller.cancelMediaEntry,
+            ),
+          );
+          return;
+        }
         await ref
             .read(listenAndRepeatControllerProvider.notifier)
             .initialize(
               audioItemId: audioItemId,
-              allSentences: lpState.sentences,
+              allSentences: sentences,
               isFreePlay: true,
               smartSpeed: smartSpeed,
             );

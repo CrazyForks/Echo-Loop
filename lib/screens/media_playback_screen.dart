@@ -108,7 +108,9 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     unawaited(_fullscreenSubscription.cancel());
     unawaited(_releaseFullscreen());
     _playlistViewController.dispose();
-    unawaited(_controller.releaseFromScreen());
+    // 释放会取消意群区间播放并更新 MediaEngine 状态；不能在 widget 卸载的
+    // 同步阶段直接启动，否则 Riverpod 会拒绝构建期 provider 状态变更。
+    unawaited(Future<void>(() => _controller.releaseFromScreen()));
     scheduleMicrotask(_sleepTimer.cancel);
     super.dispose();
   }
@@ -231,6 +233,15 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     MediaPlaybackState state, {
     bool fillAvailableHeight = false,
   }) {
+    // 讲解子路由正在显示同一个 media_kit 会话时，父路由不再同时创建第二个
+    // Video 纹理；但必须保留同尺寸黑色画布，避免路由交接首帧露出下方字幕区。
+    // 返回后由本页面恢复唯一画面宿主。
+    if (_isNavigatingToDetail) {
+      return _MediaVisualHandoffCanvas(
+        fillAvailableHeight: fillAvailableHeight,
+        expanded: state.visualTrackExpanded,
+      );
+    }
     final controller = ref.read(mediaPlaybackProvider.notifier);
     return MediaVisualSurface(
       state: MediaVisualSurfaceState(
@@ -413,6 +424,7 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
           onStopMainPlayer: () => unawaited(controller.pause()),
           onToolbarButtonTapped: () =>
               unawaited(controller.pauseAfterCurrentSentence()),
+          senseGroupRangePlayback: controller.senseGroupRangePlayback,
         ),
       );
     }
@@ -465,6 +477,7 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
   Future<void> _handleSentenceDetail(Sentence sentence) async {
     if (_isNavigatingToDetail) return;
     _isNavigatingToDetail = true;
+    if (mounted) setState(() {});
     final controller = ref.read(mediaPlaybackProvider.notifier);
 
     try {
@@ -484,8 +497,13 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
           audioName: widget.audioItem.name,
           sentenceText: sentence.text,
           sentenceIndex: sentence.index,
+          totalSentenceCount: ref.read(mediaPlaybackProvider).sentences.length,
           startTimeMs: sentence.startTime.inMilliseconds,
           endTimeMs: sentence.endTime.inMilliseconds,
+          rangePlayback: controller.senseGroupRangePlayback,
+          mediaContext: SentenceDetailMediaContext(
+            setFullscreen: _setVisualTrackExpanded,
+          ),
         ),
       );
       if (!mounted) return;
@@ -504,6 +522,7 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
       }
     } finally {
       _isNavigatingToDetail = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -629,6 +648,46 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted || token != _seekPreviewToken) return;
     setState(() => _seekPreviewPosition = null);
+  }
+}
+
+/// 父子路由交接同一个视频纹理时的临时黑色画布。
+///
+/// [MediaVisualSurface] 不能在两个路由树中同时挂载同一纹理；交接期间父页以
+/// 相同的布局尺寸保留黑色观看区域，避免用户误以为先回到了纯字幕列表。
+class _MediaVisualHandoffCanvas extends StatelessWidget {
+  const _MediaVisualHandoffCanvas({
+    required this.fillAvailableHeight,
+    required this.expanded,
+  });
+
+  final bool fillAvailableHeight;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : double.infinity;
+        final preferredHeight = width / (16 / 9);
+        final height = expanded || fillAvailableHeight
+            ? maxHeight
+            : preferredHeight
+                  .clamp(0.0, maxHeight < 260 ? maxHeight : 260.0)
+                  .toDouble();
+        return SizedBox(
+          key: const ValueKey('media-visual-handoff-canvas'),
+          width: double.infinity,
+          height: height,
+          child: const ColoredBox(color: Colors.black),
+        );
+      },
+    );
   }
 }
 

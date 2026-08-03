@@ -188,6 +188,26 @@ void main() {
     expect(backend.videoTrackCalls, contains(false));
   });
 
+  testWidgets('已创建意群播放器后退出页面不在卸载期修改媒体状态', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        MediaPlaybackScreen(audioItem: item),
+        overrides: mediaOverrides(withTranscript: true),
+      ),
+    );
+    await pumpMediaReady(tester);
+
+    final context = tester.element(find.byType(MediaPlaybackScreen));
+    ProviderScope.containerOf(
+      context,
+    ).read(mediaPlaybackProvider.notifier).senseGroupRangePlayback;
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('视频播放控制区避让底部系统安全区', (tester) async {
     final originalPhysicalSize = tester.view.physicalSize;
     final originalDevicePixelRatio = tester.view.devicePixelRatio;

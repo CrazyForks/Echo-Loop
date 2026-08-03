@@ -133,6 +133,39 @@ void main() {
     expect(backend.seekCalls, isEmpty);
   });
 
+  test('收藏模式恢复时焦点与断点所在收藏句一致', () async {
+    await bookmarkDao.addBookmark(
+      const BookmarksCompanion(
+        audioItemId: Value('media-playback-test'),
+        sentenceIndex: Value(0),
+      ),
+    );
+    await bookmarkDao.addBookmark(
+      const BookmarksCompanion(
+        audioItemId: Value('media-playback-test'),
+        sentenceIndex: Value(2),
+      ),
+    );
+    when(() => playbackStateDao.getByAudioId('media-playback-test')).thenAnswer(
+      (_) async => PlaybackState(
+        audioItemId: 'media-playback-test',
+        positionMs: const Duration(seconds: 80).inMilliseconds,
+        playlistMode: PlaylistMode.bookmarks.index,
+        savedAt: DateTime(2026, 8, 3),
+      ),
+    );
+
+    await loadController();
+
+    final state = container.read(mediaPlaybackProvider);
+    expect(backend.openInitialPositions, [const Duration(seconds: 80)]);
+    expect(backend.seekCalls, isEmpty);
+    expect(state.position, const Duration(seconds: 80));
+    expect(state.playlistMode, PlaylistMode.bookmarks);
+    expect(state.currentFullIndex, 2);
+    expect(state.currentBookmarkIndex, 2);
+  });
+
   test('加载失败后可对同一媒体真正重试并成功', () async {
     backend
       ..closeStreamsOnDispose = false

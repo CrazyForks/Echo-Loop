@@ -40,6 +40,7 @@ import '../speech/speech_recording_controller.dart';
 import '../retell_recording_controller_provider.dart';
 import '../listening_practice/listening_practice_provider.dart';
 import '../media_engine/media_engine_provider.dart';
+import '../media_engine/media_sense_group_range_playback.dart';
 import 'blind_listen_player_provider.dart';
 import 'intensive_listen_player_provider.dart';
 import 'intensive_listen_playback_driver.dart';
@@ -616,14 +617,8 @@ class LearningSession extends _$LearningSession {
       return MediaLoadResult.failure;
     }
 
-    final subtitleSrt = await ref
-        .read(audioItemDaoProvider)
-        .getTranscriptSrt(mediaItem.id);
-    if (!isCurrentGeneration()) {
-      await mediaEngine.releaseFromScreen();
-      return MediaLoadResult.cancelled;
-    }
-    await mediaEngine.setSubtitleTrackData(subtitleSrt);
+    // 学习页视频字幕默认关闭；共享画面宿主在用户点 CC 后再按需读取 SRT。
+    await mediaEngine.setSubtitleTrackData(null);
     if (!isCurrentGeneration()) {
       await mediaEngine.releaseFromScreen();
       return MediaLoadResult.cancelled;
@@ -644,6 +639,11 @@ class LearningSession extends _$LearningSession {
       settings: settings,
       settingsSlot: settingsSlot,
       playbackDriver: MediaIntensiveListenPlaybackDriver(mediaEngine),
+      senseGroupRangePlayback: MediaSenseGroupRangePlayback(
+        engine: mediaEngine,
+        playbackSpeed: () =>
+            ref.read(intensiveListenPlayerProvider).settings.playbackSpeed,
+      ),
       usesMediaEngine: true,
     );
     if (!isCurrentGeneration()) {

@@ -52,6 +52,7 @@ mixin StudyTaskControllerMixin {
   String? _studyAudioItemId;
   StudyStage? _studyStage;
   bool _studyIsFreePlay = false;
+  bool _manageForegroundAudioEngine = true;
 
   static const _maxSessionSeconds = 5 * 60;
 
@@ -63,10 +64,12 @@ mixin StudyTaskControllerMixin {
     required String audioItemId,
     required StudyStage stage,
     required bool isFreePlay,
+    bool manageForegroundAudioEngine = true,
   }) async {
     _studyAudioItemId = audioItemId;
     _studyStage = stage;
     _studyIsFreePlay = isFreePlay;
+    _manageForegroundAudioEngine = manageForegroundAudioEngine;
 
     // 启动计时
     _studyStopwatch.reset();
@@ -82,7 +85,9 @@ mixin StudyTaskControllerMixin {
     ref.read(listeningPracticeProvider.notifier).suspendListeners();
 
     // 确保音频加载
-    await _ensureAudioLoaded(ref, audioItemId);
+    if (_manageForegroundAudioEngine) {
+      await _ensureAudioLoaded(ref, audioItemId);
+    }
 
     // 创建学习事件记录器并注入底层
     LearnedVocabularyTracker? vocabTracker;
@@ -96,7 +101,9 @@ mixin StudyTaskControllerMixin {
       vocabTracker: vocabTracker,
       stage: stage,
     );
-    ref.read(foregroundAudioEngineProvider.notifier).setRecorder(_recorder);
+    if (_manageForegroundAudioEngine) {
+      ref.read(foregroundAudioEngineProvider.notifier).setRecorder(_recorder);
+    }
     ref.read(speechRecordingControllerProvider.notifier).setRecorder(_recorder);
 
     // 上报 analytics
@@ -124,7 +131,9 @@ mixin StudyTaskControllerMixin {
     await _saveStudyTime(ref);
 
     // 清除 AudioEngine clip
-    await ref.read(foregroundAudioEngineProvider.notifier).clearClip();
+    if (_manageForegroundAudioEngine) {
+      await ref.read(foregroundAudioEngineProvider.notifier).clearClip();
+    }
 
     // 恢复 LP 监听 + 同步书签
     final practice = ref.read(listeningPracticeProvider.notifier);
@@ -132,7 +141,9 @@ mixin StudyTaskControllerMixin {
     practice.syncBookmarks();
 
     // 停止播放
-    await ref.read(foregroundAudioEngineProvider.notifier).stop();
+    if (_manageForegroundAudioEngine) {
+      await ref.read(foregroundAudioEngineProvider.notifier).stop();
+    }
 
     // 刷新词形统计
     await _flushVocabulary(ref);
@@ -142,7 +153,9 @@ mixin StudyTaskControllerMixin {
     ref.read(studyStatsNotifierProvider.notifier).refresh();
 
     // 清理 recorder 注入
-    ref.read(foregroundAudioEngineProvider.notifier).setRecorder(null);
+    if (_manageForegroundAudioEngine) {
+      ref.read(foregroundAudioEngineProvider.notifier).setRecorder(null);
+    }
     ref.read(speechRecordingControllerProvider.notifier).setRecorder(null);
     _recorder = null;
 
@@ -152,6 +165,9 @@ mixin StudyTaskControllerMixin {
 
     AppLogger.log('StudyTask', '结束: $_studyAudioItemId');
   }
+
+  /// 供不由前台音频引擎记录播放事件的媒体驱动复用同一统计记录器。
+  StudyEventRecorder? get studyEventRecorder => _recorder;
 
   /// 暂停学习计时
   void pauseStudyTimer() {

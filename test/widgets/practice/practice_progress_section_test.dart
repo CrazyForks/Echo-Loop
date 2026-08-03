@@ -72,6 +72,7 @@ void main() {
         greaterThan(tester.getTopRight(find.text('第 2/10 句')).dx),
       );
       expect(tester.getCenter(find.text('5.5 秒')).dy, closeTo(progress, 1));
+      expect(find.text('·'), findsOneWidget);
       expect(
         tester.getCenter(find.byIcon(Icons.bookmark_border)).dy,
         closeTo(progress, 3),

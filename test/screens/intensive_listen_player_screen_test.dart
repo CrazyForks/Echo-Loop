@@ -325,6 +325,21 @@ void main() {
   }
 
   group('IntensiveListenPlayerScreen', () {
+    testWidgets('恢复路由缺少启动任务和已初始化会话时返回入口页', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          startAtHome: true,
+          playerState: createPlayerState(totalSentences: 0),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open player'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open player'), findsOneWidget);
+      expect(find.byType(IntensiveListenPlayerScreen), findsNothing);
+    });
+
     testWidgets('视频启动任务未完成时立即显示精听页加载动画', (tester) async {
       final load = Completer<MediaLoadResult>();
       late _RecordingIntensiveListenPlayer player;
@@ -672,6 +687,8 @@ void main() {
           playerState: createPlayerState(
             currentSentenceIndex: 0,
             totalSentences: 5,
+            difficultSentences: {0},
+            isCurrentSentenceAutoMarked: true,
           ),
         ),
       );
@@ -680,6 +697,7 @@ void main() {
       expect(find.text('逐句精听'), findsOneWidget);
       expect(find.text('偷看字幕'), findsOneWidget);
       expect(find.text('听不太懂'), findsOneWidget);
+      expect(find.text('已自动收藏'), findsOneWidget);
     });
 
     testWidgets('完成统计使用数据库难句总数而非本次会话数量', (tester) async {

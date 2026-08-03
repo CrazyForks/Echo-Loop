@@ -19,14 +19,19 @@ import '../database/providers.dart';
 import '../features/chatbot/widgets/sentence_chat_button.dart';
 import '../l10n/app_localizations.dart';
 import '../models/audio_item.dart' as model;
+import '../models/media_playback_state.dart';
+import '../models/sense_group_range_playback.dart';
 import '../models/sentence.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
+import '../providers/media_engine/media_engine_provider.dart';
+import '../providers/media_playback/media_playback_provider.dart';
 import '../providers/listening_practice/bookmark_manager.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/sentence_ai_provider.dart';
 import '../services/app_logger.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
+import '../widgets/common/media_visual_surface.dart';
 import '../widgets/common/tappable_wrapper.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/annotation_content_view.dart';
@@ -45,20 +50,46 @@ class SentenceDetailArgs {
   /// 句子索引
   final int sentenceIndex;
 
+  /// 当前材料的句子总数。为空时仅显示当前句序号。
+  final int? totalSentenceCount;
+
   /// 句子起始时间（毫秒）
   final int startTimeMs;
 
   /// 句子结束时间（毫秒）
   final int endTimeMs;
 
+  /// 由媒体入口注入的区间播放器。
+  ///
+  /// 为空时继续使用既有音频讲解链路；非空时，句子与意群均必须在当前
+  /// `MediaEngine` 会话内播放，避免讲解页回退到全局 [AudioEngine]。
+  final SenseGroupRangePlayback? rangePlayback;
+
+  /// 视频随心听注入的画面呈现能力。
+  ///
+  /// 仅作为当前父级媒体会话的视图与全屏协调入口，不拥有、不加载也不释放
+  /// `MediaEngine`。为空时讲解页保持原有纯音频布局。
+  final SentenceDetailMediaContext? mediaContext;
+
   const SentenceDetailArgs({
     required this.audioItemId,
     required this.audioName,
     required this.sentenceText,
     required this.sentenceIndex,
+    this.totalSentenceCount,
     required this.startTimeMs,
     required this.endTimeMs,
+    this.rangePlayback,
+    this.mediaContext,
   });
+}
+
+/// 视频句子讲解页借用父级媒体会话所需的最小上下文。
+class SentenceDetailMediaContext {
+  const SentenceDetailMediaContext({required this.setFullscreen});
+
+  /// 由持有 [MediaFullscreenService] 的随心听父页面执行全屏切换。
+  final Future<void> Function(bool expanded) setFullscreen;
 }
 
 /// 句子详情页面
@@ -78,6 +109,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
   bool _isBookmarked = false;
   bool _bookmarkLoaded = false;
   bool _isTogglingBookmark = false;
+  bool _mediaExpanded = false;
 
   /// 缓存 engine 引用，dispose 时 ref 已不可用
   late final AudioEngine _engine;
@@ -88,7 +120,8 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     AppLogger.log(
       'Navigation',
       'sentence-detail init audio=${widget.args.audioItemId} '
-          'sentence=${widget.args.sentenceIndex}',
+          'sentence=${widget.args.sentenceIndex} '
+          'media=${widget.args.mediaContext != null}',
     );
     _engine = ref.read(audioEngineProvider.notifier);
     _loadBookmarkStatus();
@@ -106,7 +139,21 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     // 会触发 "Tried to modify a provider while the widget tree was building"。
     // 这里只暂停并失效讲解页 session，不 stop；否则晚到的 stop 会在播放器返回后
     // 重置 clip/position，造成句首短暂漏播和按钮状态误判。
-    Future(() => _engine.pause());
+    final rangePlayback = widget.args.rangePlayback;
+    final mediaContext = widget.args.mediaContext;
+    if (mediaContext != null && _mediaExpanded) {
+      AppLogger.log(
+        'SentenceDetailMedia',
+        'exit fullscreen on dispose audio=${widget.args.audioItemId} '
+            'sentence=${widget.args.sentenceIndex}',
+      );
+      unawaited(Future<void>(() => mediaContext.setFullscreen(false)));
+    }
+    if (rangePlayback != null) {
+      unawaited(Future<void>(() => rangePlayback.cancel()));
+    } else {
+      Future(() => _engine.pause());
+    }
     super.dispose();
   }
 
@@ -186,15 +233,50 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     }
   }
 
-  String _formatTime(int ms) {
-    final seconds = ms / 1000;
-    final m = seconds ~/ 60;
-    final s = (seconds % 60).toInt();
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
   /// 播放该句子的原声片段
   Future<void> _playSentence() async {
+    final rangePlayback = widget.args.rangePlayback;
+    if (rangePlayback != null) {
+      if (_isPlaying) {
+        AppLogger.log(
+          'SentenceDetailMedia',
+          '■ range cancel audio=${widget.args.audioItemId} '
+              'sentence=${widget.args.sentenceIndex}',
+        );
+        await rangePlayback.cancel();
+        if (mounted) setState(() => _isPlaying = false);
+        return;
+      }
+
+      setState(() => _isPlaying = true);
+      AppLogger.log(
+        'SentenceDetailMedia',
+        '▶ range start audio=${widget.args.audioItemId} '
+            'sentence=${widget.args.sentenceIndex} '
+            '${widget.args.startTimeMs}-${widget.args.endTimeMs}ms',
+      );
+      try {
+        await rangePlayback.play(
+          Duration(milliseconds: widget.args.startTimeMs),
+          Duration(milliseconds: widget.args.endTimeMs),
+        );
+        AppLogger.log(
+          'SentenceDetailMedia',
+          '✓ range complete audio=${widget.args.audioItemId} '
+              'sentence=${widget.args.sentenceIndex}',
+        );
+      } catch (error) {
+        AppLogger.log(
+          'SentenceDetailMedia',
+          '✗ range failed audio=${widget.args.audioItemId} '
+              'sentence=${widget.args.sentenceIndex}: $error',
+        );
+      } finally {
+        if (mounted) setState(() => _isPlaying = false);
+      }
+      return;
+    }
+
     final engine = ref.read(audioEngineProvider.notifier);
 
     if (_isPlaying) {
@@ -263,91 +345,142 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     final durationMs = args.endTimeMs - args.startTimeMs;
     final durationSec = durationMs / 1000;
     final durationText = l10n.sentenceDuration(durationSec.toStringAsFixed(1));
-    final timeRangeText =
-        '${_formatTime(args.startTimeMs)} - ${_formatTime(args.endTimeMs)}';
+    final sentenceProgressText = args.totalSentenceCount == null
+        ? '第 ${args.sentenceIndex + 1} 句'
+        : '第 ${args.sentenceIndex + 1}/${args.totalSentenceCount} 句';
+
+    final mediaContext = args.mediaContext;
+    final mediaState = mediaContext == null
+        ? null
+        : ref.watch(mediaPlaybackProvider);
+    final expanded = mediaState?.visualTrackExpanded ?? false;
+    _mediaExpanded = expanded;
+    final mediaSurface = mediaState == null || mediaContext == null
+        ? null
+        : _buildMediaSurface(mediaState, mediaContext);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(args.audioName),
-        centerTitle: true,
-        actions: [SentenceChatButton(sentenceText: args.sentenceText)],
-      ),
+      backgroundColor: expanded ? Colors.black : null,
+      appBar: expanded
+          ? null
+          : AppBar(
+              title: Text(args.audioName),
+              centerTitle: true,
+              actions: [SentenceChatButton(sentenceText: args.sentenceText)],
+            ),
       // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）。
       // 页面自身无 PopScope，由宿主代管返回键（面板开着时先关面板）。
-      body: DictionaryPanelHost(
-        handleBackButton: true,
-        child: Column(
-          children: [
-            // 句子时间信息
-            Padding(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.l,
-                right: AppSpacing.l,
-                top: AppSpacing.m,
-              ),
-              child: Row(
+      body: expanded
+          ? mediaSurface
+          : DictionaryPanelHost(
+              handleBackButton: true,
+              child: Column(
                 children: [
-                  Text(
-                    timeRangeText,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  if (mediaSurface != null) mediaSurface,
+                  // 句子进度与收藏操作保持单行，方便用户快速确认当前位置。
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.l,
+                      AppSpacing.m,
+                      AppSpacing.l,
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$sentenceProgressText · $durationText',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        if (_bookmarkLoaded)
+                          SizedBox(
+                            width: 104,
+                            child: BookmarkToggleRow(
+                              isDifficult: _isBookmarked,
+                              onTap: _toggleBookmark,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    durationText,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+
+                  const SizedBox(height: AppSpacing.m),
+
+                  // 主体内容：解析/翻译/意群 + 句子文本
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.l,
+                      ),
+                      child: AnnotationContentView(
+                        text: args.sentenceText,
+                        aiNotifier: ref.read(sentenceAiNotifierProvider),
+                        audioItemId: args.audioItemId,
+                        sentenceIndex: args.sentenceIndex,
+                        sentenceStartMs: args.startTimeMs,
+                        sentenceEndMs: args.endTimeMs,
+                        onStopMainPlayer: () {
+                          final rangePlayback = args.rangePlayback;
+                          if (rangePlayback != null) {
+                            unawaited(rangePlayback.cancel());
+                          } else if (_isPlaying) {
+                            ref.read(audioEngineProvider.notifier).stop();
+                          }
+                          if (_isPlaying) setState(() => _isPlaying = false);
+                        },
+                        senseGroupRangePlayback: args.rangePlayback,
+                        autoLoadSentenceAi: true,
+                      ),
+                    ),
+                  ),
+
+                  // 底部播放按钮
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: AppSpacing.m,
+                      bottom: 64,
+                    ),
+                    child: _PlayButton(
+                      isPlaying: _isPlaying,
+                      onTap: _playSentence,
                     ),
                   ),
                 ],
               ),
             ),
+    );
+  }
 
-            const SizedBox(height: AppSpacing.m),
-
-            // 收藏标记行
-            if (_bookmarkLoaded)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                child: BookmarkToggleRow(
-                  isDifficult: _isBookmarked,
-                  onTap: _toggleBookmark,
-                ),
-              ),
-
-            const SizedBox(height: AppSpacing.m),
-
-            // 主体内容：解析/翻译/意群 + 句子文本
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                child: AnnotationContentView(
-                  text: args.sentenceText,
-                  aiNotifier: ref.read(sentenceAiNotifierProvider),
-                  audioItemId: args.audioItemId,
-                  sentenceIndex: args.sentenceIndex,
-                  sentenceStartMs: args.startTimeMs,
-                  sentenceEndMs: args.endTimeMs,
-                  onStopMainPlayer: () {
-                    if (_isPlaying) {
-                      ref.read(audioEngineProvider.notifier).stop();
-                      setState(() => _isPlaying = false);
-                    }
-                  },
-                  autoLoadSentenceAi: true,
-                ),
-              ),
-            ),
-
-            // 底部播放按钮
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.m, bottom: 64),
-              child: _PlayButton(isPlaying: _isPlaying, onTap: _playSentence),
-            ),
-          ],
-        ),
+  /// 使用随心听的单一状态源组装共享 media_kit 视频外壳。
+  Widget _buildMediaSurface(
+    MediaPlaybackState state,
+    SentenceDetailMediaContext context,
+  ) {
+    final controller = ref.read(mediaPlaybackProvider.notifier);
+    return MediaVisualSurface(
+      state: MediaVisualSurfaceState(
+        visible: state.visualTrackVisible,
+        expanded: state.visualTrackExpanded,
+        isPlaying: _isPlaying,
+        subtitleVisible: state.videoSubtitleVisible,
       ),
+      actions: MediaVisualSurfaceActions(
+        onShow: () => unawaited(controller.setVisualTrackVisible(true)),
+        onHide: () => unawaited(controller.setVisualTrackVisible(false)),
+        onPlayPause: () => unawaited(_playSentence()),
+        onSubtitleToggle: () => unawaited(
+          controller.setVideoSubtitleVisible(!state.videoSubtitleVisible),
+        ),
+        onFullscreenToggle: () =>
+            unawaited(context.setFullscreen(!state.visualTrackExpanded)),
+      ),
+      fillAvailableHeight: state.visualTrackExpanded,
+      buildVideoView: (size) => ref
+          .read(mediaEngineProvider.notifier)
+          .buildVideoView(viewportSize: size),
     );
   }
 }

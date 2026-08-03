@@ -1216,7 +1216,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get intensiveListenCantUnderstand => '听不太懂';
 
   @override
-  String get intensiveListenAutoMarkedDifficult => '已自动标记为难句，点此取消';
+  String get intensiveListenAutoMarkedDifficult => '已自动收藏';
 
   @override
   String get intensiveListenMarkedDifficult => '取消收藏';

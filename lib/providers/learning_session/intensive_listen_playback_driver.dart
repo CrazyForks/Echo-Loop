@@ -1,20 +1,24 @@
 import '../../models/sentence.dart';
 import '../audio_engine/audio_engine_provider.dart';
+import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../media_engine/media_engine_provider.dart';
 
-/// 逐句精听依赖的最小播放契约。
+/// 句子级学习任务依赖的最小播放契约。
 ///
-/// 学习状态机只描述“播放某个时间区间”，不关心底层是 just_audio 还是
-/// media_kit。这样音频继续使用原链路，视频可以独立迁移到 MediaEngine。
-abstract interface class IntensiveListenPlaybackDriver {
+/// 学习状态机只描述“播放一句”，不关心底层是 just_audio 还是 media_kit。
+/// 音频适配器继续委托原引擎，视频适配器复用同一 MediaEngine。
+abstract interface class SentencePlaybackDriver {
   int newSession();
   bool isActiveSession(int sessionId);
+
+  /// 底层是否已负责记录成功播放的学习事件。
+  bool get recordsStudyEventsInternally;
 
   Future<void> pause();
   Future<void> setSpeed(double speed);
   Future<void> playSentence(Sentence sentence, int sessionId);
-  Future<void> playRangeOnce(Duration start, Duration end, int sessionId);
 
+  /// 绑定系统媒体控制；不提供系统媒体会话的前台音频适配器实现为空操作。
   void bindLockScreen({
     required Future<void> Function() onPlay,
     required Future<void> Function() onPause,
@@ -26,12 +30,64 @@ abstract interface class IntensiveListenPlaybackDriver {
   void unbindLockScreen();
 }
 
+/// 逐句精听在句子播放之外还需要意群区间播放。
+abstract interface class IntensiveListenPlaybackDriver
+    implements SentencePlaybackDriver {
+  Future<void> playRangeOnce(Duration start, Duration end, int sessionId);
+}
+
+/// 难句跟读原音频适配器；所有调用仍委托前台 just_audio 引擎。
+class ForegroundSentencePlaybackDriver implements SentencePlaybackDriver {
+  ForegroundSentencePlaybackDriver(this._engine);
+
+  final ForegroundAudioEngine _engine;
+
+  @override
+  bool get recordsStudyEventsInternally => true;
+
+  @override
+  int newSession() => _engine.newSession();
+
+  @override
+  bool isActiveSession(int sessionId) => _engine.isActiveSession(sessionId);
+
+  @override
+  Future<void> pause() => _engine.pause();
+
+  @override
+  Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
+
+  @override
+  Future<void> playSentence(Sentence sentence, int sessionId) =>
+      _engine.playClipOnce(sentence, sessionId);
+
+  @override
+  void bindLockScreen({
+    required Future<void> Function() onPlay,
+    required Future<void> Function() onPause,
+    required Future<void> Function() onNext,
+    required Future<void> Function() onPrevious,
+  }) {}
+
+  @override
+  void setSessionActive(bool active) {}
+
+  @override
+  void setProgressFrozen(bool frozen) {}
+
+  @override
+  void unbindLockScreen() {}
+}
+
 /// 原音频逐句精听适配器；所有调用仍原样委托给 AudioEngine。
 class AudioIntensiveListenPlaybackDriver
     implements IntensiveListenPlaybackDriver {
   AudioIntensiveListenPlaybackDriver(this._engine);
 
   final AudioEngine _engine;
+
+  @override
+  bool get recordsStudyEventsInternally => true;
 
   @override
   int newSession() => _engine.newSession();
@@ -89,12 +145,14 @@ class AudioIntensiveListenPlaybackDriver
   }
 }
 
-/// 视频逐句精听适配器；只驱动 media_kit 的 MediaEngine 链路。
-class MediaIntensiveListenPlaybackDriver
-    implements IntensiveListenPlaybackDriver {
-  MediaIntensiveListenPlaybackDriver(this._engine);
+/// 学习任务共享的媒体句子播放驱动；只操作 MediaEngine，不接管音频链路。
+class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
+  MediaSentencePlaybackDriver(this._engine);
 
   final MediaEngine _engine;
+
+  @override
+  bool get recordsStudyEventsInternally => false;
 
   @override
   int newSession() => _engine.newSession();
@@ -149,3 +207,6 @@ class MediaIntensiveListenPlaybackDriver
     _engine.stopKeepAlive();
   }
 }
+
+/// 旧名称兼容层；媒体句子驱动已供多个学习任务共享。
+typedef MediaIntensiveListenPlaybackDriver = MediaSentencePlaybackDriver;

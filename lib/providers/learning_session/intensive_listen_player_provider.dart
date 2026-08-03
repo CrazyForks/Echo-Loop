@@ -14,6 +14,7 @@ import '../../analytics/models/event_names.dart';
 import '../../database/providers.dart';
 import '../../models/intensive_listen_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sense_group_range_playback.dart';
 import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
 import '../../services/learned_vocabulary_tracker.dart';
@@ -186,6 +187,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   late BlindPracticeFlowEngine _blindEngine;
   final CountdownController _annotationCountdown = CountdownController();
   late IntensiveListenPlaybackDriver _playback;
+  SenseGroupRangePlayback? _senseGroupRangePlayback;
 
   int _currentSessionId = -1;
   bool _refreshBlindConfigWhenWaiting = false;
@@ -238,6 +240,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     IntensiveListenSettings settings = const IntensiveListenSettings(),
     String? settingsSlot,
     IntensiveListenPlaybackDriver? playbackDriver,
+    SenseGroupRangePlayback? senseGroupRangePlayback,
     bool usesMediaEngine = false,
   }) async {
     _playback =
@@ -245,6 +248,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
         AudioIntensiveListenPlaybackDriver(
           ref.read(audioEngineProvider.notifier),
         );
+    _senseGroupRangePlayback = senseGroupRangePlayback;
     _settingsSlot = settingsSlot;
     _blindEngine.dispose();
     _blindEngine = _createBlindEngine();
@@ -478,6 +482,10 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
 
     state = state.copyWith(playingSenseGroupIndex: null, isPlaying: false);
   }
+
+  /// 当前媒体会话注入的意群区间播放器；音频会话继续使用原默认路径。
+  SenseGroupRangePlayback? get senseGroupRangePlayback =>
+      _senseGroupRangePlayback;
 
   void stopSenseGroupPlayback() {
     if (state.playingSenseGroupIndex == null) return;

@@ -18,6 +18,9 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
   /// 当前句是否仍被标记为难句
   final bool currentSentenceBookmarked;
 
+  /// 当前会话是否使用共享 MediaEngine（视频材料）。
+  final bool usesMediaEngine;
+
   const ListenAndRepeatSessionState({
     super.phase,
     super.sentenceIndex,
@@ -31,6 +34,7 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
     super.flowToken,
     this.isFreePlay = false,
     this.currentSentenceBookmarked = false,
+    this.usesMediaEngine = false,
   });
 
   /// 从 [RepeatFlowState] 和 [isFreePlay] 构建
@@ -38,6 +42,7 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
     RepeatFlowState flow, {
     bool isFreePlay = false,
     bool currentSentenceBookmarked = false,
+    bool usesMediaEngine = false,
   }) {
     return ListenAndRepeatSessionState(
       phase: flow.phase,
@@ -52,6 +57,7 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
       flowToken: flow.flowToken,
       isFreePlay: isFreePlay,
       currentSentenceBookmarked: currentSentenceBookmarked,
+      usesMediaEngine: usesMediaEngine,
     );
   }
 
@@ -69,6 +75,7 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
     int? flowToken,
     bool? isFreePlay,
     bool? currentSentenceBookmarked,
+    bool? usesMediaEngine,
   }) {
     return ListenAndRepeatSessionState(
       phase: phase ?? this.phase,
@@ -89,6 +96,7 @@ class ListenAndRepeatSessionState extends RepeatFlowState {
       isFreePlay: isFreePlay ?? this.isFreePlay,
       currentSentenceBookmarked:
           currentSentenceBookmarked ?? this.currentSentenceBookmarked,
+      usesMediaEngine: usesMediaEngine ?? this.usesMediaEngine,
     );
   }
 }

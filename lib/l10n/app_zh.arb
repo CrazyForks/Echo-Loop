@@ -497,7 +497,7 @@
   "intensiveListenPeek": "偷看字幕",
   "intensiveListenHideSubtitle": "隐藏字幕",
   "intensiveListenCantUnderstand": "听不太懂",
-  "intensiveListenAutoMarkedDifficult": "已自动标记为难句，点此取消",
+  "intensiveListenAutoMarkedDifficult": "已自动收藏",
   "intensiveListenMarkedDifficult": "取消收藏",
   "intensiveListenNotDifficult": "收藏",
   "aiTranslation": "翻译",

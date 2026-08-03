@@ -96,6 +96,8 @@ class PracticeProgressSection extends StatelessWidget {
               Text(progressText, style: subtitleStyle),
               if (durationText case final dur?) ...[
                 const SizedBox(width: AppSpacing.xs),
+                Text('·', style: subtitleStyle),
+                const SizedBox(width: AppSpacing.xs),
                 Text(dur, style: subtitleStyle),
               ],
               if (timestampText case final ts?) ...[

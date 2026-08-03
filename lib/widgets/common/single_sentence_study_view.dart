@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/audio_item.dart';
 import '../../models/sentence.dart';
+import '../../models/sense_group_range_playback.dart';
 import '../../providers/sentence_ai_provider.dart';
 import '../../services/subtitle_parser.dart';
 import '../../theme/app_theme.dart';
@@ -32,12 +33,16 @@ class SingleSentenceStudyActions {
     required this.onBookmarkToggle,
     required this.onStopMainPlayer,
     required this.onToolbarButtonTapped,
+    this.senseGroupRangePlayback,
   });
 
   final Future<void> Function(int index, {bool autoPlay}) onSentenceSelected;
   final ValueChanged<int> onBookmarkToggle;
   final VoidCallback onStopMainPlayer;
   final VoidCallback onToolbarButtonTapped;
+
+  /// 可选的会话级意群区间播放器；未提供时正文保持原音频路径。
+  final SenseGroupRangePlayback? senseGroupRangePlayback;
 }
 
 /// 音频与视频随心听共用的单句精听视图。
@@ -211,6 +216,7 @@ class _SingleSentenceStudyViewState
           sentenceStartMs: sentence.startTime.inMilliseconds,
           sentenceEndMs: sentence.endTime.inMilliseconds,
           onStopMainPlayer: widget.actions.onStopMainPlayer,
+          senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
           onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
           enableGuide: isActivePage,
           toolbarPlacement: AnnotationToolbarPlacement.scrollWithContent,

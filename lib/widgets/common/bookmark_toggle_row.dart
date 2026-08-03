@@ -48,6 +48,7 @@ class BookmarkToggleRow extends StatelessWidget {
       pressedOpacity: 0.4,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Flexible(
             child: Text(

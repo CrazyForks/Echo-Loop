@@ -21,6 +21,7 @@ import '../../database/providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/audio_item.dart' as app_model;
 import '../../models/sense_group_result.dart';
+import '../../models/sense_group_range_playback.dart';
 import '../../models/sentence.dart';
 import '../../models/speech_practice_models.dart';
 import '../../models/word_timestamp.dart';
@@ -76,6 +77,9 @@ class AnnotationContentView extends ConsumerStatefulWidget {
   /// 播放意群前停止主播放回调
   final VoidCallback? onStopMainPlayer;
 
+  /// 当前会话注入的意群区间播放器；为空时保持原音频播放链路。
+  final SenseGroupRangePlayback? senseGroupRangePlayback;
+
   /// 意群时间范围变化回调（精听播放按钮需要知道 timings）
   final void Function(List<SenseGroupTiming>? timings)? onTimingsChanged;
 
@@ -113,6 +117,7 @@ class AnnotationContentView extends ConsumerStatefulWidget {
     this.sentenceEndMs,
     this.highlightedSegments,
     this.onStopMainPlayer,
+    this.senseGroupRangePlayback,
     this.onTimingsChanged,
     this.onToolbarButtonTapped,
     this.enableGuide = true,
@@ -156,8 +161,8 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   int? _playingSenseGroupIndex;
   final Set<int> _playedSenseGroupIndices = {};
 
-  /// 意群播放 session（用于取消）
-  int? _sgPlaybackSession;
+  /// 意群播放 generation（用于丢弃取消或重复点击后的迟到完成）。
+  int _sgPlaybackGeneration = 0;
 
   /// 词典面板打开期间锁定意群快捷 lookup，避免同一快捷条重复触发查词。
   bool _senseGroupLookupLocked = false;
@@ -199,6 +204,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
   @override
   void dispose() {
+    _deferSenseGroupPlaybackCancellation();
     _sgSub?.cancel();
     _sgCancel?.cancel();
     _detachSenseGroupLookupLock(unlock: false);
@@ -501,18 +507,23 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     widget.onStopMainPlayer?.call();
 
     final timing = timings[index];
-    final engine = ref.read(audioEngineProvider.notifier);
-    final sessionId = engine.newSession();
-    _sgPlaybackSession = sessionId;
+    final generation = ++_sgPlaybackGeneration;
+    final rangePlayback = widget.senseGroupRangePlayback;
 
     setState(() {
       _playingSenseGroupIndex = index;
       _playedSenseGroupIndices.add(index);
     });
 
-    await engine.playRangeOnce(timing.start, timing.end, sessionId);
+    if (rangePlayback != null) {
+      await rangePlayback.play(timing.start, timing.end);
+    } else {
+      final engine = ref.read(audioEngineProvider.notifier);
+      final sessionId = engine.newSession();
+      await engine.playRangeOnce(timing.start, timing.end, sessionId);
+    }
 
-    if (mounted && _sgPlaybackSession == sessionId) {
+    if (mounted && _sgPlaybackGeneration == generation) {
       setState(() => _playingSenseGroupIndex = null);
     }
   }
@@ -574,10 +585,22 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
   /// 停止意群播放
   void _stopSenseGroupPlayback() {
+    _sgPlaybackGeneration++;
+    unawaited(widget.senseGroupRangePlayback?.cancel());
     if (_playingSenseGroupIndex != null) {
-      _sgPlaybackSession = null;
       setState(() => _playingSenseGroupIndex = null);
     }
+  }
+
+  /// 将区间播放取消安排到当前 widget 生命周期之后。
+  ///
+  /// 媒体实现取消时会暂停 [MediaEngine] 并更新其 Riverpod 状态；在
+  /// `dispose` / `didUpdateWidget` 同步调用会违反构建期状态变更约束。
+  /// generation 已先失效，因此延后一轮事件循环不会让旧意群重新生效。
+  void _deferSenseGroupPlaybackCancellation() {
+    final rangePlayback = widget.senseGroupRangePlayback;
+    if (rangePlayback == null) return;
+    unawaited(Future<void>(() => rangePlayback.cancel()));
   }
 
   /// 显示意群快捷菜单
@@ -748,7 +771,8 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     _activeChunks = null;
     _playingSenseGroupIndex = null;
     _playedSenseGroupIndices.clear();
-    _sgPlaybackSession = null;
+    _sgPlaybackGeneration++;
+    _deferSenseGroupPlaybackCancellation();
     widget.onTimingsChanged?.call(null);
   }
 

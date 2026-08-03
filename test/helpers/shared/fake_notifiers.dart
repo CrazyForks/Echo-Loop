@@ -57,6 +57,7 @@ import 'package:echo_loop/providers/learning_session/intensive_listen_playback_d
 import 'package:echo_loop/models/playback_settings.dart';
 import 'package:echo_loop/models/retell_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sense_group_range_playback.dart';
 import 'package:echo_loop/models/study_stage.dart';
 import 'package:echo_loop/models/tag.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
@@ -1158,6 +1159,7 @@ class FakeIntensiveListenPlayer extends IntensiveListenPlayer {
     IntensiveListenSettings settings = const IntensiveListenSettings(),
     String? settingsSlot,
     IntensiveListenPlaybackDriver? playbackDriver,
+    SenseGroupRangePlayback? senseGroupRangePlayback,
     bool usesMediaEngine = false,
   }) async {
     testSentences = List.of(sentences);

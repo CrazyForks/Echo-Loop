@@ -19,6 +19,9 @@ import '../../features/usage/usage_providers.dart';
 import '../../database/enums.dart' show LearningStage;
 import '../../database/providers.dart';
 import '../../models/intensive_listen_settings.dart';
+import '../../models/audio_item.dart';
+import '../../models/media_load_result.dart';
+import '../../models/sense_group_range_playback.dart';
 import '../../models/sentence.dart';
 import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
@@ -26,6 +29,9 @@ import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../learning_progress_provider.dart';
 import '../learning_session/sentence_playback_engine.dart';
+import '../learning_session/intensive_listen_playback_driver.dart';
+import '../media_engine/media_engine_provider.dart';
+import '../media_engine/media_sense_group_range_playback.dart';
 import '../repeat_flow/repeat_flow_engine.dart';
 import '../repeat_flow/repeat_flow_phase.dart';
 import '../speech/speech_recording_controller.dart';
@@ -45,20 +51,33 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
   /// 跟读流程引擎
   late final RepeatFlowEngine _engine;
 
+  /// 当前会话的句子播放驱动；音频与视频共用同一流程状态机。
+  late SentencePlaybackDriver _playback;
+
   /// 是否为自由练习模式
   bool _isFreePlay = false;
 
   /// 当前会话句子列表（包含页面级业务字段，如 bookmark 状态）
   List<Sentence> _sentences = [];
+  bool _usesMediaEngine = false;
+  int _mediaEntryGeneration = 0;
+  bool _mediaSessionReady = false;
+  bool _sessionPrepared = false;
+  MediaEngine? _ownedMediaEngine;
+  int? _ownedMediaGeneration;
+  SenseGroupRangePlayback? _senseGroupRangePlayback;
 
   @override
   ListenAndRepeatSessionState build() {
+    _playback = ForegroundSentencePlaybackDriver(
+      ref.read(foregroundAudioEngineProvider.notifier),
+    );
     // 创建引擎
     _engine = RepeatFlowEngine(
       onStateChanged: _onEngineStateChanged,
       callbacks: RepeatFlowCallbacks(
-        pauseAudio: () =>
-            ref.read(foregroundAudioEngineProvider.notifier).pause(),
+        // 运行时读取当前驱动：媒体初始化会替换 [_playback]，不能捕获旧音频实例。
+        pauseAudio: () => unawaited(_playback.pause()),
         playSentence: _playSentence,
         startRecording: _startRecording,
         cancelRecording: _cancelRecording,
@@ -74,7 +93,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     ref.listen(speechRecordingControllerProvider, _onRecordingStateChanged);
 
     // 打印状态变化日志
-    ref.listenSelf((prev, next) {
+    listenSelf((prev, next) {
       if (prev?.phase.runtimeType != next.phase.runtimeType ||
           prev?.sentenceIndex != next.sentenceIndex ||
           prev?.repeatIndex != next.repeatIndex) {
@@ -90,7 +109,12 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       }
     });
 
-    ref.onDispose(() => _engine.dispose());
+    ref.onDispose(() {
+      _playback.unbindLockScreen();
+      _engine.dispose();
+      final mediaEngine = _ownedMediaEngine;
+      if (mediaEngine != null) unawaited(mediaEngine.releaseFromScreen());
+    });
     return const ListenAndRepeatSessionState();
   }
 
@@ -106,8 +130,18 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     required bool isFreePlay,
     double smartSpeed = 1.0,
     LearningStage? stage,
+    SentencePlaybackDriver? playbackDriver,
+    bool usesMediaEngine = false,
   }) async {
+    _sessionPrepared = false;
     _isFreePlay = isFreePlay;
+    _usesMediaEngine = usesMediaEngine;
+    if (!usesMediaEngine) _senseGroupRangePlayback = null;
+    _playback =
+        playbackDriver ??
+        ForegroundSentencePlaybackDriver(
+          ref.read(foregroundAudioEngineProvider.notifier),
+        );
 
     // 录音类任务用前台引擎播放原句、不上锁屏。进任务停掉媒体引擎，清除上一个媒体任务
     // （精听/盲听/Free Player）残留的锁屏/通知栏卡片（非idle→idle → stopService）。
@@ -118,8 +152,11 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     final bookmarkedIndices = await bookmarkDao.getBookmarkedIndices(
       audioItemId,
     );
+    // 难句列表来自数据库索引，而 [allSentences] 只承载字幕正文；进入跟读会话前
+    // 必须同步收藏态，否则首句会被误判为“未收藏”，点击后还会走新增分支。
     final difficultSentences = allSentences
         .where((s) => bookmarkedIndices.contains(s.index))
+        .map((s) => s.copyWith(isBookmarked: true))
         .toList();
 
     // 从 DB 读断点
@@ -162,6 +199,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       audioItemId: audioItemId,
       stage: StudyStage.listenAndRepeat,
       isFreePlay: isFreePlay,
+      manageForegroundAudioEngine: !usesMediaEngine,
     );
 
     // 构造 config 并准备会话
@@ -196,10 +234,124 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       startIndex: startIndex,
       isFreePlay: isFreePlay,
     );
+    _playback.bindLockScreen(
+      onPlay: replayCurrentSentence,
+      onPause: () async => enterWaitingForUser(),
+      onNext: nextSentence,
+      onPrevious: previousSentence,
+    );
     ref.read(analyticsServiceProvider).track(Events.listenRepeatStart, {
       ...ref.audioEventParams(audioItemId),
       EventParams.totalSentences: difficultSentences.length,
     });
+  }
+
+  /// 使用逐句精听同一 MediaEngine 初始化视频难句跟读。
+  Future<MediaLoadResult> initializeMedia({
+    required AudioItem mediaItem,
+    required List<Sentence> allSentences,
+    required bool isFreePlay,
+    double smartSpeed = 1.0,
+    LearningStage? stage,
+  }) async {
+    final generation = ++_mediaEntryGeneration;
+    bool isCurrent() => generation == _mediaEntryGeneration;
+    AppLogger.log(
+      'L&R MediaEntry',
+      '开始加载: mediaId=${mediaItem.id}, generation=$generation',
+    );
+
+    await ref.read(audioEngineProvider.notifier).stop();
+    if (!isCurrent()) return MediaLoadResult.cancelled;
+
+    final settingsSlot = stageSlotKey(
+      StageSettingsSlots.listenAndRepeat,
+      stage ?? LearningStage.firstLearn,
+    );
+    final settings = ref
+        .read(intensiveListenPrefsProvider.notifier)
+        .resolve(settingsSlot, smartSpeed: smartSpeed);
+    final mediaEngine = ref.read(mediaEngineProvider.notifier);
+    _ownedMediaEngine = mediaEngine;
+    _ownedMediaGeneration = generation;
+    final duration = await mediaEngine.loadMedia(
+      mediaItem,
+      settings.playbackSpeed,
+    );
+    if (!isCurrent()) {
+      AppLogger.log(
+        'L&R MediaEntry',
+        '加载结果已过期，释放媒体: mediaId=${mediaItem.id}, generation=$generation',
+      );
+      await _releaseOwnedMediaEngine(mediaEngine, generation);
+      return MediaLoadResult.cancelled;
+    }
+    if (duration == null) {
+      AppLogger.log(
+        'L&R MediaEntry',
+        '加载失败，释放媒体: mediaId=${mediaItem.id}, generation=$generation',
+      );
+      await _releaseOwnedMediaEngine(mediaEngine, generation);
+      return MediaLoadResult.failure;
+    }
+
+    // 与逐句精听的呈现规则一致：视频字幕轨默认关闭，用户点 CC 后再按需加载。
+    await mediaEngine.setSubtitleTrackData(null);
+    if (!isCurrent()) {
+      AppLogger.log(
+        'L&R MediaEntry',
+        '字幕初始化后任务已取消: mediaId=${mediaItem.id}, generation=$generation',
+      );
+      await _releaseOwnedMediaEngine(mediaEngine, generation);
+      return MediaLoadResult.cancelled;
+    }
+
+    _senseGroupRangePlayback = MediaSenseGroupRangePlayback(
+      engine: mediaEngine,
+      playbackSpeed: () =>
+          ref.read(listenAndRepeatSettingsProvider).playbackSpeed,
+    );
+    await initialize(
+      audioItemId: mediaItem.id,
+      allSentences: allSentences,
+      isFreePlay: isFreePlay,
+      smartSpeed: smartSpeed,
+      stage: stage,
+      playbackDriver: MediaSentencePlaybackDriver(mediaEngine),
+      usesMediaEngine: true,
+    );
+    if (!isCurrent()) {
+      AppLogger.log(
+        'L&R MediaEntry',
+        '业务初始化后任务已取消: mediaId=${mediaItem.id}, generation=$generation',
+      );
+      await exitLearningMode();
+      return MediaLoadResult.cancelled;
+    }
+    _mediaSessionReady = true;
+    AppLogger.log(
+      'L&R MediaEntry',
+      '加载完成: mediaId=${mediaItem.id}, generation=$generation',
+    );
+    return MediaLoadResult.ready;
+  }
+
+  /// 取消正在进入的视频跟读；迟到结果由 generation guard 丢弃。
+  Future<void> cancelMediaEntry() async {
+    final generation = ++_mediaEntryGeneration;
+    AppLogger.log(
+      'L&R MediaEntry',
+      '取消进入: generation=$generation, ready=$_mediaSessionReady',
+    );
+    if (_mediaSessionReady) {
+      await exitLearningMode();
+    } else {
+      final mediaEngine = _ownedMediaEngine;
+      final mediaGeneration = _ownedMediaGeneration;
+      if (mediaEngine != null && mediaGeneration != null) {
+        await _releaseOwnedMediaEngine(mediaEngine, mediaGeneration);
+      }
+    }
   }
 
   // ========== 公开方法（Screen 调用） ==========
@@ -218,6 +370,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       config: config,
       startIndex: startIndex,
     );
+    _sessionPrepared = true;
 
     // 同步录音控制器模式
     ref
@@ -227,6 +380,9 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
 
   /// 开始播放
   Future<void> startPlaying() async => _engine.startPlaying();
+
+  /// 将速度应用到当前实际播放驱动，音频仍委托原前台引擎。
+  Future<void> applyPlaybackSpeed(double speed) => _playback.setSpeed(speed);
 
   /// 进入等待用户操作状态
   void enterWaitingForUser() => _engine.enterWaitingForUser();
@@ -268,6 +424,10 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
   /// 停止录音回放
   Future<void> stopPlayback() async => _engine.stopPlayback();
 
+  /// 当前媒体会话的意群区间播放；音频会话保持既有播放路径，因此不暴露实现。
+  SenseGroupRangePlayback? get senseGroupRangePlayback =>
+      _senseGroupRangePlayback;
+
   /// 快进倒计时
   void fastForwardInterval() => _engine.fastForwardInterval();
 
@@ -285,6 +445,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
 
   /// 释放资源
   void disposeSession() {
+    _playback.unbindLockScreen();
     _engine.stopSession();
     ref.read(speechRecordingControllerProvider.notifier).fullReset();
   }
@@ -370,12 +531,29 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
 
   /// 退出学习模式
   Future<void> exitLearningMode() async {
-    ref.read(analyticsServiceProvider).track(Events.listenRepeatComplete, {
-      ...ref.audioEventParams(_engine.config.audioItemId),
-      EventParams.totalSentences: _sentences.length,
-    });
+    if (_sessionPrepared) {
+      ref.read(analyticsServiceProvider).track(Events.listenRepeatComplete, {
+        ...ref.audioEventParams(_engine.config.audioItemId),
+        EventParams.totalSentences: _sentences.length,
+      });
+    }
     disposeSession();
+    await _senseGroupRangePlayback?.cancel();
     await disposeStudyTask(ref);
+    if (_usesMediaEngine) {
+      final mediaEngine = _ownedMediaEngine;
+      final mediaGeneration = _ownedMediaGeneration;
+      if (mediaEngine != null && mediaGeneration != null) {
+        await _releaseOwnedMediaEngine(mediaEngine, mediaGeneration);
+      }
+    }
+    _mediaSessionReady = false;
+    _usesMediaEngine = false;
+    _ownedMediaEngine = null;
+    _ownedMediaGeneration = null;
+    _senseGroupRangePlayback = null;
+    _sessionPrepared = false;
+    state = state.copyWith(usesMediaEngine: false);
   }
 
   // ========== 数据访问 ==========
@@ -387,7 +565,12 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       : null;
 
   /// 当前 promptId
-  String get currentPromptId => _engine.currentPromptId;
+  String get currentPromptId => _sessionPrepared
+      ? _engine.currentPromptId
+      : 'lar:pending:${state.sentenceIndex}';
+
+  /// 当前跟读流程是否已经完成配置，可安全接收播放与设置操作。
+  bool get isSessionPrepared => _sessionPrepared;
 
   /// 当前配置
   RepeatFlowConfig get config => _engine.config;
@@ -397,6 +580,20 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
 
   /// 句子列表
   List<Sentence> get sentences => List.unmodifiable(_sentences);
+
+  /// 仅释放仍由指定 generation 持有的媒体，避免旧异步回调释放新会话。
+  Future<void> _releaseOwnedMediaEngine(
+    MediaEngine mediaEngine,
+    int generation,
+  ) async {
+    if (!identical(_ownedMediaEngine, mediaEngine) ||
+        _ownedMediaGeneration != generation) {
+      return;
+    }
+    _ownedMediaEngine = null;
+    _ownedMediaGeneration = null;
+    await mediaEngine.releaseFromScreen();
+  }
 
   // ========== Engine 回调实现 ==========
 
@@ -410,17 +607,26 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       flowState,
       isFreePlay: _isFreePlay,
       currentSentenceBookmarked: isBookmarked,
+      usesMediaEngine: _usesMediaEngine,
     );
+    final interval = flowState.phase is WaitingInterval;
+    final active = flowState.phase is PlayingPrompt || interval;
+    _playback.setSessionActive(active);
+    _playback.setProgressFrozen(interval);
   }
 
   /// 播放句子
   Future<void> _playSentence(Sentence sentence, int flowToken) async {
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    final sessionId = engine.newSession();
-    await engine.setSpeed(
+    final driver = _playback;
+    final sessionId = driver.newSession();
+    await driver.setSpeed(
       ref.read(listenAndRepeatSettingsProvider).playbackSpeed,
     );
-    await engine.playClipOnce(sentence, sessionId);
+    await driver.playSentence(sentence, sessionId);
+    if (!driver.recordsStudyEventsInternally &&
+        driver.isActiveSession(sessionId)) {
+      studyEventRecorder?.onSentencePlayed(sentence);
+    }
   }
 
   /// 开始录音

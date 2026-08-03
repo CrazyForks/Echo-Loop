@@ -10,6 +10,7 @@ import '../../models/media_load_result.dart';
 import '../../models/media_playback_state.dart';
 import '../../models/playback_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sense_group_range_playback.dart';
 import '../../services/app_logger.dart';
 import '../../services/storage_service.dart';
 import '../audio_engine/audio_engine_provider.dart';
@@ -18,6 +19,7 @@ import '../listening_practice/playback_reducer.dart';
 import '../listening_practice/playback_state_storage.dart';
 import '../listening_practice/sentence_tracker.dart';
 import '../media_engine/media_engine_provider.dart';
+import '../media_engine/media_sense_group_range_playback.dart';
 
 final mediaPlaybackProvider =
     NotifierProvider<MediaPlayback, MediaPlaybackState>(MediaPlayback.new);
@@ -44,6 +46,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   bool _changingPlaylistMode = false;
   String? _videoSubtitleSrt;
   MediaEngine? _engineCache;
+  SenseGroupRangePlayback? _senseGroupRangePlayback;
   PlaybackStateDao? _playbackStateDaoCache;
 
   MediaEngine get _engine {
@@ -52,6 +55,14 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     final engine = ref.read(mediaEngineProvider.notifier);
     _engineCache = engine;
     return engine;
+  }
+
+  /// 当前媒体会话的意群区间播放器；随心听页面只通过该契约传递播放意图。
+  SenseGroupRangePlayback get senseGroupRangePlayback {
+    return _senseGroupRangePlayback ??= MediaSenseGroupRangePlayback(
+      engine: _engine,
+      playbackSpeed: () => state.settings.playbackSpeed,
+    );
   }
 
   @override
@@ -64,6 +75,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       unawaited(_landscapeVideoSub?.cancel());
       unawaited(_videoAspectRatioSub?.cancel());
       final engine = _engineCache;
+      unawaited(_senseGroupRangePlayback?.cancel());
       engine?.setTransportHandlers(onPlay: null, onPause: null);
       unawaited(engine?.releaseForOwnerDispose());
     });
@@ -326,10 +338,20 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     state = state.copyWith(playlistMode: mode, position: position);
   }
 
-  /// 字幕可能晚于断点完成；字幕写入后再从已恢复位置推导句子焦点。
+  /// 字幕可能晚于断点完成；字幕写入后再从已恢复位置推导当前播放列表的焦点。
+  ///
+  /// 收藏模式的媒体时间不应被列表焦点吸附，但焦点必须选中恢复时间附近的收藏句；
+  /// 否则空的 [MediaPlaybackState.currentBookmarkIndex] 会被
+  /// [_ensureValidIndex] 回退成第一条收藏，造成列表与进度条指向不同句子。
   void _syncSentenceFocusToPosition() {
     final idx = _nearestSentenceIndex(state.position);
     if (idx >= 0) state = state.copyWith(currentFullIndex: idx);
+    if (state.playlistMode == PlaylistMode.bookmarks) {
+      final bookmarkIndex = _nearestBookmarkIndex(state.position);
+      if (bookmarkIndex != null) {
+        state = state.copyWith(currentBookmarkIndex: bookmarkIndex);
+      }
+    }
     _ensureValidIndex();
   }
 
@@ -493,6 +515,10 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
 
   /// 进入句子讲解前，将媒体焦点对齐到目标句并保持暂停。
   Future<void> prepareSentenceDetail(int index) async {
+    AppLogger.log(
+      'MediaPlayback',
+      'sentence detail prepare media=${state.audioItem?.id} index=$index',
+    );
     if (state.playlistMode == PlaylistMode.bookmarks) {
       await selectBookmarkedSentence(index, autoPlay: false);
     } else {
@@ -505,6 +531,11 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   Future<void> restoreAfterSentenceDetail() async {
     final item = state.audioItem;
     if (item == null) return;
+    AppLogger.log(
+      'MediaPlayback',
+      'sentence detail restore media=${item.id} '
+          'index=${state.playlistMode == PlaylistMode.bookmarks ? state.currentBookmarkIndex : state.currentFullIndex}',
+    );
 
     final bookmarkedIndices = await BookmarkManager.loadBookmarks(
       item.id,
@@ -677,6 +708,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   }
 
   Future<void> setVisualTrackVisible(bool visible) async {
+    AppLogger.log('MediaPlayback', 'visual track visible=$visible');
     state = state.copyWith(
       visualTrackVisible: visible,
       visualTrackExpanded: visible ? state.visualTrackExpanded : false,
@@ -685,6 +717,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   }
 
   Future<void> setVisualTrackExpanded(bool expanded) async {
+    AppLogger.log('MediaPlayback', 'visual track expanded=$expanded');
     if (expanded && !state.visualTrackVisible) {
       await setVisualTrackVisible(true);
     }
@@ -692,6 +725,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   }
 
   Future<void> setVideoSubtitleVisible(bool visible) async {
+    AppLogger.log('MediaPlayback', 'subtitle track visible=$visible');
     state = state.copyWith(videoSubtitleVisible: visible);
     await _engine.setSubtitleTrackData(visible ? _videoSubtitleSrt : null);
   }
@@ -752,6 +786,8 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     _positionUpdatesEnabled = false;
     _playbackGen++;
     _pauseAfterPosition = null;
+    await _senseGroupRangePlayback?.cancel();
+    _senseGroupRangePlayback = null;
     final engine = _engineCache;
     engine?.setTransportHandlers(onPlay: null, onPause: null);
     await _positionSub?.cancel();
