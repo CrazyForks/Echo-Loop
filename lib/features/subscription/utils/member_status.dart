@@ -16,6 +16,9 @@ enum MemberStatusKind {
   /// 有效但不再续订，将于 [MemberSummary.expiresAtLocal] 到期。
   expiring,
 
+  /// 一次性购买的固定期限权益，不会自动续费。
+  fixedTerm,
+
   /// 永久有效（终身买断，无到期时间）。
   lifetime,
 }
@@ -55,6 +58,8 @@ MemberSummary summarizeMembership(
   final MemberStatusKind status;
   if (e.expiresAt == null) {
     status = MemberStatusKind.lifetime;
+  } else if (e.purchaseType == PurchaseType.oneTime) {
+    status = MemberStatusKind.fixedTerm;
   } else {
     status = e.willRenew ? MemberStatusKind.active : MemberStatusKind.expiring;
   }

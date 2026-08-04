@@ -78,14 +78,18 @@ class PaddleBillingRepository {
         );
         throw StateError('Paddle plans response is invalid');
       }
-      final plans = rawPlans
+      final subscriptionPlans = rawPlans
           .whereType<Map>()
           .map((raw) => _planFrom(Map<String, dynamic>.from(raw)))
           .toList(growable: false);
+      final oneTimePlans = _oneTimePlansFrom(data?['oneTimePlans']);
+      final plans = [...subscriptionPlans, ...oneTimePlans];
       AppLogger.log(
         'Subscription',
         'Paddle plans 请求成功: status=${response.statusCode} '
-            'count=${plans.length} ids=${plans.map((p) => p.planId).toList()}',
+            'subscriptionCount=${subscriptionPlans.length} '
+            'oneTimeCount=${oneTimePlans.length} '
+            'ids=${plans.map((p) => p.planId).toList()}',
       );
       return plans;
     } catch (error) {
@@ -230,6 +234,44 @@ class PaddleBillingRepository {
       introOffer: offer is Map
           ? _introOfferFrom(Map<String, dynamic>.from(offer))
           : null,
+    );
+  }
+
+  /// 独立解析附加的一次性套餐；单项异常不能拖垮现有订阅目录。
+  List<SubscriptionPlan> _oneTimePlansFrom(Object? value) {
+    if (value is! List) return const [];
+    final plans = <SubscriptionPlan>[];
+    for (final raw in value.whereType<Map>()) {
+      try {
+        plans.add(_oneTimePlanFrom(Map<String, dynamic>.from(raw)));
+      } catch (error) {
+        AppLogger.log('Subscription', '忽略无效 Paddle 一次性套餐: $error');
+      }
+    }
+    return plans;
+  }
+
+  /// 映射当前唯一的一年期一次性套餐，并严格校验不会自动续费。
+  SubscriptionPlan _oneTimePlanFrom(Map<String, dynamic> json) {
+    final planId = json['planId'];
+    final priceString = json['priceString'];
+    final duration = json['duration'];
+    if (planId != 'plus_yearly_one_time' ||
+        priceString is! String ||
+        json['purchaseType'] != 'one_time' ||
+        json['accessType'] != 'fixed_term' ||
+        json['autoRenew'] != false ||
+        duration is! Map ||
+        duration['unit'] != 'year' ||
+        duration['count'] != 1) {
+      throw StateError('Paddle one-time plan fields are invalid');
+    }
+    return SubscriptionPlan(
+      planId: planId,
+      title: 'Yearly one-time',
+      priceString: priceString,
+      period: SubscriptionPeriod.yearly,
+      purchaseType: PurchaseType.oneTime,
     );
   }
 

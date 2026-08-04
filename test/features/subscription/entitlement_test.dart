@@ -1,5 +1,4 @@
 import 'package:echo_loop/features/subscription/models/entitlement.dart';
-import 'package:echo_loop/features/subscription/models/entitlement_source.dart';
 import 'package:echo_loop/features/subscription/models/subscription_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,6 +49,19 @@ void main() {
       expect(restored.period, SubscriptionPeriod.yearly);
     });
 
+    test('一次性购买类型往返，旧缓存缺字段回退为空', () {
+      const entitlement = Entitlement(
+        isPremium: true,
+        purchaseType: PurchaseType.oneTime,
+      );
+
+      expect(
+        Entitlement.fromJson(entitlement.toJson()).purchaseType,
+        PurchaseType.oneTime,
+      );
+      expect(Entitlement.fromJson({'isPremium': true}).purchaseType, isNull);
+    });
+
     test('缺字段 / 类型异常回退安全默认值，不抛异常', () {
       final restored = Entitlement.fromJson({
         'isPremium': 'not-a-bool',
@@ -62,6 +74,7 @@ void main() {
       expect(restored.expiresAt, isNull);
       expect(restored.willRenew, isFalse);
       expect(restored.period, isNull);
+      expect(restored.purchaseType, isNull);
     });
   });
 

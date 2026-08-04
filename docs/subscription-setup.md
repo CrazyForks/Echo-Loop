@@ -87,8 +87,10 @@ flutter run --dart-define-from-file=auth.env
 ### 非商店渠道：Paddle Checkout
 
 Android 侧载 APK / 桌面等非商店渠道不初始化 RevenueCat 原生 SDK。App 从
-`GET /api/paddle/plans` 拉取月付/年付套餐，登录后通过 `POST /api/paddle/checkout`
-创建 Paddle transaction，并在系统浏览器容器中打开服务端返回的 checkout URL。
+`GET /api/paddle/plans` 拉取月付/年付订阅和可选的 `oneTimePlans`。当前一次性套餐为
+`plus_yearly_one_time`，一次付款获得一年权益且不会自动续费。登录后统一通过
+`POST /api/paddle/checkout` 创建 Paddle transaction，并在系统浏览器容器中打开
+服务端返回的 checkout URL。
 权益只由 Paddle webhook 更新，App 通过 `/api/entitlements` 读回。
 
 构建时注入：
@@ -99,7 +101,9 @@ DISTRIBUTION_CHANNEL=direct
 
 客户端不接收 price ID、discount ID 或 redirect URL。价格与首年优惠由后端 Paddle
 catalog 返回；checkout completion 只进入等待态，必须等 `/api/entitlements` 确认。
-订阅管理通过 `POST /api/paddle/portal` 创建短期 Customer Portal session。
+真实订阅通过 `POST /api/paddle/portal` 创建短期 Customer Portal session；一次性购买
+不显示管理入口，付款凭证由 Paddle 邮件提供。后端未返回 `oneTimePlans` 时客户端保持
+原有订阅套餐和购买行为。
 
 ---
 

@@ -117,6 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumSubscribe => 'Subscribe';
 
   @override
+  String get premiumBuyOneYear => 'Buy one year';
+
+  @override
   String premiumStartTrial(int days) {
     return 'Start $days-day free trial';
   }
@@ -137,6 +140,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumPlanYearly => 'Annual membership';
 
   @override
+  String get premiumPlanYearlyOneTime => 'One-year membership';
+
+  @override
   String get premiumPlanLifetime => 'Lifetime membership';
 
   @override
@@ -147,6 +153,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get premiumStatusExpiring => 'Expiring';
+
+  @override
+  String get premiumStatusFixedTerm => 'One-time purchase';
 
   @override
   String get premiumStatusLifetime => 'Lifetime';
@@ -162,6 +171,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String premiumValidUntil(String date) {
+    return 'Valid until $date';
+  }
+
+  @override
   String get premiumLifetimeAccessNote => 'Lifetime access, no renewal needed';
 
   @override
@@ -170,6 +184,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get premiumLoginRequired => 'Please sign in before subscribing.';
+
+  @override
+  String get premiumPurchaseLoginRequired =>
+      'Please sign in before purchasing.';
 
   @override
   String get premiumRestoreLoginRequired =>
@@ -237,6 +255,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get premiumPeriodYearly => 'Yearly';
 
   @override
+  String get premiumPeriodYearlyOneTime => '1 year · One-time';
+
+  @override
   String get premiumPeriodLifetime => 'Lifetime';
 
   @override
@@ -253,6 +274,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get premiumPriceSuffixLifetime => 'One-time';
+
+  @override
+  String get premiumOneTimeYearAccess =>
+      'One payment, 1 year of access, no auto-renewal';
 
   @override
   String premiumSavePercent(int percent) {

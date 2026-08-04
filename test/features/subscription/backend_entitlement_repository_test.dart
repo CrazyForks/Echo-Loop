@@ -147,6 +147,31 @@ void main() {
     expect(e.willRenew, isFalse);
   });
 
+  test('purchaseType=one_time：映射一次性年度固定期限权益', () async {
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        '/api/entitlements',
+        options: any(named: 'options'),
+      ),
+    ).thenAnswer(
+      (_) async => resp({
+        'isPremium': true,
+        'entitlementIds': ['Echo Loop Plus'],
+        'productId': 'pri_one_time',
+        'expiresAtMs': 1785600000000,
+        'willRenew': false,
+        'source': 'paddle',
+        'purchaseType': 'one_time',
+      }),
+    );
+
+    final entitlement = await repo.fetchRemote(userId: 'u1', accessToken: 't');
+
+    expect(entitlement?.purchaseType, PurchaseType.oneTime);
+    expect(entitlement?.period, SubscriptionPeriod.yearly);
+    expect(entitlement?.willRenew, isFalse);
+  });
+
   test('willRenew 字段缺失：兼容旧后端，保守映射为 false', () async {
     when(
       () => dio.get<Map<String, dynamic>>(

@@ -1,7 +1,7 @@
 /// 订阅计划介绍页（Paywall）。
 ///
-/// 标准移动订阅页：权益列表 + 平台本地化价格套餐 + 试用披露 + 自动续费披露 +
-/// 恢复购买 + 条款/隐私链接 + 管理订阅。查看无需登录；购买 / 恢复前统一走
+/// 标准移动会员购买页：权益列表 + 平台本地化价格套餐 + 试用/续费或一次性购买披露 +
+/// 恢复购买 + 条款/隐私链接 + 订阅管理。查看无需登录；购买 / 恢复前统一走
 /// [ensureSignedInForAction] 要求登录（权益绑定 Supabase user_id）。
 ///
 /// UI 只依赖 [SubscriptionPlan] DTO 与 [featureAccessProvider] 风格的状态读取，
@@ -21,6 +21,7 @@ import '../../../analytics/analytics_providers.dart';
 import '../../../analytics/models/event_names.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../services/app_logger.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../auth/sign_in_required_dialog.dart';
 import '../../remote_config/remote_config_providers.dart';
 import '../../../theme/app_theme.dart';
@@ -35,6 +36,20 @@ import '../services/subscription_management_launcher.dart';
 import '../state/entitlement_state.dart';
 import '../utils/member_status.dart';
 import '../utils/plan_pricing.dart';
+
+/// 为 Paddle checkout 预填当前账号邮箱；结账页仍允许用户修改邮箱。
+Uri paddleCheckoutUriWithEmail(Uri checkoutUri, String? email) {
+  final normalizedEmail = email?.trim();
+  if (normalizedEmail == null || normalizedEmail.isEmpty) {
+    return checkoutUri;
+  }
+  final existingFragment = checkoutUri.fragment;
+  final separator = existingFragment.isEmpty ? '' : '&';
+  return checkoutUri.replace(
+    fragment:
+        '$existingFragment${separator}email=${Uri.encodeComponent(normalizedEmail)}',
+  );
+}
 
 /// 订阅计划介绍 + 购买页。
 class PaywallScreen extends ConsumerStatefulWidget {
@@ -279,11 +294,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         source == EntitlementSource.apple || source == EntitlementSource.google;
     final usePortal =
         isPaddle || (source == EntitlementSource.unknown && webMode);
+    final isOneTime = entitlement.purchaseType == PurchaseType.oneTime;
     final showManage =
-        isPaddle ||
-        isKnownStore ||
-        (source == EntitlementSource.unknown &&
-            (webMode || manageSubscriptionsUrl != null));
+        !isOneTime &&
+        (isPaddle ||
+            isKnownStore ||
+            (source == EntitlementSource.unknown &&
+                (webMode || manageSubscriptionsUrl != null)));
     return [
       _MemberHeroCard(l10n: l10n, summary: summary),
       const SizedBox(height: 16),
@@ -397,7 +414,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 plan: plans[index],
                 l10n: l10n,
                 selected: plans[index].planId == selectedId,
-                yearlyValue: plans[index].period == SubscriptionPeriod.yearly
+                yearlyValue:
+                    plans[index].period == SubscriptionPeriod.yearly &&
+                        plans[index].purchaseType == PurchaseType.subscription
                     ? yearlyValue
                     : null,
                 onTap: () =>
@@ -465,7 +484,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       'Paddle checkout 点击: planId=$checkoutPlanId '
           'displayPlanId=${plan.planId} storeFallback=$storeFallback',
     );
-    if (!await _ensureSignedIn() || !mounted) {
+    final loginMessage = plan.purchaseType == PurchaseType.oneTime
+        ? AppLocalizations.of(context)!.premiumPurchaseLoginRequired
+        : null;
+    if (!await _ensureSignedIn(message: loginMessage) || !mounted) {
       AppLogger.log(
         'Subscription',
         'Paddle checkout 点击中止: planId=$checkoutPlanId reason=notSignedIn',
@@ -487,7 +509,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         'Paddle checkout URL 已获取: planId=$checkoutPlanId '
             'host=${uri.host} path=${uri.path}',
       );
-      opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      final email = ref.read(supabaseSessionProvider).valueOrNull?.user.email;
+      final checkoutUri = paddleCheckoutUriWithEmail(uri, email);
+      opened = await launchUrl(checkoutUri, mode: LaunchMode.inAppBrowserView);
     } on PurchaseException catch (error) {
       AppLogger.log(
         'Subscription',
@@ -530,6 +554,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     _trackPurchaseEvent(Events.subscriptionCheckoutStarted, {
       EventParams.source: 'paddle',
       EventParams.planPeriod: plan.period.name,
+      EventParams.purchaseType: purchaseTypeName(plan.purchaseType),
     });
     unawaited(_pollEntitlement());
   }
@@ -537,7 +562,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   /// 商店包展示的套餐来自 RevenueCat，Paddle 后端只接受 direct 套餐 id。
   /// Web 兜底按周期映射到现有 Paddle plan，避免把商店商品 id 发给 Paddle。
   String _paddleCheckoutPlanId(SubscriptionPlan plan, bool storeFallback) {
-    if (!storeFallback) return plan.planId;
+    if (!storeFallback || plan.purchaseType == PurchaseType.oneTime) {
+      return plan.planId;
+    }
     return switch (plan.period) {
       SubscriptionPeriod.monthly => 'plus_monthly',
       SubscriptionPeriod.yearly => 'plus_yearly',
@@ -596,7 +623,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   String _effectiveSelection(List<SubscriptionPlan> plans) {
     final chosen = _selectedPlanId;
     if (chosen != null && plans.any((p) => p.planId == chosen)) return chosen;
-    final yearly = plans.where((p) => p.period == SubscriptionPeriod.yearly);
+    final yearly = plans.where(
+      (p) =>
+          p.period == SubscriptionPeriod.yearly &&
+          p.purchaseType == PurchaseType.subscription,
+    );
     return yearly.isNotEmpty ? yearly.first.planId : plans.first.planId;
   }
 
@@ -604,16 +635,27 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   /// 否则返回空（UI 不展示折算）。
   YearlyValue? _yearlyValueOf(List<SubscriptionPlan> plans) {
     final monthly = plans
-        .where((p) => p.period == SubscriptionPeriod.monthly)
+        .where(
+          (p) =>
+              p.period == SubscriptionPeriod.monthly &&
+              p.purchaseType == PurchaseType.subscription,
+        )
         .firstOrNull;
     final yearly = plans
-        .where((p) => p.period == SubscriptionPeriod.yearly)
+        .where(
+          (p) =>
+              p.period == SubscriptionPeriod.yearly &&
+              p.purchaseType == PurchaseType.subscription,
+        )
         .firstOrNull;
     if (monthly == null || yearly == null) return null;
     return computeYearlyValue(monthly, yearly);
   }
 
   String _ctaLabel(AppLocalizations l10n, SubscriptionPlan plan) {
+    if (plan.purchaseType == PurchaseType.oneTime) {
+      return l10n.premiumBuyOneYear;
+    }
     if (plan.hasFreeTrial && plan.trialDays > 0) {
       return l10n.premiumStartTrial(plan.trialDays);
     }
@@ -666,6 +708,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     _trackPurchaseEvent(Events.subscriptionCheckoutStarted, {
       EventParams.source: 'native',
       EventParams.planPeriod: plan.period.name,
+      EventParams.purchaseType: purchaseTypeName(plan.purchaseType),
     });
     try {
       await ref
@@ -1082,18 +1125,28 @@ class _PlanCard extends StatelessWidget {
   final YearlyValue? yearlyValue;
 
   /// 套餐周期的简洁名称（月度 / 年度 / 终身）。
-  String _planName() => switch (plan.period) {
-    SubscriptionPeriod.monthly => l10n.premiumPeriodMonthly,
-    SubscriptionPeriod.yearly => l10n.premiumPeriodYearly,
-    SubscriptionPeriod.lifetime => l10n.premiumPeriodLifetime,
-  };
+  String _planName() {
+    if (plan.purchaseType == PurchaseType.oneTime) {
+      return l10n.premiumPeriodYearlyOneTime;
+    }
+    return switch (plan.period) {
+      SubscriptionPeriod.monthly => l10n.premiumPeriodMonthly,
+      SubscriptionPeriod.yearly => l10n.premiumPeriodYearly,
+      SubscriptionPeriod.lifetime => l10n.premiumPeriodLifetime,
+    };
+  }
 
   /// 价格后缀（/月、/年、一次性）。
-  String _priceSuffix() => switch (plan.period) {
-    SubscriptionPeriod.monthly => l10n.premiumPriceSuffixMonth,
-    SubscriptionPeriod.yearly => l10n.premiumPriceSuffixYear,
-    SubscriptionPeriod.lifetime => l10n.premiumPriceSuffixLifetime,
-  };
+  String _priceSuffix() {
+    if (plan.purchaseType == PurchaseType.oneTime) {
+      return l10n.premiumPriceSuffixLifetime;
+    }
+    return switch (plan.period) {
+      SubscriptionPeriod.monthly => l10n.premiumPriceSuffixMonth,
+      SubscriptionPeriod.yearly => l10n.premiumPriceSuffixYear,
+      SubscriptionPeriod.lifetime => l10n.premiumPriceSuffixLifetime,
+    };
+  }
 
   /// 卡片右侧主价格：付费 intro offer 展示用户优惠价；免费试用仍展示续费价。
   String _displayPrice() {
@@ -1125,7 +1178,9 @@ class _PlanCard extends StatelessWidget {
     final perMonth = offer == null ? yearlyValue?.perMonth : null;
 
     // 副标题优先级：平台 intro offer > 每月折合价 > 试用提示。
-    final String? subtitle = offer != null
+    final String? subtitle = plan.purchaseType == PurchaseType.oneTime
+        ? l10n.premiumOneTimeYearAccess
+        : offer != null
         ? _offerSubtitle(l10n, offer)
         : (perMonth != null
               ? l10n.premiumPerMonthEquivalent(perMonth)
@@ -1298,12 +1353,17 @@ class _MemberHeroCard extends StatelessWidget {
   final MemberSummary summary;
 
   /// 套餐展示名（由周期派生，无法判定时用兜底「会员」）。
-  String _planLabel() => switch (summary.period) {
-    SubscriptionPeriod.monthly => l10n.premiumPlanMonthly,
-    SubscriptionPeriod.yearly => l10n.premiumPlanYearly,
-    SubscriptionPeriod.lifetime => l10n.premiumPlanLifetime,
-    null => l10n.premiumPlanGeneric,
-  };
+  String _planLabel() {
+    if (summary.status == MemberStatusKind.fixedTerm) {
+      return l10n.premiumPlanYearlyOneTime;
+    }
+    return switch (summary.period) {
+      SubscriptionPeriod.monthly => l10n.premiumPlanMonthly,
+      SubscriptionPeriod.yearly => l10n.premiumPlanYearly,
+      SubscriptionPeriod.lifetime => l10n.premiumPlanLifetime,
+      null => l10n.premiumPlanGeneric,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1407,6 +1467,10 @@ class _StatusChip extends StatelessWidget {
         l10n.premiumStatusExpiring,
         AppTheme.premiumStatusExpiringColor(brightness),
       ),
+      MemberStatusKind.fixedTerm => (
+        l10n.premiumStatusFixedTerm,
+        AppTheme.premiumStatusActiveColor(brightness),
+      ),
       MemberStatusKind.lifetime => (
         l10n.premiumStatusLifetime,
         AppTheme.premiumGold(brightness),
@@ -1474,6 +1538,11 @@ class _MembershipInfoTile extends StatelessWidget {
         Icons.schedule,
         l10n.premiumExpiresOn(dateStr ?? ''),
         AppTheme.premiumStatusExpiringColor(theme.brightness),
+      ),
+      MemberStatusKind.fixedTerm => (
+        Icons.event_available_outlined,
+        l10n.premiumValidUntil(dateStr ?? ''),
+        AppTheme.premiumStatusActiveColor(theme.brightness),
       ),
       MemberStatusKind.lifetime => (
         Icons.all_inclusive,

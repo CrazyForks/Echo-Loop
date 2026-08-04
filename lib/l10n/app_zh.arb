@@ -43,6 +43,7 @@
   "premiumBenefitSenseGroups": "更多 AI 句子意群拆分",
   "premiumBenefitRetellReview": "更多 AI 复述评估",
   "premiumSubscribe": "订阅",
+  "premiumBuyOneYear": "购买一年会员",
   "premiumStartTrial": "开始 {days} 天免费试用",
   "@premiumStartTrial": {
     "placeholders": {
@@ -54,10 +55,12 @@
   "premiumCurrentPlan": "当前套餐",
   "premiumPlanMonthly": "月度会员",
   "premiumPlanYearly": "年度会员",
+  "premiumPlanYearlyOneTime": "一年期会员",
   "premiumPlanLifetime": "终身会员",
   "premiumPlanGeneric": "会员",
   "premiumStatusActive": "有效",
   "premiumStatusExpiring": "即将到期",
+  "premiumStatusFixedTerm": "一次性购买",
   "premiumStatusLifetime": "永久",
   "premiumRenewsOn": "{date} 自动续订",
   "@premiumRenewsOn": {
@@ -71,9 +74,16 @@
       "date": { "type": "String" }
     }
   },
+  "premiumValidUntil": "有效期至 {date}",
+  "@premiumValidUntil": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
   "premiumLifetimeAccessNote": "永久有效，无需续订",
   "premiumNoPlans": "暂无可用套餐，请稍后再试。",
   "premiumLoginRequired": "订阅前请先登录。",
+  "premiumPurchaseLoginRequired": "购买前请先登录。",
   "premiumRestoreLoginRequired": "恢复购买前请先登录。",
   "premiumPurchaseFailed": "购买失败，请重试。",
   "premiumRestoreAccountMismatch": "此订阅已绑定到另一个 Echo Loop 账号。请登录原账号后重试。",
@@ -93,12 +103,14 @@
   "premiumAlreadyEntitledSyncFailed": "检测到已有有效订阅，但同步失败，请点击右上角恢复购买。",
   "premiumPeriodMonthly": "月付",
   "premiumPeriodYearly": "年付",
+  "premiumPeriodYearlyOneTime": "一年期 · 一次性购买",
   "premiumPeriodLifetime": "终身",
   "premiumPriceSuffixMonth": "/月",
   "premiumPriceSuffixYear": "/年",
   "premiumPriceSuffixFirstYear": "/首年",
   "premiumPriceSuffixFirstMonth": "/首月",
   "premiumPriceSuffixLifetime": "一次性",
+  "premiumOneTimeYearAccess": "一次付款，享受 1 年会员，不自动续费",
   "premiumSavePercent": "立省 {percent}%",
   "@premiumSavePercent": {
     "placeholders": {

@@ -112,6 +112,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumSubscribe => '订阅';
 
   @override
+  String get premiumBuyOneYear => '购买一年会员';
+
+  @override
   String premiumStartTrial(int days) {
     return '开始 $days 天免费试用';
   }
@@ -132,6 +135,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumPlanYearly => '年度会员';
 
   @override
+  String get premiumPlanYearlyOneTime => '一年期会员';
+
+  @override
   String get premiumPlanLifetime => '终身会员';
 
   @override
@@ -142,6 +148,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get premiumStatusExpiring => '即将到期';
+
+  @override
+  String get premiumStatusFixedTerm => '一次性购买';
 
   @override
   String get premiumStatusLifetime => '永久';
@@ -157,6 +166,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String premiumValidUntil(String date) {
+    return '有效期至 $date';
+  }
+
+  @override
   String get premiumLifetimeAccessNote => '永久有效，无需续订';
 
   @override
@@ -164,6 +178,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get premiumLoginRequired => '订阅前请先登录。';
+
+  @override
+  String get premiumPurchaseLoginRequired => '购买前请先登录。';
 
   @override
   String get premiumRestoreLoginRequired => '恢复购买前请先登录。';
@@ -224,6 +241,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get premiumPeriodYearly => '年付';
 
   @override
+  String get premiumPeriodYearlyOneTime => '一年期 · 一次性购买';
+
+  @override
   String get premiumPeriodLifetime => '终身';
 
   @override
@@ -240,6 +260,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get premiumPriceSuffixLifetime => '一次性';
+
+  @override
+  String get premiumOneTimeYearAccess => '一次付款，享受 1 年会员，不自动续费';
 
   @override
   String premiumSavePercent(int percent) {

@@ -296,6 +296,12 @@ abstract class AppLocalizations {
   /// **'Subscribe'**
   String get premiumSubscribe;
 
+  /// No description provided for @premiumBuyOneYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Buy one year'**
+  String get premiumBuyOneYear;
+
   /// No description provided for @premiumStartTrial.
   ///
   /// In en, this message translates to:
@@ -332,6 +338,12 @@ abstract class AppLocalizations {
   /// **'Annual membership'**
   String get premiumPlanYearly;
 
+  /// No description provided for @premiumPlanYearlyOneTime.
+  ///
+  /// In en, this message translates to:
+  /// **'One-year membership'**
+  String get premiumPlanYearlyOneTime;
+
   /// No description provided for @premiumPlanLifetime.
   ///
   /// In en, this message translates to:
@@ -356,6 +368,12 @@ abstract class AppLocalizations {
   /// **'Expiring'**
   String get premiumStatusExpiring;
 
+  /// No description provided for @premiumStatusFixedTerm.
+  ///
+  /// In en, this message translates to:
+  /// **'One-time purchase'**
+  String get premiumStatusFixedTerm;
+
   /// No description provided for @premiumStatusLifetime.
   ///
   /// In en, this message translates to:
@@ -374,6 +392,12 @@ abstract class AppLocalizations {
   /// **'Expires on {date}'**
   String premiumExpiresOn(String date);
 
+  /// No description provided for @premiumValidUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until {date}'**
+  String premiumValidUntil(String date);
+
   /// No description provided for @premiumLifetimeAccessNote.
   ///
   /// In en, this message translates to:
@@ -391,6 +415,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please sign in before subscribing.'**
   String get premiumLoginRequired;
+
+  /// No description provided for @premiumPurchaseLoginRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in before purchasing.'**
+  String get premiumPurchaseLoginRequired;
 
   /// No description provided for @premiumRestoreLoginRequired.
   ///
@@ -506,6 +536,12 @@ abstract class AppLocalizations {
   /// **'Yearly'**
   String get premiumPeriodYearly;
 
+  /// No description provided for @premiumPeriodYearlyOneTime.
+  ///
+  /// In en, this message translates to:
+  /// **'1 year · One-time'**
+  String get premiumPeriodYearlyOneTime;
+
   /// No description provided for @premiumPeriodLifetime.
   ///
   /// In en, this message translates to:
@@ -541,6 +577,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'One-time'**
   String get premiumPriceSuffixLifetime;
+
+  /// No description provided for @premiumOneTimeYearAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'One payment, 1 year of access, no auto-renewal'**
+  String get premiumOneTimeYearAccess;
 
   /// No description provided for @premiumSavePercent.
   ///

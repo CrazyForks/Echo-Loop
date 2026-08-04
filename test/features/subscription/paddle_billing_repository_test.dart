@@ -102,6 +102,72 @@ void main() {
     expect(plans.single.introOffer, isNull);
   });
 
+  test('fetchPlans 合并一次性年付，并隔离无效一次性套餐', () async {
+    when(() => dio.get<Map<String, dynamic>>('/api/paddle/plans')).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: '/api/paddle/plans'),
+        statusCode: 200,
+        data: {
+          'plans': [
+            {
+              'planId': 'plus_yearly',
+              'priceString': r'US$50.00',
+              'hasFreeTrial': false,
+              'trialDays': 0,
+              'introOffer': null,
+            },
+          ],
+          'oneTimePlans': [
+            {
+              'planId': 'plus_yearly_one_time',
+              'priceString': 'CN¥298.00',
+              'purchaseType': 'one_time',
+              'accessType': 'fixed_term',
+              'duration': {'unit': 'year', 'count': 1},
+              'autoRenew': false,
+            },
+            {'planId': 'unsupported_one_time', 'priceString': 'CN¥1.00'},
+          ],
+        },
+      ),
+    );
+
+    final plans = await repository.fetchPlans();
+
+    expect(plans, hasLength(2));
+    expect(plans.first.purchaseType, PurchaseType.subscription);
+    expect(plans.last.planId, 'plus_yearly_one_time');
+    expect(plans.last.period, SubscriptionPeriod.yearly);
+    expect(plans.last.purchaseType, PurchaseType.oneTime);
+    expect(plans.last.hasFreeTrial, isFalse);
+    expect(plans.last.introOffer, isNull);
+  });
+
+  test('fetchPlans 兼容旧后端缺少 oneTimePlans', () async {
+    when(() => dio.get<Map<String, dynamic>>('/api/paddle/plans')).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: '/api/paddle/plans'),
+        statusCode: 200,
+        data: {
+          'plans': [
+            {
+              'planId': 'plus_monthly',
+              'priceString': r'US$8.99',
+              'hasFreeTrial': false,
+              'trialDays': 0,
+              'introOffer': null,
+            },
+          ],
+        },
+      ),
+    );
+
+    final plans = await repository.fetchPlans();
+
+    expect(plans.single.planId, 'plus_monthly');
+    expect(plans.single.purchaseType, PurchaseType.subscription);
+  });
+
   test('createCheckout 只提交 plan/locale，并携带 Bearer 与 UUID 幂等键', () async {
     when(
       () => dio.post<Map<String, dynamic>>(

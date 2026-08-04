@@ -1,9 +1,13 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-03（优化视频随心听讲解页纹理交接画面）
+> 最后更新：2026-08-04（Paddle 一次性年付客户端接入）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 ## 最近完成
+
+- [x] Paddle 一次性年付客户端接入：消费 `/api/paddle/plans.oneTimePlans`，在 Paddle 套餐区并列展示一次性年付并复用现有 checkout/权益确认链路；会员态按 `purchaseType` 展示固定期限语义，一次性买家不显示管理订阅入口，现有订阅行为保持不变。补充 Paddle catalog 隔离解析、旧后端/旧缓存兼容、direct 与商店 Web 兜底 planId、固定期限会员 UI 回归测试；subscription 测试目录 138 项全绿。**完成时间**: 2026-08-04
+
+- [x] Paddle checkout URL 打开前追加当前登录用户邮箱 fragment（`#email=...`），复购进入结账页时自动预填邮箱且仍可修改；空邮箱不改写 URL，并补充 URL 编码与已有 fragment 回归测试。**完成时间**: 2026-08-04
 
 - [x] 修复视频逐句精听、难句跟读进度条下方收藏按钮偏移：共享 `PracticeProgressSection` 不再用 `Flexible` 包裹右侧操作，避免它与 `Spacer` 平分剩余宽度后将按钮留在页面中部；改为收藏按钮按自身宽度布局、仅由 `Spacer` 占用剩余空间，并补充共享组件及两个页面的右边界几何回归断言。**完成时间**: 2026-08-03
 

@@ -24,6 +24,19 @@ void main() {
       expect(s.status, MemberStatusKind.expiring);
     });
 
+    test('一次性购买且有到期时间 → fixedTerm', () {
+      final summary = summarizeMembership(
+        Entitlement(
+          isPremium: true,
+          expiresAt: future,
+          purchaseType: PurchaseType.oneTime,
+        ),
+        now: now,
+      );
+
+      expect(summary.status, MemberStatusKind.fixedTerm);
+    });
+
     test('expiresAt=null → lifetime，且 expiresAtLocal 为 null', () {
       final s = summarizeMembership(
         const Entitlement(isPremium: true, willRenew: false),

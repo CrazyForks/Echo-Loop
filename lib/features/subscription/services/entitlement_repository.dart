@@ -130,12 +130,17 @@ class BackendEntitlementRepository implements EntitlementRepository {
         ? DateTime.fromMillisecondsSinceEpoch(rawExpiry, isUtc: true)
         : null;
     final rawSource = json['source'];
+    final purchaseType = purchaseTypeFromName(json['purchaseType']);
     return Entitlement(
       isPremium: true,
       activeEntitlements: entitlements,
       productId: productId,
-      // 后端无周期字段：用 productId 字符串启发式推断，供会员 UI 显示套餐名。
-      period: subscriptionPeriodFromProductId(productId),
+      // 当前后端唯一的一次性 SKU 是一年期；其 productId 是 Paddle price id，无法
+      // 从字符串推断周期，因此按已发布契约映射为 yearly。订阅继续走原有兜底。
+      period: purchaseType == PurchaseType.oneTime
+          ? SubscriptionPeriod.yearly
+          : subscriptionPeriodFromProductId(productId),
+      purchaseType: purchaseType,
       expiresAt: expiresAt,
       willRenew: json['willRenew'] == true,
       source: entitlementSourceFromApi(rawSource is String ? rawSource : null),
@@ -164,7 +169,9 @@ class BackendEntitlementRepository implements EntitlementRepository {
           'willRenew=${json['willRenew'] == true} '
           'hasWillRenew=${json.containsKey('willRenew')} '
           'source=${json['source'] is String ? json['source'] : "null"} '
-          'hasSource=${json.containsKey('source')}',
+          'hasSource=${json.containsKey('source')} '
+          'purchaseType=${json['purchaseType'] is String ? json['purchaseType'] : "null"} '
+          'hasPurchaseType=${json.containsKey('purchaseType')}',
     );
   }
 }

@@ -222,6 +222,13 @@ const _paddlePlans = [
       renewalPriceString: r'$49.99',
     ),
   ),
+  SubscriptionPlan(
+    planId: 'plus_yearly_one_time',
+    title: 'Echo Loop Plus One-time Year',
+    priceString: r'$44.99',
+    period: SubscriptionPeriod.yearly,
+    purchaseType: PurchaseType.oneTime,
+  ),
 ];
 
 Widget _harness({
@@ -298,6 +305,22 @@ void main() {
     debugManageSubscriptionsUrlOverride = null;
   });
 
+  test('Paddle checkout URL 预填邮箱且保留已有 fragment', () {
+    final uri = paddleCheckoutUriWithEmail(
+      Uri.parse('https://checkout.paddle.test/txn_1#source=app'),
+      ' user@example.com ',
+    );
+
+    expect(uri.toString(), contains('#source=app&email=user%40example.com'));
+    expect(
+      paddleCheckoutUriWithEmail(
+        Uri.parse('https://checkout.paddle.test/txn_1'),
+        '  ',
+      ),
+      Uri.parse('https://checkout.paddle.test/txn_1'),
+    );
+  });
+
   testWidgets('平台未启用订阅：渲染占位页，不展示套餐与购买 CTA', (tester) async {
     await tester.pumpWidget(
       _harness(state: const EntitlementState.free(), available: false),
@@ -328,7 +351,7 @@ void main() {
     expect(remoteConfigService.fetchCalls, 1);
   });
 
-  testWidgets('direct 渠道：展示 Paddle 月付/年付套餐卡', (tester) async {
+  testWidgets('direct 渠道：展示 Paddle 订阅与一次性年付，默认仍选中年订', (tester) async {
     await tester.pumpWidget(
       _harness(
         state: const EntitlementState.free(),
@@ -346,11 +369,88 @@ void main() {
     expect(find.textContaining('Paddle'), findsNothing);
     expect(find.text('Monthly'), findsOneWidget);
     expect(find.text('Yearly'), findsOneWidget);
+    expect(find.text('1 year · One-time'), findsOneWidget);
+    expect(
+      find.text('One payment, 1 year of access, no auto-renewal'),
+      findsOneWidget,
+    );
+    expect(find.text('One-time'), findsOneWidget);
     expect(find.text(r'$24.99'), findsOneWidget);
     expect(find.text('/first yr'), findsOneWidget);
     // direct/Web 渠道同样用用户语义「恢复购买」，底层走后端权益同步。
     expect(find.text('Restore Purchases'), findsOneWidget);
     expect(find.text('Refresh'), findsNothing);
+  });
+
+  testWidgets('direct 渠道：一次性年付原样创建 checkout', (tester) async {
+    final spy = _SpyController(const EntitlementState.free());
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.free(),
+        plans: _paddlePlans,
+        webCheckout: true,
+        authenticated: true,
+        identity: const SubscriptionIdentity(
+          userId: 'user-1',
+          accessToken: 'token',
+        ),
+        controller: () => spy,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final oneTimePlan = find.text('1 year · One-time');
+    await tester.ensureVisible(oneTimePlan);
+    await tester.tap(oneTimePlan);
+    await tester.pump();
+    expect(find.widgetWithText(FilledButton, 'Buy one year'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Buy one year'));
+    await tester.pump();
+
+    expect(spy.checkoutPlanId, 'plus_yearly_one_time');
+    expect(spy.checkoutAllowStoreFallback, isFalse);
+    expect(urlLauncher.launched, ['https://checkout.paddle.test/txn_1']);
+
+    await tester.pump(const Duration(seconds: 121));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('商店 Web 兜底：一次性 planId 不映射成年订阅', (tester) async {
+    final spy = _SpyController(const EntitlementState.free());
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.free(),
+        showStoreWebCheckoutFallback: true,
+        authenticated: true,
+        identity: const SubscriptionIdentity(
+          userId: 'user-1',
+          accessToken: 'token',
+        ),
+        controller: () => spy,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(
+        TextButton,
+        'Store payment not working? Use web checkout',
+      ),
+    );
+    await tester.pumpAndSettle();
+    final oneTimePlan = find.text('1 year · One-time');
+    await tester.ensureVisible(oneTimePlan);
+    await tester.tap(oneTimePlan);
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Buy one year'));
+    await tester.pump();
+
+    expect(spy.checkoutPlanId, 'plus_yearly_one_time');
+    expect(spy.checkoutAllowStoreFallback, isTrue);
+
+    await tester.pump(const Duration(seconds: 121));
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('商店包：切换到 Web 支付后展示 Paddle 套餐并创建 Paddle checkout', (tester) async {
@@ -722,6 +822,30 @@ void main() {
     expect(urlLauncher.launched, [
       'https://customer-portal.paddle.test/session',
     ]);
+  });
+
+  testWidgets('一次性年付会员：展示固定期限且不显示管理订阅入口', (tester) async {
+    final expiry = DateTime.now().toUtc().add(const Duration(days: 300));
+    final state = EntitlementState(
+      status: EntitlementStatus.premium,
+      entitlement: Entitlement(
+        isPremium: true,
+        productId: 'pri_one_time',
+        period: SubscriptionPeriod.yearly,
+        purchaseType: PurchaseType.oneTime,
+        expiresAt: expiry,
+        source: EntitlementSource.paddle,
+      ),
+    );
+    await tester.pumpWidget(
+      _harness(state: state, plans: _paddlePlans, webCheckout: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('One-year membership'), findsOneWidget);
+    expect(find.text('One-time purchase'), findsOneWidget);
+    expect(find.textContaining('Valid until'), findsOneWidget);
+    expect(find.text('Manage Subscription'), findsNothing);
   });
 
   testWidgets('free 用户：展示权益、套餐卡片、试用 CTA 与恢复购买', (tester) async {

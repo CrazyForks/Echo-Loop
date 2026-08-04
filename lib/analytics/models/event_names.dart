@@ -422,4 +422,5 @@ abstract class EventParams {
   static const duplicateCount = 'duplicate_count';
   static const failedCount = 'failed_count';
   static const planPeriod = 'plan_period';
+  static const purchaseType = 'purchase_type';
 }

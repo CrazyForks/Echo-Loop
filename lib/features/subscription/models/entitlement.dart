@@ -28,6 +28,9 @@ class Entitlement {
   /// 序列化缓存——好处是**离线/冷启动也能显示准确套餐名**，不依赖 offering 是否已拉到。
   final SubscriptionPeriod? period;
 
+  /// 当前代表性权益的购买类型；旧缓存或旧后端未提供时为空。
+  final PurchaseType? purchaseType;
+
   /// 权益到期时间（UTC）。null 表示永久（如终身买断）或无订阅。
   final DateTime? expiresAt;
 
@@ -46,6 +49,7 @@ class Entitlement {
     this.activeEntitlements = const {},
     this.productId,
     this.period,
+    this.purchaseType,
     this.expiresAt,
     this.willRenew = false,
     this.source = EntitlementSource.unknown,
@@ -70,6 +74,7 @@ class Entitlement {
     Set<String>? activeEntitlements,
     String? productId,
     SubscriptionPeriod? period,
+    PurchaseType? purchaseType,
     DateTime? expiresAt,
     bool? willRenew,
     EntitlementSource? source,
@@ -79,6 +84,7 @@ class Entitlement {
       activeEntitlements: activeEntitlements ?? this.activeEntitlements,
       productId: productId ?? this.productId,
       period: period ?? this.period,
+      purchaseType: purchaseType ?? this.purchaseType,
       expiresAt: expiresAt ?? this.expiresAt,
       willRenew: willRenew ?? this.willRenew,
       source: source ?? this.source,
@@ -92,6 +98,10 @@ class Entitlement {
       'activeEntitlements': activeEntitlements.toList(),
       'productId': productId,
       'period': period?.name,
+      'purchaseType': switch (purchaseType) {
+        final value? => purchaseTypeName(value),
+        null => null,
+      },
       'expiresAt': expiresAt?.toIso8601String(),
       'willRenew': willRenew,
       'source': source.name,
@@ -114,6 +124,7 @@ class Entitlement {
           ? json['productId'] as String
           : null,
       period: rawPeriod is String ? _periodFromName(rawPeriod) : null,
+      purchaseType: purchaseTypeFromName(json['purchaseType']),
       expiresAt: rawExpiry is String ? DateTime.tryParse(rawExpiry) : null,
       willRenew: json['willRenew'] == true,
       source: entitlementSourceFromName(json['source'] as String?),
@@ -136,6 +147,7 @@ class Entitlement {
           _setEquals(activeEntitlements, other.activeEntitlements) &&
           productId == other.productId &&
           period == other.period &&
+          purchaseType == other.purchaseType &&
           expiresAt == other.expiresAt &&
           willRenew == other.willRenew &&
           source == other.source;
@@ -146,6 +158,7 @@ class Entitlement {
     Object.hashAllUnordered(activeEntitlements),
     productId,
     period,
+    purchaseType,
     expiresAt,
     willRenew,
     source,
