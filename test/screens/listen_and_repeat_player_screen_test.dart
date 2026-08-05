@@ -199,6 +199,7 @@ Widget _createTestWidget({
   SpeechRecordingState recordingState = const SpeechRecordingState(),
   List<Override> extraOverrides = const [],
   bool startAtHome = false,
+  bool listenAndRepeatRatingEnabled = true,
   MediaLearningStartup? mediaStartup,
 }) {
   final audioItemDao = _MockAudioItemDao();
@@ -243,7 +244,9 @@ Widget _createTestWidget({
       analyticsOverride(),
       guideEnabledProvider.overrideWith(() => _DisabledGuideEnabledNotifier()),
       ...studyTimeOverrides(),
-      ...learningSettingsOverrides(),
+      ...learningSettingsOverrides(
+        listenAndRepeatRatingEnabled: listenAndRepeatRatingEnabled,
+      ),
       speechPermissionServiceProvider.overrideWithValue(
         _FakeSpeechPermissionService(),
       ),
@@ -563,6 +566,33 @@ void main() {
 
       expect(find.text('Tap to record'), findsNothing);
       expect(find.text('Recording...'), findsNothing);
+    });
+
+    testWidgets('关闭评级后仍显示录音回放 badge', (tester) async {
+      final controller = _TestListenAndRepeatController(
+        createState(phase: const WaitingForUser(WaitingReason.userInteraction)),
+        createTestSentences(count: 3),
+        startPlayingNoop: true,
+      );
+      const recordingState = SpeechRecordingState(
+        currentAttempt: SpeechPracticeAttempt(
+          promptId: 'lar:test-audio:0',
+          filePath: '/tmp/test.m4a',
+          status: SpeechPracticeAttemptStatus.passed,
+          score: 0.8,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _createTestWidget(
+          controller: controller,
+          recordingState: recordingState,
+          listenAndRepeatRatingEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recording'), findsOneWidget);
     });
 
     testWidgets('播放原句阶段显示提示而不显示录音按钮', (tester) async {

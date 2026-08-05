@@ -108,9 +108,9 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     unawaited(_fullscreenSubscription.cancel());
     unawaited(_releaseFullscreen());
     _playlistViewController.dispose();
-    // 释放会取消意群区间播放并更新 MediaEngine 状态；不能在 widget 卸载的
-    // 同步阶段直接启动，否则 Riverpod 会拒绝构建期 provider 状态变更。
-    unawaited(Future<void>(() => _controller.releaseFromScreen()));
+    // 释放方法会先跨过异步资源取消边界，再更新 provider 状态；直接启动即可，
+    // 避免用 Future 构造器额外创建一个 dispose 后仍待执行的零延迟 Timer。
+    unawaited(_controller.releaseFromScreen());
     scheduleMicrotask(_sleepTimer.cancel);
     super.dispose();
   }

@@ -738,6 +738,7 @@ class _ReviewDifficultPracticeScreenState
       isProcessing: isProcessing,
       currentAttempt: currentAttempt,
       hintText: isPlaying ? l10n.listenAndRepeatListenHint : null,
+      // 关闭评级时由面板降级为录音回放 badge。
       showRatingBadge: ref.watch(
         learningSettingsProvider.select((s) => s.listenAndRepeatRatingEnabled),
       ),

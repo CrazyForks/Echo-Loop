@@ -19,6 +19,7 @@ import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_availability.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/sense_group_result.dart';
+import 'package:echo_loop/models/sense_group_range_playback.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/models/sentence_ai_result.dart';
 import 'package:echo_loop/providers/audio_sentences_provider.dart';
@@ -26,6 +27,7 @@ import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/router/app_router.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
 
 import '../helpers/mock_providers.dart';
 
@@ -154,6 +156,14 @@ class _MockSavedSenseGroupDao extends Mock implements SavedSenseGroupDao {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {}
 
+class _NoopSenseGroupRangePlayback implements SenseGroupRangePlayback {
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> play(Duration start, Duration end) async {}
+}
+
 class MockDio extends Mock implements Dio {}
 
 Session testSession() {
@@ -182,6 +192,8 @@ void main() {
     bool autoShowAiAnalysis = true,
     bool autoShowAiTranslation = true,
     bool autoShowAiSenseGroups = false,
+    bool wrapDictionaryPanelHost = false,
+    SenseGroupRangePlayback? senseGroupRangePlayback,
     String? audioItemId,
     int? sentenceIndex,
     List<Override> extraOverrides = const [],
@@ -193,21 +205,27 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => Scaffold(
-            body: AnnotationContentView(
+          builder: (context, state) {
+            final content = AnnotationContentView(
               text: 'Hello world.',
               enableGuide: false,
               autoLoadSentenceAi: autoLoadSentenceAi,
               audioItemId: audioItemId,
               sentenceIndex: sentenceIndex,
+              senseGroupRangePlayback: senseGroupRangePlayback,
               aiNotifier:
                   aiNotifier ??
                   SentenceAiNotifier(
                     cacheDao: cacheDao,
                     apiClient: _NoopSentenceAiApiClient(),
                   ),
-            ),
-          ),
+            );
+            return Scaffold(
+              body: wrapDictionaryPanelHost
+                  ? DictionaryPanelHost(child: content)
+                  : content,
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.login,
@@ -512,6 +530,41 @@ void main() {
       find.text("This month's free AI sentence chunking quota is used up"),
       findsOneWidget,
     );
+  });
+
+  testWidgets('点击意群 AI 后立即关闭操作栏并打开词典面板', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      signedIn: true,
+      aiNotifier: _RecordingSentenceAiNotifier(
+        cacheDao: cacheDao,
+        apiClient: _NoopSentenceAiApiClient(),
+      ),
+      wrapDictionaryPanelHost: true,
+      senseGroupRangePlayback: _NoopSenseGroupRangePlayback(),
+      extraOverrides: [dictionaryOverride()],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('senseGroup')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hello world'));
+    await tester.pump();
+    expect(find.byKey(const Key('sense_group_lookup_action')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('sense_group_lookup_action')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('sense_group_lookup_action')), findsNothing);
+    expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
   });
 
   testWidgets('自动加载翻译和解析同时超额时只展示一个弹窗', (tester) async {

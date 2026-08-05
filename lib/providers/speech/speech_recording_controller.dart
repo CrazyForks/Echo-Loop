@@ -349,13 +349,11 @@ class SpeechRecordingController extends Notifier<SpeechRecordingState> {
 
     try {
       final asrSettings = ref.read(offlineAsrSettingsProvider);
-      final ratingEnabled = ref
-          .read(learningSettingsProvider)
-          .listenAndRepeatRatingEnabled;
       await _recordingService.startRecording(
         promptId: promptId,
-        recognitionEnabled:
-            ratingEnabled && asrSettings.backend == AsrBackend.platform,
+        // Apple 实时转录同时服务自动结束检测；关闭评级只跳过最终评分，
+        // 不能关闭该检测通道而退化为固定静音兜底。
+        recognitionEnabled: asrSettings.backend == AsrBackend.platform,
       );
       _eventSub?.cancel();
       _eventSub = _recordingService.events.listen(_handleRecordingEvent);

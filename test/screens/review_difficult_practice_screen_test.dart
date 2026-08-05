@@ -215,6 +215,7 @@ void main() {
     ReviewDifficultPracticeState? playerState,
     LearningSessionState? sessionState,
     SpeechRecordingPhase turnPhase = SpeechRecordingPhase.idle,
+    SpeechPracticeAttempt? currentAttempt,
     List<Override> extraOverrides = const [],
     bool startAtHome = false,
     bool listenAndRepeatRatingEnabled = true,
@@ -295,7 +296,10 @@ void main() {
         ),
         bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao()),
         speechRecordingControllerProvider.overrideWith(
-          () => TestSpeechRecordingController(initialPhase: turnPhase),
+          () => TestSpeechRecordingController(
+            initialPhase: turnPhase,
+            initialAttempt: currentAttempt,
+          ),
         ),
         speechPermissionServiceProvider.overrideWithValue(
           const _ReadySpeechPermissionService(),
@@ -663,6 +667,27 @@ void main() {
 
       expect(find.text('Peek at subtitles'), findsNothing);
       expect(find.text("Unclear"), findsNothing);
+    });
+
+    testWidgets('关闭评级后仍显示录音回放 badge', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          listenAndRepeatRatingEnabled: false,
+          currentAttempt: const SpeechPracticeAttempt(
+            promptId: 'review:a1:0',
+            filePath: '/tmp/review.m4a',
+            status: SpeechPracticeAttemptStatus.passed,
+            score: 0.8,
+          ),
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recording'), findsOneWidget);
     });
 
     testWidgets('跟读留白期显示录音面板', skip: true, (tester) async {

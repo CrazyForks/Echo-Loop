@@ -218,6 +218,7 @@ void main() {
     VoidCallback? onBeforeLookup,
     Widget Function(Widget sentence)? layout,
     List<Override> overrides = const [],
+    ThemeMode themeMode = ThemeMode.light,
   }) => ProviderScope(
     // 调用方 overrides 置于列表末尾：Riverpod 重复 override 为 last-wins，
     // 保证调用方能覆盖同名默认 provider（与 createTestApp 约定一致）
@@ -246,6 +247,8 @@ void main() {
         GlobalCupertinoLocalizations.delegate,
       ],
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: themeMode,
       home: Scaffold(
         body: DictionaryPanelHost(
           key: hostKey,
@@ -461,6 +464,20 @@ void main() {
       expect(
         platformHandleControls(context),
         same(materialTextSelectionHandleControls),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    '深色主题选中背景使用高对比度蓝，避免纯黑页面选区不可见',
+    (tester) async {
+      await tester.pumpWidget(wrap(themeMode: ThemeMode.dark));
+      final context = tester.element(find.byType(AppSelectableText));
+
+      expect(
+        DefaultSelectionStyle.of(context).selectionColor,
+        AppTheme.navActiveColor.withValues(alpha: 0.6),
       );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),

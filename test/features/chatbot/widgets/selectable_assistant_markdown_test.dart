@@ -6,6 +6,7 @@
 library;
 
 import 'package:echo_loop/features/chatbot/widgets/selectable_assistant_markdown.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/selection/selectable_content.dart';
 import 'package:echo_loop/widgets/selection/selection_toolbar_host.dart';
 import 'package:flutter/cupertino.dart';
@@ -54,12 +55,14 @@ void main() {
     WidgetTester tester,
     Widget markdown, {
     Locale locale = const Locale('en'),
+    ThemeMode themeMode = ThemeMode.light,
   }) => pumpChatWidget(
     tester,
     SelectionToolbarHost(
       child: Align(alignment: Alignment.topLeft, child: markdown),
     ),
     locale: locale,
+    themeMode: themeMode,
   );
 
   SelectableContentState selectionState(WidgetTester tester) =>
@@ -148,6 +151,20 @@ void main() {
       Colors.blue.withValues(alpha: 0.4),
     );
     expect(TextSelectionTheme.of(context).selectionHandleColor, Colors.blue);
+  }, variant: android);
+
+  testWidgets('深色主题 AI 回答选区使用高对比度蓝', (tester) async {
+    await pumpMarkdown(
+      tester,
+      const SelectableAssistantMarkdown(data: 'hello world'),
+      themeMode: ThemeMode.dark,
+    );
+    final context = tester.element(find.byType(SelectableContent));
+
+    expect(
+      DefaultSelectionStyle.of(context).selectionColor,
+      AppTheme.navActiveColor.withValues(alpha: 0.6),
+    );
   }, variant: android);
 
   testWidgets('长按选中该词并弹出操作条：复制 + 问 AI', (tester) async {

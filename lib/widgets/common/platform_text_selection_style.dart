@@ -7,6 +7,8 @@ library;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
+
 /// 为子树提供与 App 品牌主题解耦的平台标准文本选择样式。
 class PlatformTextSelectionStyle extends StatelessWidget {
   const PlatformTextSelectionStyle({super.key, required this.child});
@@ -25,7 +27,14 @@ class PlatformTextSelectionStyle extends StatelessWidget {
   }
 
   /// 平台标准选择背景色；Apple 使用 Cupertino 原生透明度，其余沿用 Material。
+  ///
+  /// 深色主题下页面背景接近纯黑，同一套「强调色 × 低透明度」叠加后与背景
+  /// 几乎无法区分（实测对比度约 1.4:1，选区形同隐形），因此深色主题统一改用
+  /// 更亮的强调蓝并提高不透明度，与 [AppTheme.navActiveColor] 选中态色呼应。
   static Color backgroundColorOf(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return AppTheme.navActiveColor.withValues(alpha: 0.6);
+    }
     final accent = accentColorOf(context);
     return switch (Theme.of(context).platform) {
       TargetPlatform.iOS ||

@@ -30,6 +30,7 @@ class _FakeOfflineAsrSettingsNotifier extends OfflineAsrSettingsNotifier {
 class _FakeSpeechPracticeBackend implements SpeechPracticeBackend {
   final _controller = StreamController<SpeechPracticeEvent>.broadcast();
   bool autoEmitFinal;
+  bool? recognitionEnabled;
   String? activePromptId;
   int counter = 0;
 
@@ -63,7 +64,9 @@ class _FakeSpeechPracticeBackend implements SpeechPracticeBackend {
   Future<int> getDeviceRamBytes() async => 0;
 
   @override
-  Future<void> setRecognitionEnabled(bool enabled) async {}
+  Future<void> setRecognitionEnabled(bool enabled) async {
+    recognitionEnabled = enabled;
+  }
 
   @override
   Future<void> shutdown() async {}
@@ -249,6 +252,56 @@ void main() {
   });
 
   group('SpeechRecordingController', () {
+    testWidgets('关闭评级仍启用 Apple 实时转录并按转录停滞自动结束', (tester) async {
+      ProviderContainer? container;
+      _FakeSpeechPracticeBackend? backend;
+      SpeechRecordingController? controller;
+
+      await tester.runAsync(() async {
+        backend = _FakeSpeechPracticeBackend(autoEmitFinal: false);
+        container = ProviderContainer(
+          overrides: [
+            analyticsOverride(),
+            ...learningSettingsOverrides(listenAndRepeatRatingEnabled: false),
+            speechPracticeBackendProvider.overrideWithValue(backend!),
+            recommendedAsrModelProvider.overrideWithValue(_testAsrModel),
+            offlineAsrSettingsProvider.overrideWith(
+              () => _FakeOfflineAsrSettingsNotifier(),
+            ),
+          ],
+        );
+        controller = container!.read(
+          speechRecordingControllerProvider.notifier,
+        );
+
+        await controller!.startRecording(
+          promptId: 'shadowing:a1:0',
+          referenceText: 'Anyhow I noticed your name on the door',
+        );
+        expect(backend!.recognitionEnabled, isTrue);
+
+        backend!.emitSpeechStarted();
+        backend!.emitPartial('I noticed your name on the door');
+        await Future<void>.delayed(
+          const Duration(seconds: 1, milliseconds: 50),
+        );
+
+        final state = container!.read(speechRecordingControllerProvider);
+        expect(state.phase, SpeechRecordingPhase.idle);
+        expect(state.currentAttempt?.hasRecording, isTrue);
+        expect(
+          state.currentAttempt?.status,
+          SpeechPracticeAttemptStatus.unavailable,
+        );
+      });
+
+      addTearDown(() async {
+        if (controller != null) await controller!.fullReset();
+        if (backend != null) await backend!.dispose();
+        if (container != null) container!.dispose();
+      });
+    });
+
     testWidgets('完全匹配时 1s 静音即停止', (tester) async {
       ProviderContainer? container;
       _FakeSpeechPracticeBackend? backend;

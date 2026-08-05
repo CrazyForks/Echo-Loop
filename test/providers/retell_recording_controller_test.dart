@@ -157,6 +157,18 @@ class _RecordingStudyEventRecorder extends StudyEventRecorder {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  Future<void> disposeTestResources({
+    required RetellRecordingController controller,
+    required ProviderContainer container,
+    required _FakeSpeechPracticeBackend backend,
+  }) async {
+    // ProviderContainer.dispose() 不等待 Notifier 的异步 onDispose；先显式
+    // 收尾录音会话和事件订阅，避免下一个测试与旧 RecordingService 交叠。
+    await controller.fullReset();
+    await backend.dispose();
+    container.dispose();
+  }
+
   test('RetellRecordingController 在停止录音后通过底层统一记录说的时长', () async {
     final backend = _FakeSpeechPracticeBackend();
     final container = ProviderContainer(
@@ -172,13 +184,15 @@ void main() {
         ),
       ],
     );
-    addTearDown(() async {
-      await backend.dispose();
-      container.dispose();
-    });
-
     final controller = container.read(
       retellRecordingControllerProvider.notifier,
+    );
+    addTearDown(
+      () => disposeTestResources(
+        controller: controller,
+        container: container,
+        backend: backend,
+      ),
     );
     final recorder = _RecordingStudyEventRecorder();
     controller.setRecorder(recorder);
@@ -216,13 +230,15 @@ void main() {
         ),
       ],
     );
-    addTearDown(() async {
-      await backend.dispose();
-      container.dispose();
-    });
-
     final controller = container.read(
       retellRecordingControllerProvider.notifier,
+    );
+    addTearDown(
+      () => disposeTestResources(
+        controller: controller,
+        container: container,
+        backend: backend,
+      ),
     );
 
     await controller.startRecording(

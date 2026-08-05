@@ -417,13 +417,16 @@ class TestLocalTranscriptionTaskManager extends LocalTranscriptionTaskManager {
 /// 测试用 SpeechRecordingController — 不依赖平台通道
 class TestSpeechRecordingController extends SpeechRecordingController {
   final SpeechRecordingPhase initialPhase;
+  final SpeechPracticeAttempt? initialAttempt;
 
   TestSpeechRecordingController({
     this.initialPhase = SpeechRecordingPhase.idle,
+    this.initialAttempt,
   });
 
   @override
-  SpeechRecordingState build() => SpeechRecordingState(phase: initialPhase);
+  SpeechRecordingState build() =>
+      SpeechRecordingState(phase: initialPhase, currentAttempt: initialAttempt);
 
   @override
   Future<void> startRecording({

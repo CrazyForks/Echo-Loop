@@ -141,4 +141,57 @@ void main() {
     expect(find.text('AI review'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
+
+  testWidgets('只要有录音就显示 badge，评分失败时降级为录音', (tester) async {
+    const attempt = SpeechPracticeAttempt(
+      promptId: 'attempt-1',
+      filePath: '/tmp/attempt.m4a',
+      status: SpeechPracticeAttemptStatus.noEnglishDetected,
+    );
+    await tester.pumpWidget(
+      await wrap(
+        Builder(
+          builder: (context) => RepeatPracticePanel(
+            l10n: AppLocalizations.of(context)!,
+            theme: Theme.of(context),
+            isInPause: true,
+            showCountdown: false,
+            currentAttempt: attempt,
+            onRecordTap: () {},
+            showRatingBadge: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recording'), findsOneWidget);
+  });
+
+  testWidgets('关闭评分时有录音的成功结果也降级为录音 badge', (tester) async {
+    const attempt = SpeechPracticeAttempt(
+      promptId: 'attempt-1',
+      filePath: '/tmp/attempt.m4a',
+      status: SpeechPracticeAttemptStatus.passed,
+      score: .9,
+    );
+    await tester.pumpWidget(
+      await wrap(
+        Builder(
+          builder: (context) => RepeatPracticePanel(
+            l10n: AppLocalizations.of(context)!,
+            theme: Theme.of(context),
+            isInPause: true,
+            showCountdown: false,
+            currentAttempt: attempt,
+            onRecordTap: () {},
+            showRatingBadge: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recording'), findsOneWidget);
+  });
 }

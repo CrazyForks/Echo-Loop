@@ -411,6 +411,7 @@ void main() {
     ReviewDifficultPracticeState? playerState,
     List<BookmarkSentence>? sentences,
     SpeechRecordingPhase turnPhase = SpeechRecordingPhase.idle,
+    SpeechPracticeAttempt? currentAttempt,
     bool startAtHome = false,
     bool listenAndRepeatRatingEnabled = true,
     BookmarkReview Function(
@@ -466,7 +467,10 @@ void main() {
         ),
         bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao()),
         speechRecordingControllerProvider.overrideWith(
-          () => TestSpeechRecordingController(initialPhase: turnPhase),
+          () => TestSpeechRecordingController(
+            initialPhase: turnPhase,
+            initialAttempt: currentAttempt,
+          ),
         ),
         speechPermissionServiceProvider.overrideWithValue(
           const _ReadySpeechPermissionService(),
@@ -713,6 +717,27 @@ void main() {
 
       expect(find.text('Peek at subtitles'), findsNothing);
       expect(find.text("Unclear"), findsNothing);
+    });
+
+    testWidgets('关闭评级后仍显示录音回放 badge', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          listenAndRepeatRatingEnabled: false,
+          currentAttempt: const SpeechPracticeAttempt(
+            promptId: 'bookmark:a1:0',
+            filePath: '/tmp/bookmark.m4a',
+            status: SpeechPracticeAttemptStatus.passed,
+            score: 0.8,
+          ),
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recording'), findsOneWidget);
     });
 
     testWidgets('跟读模式显示遍数标签', skip: true, (tester) async {

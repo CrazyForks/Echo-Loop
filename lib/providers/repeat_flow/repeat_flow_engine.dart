@@ -481,13 +481,21 @@ class RepeatFlowEngine {
     );
   }
 
-  /// 录音完成回调（由外部 Provider 的 ref.listen 桥接调用）
+  /// 录音完成回调（由外部 Provider 的 ref.listen 桥接调用）。
+  ///
+  /// 评分是可选附加信息：关闭评分时仍应保留有效录音并继续训练流程，
+  /// 只有没有可回放录音文件时才视为录音失败。
   void onRecordingFinished(String? filePath, double? score) {
     if (_state.phase is! Recording) return;
 
+    final hasRecording = filePath != null && filePath.isNotEmpty;
     AppLogger.log(
       logTag,
-      score != null ? '录音评估完成: score=$score' : '录音评估失败: 无有效识别结果',
+      score != null
+          ? '录音评估完成: score=$score'
+          : hasRecording
+          ? '录音完成: 未评分，保留录音'
+          : '录音失败: 无有效录音文件',
     );
     _updateState(
       _state.copyWith(
@@ -497,8 +505,8 @@ class RepeatFlowEngine {
       ),
     );
 
-    if (score == null) {
-      AppLogger.log(logTag, '→ 识别失败，等待用户重试');
+    if (!hasRecording) {
+      AppLogger.log(logTag, '→ 无有效录音，等待用户重试');
       _updateState(
         _state.copyWith(
           phase: const WaitingForUser(WaitingReason.recordingFailed),

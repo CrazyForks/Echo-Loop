@@ -600,7 +600,9 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   void _deferSenseGroupPlaybackCancellation() {
     final rangePlayback = widget.senseGroupRangePlayback;
     if (rangePlayback == null) return;
-    unawaited(Future<void>(() => rangePlayback.cancel()));
+    scheduleMicrotask(() {
+      unawaited(rangePlayback.cancel());
+    });
   }
 
   /// 显示意群快捷菜单
@@ -691,11 +693,12 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
   /// 用当前意群文本打开 AI 查词面板。
   ///
-  /// 这里不关闭快捷条：保留既有 5 秒自然消失，用户查词后仍可继续收藏当前意群。
+  /// 查词面板打开后，意群快捷条立即关闭，避免两个浮层同时遮挡内容。
   void _lookupSenseGroup(String chunk) {
     if (_senseGroupLookupLocked) return;
     final queryText = chunk.trim();
     if (queryText.isEmpty) return;
+    _dismissActionBar();
     widget.onToolbarButtonTapped?.call();
     final host = DictionaryPanelHost.of(context);
     host.show(

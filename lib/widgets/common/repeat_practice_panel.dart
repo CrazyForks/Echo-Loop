@@ -370,15 +370,19 @@ class RepeatPracticePanel extends StatelessWidget {
 
   /// 构建左侧反馈胶囊使用的 attempt。
   ///
-  /// 关闭复述评级时仍保留录音回放入口，但把 attempt 降级为
-  /// `unavailable + filePath`，让 [SpeechRatingBadge] 显示「录音」胶囊而非评级。
+  /// 只要有有效录音文件，就必须保留回放 badge。
+  ///
+  /// 评分开启且 ASR 成功时显示评分；关闭评分或 ASR 失败时统一降级为
+  /// `unavailable + filePath`，让 [SpeechRatingBadge] 显示「录音」胶囊。
   SpeechPracticeAttempt? get _badgeAttempt {
     final attempt = currentAttempt;
     if (attempt == null) return null;
-    if (showRatingBadge) {
+    if (!attempt.hasRecording) {
+      return showRatingBadge && attempt.hasFinalFeedback ? attempt : null;
+    }
+    if (showRatingBadge && !attempt.isRecognitionFailure) {
       return attempt.hasFinalFeedback ? attempt : null;
     }
-    if (!attempt.hasRecording) return null;
     return attempt.copyWith(
       status: SpeechPracticeAttemptStatus.unavailable,
       clearFinalTranscript: true,
