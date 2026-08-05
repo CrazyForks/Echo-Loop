@@ -271,7 +271,7 @@ class MediaEngine extends _$MediaEngine {
     final reached = _awaitRangeEndOrInvalid(backend, end, sessionId);
     await handler.playBackend();
     if (!isActiveSession(sessionId)) {
-      await handler.pauseBackend();
+      // 新播放会话可能已经接管同一个 backend；旧区间协程不能再暂停新会话。
       return;
     }
 

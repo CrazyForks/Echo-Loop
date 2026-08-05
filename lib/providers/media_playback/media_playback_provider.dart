@@ -666,6 +666,32 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     final willUseSentenceDriven =
         state.playlistMode == PlaylistMode.bookmarks || next.loopSentence;
     state = state.copyWith(settings: next);
+
+    // 单句循环决定底层使用逐句区间播放还是整篇连续播放。播放中切换时必须立刻
+    // 失效旧协程并由新模型接管；否则只更新设置会一直等到暂停后再次 play 才生效。
+    // 收藏列表始终逐句播放，切换单句循环开关不应打断它。
+    // 播放状态流回调可能晚于底层 play；切换循环时以 MediaEngine 的 backend 真值
+    // 判断是否需要接管，避免 provider state 尚未回写而丢掉用户的设置变更。
+    if (_engine.isPlaying && wasSentenceDriven != willUseSentenceDriven) {
+      if (willUseSentenceDriven) {
+        // 用户开启单句循环时明确要求立即从当前句句首重播。
+        _launchSentenceDriven(
+          resetWholeLoops: false,
+          resetSentenceRepeats: true,
+        );
+      } else {
+        // 用户关闭单句循环时从媒体当前真实位置无缝恢复整篇连续播放。旧逐句会话可能
+        // 已排队句首 seek，因此新会话需重新对齐当前位置，避免迟到命令将进度回跳。
+        // _startWholeDriven 会持续到媒体自然结束；设置更新不能等待该长生命周期会话。
+        unawaited(
+          _startWholeDriven(
+            resumePosition: _engine.currentPosition,
+            resetWholeLoops: false,
+          ),
+        );
+      }
+    }
+
     await _applyTransportSpeed();
     await StorageService.saveSettings(
       ListeningPracticeSettingsStore(
@@ -673,20 +699,6 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
         bookmark: state.bookmarkSettings,
       ),
     );
-
-    // 单句循环决定底层使用逐句区间播放还是整篇连续播放。播放中切换时必须立刻
-    // 失效旧协程并由新模型接管；否则只更新设置会一直等到暂停后再次 play 才生效。
-    // 收藏列表始终逐句播放，切换单句循环开关不应打断它。
-    if (!state.isPlaying || wasSentenceDriven == willUseSentenceDriven) return;
-
-    if (willUseSentenceDriven) {
-      // 用户开启单句循环时明确要求立即从当前句句首重播。
-      _launchSentenceDriven(resetWholeLoops: false, resetSentenceRepeats: true);
-      return;
-    }
-
-    // 用户关闭单句循环时从媒体当前真实位置无缝恢复整篇连续播放，不回跳也不暂停。
-    await _startWholeDriven(resetWholeLoops: false);
   }
 
   Future<void> setPlaylistMode(PlaylistMode mode) async {
@@ -850,6 +862,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
 
   Future<void> _startWholeDriven({
     int? startPos,
+    Duration? resumePosition,
     bool startAtBeginning = false,
     bool resetWholeLoops = false,
   }) async {
@@ -860,9 +873,16 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       state = state.copyWith(wholeLoopsDone: 0, sentenceRepeatsDone: 0);
     }
     _playbackSessionId = _engine.newSession();
+    AppLogger.log(
+      'MediaPlayback',
+      'start whole: gen=$gen session=$_playbackSessionId',
+    );
     if (startAtBeginning) {
       await _engine.seek(Duration.zero);
       state = state.copyWith(position: Duration.zero);
+    } else if (resumePosition != null) {
+      await _engine.seek(resumePosition);
+      state = state.copyWith(position: resumePosition);
     } else if (startPos != null && state.sentences.isNotEmpty) {
       final playable = _playable;
       if (startPos >= 0 && startPos < playable.length) {
@@ -872,6 +892,10 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       }
     }
     state = state.copyWith(isPlaying: true);
+    AppLogger.log(
+      'MediaPlayback',
+      'start whole playToEnd active=${_engine.isActiveSession(_playbackSessionId)}',
+    );
     while (gen == _playbackGen && _engine.isActiveSession(_playbackSessionId)) {
       await _engine.playToEnd(_playbackSessionId);
       if (gen != _playbackGen || !_engine.isActiveSession(_playbackSessionId)) {

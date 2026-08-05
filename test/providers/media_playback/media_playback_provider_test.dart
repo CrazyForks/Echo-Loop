@@ -508,12 +508,12 @@ void main() {
           ),
     );
     unawaited(controller.play());
-    await Future<void>.delayed(Duration.zero);
+    await waitUntil(() => backend.playCalls == 1);
     backend.emitPosition(const Duration(seconds: 65));
-    await Future<void>.delayed(Duration.zero);
+    await waitUntil(() => backend.position == const Duration(seconds: 65));
     final seeksBeforeDisable = backend.seekCalls.length;
 
-    await controller.updateSettings(
+    final disableLoop = controller.updateSettings(
       container
           .read(mediaPlaybackProvider)
           .settings
@@ -521,7 +521,9 @@ void main() {
     );
 
     await waitUntil(() => backend.playCalls >= 2);
-    expect(backend.seekCalls.length, seeksBeforeDisable);
+    await disableLoop;
+    expect(backend.seekCalls.length, seeksBeforeDisable + 1);
+    expect(backend.seekCalls.last, const Duration(seconds: 65));
     expect(backend.position, const Duration(seconds: 65));
     expect(container.read(mediaPlaybackProvider).isPlaying, isTrue);
 
