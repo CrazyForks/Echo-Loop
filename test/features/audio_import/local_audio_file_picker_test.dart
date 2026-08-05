@@ -156,7 +156,8 @@ void main() {
 
     final classification = classifyImportFiles(names);
     expect(classification.audioNames, ['talk.mp3']);
-    expect(classification.rejectedExtensions, ['mp4']);
+    expect(classification.videoNames, ['movie.mp4']);
+    expect(classification.rejectedExtensions, isEmpty);
   });
 
   test('readBytes 按 URI 取字节', () async {

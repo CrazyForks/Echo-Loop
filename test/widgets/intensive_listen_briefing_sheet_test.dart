@@ -122,11 +122,18 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('1.0x'));
+    await tester.tap(find.byType(DropdownButton<double>).last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('1.5x').last);
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -240));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start Practicing'));
+    await tester.tap(find.text('1.5x'));
+    await tester.pumpAndSettle();
+    final startButton = find.descendant(
+      of: find.byType(BriefingActionRow),
+      matching: find.byType(FilledButton),
+    );
+    await tester.ensureVisible(startButton);
+    await tester.tap(startButton);
     await tester.pumpAndSettle();
 
     expect(selectedSpeed, 1.5);
@@ -159,7 +166,7 @@ void main() {
     expect(find.text('Pause between sentences'), findsOneWidget);
     expect(find.text('Auto'), findsOneWidget);
 
-    await tester.tap(find.text('Start Practicing'));
+    await tester.tap(find.text('Start Practice'));
     await tester.pumpAndSettle();
 
     expect(selectedPause, const BriefingPauseChoice.smart());
@@ -255,7 +262,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('3x'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start Practicing'));
+    await tester.tap(find.text('Start Practice'));
     await tester.pumpAndSettle();
 
     expect(selectedPause, const BriefingPauseChoice.multiplier(3.0));

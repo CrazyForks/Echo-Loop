@@ -267,7 +267,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
       expect(find.text('Add to My Collections'), findsNothing);
     });
   });

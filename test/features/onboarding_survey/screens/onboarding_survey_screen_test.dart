@@ -495,7 +495,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 走到渠道页
-    await tester.tap(find.text('Daily conversation'));
+    await tester.tap(find.text('Everyday conversation'));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
     await tester.tap(find.text('About 10 min'));
     await tester.pumpAndSettle(const Duration(milliseconds: 600));
@@ -515,7 +515,7 @@ void main() {
 
     await tester.tap(find.text('Reddit'));
     await tester.pumpAndSettle(const Duration(milliseconds: 600));
-    await tester.tap(find.text('Start Practicing'));
+    await tester.tap(find.text('Start learning'));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
 
     final answers = OnboardingSurveyStorage(prefs).loadAnswers();

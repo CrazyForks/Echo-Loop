@@ -124,11 +124,18 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('1.0x'));
+    await tester.tap(find.byType(DropdownButton<double>).last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('1.5x').last);
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -240));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start Practicing'));
+    await tester.tap(find.text('1.5x'));
+    await tester.pumpAndSettle();
+    final startButton = find.descendant(
+      of: find.byType(BriefingActionRow),
+      matching: find.byType(FilledButton),
+    );
+    await tester.ensureVisible(startButton);
+    await tester.tap(startButton);
     await tester.pumpAndSettle();
 
     expect(selectedSpeed, 1.5);

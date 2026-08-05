@@ -219,7 +219,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Start Practicing'), findsOneWidget);
+    expect(find.text('Start Practice'), findsOneWidget);
     expect(find.byIcon(Icons.add_circle_outline), findsNothing);
   });
 

@@ -900,7 +900,7 @@ void main() {
       // 显示阶段名
       expect(find.text('Review 2'), findsAtLeast(1));
       // 显示开始练习按钮
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
     });
 
     testWidgets('有进度时显示正确的完成步骤数', (tester) async {
@@ -935,7 +935,7 @@ void main() {
 
       // 当前子步骤是 blindListen，应弹出盲听简报弹窗。
       expect(find.text('Listen without subtitles'), findsAtLeast(1));
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
     });
 
     testWidgets('AI 转录完成后 transcriptPath 仍为 null 时开始学习可立即弹出练习面板', (
@@ -971,7 +971,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Listen without subtitles'), findsAtLeast(1));
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
       final lpState = container.read(listeningPracticeProvider);
       expect(lpState.sentences, hasLength(reloadedSentences.length));
     });
@@ -984,7 +984,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点击开始练习
-      await tester.tap(find.text('Start Practicing'));
+      await tester.tap(find.text('Start Practice'));
       await tester.pumpAndSettle();
 
       expect(find.text('Intensive Listen'), findsOneWidget);
@@ -1011,7 +1011,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 与点击底部「开始学习」一致：弹出精听简报。
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
     });
 
     testWidgets('无字幕时点击当前步骤卡片无反应', (tester) async {
@@ -1038,7 +1038,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 无字幕 → 回调为 null，点击不弹出任何练习面板。
-      expect(find.text('Start Practicing'), findsNothing);
+      expect(find.text('Start Practice'), findsNothing);
     });
 
     testWidgets('精听子步骤无字幕时显示提示对话框', (tester) async {
@@ -1320,7 +1320,7 @@ void main() {
       // 应弹出盲听段落选择弹窗，并保留步骤标签。
       expect(find.text('Listen without subtitles'), findsAtLeast(1));
       expect(find.text('Listenwithout subtitles'), findsOneWidget);
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
     });
 
     testWidgets('未完成盲听步骤不可点击', (tester) async {
@@ -1828,7 +1828,7 @@ void main() {
 
       // 验证弹出的是精听简报（IntensiveListenBriefingSheet）
       expect(find.text('Listen sentence by sentence'), findsWidgets);
-      expect(find.text('Start Practicing'), findsOneWidget);
+      expect(find.text('Start Practice'), findsOneWidget);
     });
 
     // ====== Phase 3 Batch：从 integration_test 下沉的更多 case ======

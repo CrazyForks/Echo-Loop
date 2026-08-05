@@ -61,7 +61,10 @@ jobs:
         # 少数用例还会只出现无 error payload 的 testDone error。真实断言失败会伴随
         # error 事件，因此 CI 只把带 error payload 的 failure/error 判为失败。
         run: |
+          # 多个测试文件共享平台插件、全局 provider 和测试数据库；串行执行避免
+          # 文件级并发导致的跨测试污染。单个文件内的 testWidgets 仍按测试框架顺序执行。
           flutter test \
+            --concurrency=1 \
             --file-reporter=json:test-results.json || true
           python3 - <<'PY'
           import json, sys

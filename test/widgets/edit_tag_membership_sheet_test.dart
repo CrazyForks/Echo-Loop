@@ -288,7 +288,7 @@ void main() {
       expect(find.text('Delete Tag'), findsOneWidget);
       expect(
         find.text(
-          'Are you sure you want to delete "Business"? It will be removed from all audio files.',
+          'Are you sure you want to delete "Business"? It will be removed from all audio.',
         ),
         findsOneWidget,
       );
