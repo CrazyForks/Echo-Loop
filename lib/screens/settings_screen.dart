@@ -154,7 +154,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: l10n.account,
       children: [
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/account-1.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/account-1.svg'),
           title: Text(l10n.account),
           subtitle: accountSubtitle == null
               ? null
@@ -322,7 +322,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         if (showAsr)
           ListTile(
-            leading: _settingsSvgIcon('assets/icon/microphone.svg'),
+            leading: _settingsThemedSvgIcon(
+              context,
+              'assets/icon/microphone.svg',
+            ),
             title: Text(l10n.speechRecognition),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -363,7 +366,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/play-pause.svg'),
+          leading: _settingsThemedSvgIcon(
+            context,
+            'assets/icon/play-pause.svg',
+          ),
           title: Text(l10n.playbackSettings),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
@@ -424,7 +430,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onTap: () => context.push(AppRoutes.backupRestore),
         ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/trash-bin.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/trash-bin.svg'),
           title: Text(l10n.clearCache),
           onTap: () => _clearAiCache(context, ref, l10n),
         ),
@@ -572,7 +578,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: l10n.about,
       children: [
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/refresh.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/refresh.svg'),
           title: Text(l10n.checkForUpdate),
           trailing: isChecking
               ? const SizedBox(
@@ -590,14 +596,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onTap: () => launchUrl(Uri.parse('https://www.echo-loop.top/terms')),
         ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/lock.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/lock.svg'),
           title: Text(l10n.privacyPolicy),
           trailing: const Icon(Icons.chevron_right),
           onTap: () =>
               launchUrl(Uri.parse('https://www.echo-loop.top/privacy')),
         ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/feedback.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/feedback.svg'),
           title: Text(l10n.writeFeedback),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => launchUrl(Uri.parse('mailto:support@echo-loop.top')),
@@ -613,7 +619,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/group.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/group.svg'),
           title: Text(l10n.joinCommunity),
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
@@ -1294,6 +1300,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// 构建随主题切换前景色的单色 SVG，保证深色卡面上的图标对比度。
+  Widget _settingsThemedSvgIcon(BuildContext context, String assetName) {
+    return SizedBox(
+      width: _settingsLeadingIconExtent,
+      height: _settingsLeadingIconExtent,
+      child: Center(
+        child: SvgPicture.asset(
+          assetName,
+          width: _settingsSvgIconExtent,
+          height: _settingsSvgIconExtent,
+          colorFilter: ColorFilter.mode(
+            Theme.of(context).colorScheme.onSurfaceVariant,
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 构建设置列表 Material 图标，用于暂未提供 SVG 的少量入口。
   Widget _settingsMaterialIcon(IconData icon) {
     return SizedBox(
@@ -1390,7 +1415,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         supportedNativeLanguages[settings.nativeLanguage] ??
         settings.nativeLanguage;
     return ListTile(
-      leading: _settingsSvgIcon('assets/icon/speak.svg'),
+      leading: _settingsThemedSvgIcon(context, 'assets/icon/speak.svg'),
       title: Text(l10n.nativeLanguage),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

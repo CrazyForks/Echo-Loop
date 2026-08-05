@@ -31,6 +31,7 @@ import 'package:echo_loop/providers/listening_practice/listening_practice_provid
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/package_info_provider.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../helpers/mock_providers.dart';
@@ -295,6 +296,48 @@ void main() {
         final githubIcons = tester.widgetList<FaIcon>(find.byType(FaIcon));
         expect(githubIcons, hasLength(1));
         expect(githubIcons.single.size, 20);
+      });
+
+      testWidgets('深色主题下单色 SVG 使用高对比主题前景色', (tester) async {
+        await tester.pumpWidget(
+          createTestScreen(
+            Theme(data: AppTheme.dark(), child: const SettingsScreen()),
+            overrides: buildOverrides(
+              showDeveloperOptions: false,
+              showOfflineAsrSection: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final expectedColor = AppTheme.dark().colorScheme.onSurfaceVariant;
+        final paletteIcon = tester.widget<SvgPicture>(
+          findSvgAsset('assets/icon/artist-palette.svg'),
+        );
+        expect(paletteIcon.colorFilter, isNull);
+
+        const visibleAssets = [
+          'assets/icon/account-1.svg',
+          'assets/icon/speak.svg',
+          'assets/icon/microphone.svg',
+          'assets/icon/play-pause.svg',
+          'assets/icon/refresh.svg',
+          'assets/icon/lock.svg',
+          'assets/icon/feedback.svg',
+          'assets/icon/group.svg',
+          'assets/icon/trash-bin.svg',
+        ];
+
+        for (final asset in visibleAssets) {
+          await tester.scrollUntilVisible(findSvgAsset(asset), 200);
+          await tester.pumpAndSettle();
+          final icon = tester.widget<SvgPicture>(findSvgAsset(asset));
+          expect(
+            icon.colorFilter,
+            ColorFilter.mode(expectedColor, BlendMode.srcIn),
+            reason: asset,
+          );
+        }
       });
 
       testWidgets('显示关于信息区域', (tester) async {
