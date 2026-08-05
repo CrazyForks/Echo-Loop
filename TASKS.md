@@ -1,6 +1,6 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-04（Paddle 一次性年付客户端接入）
+> 最后更新：2026-08-05（Paddle 移动端外部浏览器打开）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 - [x] 修复 CI 全量测试中残留的本地文件导入断言：视频导入支持已将 `mp4` 分类为 `videoNames`，同步更新旧回归测试，保留其不进入音频列表的校验。**完成时间**: 2026-08-05
@@ -9,6 +9,8 @@
 - [x] 修复媒体播放 CI 超时：关闭单句循环时不再等待整篇播放结束，改用底层播放真值接管连续播放并保留当前位置，补充播放切换回归测试。**完成时间**: 2026-08-05
 
 ## 最近完成
+
+- [x] Paddle checkout 与 Customer Portal 统一改用系统外部浏览器打开，移动端不再使用 `inAppBrowserView`，避免 Custom Tab / Safari View Controller 对 checkout 重定向处理不一致；补充 checkout 与 Portal 的打开模式回归断言。**完成时间**: 2026-08-05
 
 - [x] Paddle 一次性年付客户端接入：消费 `/api/paddle/plans.oneTimePlans`，在 Paddle 套餐区并列展示一次性年付并复用现有 checkout/权益确认链路；会员态按 `purchaseType` 展示固定期限语义，一次性买家不显示管理订阅入口，现有订阅行为保持不变。补充 Paddle catalog 隔离解析、旧后端/旧缓存兼容、direct 与商店 Web 兜底 planId、固定期限会员 UI 回归测试；subscription 测试目录 138 项全绿。**完成时间**: 2026-08-04
 

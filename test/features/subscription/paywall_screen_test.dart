@@ -600,7 +600,7 @@ void main() {
     expect(urlLauncher.launched, ['https://checkout.paddle.test/txn_1']);
     expect(
       urlLauncher.options.single.mode,
-      PreferredLaunchMode.inAppBrowserView,
+      PreferredLaunchMode.externalApplication,
     );
     final waitingButton = find.widgetWithText(
       FilledButton,
@@ -787,6 +787,10 @@ void main() {
     expect(urlLauncher.launched, [
       'https://customer-portal.paddle.test/session',
     ]);
+    expect(
+      urlLauncher.options.single.mode,
+      PreferredLaunchMode.externalApplication,
+    );
   });
 
   testWidgets('商店包 Paddle Premium 用户：管理订阅打开 Paddle Customer Portal', (
@@ -822,6 +826,10 @@ void main() {
     expect(urlLauncher.launched, [
       'https://customer-portal.paddle.test/session',
     ]);
+    expect(
+      urlLauncher.options.single.mode,
+      PreferredLaunchMode.externalApplication,
+    );
   });
 
   testWidgets('一次性年付会员：展示固定期限且不显示管理订阅入口', (tester) async {

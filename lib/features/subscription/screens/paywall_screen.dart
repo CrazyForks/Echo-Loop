@@ -511,7 +511,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       );
       final email = ref.read(supabaseSessionProvider).valueOrNull?.user.email;
       final checkoutUri = paddleCheckoutUriWithEmail(uri, email);
-      opened = await launchUrl(checkoutUri, mode: LaunchMode.inAppBrowserView);
+      opened = await launchUrl(
+        checkoutUri,
+        mode: LaunchMode.externalApplication,
+      );
     } on PurchaseException catch (error) {
       AppLogger.log(
         'Subscription',
@@ -809,7 +812,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         'Subscription',
         'Paddle Portal URL 已获取: host=${uri.host} path=${uri.path}',
       );
-      final opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       AppLogger.log(
         'Subscription',
         'Paddle Portal open result: opened=$opened host=${uri.host}',
