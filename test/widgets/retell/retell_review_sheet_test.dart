@@ -830,6 +830,10 @@ void main() {
     expect(find.text('AI Retell Review'), findsOneWidget);
     expect(find.byType(RetellReviewReport), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('retell-review-sheet'))).height,
+      tester.view.physicalSize.height / tester.view.devicePixelRatio * .8,
+    );
   });
 
   testWidgets('转录条 / 要点卡 / 纠错卡共用同一套卡面，且不再是中灰底', (tester) async {

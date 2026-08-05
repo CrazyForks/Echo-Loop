@@ -91,7 +91,8 @@ class _RetellReviewSheet extends ConsumerWidget {
     return SafeArea(
       top: false,
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .88,
+        key: const ValueKey('retell-review-sheet'),
+        height: MediaQuery.sizeOf(context).height * .80,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.m,
