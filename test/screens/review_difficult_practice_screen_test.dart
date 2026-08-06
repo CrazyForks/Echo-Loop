@@ -336,7 +336,7 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Practice saved Sentences'), findsOneWidget);
+      expect(find.text('Practice saved sentences'), findsOneWidget);
     });
 
     testWidgets('显示进度文本', (tester) async {

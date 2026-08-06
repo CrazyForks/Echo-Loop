@@ -250,7 +250,7 @@
   "themeModeSystem": "Follow System",
   "themeModeLight": "Light Mode",
   "themeModeDark": "Dark Mode",
-  "language": "Interface Language",
+  "language": "App Language",
   "languageDescription": "Language used for the app interface",
   "languageSystem": "Follow System",
   "languageEnglish": "English",
@@ -544,6 +544,7 @@
   "stepShadowingDesc": "Repeat your saved sentences.By default, each sentence is played three times.",
   "stepRetelling": "Listen & Retell",
   "stepRetellingDesc": "Listen and Retell segment by segment. Follow the original transcript or retell it in your own words",
+  "stepFullTextRetelling": "Full Text Retelling",
   "warmUpCardTitle": "Warm-up Listening",
   "@warmUpCardTitle": {
     "description": "The warm-up listening button above the First Round section, guiding users to free-listen before intensive listening"
@@ -895,7 +896,7 @@
   "exitListenAndRepeatMessage": "Your progress will be saved. You can continue where you left off.",
   "listenAndRepeatBriefingTitle": "Listen & Repeat",
   "listenAndRepeatBriefingTip": "Listen first, then repeat during the pause. By default, each saved sentence will be played three times.",
-  "listenAndRepeatBriefingDifficultCount": "{count} difficult sentences",
+  "listenAndRepeatBriefingDifficultCount": "{count} saved sentences",
   "@listenAndRepeatBriefingDifficultCount": {
     "placeholders": {
       "count": { "type": "int" }
@@ -1008,9 +1009,9 @@
   "retellPracticeAgain": "Practice Again",
   "retellExitConfirmTitle": "Exit Listen & Retell?",
   "retellExitConfirmMessage": "Current segment progress will be saved.",
-  "retellDisplayKeywordsOnly": "Partially Visible",
-  "retellDisplayShowAll": "Fully Visible",
-  "retellDisplayHideAll": "Hided",
+  "retellDisplayKeywordsOnly": "Partial",
+  "retellDisplayShowAll": "Visible",
+  "retellDisplayHideAll": "Hidden",
   "retellSettingsTitle": "Retell Settings",
   "retellAutoPlaybackPromptTitle": "Auto-play your recording after retelling?",
   "retellAutoPlaybackPromptMessage": "When enabled, your recording plays automatically after each retelling so you can review your pronunciation right away. You can change this anytime in Settings.",
@@ -1040,7 +1041,13 @@
   "pauseMultiplier": "Multiplier",
   "settingsSessionOnly": "Settings apply to current session only",
 
-  "reviewDifficultPracticeTitle": "Practice saved Sentences",
+  "reviewDifficultPracticeTitle": "Practice saved sentences",
+  "reviewBlindListenDesc": "Listen again to feel how your comprehension has improved",
+  "reviewDifficultPracticeDesc": "Relisten to saved sentences and repeat the ones you still struggle with",
+  "reviewRetellParagraphDesc": "Retell again to improve comprehension and expression",
+  "reviewRetellSummaryDesc": "Summarize the full text, grasp its overall flow, and check how well you have learned it.",
+  "reviewBriefingTipDifficultPractice": "Listen without subtitles first, then practice the sentences you still struggle with.",
+  "reviewBriefingTipRetellSummary": "Summarize the full audio in 3-5 sentences.",
   "reviewDifficultPracticeProgress": "Sentence {current}/{total}",
   "@reviewDifficultPracticeProgress": {
     "placeholders": {
@@ -1542,7 +1549,7 @@
   "blindListenRecallHint": "Recall what you just heard",
   "blindListenControlModeAutoDesc": "Auto-repeat, auto-pause, auto-next",
   "blindListenControlModeManualDesc": "Tap to replay, tap next",
-  "blindListenNoParagraph": "No segmentation",
+  "blindListenNoParagraph": "Unsegmented",
   "blindListenParagraphCount": "{count} segment",
   "@blindListenParagraphCount": {
     "placeholders": {
@@ -1560,7 +1567,7 @@
   },
   "resetLearningProgressDone": "Learning progress has been reset",
 
-  "pauseLearning": "Pause Learning",
+  "pauseLearning": "Pause",
   "resumeLearning": "Resume Learning",
   "pausedChipLabel": "Paused",
   "pauseLearningConfirmTitle": "Pause Learning?",
@@ -1922,7 +1929,7 @@
   "guidePlanFreePlayDescription": "A flexible, all-in-one audio player for listening in your own way and at your own pace.",
   "guidePlanStartLearningTitle": "Follow the default practice plan",
   "guidePlanStartLearningDescription": "Tap here to follow the default practice plan step by step. Echo Loop will guide you and remind you to review at the right time.",
-  "guidePlanPauseLearningTitle": "Pause learning",
+  "guidePlanPauseLearningTitle": "Pause",
   "guidePlanPauseLearningDescription": "If you no longer want to practice this audio, tap here to pause anytime. Review reminders will stop, and you can resume with one tap later.",
   "guideRetellSkipTitle": "Skip retelling this time",
   "guideRetellSkipDescription": "Retelling builds spoken English fast. If you want to focus on listening for now, tap here to skip this step.",

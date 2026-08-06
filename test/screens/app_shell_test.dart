@@ -73,7 +73,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // 点击语言设置
-      await tester.tap(find.text('Interface Language'));
+      await tester.tap(find.text('App Language'));
       await tester.pump(const Duration(milliseconds: 300));
 
       // 选择简体中文

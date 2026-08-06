@@ -862,12 +862,6 @@ void main() {
       // 无效键返回 blindListen
       expect(SubStageType.fromKey('invalid'), SubStageType.blindListen);
     });
-
-    test('label 不为空', () {
-      for (final subStage in SubStageType.values) {
-        expect(subStage.label.isNotEmpty, true);
-      }
-    });
   });
 
   group('DifficultyLevel', () {

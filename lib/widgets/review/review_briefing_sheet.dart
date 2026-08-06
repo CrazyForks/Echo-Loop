@@ -98,7 +98,6 @@ class _ReviewBriefingSheetState extends State<_ReviewBriefingSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final isZh = Localizations.localeOf(context).languageCode == 'zh';
 
     return LearningBriefingSheetContent(
       child: Column(
@@ -120,7 +119,7 @@ class _ReviewBriefingSheetState extends State<_ReviewBriefingSheet> {
           ),
           const SizedBox(height: AppSpacing.m),
           Text(
-            _titleForSubStage(l10n, isZh, widget.subStage),
+            _titleForSubStage(l10n, widget.subStage),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -150,7 +149,7 @@ class _ReviewBriefingSheetState extends State<_ReviewBriefingSheet> {
                 const SizedBox(width: AppSpacing.s),
                 Expanded(
                   child: Text(
-                    _tipForSubStage(isZh, widget.subStage),
+                    _tipForSubStage(l10n, widget.subStage),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface,
                     ),
@@ -250,57 +249,35 @@ class _ReviewBriefingSheetState extends State<_ReviewBriefingSheet> {
   }
 }
 
+/// 本弹窗只会以 [SubStageType.reviewDifficultPractice] 或
+/// [SubStageType.reviewRetellSummary] 展示——盲听、段落复述、以及首次学习的
+/// 三个子步骤都各自走独立的简报弹窗（见 [showReviewBriefingSheet] 调用方
+/// `learning_plan_screen.dart` 的 `_startReviewSubStage`），不会传入这里。
+Never _unsupportedSubStage(SubStageType subStage) =>
+    throw ArgumentError('复习简报弹窗不支持子步骤 $subStage');
+
 IconData _iconForSubStage(SubStageType subStage) {
   return switch (subStage) {
-    SubStageType.blindListen => Icons.headphones,
     SubStageType.reviewDifficultPractice => Icons.hearing,
-    SubStageType.reviewRetellParagraph => Icons.notes,
     SubStageType.reviewRetellSummary => Icons.summarize,
-    SubStageType.intensiveListen => Icons.hearing,
-    SubStageType.listenAndRepeat => Icons.record_voice_over,
-    SubStageType.retell => Icons.chat,
+    _ => _unsupportedSubStage(subStage),
   };
 }
 
-String _titleForSubStage(
-  AppLocalizations l10n,
-  bool isZh,
-  SubStageType subStage,
-) {
+String _titleForSubStage(AppLocalizations l10n, SubStageType subStage) {
   return switch (subStage) {
-    SubStageType.blindListen => l10n.stepBlindListening,
-    SubStageType.reviewDifficultPractice =>
-      isZh ? '难句补练' : 'Difficult Sentence Practice',
-    SubStageType.reviewRetellParagraph => isZh ? '段落复述' : 'Paragraph Retelling',
-    SubStageType.reviewRetellSummary => isZh ? '全文复述' : 'Full Text Retelling',
-    SubStageType.intensiveListen => l10n.stepIntensiveListening,
-    SubStageType.listenAndRepeat => l10n.stepShadowing,
-    SubStageType.retell => l10n.stepRetelling,
+    SubStageType.reviewDifficultPractice => l10n.reviewDifficultPracticeTitle,
+    SubStageType.reviewRetellSummary => l10n.stepFullTextRetelling,
+    _ => _unsupportedSubStage(subStage),
   };
 }
 
-String _tipForSubStage(bool isZh, SubStageType subStage) {
+String _tipForSubStage(AppLocalizations l10n, SubStageType subStage) {
   return switch (subStage) {
-    SubStageType.blindListen =>
-      isZh
-          ? '全文盲听一遍，不看字幕先听大意。'
-          : 'Listen once without subtitles and focus on the gist.',
     SubStageType.reviewDifficultPractice =>
-      isZh
-          ? '先盲听难句，听不懂再跟读加练。'
-          : 'Blind listen difficult sentences first, then do remedial practice.',
-    SubStageType.reviewRetellParagraph =>
-      isZh ? '按段复述本轮复习内容。' : 'Retell this review round paragraph by paragraph.',
-    SubStageType.reviewRetellSummary =>
-      isZh ? '用 3-5 句话总结全文大意。' : 'Summarize the full audio in 3-5 sentences.',
-    SubStageType.intensiveListen =>
-      isZh
-          ? '逐句精听并处理听不懂的内容。'
-          : 'Work sentence by sentence and resolve difficult parts.',
-    SubStageType.listenAndRepeat =>
-      isZh ? '针对关键句进行跟读巩固。' : 'Shadow key sentences for reinforcement.',
-    SubStageType.retell =>
-      isZh ? '按段复述主要内容。' : 'Retell the main points by paragraph.',
+      l10n.reviewBriefingTipDifficultPractice,
+    SubStageType.reviewRetellSummary => l10n.reviewBriefingTipRetellSummary,
+    _ => _unsupportedSubStage(subStage),
   };
 }
 

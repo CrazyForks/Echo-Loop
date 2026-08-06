@@ -508,7 +508,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeModeDark => 'Dark Mode';
 
   @override
-  String get language => 'Interface Language';
+  String get language => 'App Language';
 
   @override
   String get languageDescription => 'Language used for the app interface';
@@ -1019,6 +1019,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get stepRetellingDesc =>
       'Listen and Retell segment by segment. Follow the original transcript or retell it in your own words';
+
+  @override
+  String get stepFullTextRetelling => 'Full Text Retelling';
 
   @override
   String get warmUpCardTitle => 'Warm-up Listening';
@@ -1608,7 +1611,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String listenAndRepeatBriefingDifficultCount(int count) {
-    return '$count difficult sentences';
+    return '$count saved sentences';
   }
 
   @override
@@ -1755,13 +1758,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Current segment progress will be saved.';
 
   @override
-  String get retellDisplayKeywordsOnly => 'Partially Visible';
+  String get retellDisplayKeywordsOnly => 'Partial';
 
   @override
-  String get retellDisplayShowAll => 'Fully Visible';
+  String get retellDisplayShowAll => 'Visible';
 
   @override
-  String get retellDisplayHideAll => 'Hided';
+  String get retellDisplayHideAll => 'Hidden';
 
   @override
   String get retellSettingsTitle => 'Retell Settings';
@@ -1832,7 +1835,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSessionOnly => 'Settings apply to current session only';
 
   @override
-  String get reviewDifficultPracticeTitle => 'Practice saved Sentences';
+  String get reviewDifficultPracticeTitle => 'Practice saved sentences';
+
+  @override
+  String get reviewBlindListenDesc =>
+      'Listen again to feel how your comprehension has improved';
+
+  @override
+  String get reviewDifficultPracticeDesc =>
+      'Relisten to saved sentences and repeat the ones you still struggle with';
+
+  @override
+  String get reviewRetellParagraphDesc =>
+      'Retell again to improve comprehension and expression';
+
+  @override
+  String get reviewRetellSummaryDesc =>
+      'Summarize the full text, grasp its overall flow, and check how well you have learned it.';
+
+  @override
+  String get reviewBriefingTipDifficultPractice =>
+      'Listen without subtitles first, then practice the sentences you still struggle with.';
+
+  @override
+  String get reviewBriefingTipRetellSummary =>
+      'Summarize the full audio in 3-5 sentences.';
 
   @override
   String reviewDifficultPracticeProgress(int current, int total) {
@@ -2833,7 +2860,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get blindListenControlModeManualDesc => 'Tap to replay, tap next';
 
   @override
-  String get blindListenNoParagraph => 'No segmentation';
+  String get blindListenNoParagraph => 'Unsegmented';
 
   @override
   String blindListenParagraphCount(int count) {
@@ -2855,7 +2882,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetLearningProgressDone => 'Learning progress has been reset';
 
   @override
-  String get pauseLearning => 'Pause Learning';
+  String get pauseLearning => 'Pause';
 
   @override
   String get resumeLearning => 'Resume Learning';
@@ -3511,7 +3538,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap here to follow the default practice plan step by step. Echo Loop will guide you and remind you to review at the right time.';
 
   @override
-  String get guidePlanPauseLearningTitle => 'Pause learning';
+  String get guidePlanPauseLearningTitle => 'Pause';
 
   @override
   String get guidePlanPauseLearningDescription =>

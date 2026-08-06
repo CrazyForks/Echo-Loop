@@ -1985,8 +1985,8 @@ class _ProgressCard extends ConsumerWidget {
       SubStageType.listenAndRepeat => l10n.stepShadowing,
       SubStageType.retell => l10n.stepRetelling,
       SubStageType.reviewDifficultPractice => l10n.reviewDifficultPracticeTitle,
-      SubStageType.reviewRetellParagraph => l10n.retellBriefingTitle,
-      SubStageType.reviewRetellSummary => l10n.retellBriefingTitle,
+      SubStageType.reviewRetellParagraph => l10n.stepRetelling,
+      SubStageType.reviewRetellSummary => l10n.stepRetelling,
     };
     return subStageName;
   }
@@ -3382,16 +3382,13 @@ class _ReviewRoundSection extends ConsumerWidget {
   }
 
   /// 复习子阶段名称与描述映射
-  _StepData _subStageData(BuildContext context, SubStageType subStage) {
-    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+  _StepData _subStageData(SubStageType subStage) {
     return switch (subStage) {
       SubStageType.blindListen => _StepData(
         icon: Icons.headphones,
         iconColor: Colors.blue,
         name: l10n.stepBlindListening,
-        description: isZh
-            ? '再次盲听，感受理解力的变化'
-            : 'Listen again to feel how your comprehension has improved',
+        description: l10n.reviewBlindListenDesc,
       ),
       SubStageType.intensiveListen => _StepData(
         icon: Icons.hearing,
@@ -3414,26 +3411,20 @@ class _ReviewRoundSection extends ConsumerWidget {
       SubStageType.reviewDifficultPractice => _StepData(
         icon: Icons.fitness_center,
         iconColor: Colors.orange,
-        name: isZh ? '难句补练' : 'Difficult sentence practice',
-        description: isZh
-            ? '重听难句，听不懂就跟读补练'
-            : 'Re-listen to difficult sentences; shadow the ones you still miss',
+        name: l10n.reviewDifficultPracticeTitle,
+        description: l10n.reviewDifficultPracticeDesc,
       ),
       SubStageType.reviewRetellParagraph => _StepData(
         icon: Icons.chat,
         iconColor: Colors.teal,
-        name: isZh ? '段落复述' : 'Paragraph Retelling',
-        description: isZh
-            ? '再次复述，提升理解和表达能力'
-            : 'Retell again to improve comprehension and expression',
+        name: l10n.stepRetelling,
+        description: l10n.reviewRetellParagraphDesc,
       ),
       SubStageType.reviewRetellSummary => _StepData(
         icon: Icons.summarize,
         iconColor: Colors.cyan,
-        name: isZh ? '全文复述' : 'Full Text Retelling',
-        description: isZh
-            ? '概述全文，梳理整体脉络，检验学习效果'
-            : 'Summarize the full text, grasp its overall flow, and check how well you have learned it.',
+        name: l10n.stepFullTextRetelling,
+        description: l10n.reviewRetellSummaryDesc,
       ),
     };
   }
@@ -3821,7 +3812,7 @@ class _ReviewRoundSection extends ConsumerWidget {
           Column(
             children: List.generate(subStages.length, (index) {
               final subStage = subStages[index];
-              final subStageData = _subStageData(context, subStage);
+              final subStageData = _subStageData(subStage);
               final isCompleted =
                   progress?.isSubStageCompleted(
                     review.stage,

@@ -192,7 +192,7 @@ void retellTests() {
       await navigateToRetell(tester);
 
       // 验证 AppBar 标题
-      expect(find.text('Paragraph Retelling'), findsOneWidget);
+      expect(find.text('Listen & Retell'), findsOneWidget);
 
       // 验证进度条（多段为可拖动吸附滑块，统一用 PracticeProgressSection 判定）
       expect(find.byType(PracticeProgressSection), findsOneWidget);

@@ -192,7 +192,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Interface Language'), findsOneWidget);
+        expect(find.text('App Language'), findsOneWidget);
         // 默认跟随系统
         expect(find.text('Follow System'), findsAtLeast(1));
       });
@@ -812,7 +812,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // 点击语言设置项
-        await tester.tap(find.text('Interface Language'));
+        await tester.tap(find.text('App Language'));
         await tester.pumpAndSettle();
 
         // 应弹出对话框，显示三个选项

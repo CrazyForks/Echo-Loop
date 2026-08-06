@@ -125,4 +125,31 @@ void main() {
 
     expect(selectedSpeed, 0.9);
   });
+
+  testWidgets('传入不支持的子步骤（如全文盲听）会抛出异常而非静默显示错误文案', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () {
+              showReviewBriefingSheet(
+                context: context,
+                stage: LearningStage.review2,
+                subStage: SubStageType.blindListen,
+                onStartPractice: (_, _) {},
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+
+    expect(tester.takeException(), isA<ArgumentError>());
+  });
 }

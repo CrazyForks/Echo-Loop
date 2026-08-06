@@ -983,7 +983,7 @@ abstract class AppLocalizations {
   /// No description provided for @language.
   ///
   /// In en, this message translates to:
-  /// **'Interface Language'**
+  /// **'App Language'**
   String get language;
 
   /// No description provided for @languageDescription.
@@ -1885,6 +1885,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Listen and Retell segment by segment. Follow the original transcript or retell it in your own words'**
   String get stepRetellingDesc;
+
+  /// No description provided for @stepFullTextRetelling.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Text Retelling'**
+  String get stepFullTextRetelling;
 
   /// The warm-up listening button above the First Round section, guiding users to free-listen before intensive listening
   ///
@@ -2885,7 +2891,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatBriefingDifficultCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} difficult sentences'**
+  /// **'{count} saved sentences'**
   String listenAndRepeatBriefingDifficultCount(int count);
 
   /// No description provided for @listenAndRepeatBriefingPlayCount.
@@ -3113,19 +3119,19 @@ abstract class AppLocalizations {
   /// No description provided for @retellDisplayKeywordsOnly.
   ///
   /// In en, this message translates to:
-  /// **'Partially Visible'**
+  /// **'Partial'**
   String get retellDisplayKeywordsOnly;
 
   /// No description provided for @retellDisplayShowAll.
   ///
   /// In en, this message translates to:
-  /// **'Fully Visible'**
+  /// **'Visible'**
   String get retellDisplayShowAll;
 
   /// No description provided for @retellDisplayHideAll.
   ///
   /// In en, this message translates to:
-  /// **'Hided'**
+  /// **'Hidden'**
   String get retellDisplayHideAll;
 
   /// No description provided for @retellSettingsTitle.
@@ -3257,8 +3263,44 @@ abstract class AppLocalizations {
   /// No description provided for @reviewDifficultPracticeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Practice saved Sentences'**
+  /// **'Practice saved sentences'**
   String get reviewDifficultPracticeTitle;
+
+  /// No description provided for @reviewBlindListenDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen again to feel how your comprehension has improved'**
+  String get reviewBlindListenDesc;
+
+  /// No description provided for @reviewDifficultPracticeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Relisten to saved sentences and repeat the ones you still struggle with'**
+  String get reviewDifficultPracticeDesc;
+
+  /// No description provided for @reviewRetellParagraphDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Retell again to improve comprehension and expression'**
+  String get reviewRetellParagraphDesc;
+
+  /// No description provided for @reviewRetellSummaryDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize the full text, grasp its overall flow, and check how well you have learned it.'**
+  String get reviewRetellSummaryDesc;
+
+  /// No description provided for @reviewBriefingTipDifficultPractice.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen without subtitles first, then practice the sentences you still struggle with.'**
+  String get reviewBriefingTipDifficultPractice;
+
+  /// No description provided for @reviewBriefingTipRetellSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize the full audio in 3-5 sentences.'**
+  String get reviewBriefingTipRetellSummary;
 
   /// No description provided for @reviewDifficultPracticeProgress.
   ///
@@ -4973,7 +5015,7 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenNoParagraph.
   ///
   /// In en, this message translates to:
-  /// **'No segmentation'**
+  /// **'Unsegmented'**
   String get blindListenNoParagraph;
 
   /// No description provided for @blindListenParagraphCount.
@@ -5009,7 +5051,7 @@ abstract class AppLocalizations {
   /// No description provided for @pauseLearning.
   ///
   /// In en, this message translates to:
-  /// **'Pause Learning'**
+  /// **'Pause'**
   String get pauseLearning;
 
   /// No description provided for @resumeLearning.
@@ -6119,7 +6161,7 @@ abstract class AppLocalizations {
   /// No description provided for @guidePlanPauseLearningTitle.
   ///
   /// In en, this message translates to:
-  /// **'Pause learning'**
+  /// **'Pause'**
   String get guidePlanPauseLearningTitle;
 
   /// No description provided for @guidePlanPauseLearningDescription.

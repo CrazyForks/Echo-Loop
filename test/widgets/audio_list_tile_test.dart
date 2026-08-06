@@ -1319,17 +1319,17 @@ void main() {
       );
     }
 
-    testWidgets('未暂停时菜单显示 Pause Learning，点击弹出确认弹窗', (tester) async {
+    testWidgets('未暂停时菜单显示 Pause，点击弹出确认弹窗', (tester) async {
       await tester.pumpWidget(buildWithProgress(makeProgress(isPaused: false)));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pause Learning'), findsOneWidget);
+      expect(find.text('Pause'), findsOneWidget);
       expect(find.text('Resume Learning'), findsNothing);
 
-      await tester.tap(find.text('Pause Learning'));
+      await tester.tap(find.text('Pause'));
       await tester.pumpAndSettle();
 
       expect(find.text('Pause Learning?'), findsOneWidget);
@@ -1350,7 +1350,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Resume Learning'), findsOneWidget);
-      expect(find.text('Pause Learning'), findsNothing);
+      expect(find.text('Pause'), findsNothing);
     });
 
     testWidgets('未开始学习的音频不显示暂停菜单项', (tester) async {
@@ -1374,7 +1374,7 @@ void main() {
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pause Learning'), findsNothing);
+      expect(find.text('Pause'), findsNothing);
       expect(find.text('Resume Learning'), findsNothing);
     });
   });

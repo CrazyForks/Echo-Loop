@@ -52,17 +52,6 @@ enum SubStageType {
   /// DB 存储用字符串键
   final String key;
 
-  /// 中文 UI 标签
-  String get label => switch (this) {
-    blindListen => '全文盲听',
-    intensiveListen => '逐句精听',
-    listenAndRepeat => '跟读',
-    retell => '段落复述',
-    reviewDifficultPractice => '难句补练',
-    reviewRetellParagraph => '段落复述',
-    reviewRetellSummary => '全文复述',
-  };
-
   /// 从字符串键创建枚举
   static SubStageType fromKey(String key) {
     return SubStageType.values.firstWhere(

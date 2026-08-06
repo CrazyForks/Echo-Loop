@@ -148,7 +148,7 @@ void blindListenTests() {
       expect(find.text('How did it feel?'), findsNothing);
       // v2：盲听是第 3 步，下一步是段落复述
       expect(find.text('Done'), findsOneWidget);
-      expect(find.text('Continue: Paragraph Retelling'), findsOneWidget);
+      expect(find.text('Continue: Listen & Retell'), findsOneWidget);
       // 验证步骤进度（盲听为 3/4）
       expect(find.textContaining('3/4'), findsOneWidget);
     });

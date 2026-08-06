@@ -733,7 +733,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Continue practicing'), findsOneWidget);
-      expect(find.text('Pause Learning'), findsOneWidget);
+      expect(find.text('Pause'), findsOneWidget);
     });
 
     testWidgets('暂停态时底部只显示"恢复学习"，不显示"继续学习"或"暂停学习"', (tester) async {
@@ -756,7 +756,7 @@ void main() {
       expect(find.textContaining('Resume Learning'), findsOneWidget);
       expect(find.textContaining('Paused'), findsOneWidget);
       expect(find.text('Continue practicing'), findsNothing);
-      expect(find.text('Pause Learning'), findsNothing);
+      expect(find.text('Pause'), findsNothing);
     });
 
     testWidgets('点击底部"暂停学习"弹出确认弹窗', (tester) async {
@@ -774,7 +774,7 @@ void main() {
       await tester.pumpWidget(createTestWidget(progressState: progressState));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Pause Learning'));
+      await tester.tap(find.text('Pause'));
       await tester.pumpAndSettle();
 
       expect(find.text('Pause Learning?'), findsOneWidget);
@@ -796,7 +796,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点击"暂停学习"
-      await tester.tap(find.text('Pause Learning'));
+      await tester.tap(find.text('Pause'));
       await tester.pumpAndSettle();
       expect(find.text('Pause Learning?'), findsOneWidget);
 
@@ -807,7 +807,7 @@ void main() {
       // 对话框关闭，按钮恢复原状
       expect(find.text('Pause Learning?'), findsNothing);
       expect(find.text('Continue practicing'), findsOneWidget);
-      expect(find.text('Pause Learning'), findsOneWidget);
+      expect(find.text('Pause'), findsOneWidget);
     });
 
     testWidgets('暂停确认弹窗→确认：状态翻转 isPaused，按钮变单按钮', (tester) async {
@@ -826,12 +826,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点击"暂停学习"
-      await tester.tap(find.text('Pause Learning'));
+      await tester.tap(find.text('Pause'));
       await tester.pumpAndSettle();
       expect(find.text('Pause Learning?'), findsOneWidget);
 
-      // 弹窗内确认按钮文案也是 "Pause Learning"，取 .last
-      await tester.tap(find.text('Pause Learning').last);
+      // 弹窗内确认按钮文案也是 "Pause"，取 .last
+      await tester.tap(find.text('Pause').last);
       await tester.pumpAndSettle();
 
       // 对话框关闭，state 翻转 — 底部变单按钮
@@ -1369,7 +1369,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 段落复述卡片在 firstLearn 区可见（plan 含 + isPast）。
-      // 注意：review0 也有「Paragraph Retelling」，所以 findsAtLeast(1)。
+      // 注意：review0 也有「Listen & Retell」，所以 findsAtLeast(1)。
       expect(find.text('Listen & Retell'), findsAtLeast(1));
 
       // 找到 firstLearn 区的 _StepCard，验证它的 onTap 非空（可点击进入自由练习）。

@@ -1094,8 +1094,8 @@ String _subStageName(AppLocalizations l10n, SubStageType subStage) {
     SubStageType.listenAndRepeat => l10n.stepShadowing,
     SubStageType.retell => l10n.stepRetelling,
     SubStageType.reviewDifficultPractice => l10n.reviewDifficultPracticeTitle,
-    SubStageType.reviewRetellParagraph => l10n.retellBriefingTitle,
-    SubStageType.reviewRetellSummary => l10n.retellBriefingTitle,
+    SubStageType.reviewRetellParagraph => l10n.stepRetelling,
+    SubStageType.reviewRetellSummary => l10n.stepRetelling,
   };
 }
 

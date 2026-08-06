@@ -490,7 +490,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeModeDark => '深色模式';
 
   @override
-  String get language => '界面语言';
+  String get language => '应用语言';
 
   @override
   String get languageDescription => '应用界面使用的语言';
@@ -986,6 +986,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get stepRetellingDesc => '挑战一下：用自己的话复述每段大意';
+
+  @override
+  String get stepFullTextRetelling => '全文复述';
 
   @override
   String get warmUpCardTitle => '听前预热';
@@ -1770,6 +1773,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get reviewDifficultPracticeTitle => '难句补练';
+
+  @override
+  String get reviewBlindListenDesc => '再次盲听，感受理解力的变化';
+
+  @override
+  String get reviewDifficultPracticeDesc => '重听难句，听不懂就跟读补练';
+
+  @override
+  String get reviewRetellParagraphDesc => '再次复述，提升理解和表达能力';
+
+  @override
+  String get reviewRetellSummaryDesc => '概述全文，梳理整体脉络，检验学习效果';
+
+  @override
+  String get reviewBriefingTipDifficultPractice => '先盲听难句，听不懂再跟读加练。';
+
+  @override
+  String get reviewBriefingTipRetellSummary => '用 3-5 句话总结全文大意。';
 
   @override
   String reviewDifficultPracticeProgress(int current, int total) {

@@ -91,7 +91,7 @@ void reviewSubStageTests() {
 
       // 验证 review0 标题和子步骤（v2 plan: 难句补练 + 全文盲听）
       expect(find.text('Review 1'), findsWidgets);
-      expect(find.text('Difficult Sentence Practice'), findsWidgets);
+      expect(find.text('Practice saved sentences'), findsWidgets);
       expect(find.text('Blind Listening'), findsWidgets);
       expect(find.text('Continue Learning'), findsWidgets);
     });
@@ -164,7 +164,7 @@ void reviewSubStageTests() {
 
       // 验证导航到了难句补练页面
       expect(find.byType(ReviewDifficultPracticeScreen), findsWidgets);
-      expect(find.text('Difficult Sentence Practice'), findsWidgets);
+      expect(find.text('Practice saved sentences'), findsWidgets);
     });
 
     testWidgets('复习段落复述入口只弹出一个弹窗（时长选择）', (tester) async {
@@ -191,7 +191,7 @@ void reviewSubStageTests() {
       await safeSettle(tester);
 
       // 应该直接弹出复述简报（含时长选择）
-      expect(find.text('Paragraph Retelling'), findsWidgets);
+      expect(find.text('Listen & Retell'), findsWidgets);
       expect(find.text('Paragraph duration'), findsWidgets);
       expect(find.text('Start Practice'), findsWidgets);
     });
@@ -218,8 +218,8 @@ void reviewSubStageTests() {
       expect(find.text('Blind Listening'), findsWidgets);
       // reviewDifficultPractice 可能因 currentSubStage=blindListen (v2 plan 第2步)
       // 且 _preloadData 的完成推导逻辑而不显示；仅做弱断言
-      if (find.text('Difficult Sentence Practice').evaluate().isNotEmpty) {
-        expect(find.text('Difficult Sentence Practice'), findsWidgets);
+      if (find.text('Practice saved sentences').evaluate().isNotEmpty) {
+        expect(find.text('Practice saved sentences'), findsWidgets);
       }
     });
 
@@ -261,7 +261,7 @@ void reviewSubStageTests() {
       );
       await safeSettle(tester);
 
-      expect(find.text('Difficult Sentence Practice'), findsOneWidget);
+      expect(find.text('Practice saved sentences'), findsOneWidget);
       // 可拖动进度条（多句为吸附滑块，单句为 LinearProgressIndicator）
       expect(find.byType(PracticeProgressSection), findsOneWidget);
       expect(find.text('Sentence 1/3'), findsOneWidget);
