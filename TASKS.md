@@ -1,7 +1,20 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-06（全量 flutter test 过期断言清理）
+> 最后更新：2026-08-06（修复 video 分支落地覆盖的英文文案回归）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
+
+- [x] 修复 video 分支落地时静默覆盖的英文文案回归：`lib/l10n/app_en.arb` 有 256 处 `ece1a4da`
+  （07-28 英文文案优化）已经改过的英文文案，被 07-29 fork、08-05 落地的 `video` 分支自带的
+  一次整份重写覆盖回旧值，且被 2026-08-06 的"过期断言清理"提交坐实（把测试断言改成匹配
+  错误的旧文案）。用「回退前/意图值/当前 HEAD」三点比对定位全部 256 个 key 并按 `ece1a4da`
+  恢复，顺带修正其自带的一处拼写错误（`blindListenBriefingTitle` 缺空格）；重新生成
+  `app_localizations_en.dart`/`app_localizations.dart`；同步修正 40 个测试文件里对应的断言
+  （含模板占位符实例化文本、2 处按上下文区分的歧义映射）；额外发现并修正
+  `step_complete_dialog_test.dart` 一处真实碰撞——测试用 `'First Round'` 当泛型 stageName
+  占位符，撞上了 `l10n.firstStudy` 驱动的业务分支（该架构问题本身未改造，见 CLAUDE.md 7.29）。
+  核实 `app_zh.arb` 未受影响。全量 `flutter test` 回到干净基线（唯一残留失败为已知子进程
+  加载 flaky，单独重跑全绿）；`flutter analyze` 无新增问题。详见 CLAUDE.md 7.29。
+  **完成时间**: 2026-08-06
 
 - [ ] 意群操作栏收藏⇄取消收藏切换时其余按钮跟着闪烁一下：已修复按钮宽度改为按各自文案独立计算（不再统一取最长文案等宽，避免收藏文案变长牵动其余按钮一起变宽），但闪烁本身未解决——曾尝试收藏按钮用固定 id + `ValueListenable<String>` 响应式文案、外层 `ref.listen` 替代 `ref.watch` 以保持 actions 列表引用稳定，验证后闪烁依旧存在（该改动已撤销），根因仍待排查。
 - [x] 全量 `flutter test` 过期断言清理，为跑 GitHub CI 做准备：全量跑出 72 项真实失败（均带 assertion error，非 CI runner 收尾 flakiness），绝大多数是 `lib/l10n/app_en.arb` 文案精简/改名后测试断言未同步（如 "Peek at subtitles"→"Peek"、"Sense Groups"→"Groups"、"Tap to mark as challenging"→"Save"），拆成 10 组分派并行修复，只改 `test/` 下断言与描述，不改 `lib/`；额外确认并修复 1 项与「按钮独立宽度」重构直接相关的真实回归——`AnchoredActionBar` 抽取后 AI 聊天选区操作条（复制/问 AI）不再等宽，按决定保留独立宽度设计，更新 `selectable_assistant_markdown_test.dart` 断言与组件过期文档注释。全量复跑 `+4894 ~13 -0` 全绿。**完成时间**: 2026-08-06

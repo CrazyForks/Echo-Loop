@@ -113,7 +113,7 @@ abstract class AppLocalizations {
   /// No description provided for @premiumTagline.
   ///
   /// In en, this message translates to:
-  /// **'Get more AI-powered learning'**
+  /// **'Unlock more AI-powered features'**
   String get premiumTagline;
 
   /// No description provided for @aiQuotaExceededGenericTitle.
@@ -173,7 +173,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiQuotaExceededMessage.
   ///
   /// In en, this message translates to:
-  /// **'Upgrade to unlock more AI usage and features.'**
+  /// **'Upgrade for more AI access and features.'**
   String get aiQuotaExceededMessage;
 
   /// No description provided for @aiQuotaUnsupportedGenericTitle.
@@ -227,7 +227,7 @@ abstract class AppLocalizations {
   /// No description provided for @premiumEntryBadgeActive.
   ///
   /// In en, this message translates to:
-  /// **'Member'**
+  /// **'Premium'**
   String get premiumEntryBadgeActive;
 
   /// No description provided for @premiumEntryBadgeUpgrade.
@@ -239,37 +239,37 @@ abstract class AppLocalizations {
   /// No description provided for @premiumActive.
   ///
   /// In en, this message translates to:
-  /// **'You\'re a member'**
+  /// **'You\'re already on the Premium plan.'**
   String get premiumActive;
 
   /// No description provided for @premiumBenefitTranslation.
   ///
   /// In en, this message translates to:
-  /// **'More AI translation'**
+  /// **'More AI translations'**
   String get premiumBenefitTranslation;
 
   /// No description provided for @premiumBenefitAnalysis.
   ///
   /// In en, this message translates to:
-  /// **'More AI sentence breakdown'**
+  /// **'More AI sentence analysis'**
   String get premiumBenefitAnalysis;
 
   /// No description provided for @premiumBenefitWordAnalysis.
   ///
   /// In en, this message translates to:
-  /// **'More AI word explanation'**
+  /// **'More AI word and phrase explanation'**
   String get premiumBenefitWordAnalysis;
 
   /// No description provided for @premiumBenefitTranscription.
   ///
   /// In en, this message translates to:
-  /// **'More AI subtitle transcription'**
+  /// **'More AI subtitle transcriptions'**
   String get premiumBenefitTranscription;
 
   /// No description provided for @premiumBenefitAiAssistant.
   ///
   /// In en, this message translates to:
-  /// **'More AI assistant conversations'**
+  /// **'More AI assistant chats'**
   String get premiumBenefitAiAssistant;
 
   /// No description provided for @premiumBenefitPrioritySupport.
@@ -491,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @premiumRefreshStatus.
   ///
   /// In en, this message translates to:
-  /// **'Refresh membership'**
+  /// **'Refresh premium status'**
   String get premiumRefreshStatus;
 
   /// No description provided for @premiumPurchasePendingSync.
@@ -731,7 +731,7 @@ abstract class AppLocalizations {
   /// No description provided for @transcript.
   ///
   /// In en, this message translates to:
-  /// **'Transcript'**
+  /// **'subtitles'**
   String get transcript;
 
   /// No description provided for @playing.
@@ -791,25 +791,25 @@ abstract class AppLocalizations {
   /// No description provided for @audioFilePickerCloudDriveHint.
   ///
   /// In en, this message translates to:
-  /// **'Before choosing from a cloud drive, install and sign in to that cloud drive app first. A few cloud drive apps may not support direct selection from the file picker.'**
+  /// **'Before selecting files from cloud storage, install and sign in to the cloud storage app first. Some apps may not support direct file selection from the file picker.'**
   String get audioFilePickerCloudDriveHint;
 
   /// No description provided for @selectTranscript.
   ///
   /// In en, this message translates to:
-  /// **'Select Transcript (Optional)'**
+  /// **'Select Subtitles (Optional)'**
   String get selectTranscript;
 
   /// No description provided for @noTranscript.
   ///
   /// In en, this message translates to:
-  /// **'No transcript available'**
+  /// **'No subtitles available'**
   String get noTranscript;
 
   /// No description provided for @noBookmarked.
   ///
   /// In en, this message translates to:
-  /// **'No bookmarked sentences'**
+  /// **'No saved sentences'**
   String get noBookmarked;
 
   /// No description provided for @tapToBookmark.
@@ -839,7 +839,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkedOnly.
   ///
   /// In en, this message translates to:
-  /// **'Bookmarked Only'**
+  /// **'saved Only'**
   String get bookmarkedOnly;
 
   /// No description provided for @playbackSettings.
@@ -1019,7 +1019,7 @@ abstract class AppLocalizations {
   /// No description provided for @nativeLanguageDescription.
   ///
   /// In en, this message translates to:
-  /// **'Language for translations and analysis'**
+  /// **'translations & analysis language'**
   String get nativeLanguageDescription;
 
   /// No description provided for @about.
@@ -1055,7 +1055,7 @@ abstract class AppLocalizations {
   /// No description provided for @wholeTextLoop.
   ///
   /// In en, this message translates to:
-  /// **'Whole-text loop'**
+  /// **'loop entire media'**
   String get wholeTextLoop;
 
   /// No description provided for @singleSentenceLoop.
@@ -1073,7 +1073,7 @@ abstract class AppLocalizations {
   /// No description provided for @showTranscript.
   ///
   /// In en, this message translates to:
-  /// **'Show Transcript'**
+  /// **'Show subtitles'**
   String get showTranscript;
 
   /// No description provided for @shortcutKey.
@@ -1109,7 +1109,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoPlayNextSentence.
   ///
   /// In en, this message translates to:
-  /// **'Auto Play Next Sentence'**
+  /// **'Auto-Play Next Sentence'**
   String get autoPlayNextSentence;
 
   /// No description provided for @repeatCount.
@@ -1181,13 +1181,13 @@ abstract class AppLocalizations {
   /// No description provided for @fullText.
   ///
   /// In en, this message translates to:
-  /// **'Full Text'**
+  /// **'full playback'**
   String get fullText;
 
   /// No description provided for @bookmarked.
   ///
   /// In en, this message translates to:
-  /// **'Bookmarked'**
+  /// **'saved'**
   String get bookmarked;
 
   /// No description provided for @noSubtitle.
@@ -1205,7 +1205,7 @@ abstract class AppLocalizations {
   /// No description provided for @noBookmarkedSentences.
   ///
   /// In en, this message translates to:
-  /// **'No bookmarked sentences'**
+  /// **'No saved sentences'**
   String get noBookmarkedSentences;
 
   /// No description provided for @tapBookmarkIcon.
@@ -1271,7 +1271,7 @@ abstract class AppLocalizations {
   /// No description provided for @hotkeyToggleTranscript.
   ///
   /// In en, this message translates to:
-  /// **'↑: Show/Hide Transcript'**
+  /// **'↑: Show/Hide Subtitles'**
   String get hotkeyToggleTranscript;
 
   /// No description provided for @hotkeyNavigation.
@@ -1349,7 +1349,7 @@ abstract class AppLocalizations {
   /// No description provided for @pickTranscriptFileFailed.
   ///
   /// In en, this message translates to:
-  /// **'Failed to select transcript file'**
+  /// **'Failed to select subtitle file'**
   String get pickTranscriptFileFailed;
 
   /// No description provided for @subtitleUnsupportedFormat.
@@ -1397,7 +1397,7 @@ abstract class AppLocalizations {
   /// No description provided for @fileExists.
   ///
   /// In en, this message translates to:
-  /// **'File Exists'**
+  /// **'File Already Exists'**
   String get fileExists;
 
   /// No description provided for @fileExistsMessage.
@@ -1457,7 +1457,7 @@ abstract class AppLocalizations {
   /// No description provided for @newCollectionOptionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Add audio or practice materials manually'**
+  /// **'Add audio manually'**
   String get newCollectionOptionDescription;
 
   /// No description provided for @collectionName.
@@ -1499,7 +1499,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteCollectionAlsoDeleteAudio.
   ///
   /// In en, this message translates to:
-  /// **'Also delete audio files'**
+  /// **'Also delete audio file(s)?'**
   String get deleteCollectionAlsoDeleteAudio;
 
   /// No description provided for @deleteCollectionKeepAudioHint.
@@ -1559,7 +1559,7 @@ abstract class AppLocalizations {
   /// No description provided for @sortByDateAsc.
   ///
   /// In en, this message translates to:
-  /// **'Oldest First'**
+  /// **'oldest First'**
   String get sortByDateAsc;
 
   /// No description provided for @sortByDateDesc.
@@ -1577,19 +1577,19 @@ abstract class AppLocalizations {
   /// No description provided for @sortByOriginalDateAsc.
   ///
   /// In en, this message translates to:
-  /// **'Oldest Published'**
+  /// **'Oldest Released'**
   String get sortByOriginalDateAsc;
 
   /// No description provided for @sortByOriginalDateDesc.
   ///
   /// In en, this message translates to:
-  /// **'Latest Published'**
+  /// **'Latest Released'**
   String get sortByOriginalDateDesc;
 
   /// No description provided for @publishedOn.
   ///
   /// In en, this message translates to:
-  /// **'Published {date}'**
+  /// **'Released {date}'**
   String publishedOn(String date);
 
   /// No description provided for @discoverEntryTitleA.
@@ -1601,13 +1601,13 @@ abstract class AppLocalizations {
   /// No description provided for @discoverEntrySubtitleA.
   ///
   /// In en, this message translates to:
-  /// **'Podcasts · TOEFL · IELTS · TEM, textbooks...'**
+  /// **'Podcasts · TOEFL · IELTS · TEM(4/8), textbook audio files...'**
   String get discoverEntrySubtitleA;
 
   /// No description provided for @officialCollectionEmpty.
   ///
   /// In en, this message translates to:
-  /// **'This collection has no audios yet'**
+  /// **'This collection has no audio yet'**
   String get officialCollectionEmpty;
 
   /// No description provided for @sortCollections.
@@ -1667,13 +1667,13 @@ abstract class AppLocalizations {
   /// No description provided for @permanentlyDeleteAudio.
   ///
   /// In en, this message translates to:
-  /// **'Permanently delete this audio'**
+  /// **'Permanently delete the audio(s)'**
   String get permanentlyDeleteAudio;
 
   /// No description provided for @permanentlyDeleteAudioHint.
   ///
   /// In en, this message translates to:
-  /// **'Removes the file and the audio from all collections.'**
+  /// **'Remove the audio(s) from all collections.'**
   String get permanentlyDeleteAudioHint;
 
   /// No description provided for @audioBelongsToCollections.
@@ -1685,7 +1685,7 @@ abstract class AppLocalizations {
   /// No description provided for @audioNotInOtherCollections.
   ///
   /// In en, this message translates to:
-  /// **'Not used by any other collection — safe to delete.'**
+  /// **'Not in any other collection — safe to delete.'**
   String get audioNotInOtherCollections;
 
   /// No description provided for @selectedCount.
@@ -1721,13 +1721,13 @@ abstract class AppLocalizations {
   /// No description provided for @permanentlyDeleteBatchHint.
   ///
   /// In en, this message translates to:
-  /// **'Removes the files and the audio from all collections.'**
+  /// **'Remove the audio(s) from all collections.'**
   String get permanentlyDeleteBatchHint;
 
   /// No description provided for @removeFromCollectionBatchHint.
   ///
   /// In en, this message translates to:
-  /// **'Only removes them from this collection; the audio files are kept.'**
+  /// **'Only remove from this collection; the audio files are kept.'**
   String get removeFromCollectionBatchHint;
 
   /// No description provided for @emptyCollection.
@@ -1787,7 +1787,7 @@ abstract class AppLocalizations {
   /// No description provided for @favorites.
   ///
   /// In en, this message translates to:
-  /// **'Bookmarks'**
+  /// **'Saved'**
   String get favorites;
 
   /// No description provided for @profile.
@@ -1799,13 +1799,13 @@ abstract class AppLocalizations {
   /// No description provided for @studyComingSoon.
   ///
   /// In en, this message translates to:
-  /// **'Study feature coming soon'**
+  /// **'Study features coming soon'**
   String get studyComingSoon;
 
   /// No description provided for @favoritesComingSoon.
   ///
   /// In en, this message translates to:
-  /// **'Favorites feature coming soon'**
+  /// **'Save features coming soon'**
   String get favoritesComingSoon;
 
   /// No description provided for @learningPlanProgress.
@@ -1823,7 +1823,7 @@ abstract class AppLocalizations {
   /// No description provided for @firstStudy.
   ///
   /// In en, this message translates to:
-  /// **'Initial Learning'**
+  /// **'First Round'**
   String get firstStudy;
 
   /// No description provided for @review.
@@ -1841,25 +1841,25 @@ abstract class AppLocalizations {
   /// No description provided for @stepBlindListening.
   ///
   /// In en, this message translates to:
-  /// **'Blind Listening'**
+  /// **'Listen without subtitles'**
   String get stepBlindListening;
 
   /// No description provided for @stepBlindListeningDesc.
   ///
   /// In en, this message translates to:
-  /// **'Blind listen to get the overall difficulty and gist'**
+  /// **'Listen to the entire audio/video without subtitles.Get the gist.'**
   String get stepBlindListeningDesc;
 
   /// No description provided for @stepIntensiveListening.
   ///
   /// In en, this message translates to:
-  /// **'Intensive Listening'**
+  /// **'Listen sentence by sentence'**
   String get stepIntensiveListening;
 
   /// No description provided for @stepIntensiveListeningDesc.
   ///
   /// In en, this message translates to:
-  /// **'Listen sentence by sentence, understand and mark difficult ones'**
+  /// **'Listen sentence by sentence with automatic pauses.For challenging sentences, tap “Unclear” to save them and view AI analysis.'**
   String get stepIntensiveListeningDesc;
 
   /// No description provided for @stepShadowing.
@@ -1871,34 +1871,34 @@ abstract class AppLocalizations {
   /// No description provided for @stepShadowingDesc.
   ///
   /// In en, this message translates to:
-  /// **'Repeat weak sentences over and over'**
+  /// **'Repeat your saved sentences.By default, each sentence is played three times.'**
   String get stepShadowingDesc;
 
   /// No description provided for @stepRetelling.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph Retelling'**
+  /// **'Listen & Retell'**
   String get stepRetelling;
 
   /// No description provided for @stepRetellingDesc.
   ///
   /// In en, this message translates to:
-  /// **'Retell the gist of each paragraph in English'**
+  /// **'Listen and Retell segment by segment. Follow the original transcript or retell it in your own words'**
   String get stepRetellingDesc;
 
-  /// Title of the warm-up card above the First Study section, guiding users to free-listen before intensive listening
+  /// The warm-up listening button above the First Round section, guiding users to free-listen before intensive listening
   ///
   /// In en, this message translates to:
   /// **'Warm-up Listening'**
   String get warmUpCardTitle;
 
-  /// Warm-up card description, telling users to just grab the gist on a free listen
+  /// Warm-up listening button description, telling users to just grab the gist on a free listening
   ///
   /// In en, this message translates to:
-  /// **'Listen once to get the main idea. No need to catch every sentence.'**
+  /// **'Listen once to get the main idea. You don\'t need to catch every word.'**
   String get warmUpCardSubtitle;
 
-  /// Badge on the warm-up card marking it as recommended to do first
+  /// Badge on the warm-up listening button, marking it as recommended to do first
   ///
   /// In en, this message translates to:
   /// **'Recommended First'**
@@ -1973,13 +1973,13 @@ abstract class AppLocalizations {
   /// No description provided for @startLearning.
   ///
   /// In en, this message translates to:
-  /// **'Start Learning'**
+  /// **'Start practicing'**
   String get startLearning;
 
   /// No description provided for @continueLearning.
   ///
   /// In en, this message translates to:
-  /// **'Continue Learning'**
+  /// **'Continue practicing'**
   String get continueLearning;
 
   /// No description provided for @learningInProgress.
@@ -2003,49 +2003,49 @@ abstract class AppLocalizations {
   /// No description provided for @reviewCountdown.
   ///
   /// In en, this message translates to:
-  /// **'Available in {days} days'**
+  /// **'Unlocked in {days} days'**
   String reviewCountdown(int days);
 
   /// No description provided for @reviewCountdownHours.
   ///
   /// In en, this message translates to:
-  /// **'Available in {hours} hours'**
+  /// **'Unlocked in {hours} hours'**
   String reviewCountdownHours(int hours);
 
   /// No description provided for @blindListenBriefingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Blind Listening'**
+  /// **'Listen without subtitles'**
   String get blindListenBriefingTitle;
 
   /// No description provided for @blindListenBriefingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Initial Learning - Blind Listening'**
+  /// **'First Round - Listen without subtitles'**
   String get blindListenBriefingSubtitle;
 
   /// No description provided for @blindListenBriefingReviewSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Review {round} - Blind Listening'**
+  /// **'Review {round} - Listen without subtitles'**
   String blindListenBriefingReviewSubtitle(int round);
 
   /// No description provided for @blindListenBriefingTip.
   ///
   /// In en, this message translates to:
-  /// **'Challenge yourself: listen without subtitles and grasp the main idea'**
+  /// **'Challenge yourself: listen without subtitles and get the gist'**
   String get blindListenBriefingTip;
 
   /// No description provided for @startPractice.
   ///
   /// In en, this message translates to:
-  /// **'Start Practice'**
+  /// **'Start Practicing'**
   String get startPractice;
 
   /// No description provided for @blindListenAppBarTitle.
   ///
   /// In en, this message translates to:
-  /// **'Blind Listening'**
+  /// **'Listen without subtitles'**
   String get blindListenAppBarTitle;
 
   /// No description provided for @blindListenPassLabel.
@@ -2057,7 +2057,7 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenComplete.
   ///
   /// In en, this message translates to:
-  /// **'Blind Listen Complete'**
+  /// **'Listening without subtitles Complete'**
   String get blindListenComplete;
 
   /// No description provided for @blindListenPassInfo.
@@ -2069,13 +2069,13 @@ abstract class AppLocalizations {
   /// No description provided for @selectDifficulty.
   ///
   /// In en, this message translates to:
-  /// **'How did it feel?'**
+  /// **'How difficult was this?'**
   String get selectDifficulty;
 
   /// No description provided for @selectDifficultyRequired.
   ///
   /// In en, this message translates to:
-  /// **'Please select a difficulty to continue'**
+  /// **'Select a difficulty to continue'**
   String get selectDifficultyRequired;
 
   /// No description provided for @listenAgain.
@@ -2213,7 +2213,7 @@ abstract class AppLocalizations {
   /// No description provided for @noAudioItemsHint.
   ///
   /// In en, this message translates to:
-  /// **'Import audio files to start learning'**
+  /// **'Import audio files to start practicing'**
   String get noAudioItemsHint;
 
   /// No description provided for @audioWillBeKept.
@@ -2249,19 +2249,19 @@ abstract class AppLocalizations {
   /// No description provided for @uploadTranscript.
   ///
   /// In en, this message translates to:
-  /// **'Upload Transcript'**
+  /// **'Upload Subtitles'**
   String get uploadTranscript;
 
   /// No description provided for @replaceTranscriptTitle.
   ///
   /// In en, this message translates to:
-  /// **'Replace Transcript'**
+  /// **'Replace Subtitles'**
   String get replaceTranscriptTitle;
 
   /// No description provided for @replaceTranscriptMessage.
   ///
   /// In en, this message translates to:
-  /// **'A transcript already exists. Do you want to replace it?'**
+  /// **'A subtitle file already exists. Do you want to replace it?'**
   String get replaceTranscriptMessage;
 
   /// No description provided for @replace.
@@ -2285,13 +2285,13 @@ abstract class AppLocalizations {
   /// No description provided for @noTranscriptWarning.
   ///
   /// In en, this message translates to:
-  /// **'This audio has no transcript yet'**
+  /// **'This audio has no subtitles yet'**
   String get noTranscriptWarning;
 
   /// No description provided for @intensiveListenAppBarTitle.
   ///
   /// In en, this message translates to:
-  /// **'Intensive Listening'**
+  /// **'Listen sentence by sentence'**
   String get intensiveListenAppBarTitle;
 
   /// No description provided for @intensiveListenProgress.
@@ -2309,13 +2309,13 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenPeek.
   ///
   /// In en, this message translates to:
-  /// **'Peek'**
+  /// **'Peek at subtitles'**
   String get intensiveListenPeek;
 
   /// No description provided for @intensiveListenHideSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Hide'**
+  /// **'Hide subtitles'**
   String get intensiveListenHideSubtitle;
 
   /// No description provided for @intensiveListenCantUnderstand.
@@ -2327,7 +2327,7 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenAutoMarkedDifficult.
   ///
   /// In en, this message translates to:
-  /// **'Auto-marked difficult, tap to undo'**
+  /// **'Auto-save, tap to undo'**
   String get intensiveListenAutoMarkedDifficult;
 
   /// No description provided for @intensiveListenMarkedDifficult.
@@ -2393,7 +2393,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiListening.
   ///
   /// In en, this message translates to:
-  /// **'Listening'**
+  /// **'Listening tips'**
   String get aiListening;
 
   /// No description provided for @intensiveListenWordDictNotFound.
@@ -2429,13 +2429,13 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenCompleteTitle.
   ///
   /// In en, this message translates to:
-  /// **'Intensive Listening Complete'**
+  /// **'Listening sentence by sentence Complete'**
   String get intensiveListenCompleteTitle;
 
   /// No description provided for @intensiveListenCompleteHint.
   ///
   /// In en, this message translates to:
-  /// **'Keep up spaced review to fully master them.'**
+  /// **'Keep reviewing with spaced repetition to fully master it.'**
   String get intensiveListenCompleteHint;
 
   /// No description provided for @intensiveListenCompleteNext.
@@ -2453,37 +2453,37 @@ abstract class AppLocalizations {
   /// No description provided for @statDifficultSentences.
   ///
   /// In en, this message translates to:
-  /// **'Difficult'**
+  /// **'challenging'**
   String get statDifficultSentences;
 
   /// No description provided for @statParagraphs.
   ///
   /// In en, this message translates to:
-  /// **'Paragraphs'**
+  /// **'Segments'**
   String get statParagraphs;
 
   /// No description provided for @exitIntensiveListenTitle.
   ///
   /// In en, this message translates to:
-  /// **'Exit Intensive Listening?'**
+  /// **'Exit Listening sentence by sentence?'**
   String get exitIntensiveListenTitle;
 
   /// No description provided for @exitIntensiveListenMessage.
   ///
   /// In en, this message translates to:
-  /// **'Your progress will be saved. You can continue from where you left off.'**
+  /// **'Your progress will be saved. You can continue where you left off.'**
   String get exitIntensiveListenMessage;
 
   /// No description provided for @intensiveListenBriefingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Intensive Listening'**
+  /// **'Listen sentence by sentence'**
   String get intensiveListenBriefingTitle;
 
   /// No description provided for @intensiveListenBriefingTip.
   ///
   /// In en, this message translates to:
-  /// **'Listen sentence by sentence. Tap \'Unclear\' to reveal text and explanations.'**
+  /// **'Listen sentence by sentence. Tap \'Unclear\' to view transcript and analysis.'**
   String get intensiveListenBriefingTip;
 
   /// No description provided for @intensiveListenBriefingSentenceCount.
@@ -2495,13 +2495,13 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenNoSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'No Subtitle Available'**
+  /// **'No Subtitles Available'**
   String get intensiveListenNoSubtitle;
 
   /// No description provided for @intensiveListenNoSubtitleMessage.
   ///
   /// In en, this message translates to:
-  /// **'This audio has no subtitle. Please upload a subtitle file first.'**
+  /// **'This audio has no subtitles. Please upload a subtitle file first.'**
   String get intensiveListenNoSubtitleMessage;
 
   /// No description provided for @intensiveListenSettings.
@@ -2597,7 +2597,7 @@ abstract class AppLocalizations {
   /// No description provided for @difficultyLabel.
   ///
   /// In en, this message translates to:
-  /// **'Difficulty: {difficulty}'**
+  /// **'Difficulty level: {difficulty}'**
   String difficultyLabel(String difficulty);
 
   /// No description provided for @continueToStep.
@@ -2609,19 +2609,19 @@ abstract class AppLocalizations {
   /// No description provided for @completeFirstStudy.
   ///
   /// In en, this message translates to:
-  /// **'Complete Initial Learning'**
+  /// **'First Round Complete'**
   String get completeFirstStudy;
 
   /// No description provided for @completeReview.
   ///
   /// In en, this message translates to:
-  /// **'Complete Review'**
+  /// **'Review Complete'**
   String get completeReview;
 
   /// No description provided for @stepProgressLabel.
   ///
   /// In en, this message translates to:
-  /// **'Step {current}/{total} ({stage})'**
+  /// **'Stage {current}/{total} ({stage})'**
   String stepProgressLabel(int current, int total, String stage);
 
   /// No description provided for @manageTags.
@@ -2669,7 +2669,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteTagConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete \"{name}\"? It will be removed from all audio.'**
+  /// **'Are you sure you want to delete \"{name}\"? It will be removed from all audio files.'**
   String deleteTagConfirm(String name);
 
   /// No description provided for @listenAndRepeatAppBarTitle.
@@ -2705,7 +2705,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatListenHint.
   ///
   /// In en, this message translates to:
-  /// **'Listen then repeat'**
+  /// **'Listen, then repeat'**
   String get listenAndRepeatListenHint;
 
   /// No description provided for @listenAndRepeatYourTurnHint.
@@ -2789,13 +2789,13 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatAwaitingFinalTranscript.
   ///
   /// In en, this message translates to:
-  /// **'Confirming final transcript...'**
+  /// **'Confirming final transcription...'**
   String get listenAndRepeatAwaitingFinalTranscript;
 
   /// No description provided for @listenAndRepeatYourTakeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Your Take'**
+  /// **'Your transcrit'**
   String get listenAndRepeatYourTakeLabel;
 
   /// No description provided for @listenAndRepeatRecognitionInProgress.
@@ -2819,7 +2819,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatRecognitionNoEnglish.
   ///
   /// In en, this message translates to:
-  /// **'No English speech detected'**
+  /// **'No spoken English detected'**
   String get listenAndRepeatRecognitionNoEnglish;
 
   /// No description provided for @listenAndRepeatRecognitionPermissionDenied.
@@ -2855,7 +2855,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatNoDifficultSentences.
   ///
   /// In en, this message translates to:
-  /// **'No difficult sentences, no listen & repeat needed'**
+  /// **'No saved sentences, no Listen & Repeat needed'**
   String get listenAndRepeatNoDifficultSentences;
 
   /// No description provided for @exitListenAndRepeatTitle.
@@ -2867,7 +2867,7 @@ abstract class AppLocalizations {
   /// No description provided for @exitListenAndRepeatMessage.
   ///
   /// In en, this message translates to:
-  /// **'Your progress will be saved. You can continue from where you left off.'**
+  /// **'Your progress will be saved. You can continue where you left off.'**
   String get exitListenAndRepeatMessage;
 
   /// No description provided for @listenAndRepeatBriefingTitle.
@@ -2879,7 +2879,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatBriefingTip.
   ///
   /// In en, this message translates to:
-  /// **'Listen first, then repeat during the pause.'**
+  /// **'Listen first, then repeat during the pause. By default, each saved sentence will be played three times.'**
   String get listenAndRepeatBriefingTip;
 
   /// No description provided for @listenAndRepeatBriefingDifficultCount.
@@ -2897,7 +2897,7 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatRemoveDifficult.
   ///
   /// In en, this message translates to:
-  /// **'Marked difficult, tap to remove'**
+  /// **'Auto-saved, tap to undo'**
   String get listenAndRepeatRemoveDifficult;
 
   /// No description provided for @listenAndRepeatSettings.
@@ -2933,19 +2933,19 @@ abstract class AppLocalizations {
   /// No description provided for @listenAndRepeatControlModeAutoDesc.
   ///
   /// In en, this message translates to:
-  /// **'Auto-record, auto-stop, auto-advance'**
+  /// **'Auto-record, auto-pause, auto-play next'**
   String get listenAndRepeatControlModeAutoDesc;
 
   /// No description provided for @listenAndRepeatControlModeManualDesc.
   ///
   /// In en, this message translates to:
-  /// **'Tap to record, tap to stop, tap next'**
+  /// **'Tap to record, tap to pause, tap to play the next sentence'**
   String get listenAndRepeatControlModeManualDesc;
 
   /// No description provided for @listenAndRepeatPauseSmartDesc.
   ///
   /// In en, this message translates to:
-  /// **'Auto-adjusted based on difficulty, sentence length, and learning stage'**
+  /// **'Automatically adjusted based on difficulty, sentence length, and learning stage'**
   String get listenAndRepeatPauseSmartDesc;
 
   /// No description provided for @sentenceDuration.
@@ -2957,7 +2957,7 @@ abstract class AppLocalizations {
   /// No description provided for @difficultSentenceCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} difficult sentences'**
+  /// **'{count} challenging sentences'**
   String difficultSentenceCount(int count);
 
   /// No description provided for @intensiveListenPassInfo.
@@ -2975,25 +2975,25 @@ abstract class AppLocalizations {
   /// No description provided for @retellBriefingTitle.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph Retelling'**
+  /// **'Listen & Retell'**
   String get retellBriefingTitle;
 
   /// No description provided for @retellBriefingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Listen to a paragraph, then retell in your own words. Keywords help you recall the content.'**
+  /// **'Listen and retell segment by segment. Follow the original transcript or use your own words. Visible words help you recall what you heard.'**
   String get retellBriefingSubtitle;
 
   /// No description provided for @retellBriefingTargetDuration.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph duration'**
+  /// **'segment length'**
   String get retellBriefingTargetDuration;
 
   /// No description provided for @retellBriefingParagraphCount.
   ///
   /// In en, this message translates to:
-  /// **'Will be divided into {count} paragraphs'**
+  /// **'Split into {count} segments'**
   String retellBriefingParagraphCount(int count);
 
   /// No description provided for @retellBriefingSeconds.
@@ -3017,13 +3017,13 @@ abstract class AppLocalizations {
   /// No description provided for @retellTitle.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph Retelling'**
+  /// **'Listen & Retell'**
   String get retellTitle;
 
   /// No description provided for @retellParagraphProgress.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph {current}/{total}'**
+  /// **'Segment {current}/{total}'**
   String retellParagraphProgress(int current, int total);
 
   /// No description provided for @retellParagraphDuration.
@@ -3047,13 +3047,13 @@ abstract class AppLocalizations {
   /// No description provided for @retellListeningPhase.
   ///
   /// In en, this message translates to:
-  /// **'Listening...'**
+  /// **'Listening closely...'**
   String get retellListeningPhase;
 
   /// No description provided for @retellPromptToRetell.
   ///
   /// In en, this message translates to:
-  /// **'Retell it in your own words'**
+  /// **'Retell what you heard'**
   String get retellPromptToRetell;
 
   /// No description provided for @retellRetellingCountdown.
@@ -3071,13 +3071,13 @@ abstract class AppLocalizations {
   /// No description provided for @retellCompleteFirstStudy.
   ///
   /// In en, this message translates to:
-  /// **'Complete Initial Learning'**
+  /// **'First Round Complete'**
   String get retellCompleteFirstStudy;
 
   /// No description provided for @retellCompleteReview.
   ///
   /// In en, this message translates to:
-  /// **'Complete Review'**
+  /// **'Review Complete'**
   String get retellCompleteReview;
 
   /// No description provided for @retellCompleteFreePlay.
@@ -3089,7 +3089,7 @@ abstract class AppLocalizations {
   /// No description provided for @retellCompleteTitle.
   ///
   /// In en, this message translates to:
-  /// **'Retelling Complete'**
+  /// **'Listen & Retell Complete'**
   String get retellCompleteTitle;
 
   /// No description provided for @retellPracticeAgain.
@@ -3101,31 +3101,31 @@ abstract class AppLocalizations {
   /// No description provided for @retellExitConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Exit Retelling?'**
+  /// **'Exit Listen & Retell?'**
   String get retellExitConfirmTitle;
 
   /// No description provided for @retellExitConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'Current paragraph progress will be saved.'**
+  /// **'Current segment progress will be saved.'**
   String get retellExitConfirmMessage;
 
   /// No description provided for @retellDisplayKeywordsOnly.
   ///
   /// In en, this message translates to:
-  /// **'Visible Only'**
+  /// **'Partially Visible'**
   String get retellDisplayKeywordsOnly;
 
   /// No description provided for @retellDisplayShowAll.
   ///
   /// In en, this message translates to:
-  /// **'Show All'**
+  /// **'Fully Visible'**
   String get retellDisplayShowAll;
 
   /// No description provided for @retellDisplayHideAll.
   ///
   /// In en, this message translates to:
-  /// **'Hide All'**
+  /// **'Hided'**
   String get retellDisplayHideAll;
 
   /// No description provided for @retellSettingsTitle.
@@ -3143,7 +3143,7 @@ abstract class AppLocalizations {
   /// No description provided for @retellAutoPlaybackPromptMessage.
   ///
   /// In en, this message translates to:
-  /// **'When enabled, your recording plays automatically after each retell so you can fix your pronunciation right away. You can change this anytime in settings.'**
+  /// **'When enabled, your recording plays automatically after each retelling so you can review your pronunciation right away. You can change this anytime in Settings.'**
   String get retellAutoPlaybackPromptMessage;
 
   /// No description provided for @retellAutoPlaybackKeepOff.
@@ -3161,13 +3161,13 @@ abstract class AppLocalizations {
   /// No description provided for @retellRepeatCount.
   ///
   /// In en, this message translates to:
-  /// **'Repeat per paragraph'**
+  /// **'Repeat per segment'**
   String get retellRepeatCount;
 
   /// No description provided for @retellPauseMode.
   ///
   /// In en, this message translates to:
-  /// **'Pause between paragraphs'**
+  /// **'Pause between segments'**
   String get retellPauseMode;
 
   /// No description provided for @retellPassInfo.
@@ -3179,7 +3179,7 @@ abstract class AppLocalizations {
   /// No description provided for @retellNoDifficultSentences.
   ///
   /// In en, this message translates to:
-  /// **'No sentences to retell. Complete intensive listening first.'**
+  /// **'No sentences to retell. Listen sentence by sentence first.'**
   String get retellNoDifficultSentences;
 
   /// No description provided for @retellKeywordMethod.
@@ -3215,7 +3215,7 @@ abstract class AppLocalizations {
   /// No description provided for @retellKeywordRatio.
   ///
   /// In en, this message translates to:
-  /// **'Visible ratio'**
+  /// **'Visible Words'**
   String get retellKeywordRatio;
 
   /// No description provided for @pauseModeSmart.
@@ -3257,7 +3257,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewDifficultPracticeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Difficult Sentence Practice'**
+  /// **'Practice saved Sentences'**
   String get reviewDifficultPracticeTitle;
 
   /// No description provided for @reviewDifficultPracticeProgress.
@@ -3275,13 +3275,13 @@ abstract class AppLocalizations {
   /// No description provided for @reviewDifficultPracticeCompleteTitle.
   ///
   /// In en, this message translates to:
-  /// **'Difficult Practice Complete'**
+  /// **'Saved Sentences Practice Complete'**
   String get reviewDifficultPracticeCompleteTitle;
 
   /// No description provided for @reviewDifficultPracticeNone.
   ///
   /// In en, this message translates to:
-  /// **'No difficult sentences to practice. Auto-completed.'**
+  /// **'No saved sentences to practice. Auto-completed.'**
   String get reviewDifficultPracticeNone;
 
   /// No description provided for @exitReviewDifficultPracticeTitle.
@@ -3359,7 +3359,7 @@ abstract class AppLocalizations {
   /// No description provided for @asrBackendPlatformDescription.
   ///
   /// In en, this message translates to:
-  /// **'Uses the built-in system speech recognition, no download needed'**
+  /// **'Use the built-in system speech recognition.No download needed'**
   String get asrBackendPlatformDescription;
 
   /// No description provided for @asrBackendOffline.
@@ -3371,7 +3371,7 @@ abstract class AppLocalizations {
   /// No description provided for @asrBackendOfflineDescription.
   ///
   /// In en, this message translates to:
-  /// **'Uses the app\'s AI model, works offline, requires download'**
+  /// **'Use the app\'s AI model. It works offline after downloading'**
   String get asrBackendOfflineDescription;
 
   /// No description provided for @asrModelTier.
@@ -3455,25 +3455,25 @@ abstract class AppLocalizations {
   /// No description provided for @speechModelDownloadFailedGenericPurpose.
   ///
   /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring after speech practice.'**
+  /// **'The speech recognition model is used for automatic scoring your spoken responses.'**
   String get speechModelDownloadFailedGenericPurpose;
 
   /// No description provided for @speechModelDownloadFailedListenAndRepeatPurpose.
   ///
   /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring after read-aloud practice.'**
+  /// **'The speech recognition model is used for automatic scoring your pronunciation.'**
   String get speechModelDownloadFailedListenAndRepeatPurpose;
 
   /// No description provided for @speechModelDownloadFailedRetellPurpose.
   ///
   /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring after retelling practice.'**
+  /// **'The speech recognition model is used for automatic scoring your retelling.'**
   String get speechModelDownloadFailedRetellPurpose;
 
   /// No description provided for @speechModelDownloadFailedDisableHint.
   ///
   /// In en, this message translates to:
-  /// **'If you do not need automatic scoring for now, turn off:'**
+  /// **'If you do not need automatic scoring for now, turn it off:'**
   String get speechModelDownloadFailedDisableHint;
 
   /// No description provided for @speechModelDisablePathGeneric.
@@ -3509,7 +3509,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadErrorCorrupted.
   ///
   /// In en, this message translates to:
-  /// **'Downloaded file failed verification. Please retry.'**
+  /// **'Downloaded file verification failed. Please retry.'**
   String get downloadErrorCorrupted;
 
   /// No description provided for @deleteModel.
@@ -3545,7 +3545,7 @@ abstract class AppLocalizations {
   /// No description provided for @disableSpeechRecognitionMessage.
   ///
   /// In en, this message translates to:
-  /// **'Speech practice scoring will be unavailable.'**
+  /// **'Speech scoring will be unavailable.'**
   String get disableSpeechRecognitionMessage;
 
   /// No description provided for @alsoDeleteModel.
@@ -3569,7 +3569,7 @@ abstract class AppLocalizations {
   /// No description provided for @speechRecognitionRequiredMessage.
   ///
   /// In en, this message translates to:
-  /// **'Speech recognition is used to automatically evaluate your read-aloud and retelling. A model download is required before starting.'**
+  /// **'Speech recognition is used to automatically evaluate your pronunciation and retelling. A model download is required before starting.'**
   String get speechRecognitionRequiredMessage;
 
   /// No description provided for @downloadAndEnable.
@@ -3653,7 +3653,7 @@ abstract class AppLocalizations {
   /// No description provided for @timeMachineUseSystemTime.
   ///
   /// In en, this message translates to:
-  /// **'Using system time'**
+  /// **'Use system time'**
   String get timeMachineUseSystemTime;
 
   /// No description provided for @timeMachineCurrentTime.
@@ -3749,13 +3749,13 @@ abstract class AppLocalizations {
   /// No description provided for @localTranscriptionModelRequiredMessage.
   ///
   /// In en, this message translates to:
-  /// **'On-device transcription needs to download the {modelName} speech model once (offline afterwards).'**
+  /// **'On-device transcription requires downloading the {modelName} speech model once (offline afterwards).'**
   String localTranscriptionModelRequiredMessage(String modelName);
 
   /// No description provided for @deleteSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Delete Subtitle'**
+  /// **'Delete Subtitles'**
   String get deleteSubtitle;
 
   /// No description provided for @startTranscription.
@@ -3863,13 +3863,13 @@ abstract class AppLocalizations {
   /// No description provided for @deleteSubtitleConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete the subtitle?'**
+  /// **'Are you sure you want to delete the subtitles?'**
   String get deleteSubtitleConfirm;
 
   /// No description provided for @deleteSubtitleWarning.
   ///
   /// In en, this message translates to:
-  /// **'Deleting the subtitle will also clear all bookmarked sentences and learning progress for this audio.'**
+  /// **'Deleting the subtitles will also clear all saved sentences and learning progress of this audio.'**
   String get deleteSubtitleWarning;
 
   /// No description provided for @languageAutoDetect.
@@ -3881,7 +3881,7 @@ abstract class AppLocalizations {
   /// No description provided for @mixedLanguageNotSupported.
   ///
   /// In en, this message translates to:
-  /// **'Mixed language audio is not supported yet'**
+  /// **'Mixed-language audio is not supported yet'**
   String get mixedLanguageNotSupported;
 
   /// No description provided for @selectLanguage.
@@ -3905,13 +3905,13 @@ abstract class AppLocalizations {
   /// No description provided for @overwriteExistingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Overwrite existing subtitle?'**
+  /// **'Overwrite existing subtitles?'**
   String get overwriteExistingSubtitle;
 
   /// No description provided for @overwriteExistingSubtitleMessage.
   ///
   /// In en, this message translates to:
-  /// **'This will replace the current subtitle. Continue?'**
+  /// **'This will replace the current subtitles. Continue?'**
   String get overwriteExistingSubtitleMessage;
 
   /// No description provided for @overwrite.
@@ -3947,7 +3947,7 @@ abstract class AppLocalizations {
   /// No description provided for @transcriptionDamagedConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'This audio may be damaged or use an incompatible format. Transcribe anyway?'**
+  /// **'This audio may be damaged or in an incompatible format. Transcribe anyway?'**
   String get transcriptionDamagedConfirmMessage;
 
   /// No description provided for @transcriptionSilentConfirmTitle.
@@ -4109,7 +4109,7 @@ abstract class AppLocalizations {
   /// No description provided for @weekStudyTimeShort.
   ///
   /// In en, this message translates to:
-  /// **'Week'**
+  /// **'This Week'**
   String get weekStudyTimeShort;
 
   /// No description provided for @readyToReview.
@@ -4133,7 +4133,7 @@ abstract class AppLocalizations {
   /// No description provided for @firstStudySection.
   ///
   /// In en, this message translates to:
-  /// **'Initial Learning ({count})'**
+  /// **'First Round ({count})'**
   String firstStudySection(int count);
 
   /// No description provided for @completedSection.
@@ -4151,7 +4151,7 @@ abstract class AppLocalizations {
   /// No description provided for @noStudyTasksHint.
   ///
   /// In en, this message translates to:
-  /// **'Import audio files to start learning.'**
+  /// **'Import audio files to start practicing.'**
   String get noStudyTasksHint;
 
   /// No description provided for @goToLibrary.
@@ -4169,7 +4169,7 @@ abstract class AppLocalizations {
   /// No description provided for @allDoneHint.
   ///
   /// In en, this message translates to:
-  /// **'Great work today. Come back later for reviews.'**
+  /// **'Well Done! Come back later for reviews.'**
   String get allDoneHint;
 
   /// No description provided for @overdueDays.
@@ -4205,7 +4205,7 @@ abstract class AppLocalizations {
   /// No description provided for @subStageLabelFirstLearn.
   ///
   /// In en, this message translates to:
-  /// **'Initial Learning - {subStage}'**
+  /// **'First Round - {subStage}'**
   String subStageLabelFirstLearn(String subStage);
 
   /// No description provided for @subStageLabelReview.
@@ -4235,7 +4235,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoritesNoSentencesHint.
   ///
   /// In en, this message translates to:
-  /// **'Mark difficult sentences during intensive listening or shadowing'**
+  /// **'Bookmark challenging sentences during listening sentence by sentence or repeating'**
   String get favoritesNoSentencesHint;
 
   /// No description provided for @favoritesNoVocabulary.
@@ -4247,7 +4247,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoritesNoVocabularyHint.
   ///
   /// In en, this message translates to:
-  /// **'Tap a word during learning to look it up and save it'**
+  /// **'Tap a word to look it up and save it'**
   String get favoritesNoVocabularyHint;
 
   /// No description provided for @favoritesBookmarkCount.
@@ -4295,7 +4295,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewTitle.
   ///
   /// In en, this message translates to:
-  /// **'Bookmark Review'**
+  /// **'Review Saved Items'**
   String get bookmarkReviewTitle;
 
   /// No description provided for @bookmarkReviewStart.
@@ -4325,7 +4325,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewAudioSkipped.
   ///
   /// In en, this message translates to:
-  /// **'Audio unavailable, skipping this sentence'**
+  /// **'Audio unavailable, skip this sentence'**
   String get bookmarkReviewAudioSkipped;
 
   /// No description provided for @bookmarkReviewFromAudio.
@@ -4349,13 +4349,13 @@ abstract class AppLocalizations {
   /// No description provided for @difficultPracticeBlindListenRepeat.
   ///
   /// In en, this message translates to:
-  /// **'Blind listen repeats'**
+  /// **'Times to Listen without subtitles'**
   String get difficultPracticeBlindListenRepeat;
 
   /// No description provided for @difficultPracticeShadowReadingRepeat.
   ///
   /// In en, this message translates to:
-  /// **'Shadow reading repeats'**
+  /// **'Times to Listen and Repeat'**
   String get difficultPracticeShadowReadingRepeat;
 
   /// No description provided for @inputWordsShort.
@@ -4397,7 +4397,7 @@ abstract class AppLocalizations {
   /// No description provided for @learnedWordsEmptyHint.
   ///
   /// In en, this message translates to:
-  /// **'No learned words yet. Finish some listening first.'**
+  /// **'No words learned yet. Complete a listening session first.'**
   String get learnedWordsEmptyHint;
 
   /// No description provided for @learnedWordsSortTimeAsc.
@@ -4481,7 +4481,7 @@ abstract class AppLocalizations {
   /// No description provided for @flashcardSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Card Settings'**
+  /// **'Flashcard Settings'**
   String get flashcardSettingsTitle;
 
   /// No description provided for @flashcardSettingsSubtitle.
@@ -4523,7 +4523,7 @@ abstract class AppLocalizations {
   /// No description provided for @flashcardTimerMode.
   ///
   /// In en, this message translates to:
-  /// **'Card Advance Timer'**
+  /// **'Flashcard Advance Timer'**
   String get flashcardTimerMode;
 
   /// No description provided for @flashcardTimerSmart.
@@ -4535,7 +4535,7 @@ abstract class AppLocalizations {
   /// No description provided for @flashcardTimerSmartDesc.
   ///
   /// In en, this message translates to:
-  /// **'Adjusts based on word difficulty and practice count'**
+  /// **'Adjust based on word difficulty and practice count'**
   String get flashcardTimerSmartDesc;
 
   /// No description provided for @flashcardTimerFixed.
@@ -4565,7 +4565,7 @@ abstract class AppLocalizations {
   /// No description provided for @flashcardSortMode.
   ///
   /// In en, this message translates to:
-  /// **'Word Sort Order'**
+  /// **'Word List Order'**
   String get flashcardSortMode;
 
   /// No description provided for @flashcardSortAlphaAsc.
@@ -4619,13 +4619,13 @@ abstract class AppLocalizations {
   /// No description provided for @flashcardSortAlphaAscDesc.
   ///
   /// In en, this message translates to:
-  /// **'Sort alphabetically A to Z'**
+  /// **'Sort A to Z'**
   String get flashcardSortAlphaAscDesc;
 
   /// No description provided for @flashcardSortAlphaDescDesc.
   ///
   /// In en, this message translates to:
-  /// **'Sort alphabetically Z to A'**
+  /// **'Sort Z to A'**
   String get flashcardSortAlphaDescDesc;
 
   /// No description provided for @flashcardSortTimeAscDesc.
@@ -4673,7 +4673,7 @@ abstract class AppLocalizations {
   /// No description provided for @freePlay.
   ///
   /// In en, this message translates to:
-  /// **'Free Play'**
+  /// **'Listen Your Way'**
   String get freePlay;
 
   /// No description provided for @wordAiAnalysis.
@@ -4751,7 +4751,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoCompletedNoDifficultReview.
   ///
   /// In en, this message translates to:
-  /// **'0 difficult sentences, skipped'**
+  /// **'0 saved sentence, skipped'**
   String get autoCompletedNoDifficultReview;
 
   /// No description provided for @termsOfService.
@@ -4877,7 +4877,7 @@ abstract class AppLocalizations {
   /// No description provided for @demoModeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use demo data for screenshots and presentations'**
+  /// **'Use demo data for screenshots'**
   String get demoModeSubtitle;
 
   /// No description provided for @practiceRemoveMark.
@@ -4895,7 +4895,7 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenSegmentProgress.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph {current}/{total}'**
+  /// **'Segment {current}/{total}'**
   String blindListenSegmentProgress(int current, int total);
 
   /// No description provided for @blindListenSegmentDuration.
@@ -4907,7 +4907,7 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenListeningHint.
   ///
   /// In en, this message translates to:
-  /// **'Listen carefully...'**
+  /// **'Listen closely...'**
   String get blindListenListeningHint;
 
   /// No description provided for @blindListenPreListenHint.
@@ -4931,13 +4931,13 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenPauseBetween.
   ///
   /// In en, this message translates to:
-  /// **'Pause between paragraphs'**
+  /// **'Pause between segments'**
   String get blindListenPauseBetween;
 
   /// No description provided for @blindListenTargetDuration.
   ///
   /// In en, this message translates to:
-  /// **'Paragraph duration'**
+  /// **'Segment length'**
   String get blindListenTargetDuration;
 
   /// No description provided for @blindListenDisplayHideAll.
@@ -4955,7 +4955,7 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenRecallHint.
   ///
   /// In en, this message translates to:
-  /// **'Try to recall what you just heard'**
+  /// **'Recall what you just heard'**
   String get blindListenRecallHint;
 
   /// No description provided for @blindListenControlModeAutoDesc.
@@ -4973,13 +4973,13 @@ abstract class AppLocalizations {
   /// No description provided for @blindListenNoParagraph.
   ///
   /// In en, this message translates to:
-  /// **'No split'**
+  /// **'No segmentation'**
   String get blindListenNoParagraph;
 
   /// No description provided for @blindListenParagraphCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} paragraphs'**
+  /// **'{count} segment'**
   String blindListenParagraphCount(int count);
 
   /// No description provided for @resetLearningProgress.
@@ -5045,31 +5045,31 @@ abstract class AppLocalizations {
   /// No description provided for @stageBlindListen.
   ///
   /// In en, this message translates to:
-  /// **'Blind Listen'**
+  /// **'Listen without subtitles'**
   String get stageBlindListen;
 
   /// No description provided for @stageIntensiveListen.
   ///
   /// In en, this message translates to:
-  /// **'Intensive Listen'**
+  /// **'Listen sentence by sentence'**
   String get stageIntensiveListen;
 
   /// No description provided for @stageListenAndRepeat.
   ///
   /// In en, this message translates to:
-  /// **'Shadowing'**
+  /// **'Listen & Repeat'**
   String get stageListenAndRepeat;
 
   /// No description provided for @stageRetell.
   ///
   /// In en, this message translates to:
-  /// **'Retelling'**
+  /// **'Listen & Retell'**
   String get stageRetell;
 
   /// No description provided for @stageReviewDifficultPractice.
   ///
   /// In en, this message translates to:
-  /// **'Difficult Drill'**
+  /// **'Practice saved sentences'**
   String get stageReviewDifficultPractice;
 
   /// No description provided for @stageBookmarkReview.
@@ -5171,7 +5171,7 @@ abstract class AppLocalizations {
   /// No description provided for @savedReviewReminderSection.
   ///
   /// In en, this message translates to:
-  /// **'Saved Review Reminder'**
+  /// **'‘Saved’ Review Reminder'**
   String get savedReviewReminderSection;
 
   /// No description provided for @savedReviewReminderToggle.
@@ -5339,7 +5339,7 @@ abstract class AppLocalizations {
   /// No description provided for @exportSubtitleFile.
   ///
   /// In en, this message translates to:
-  /// **'Subtitle'**
+  /// **'Subtitles'**
   String get exportSubtitleFile;
 
   /// No description provided for @exportSelectFiles.
@@ -5366,7 +5366,7 @@ abstract class AppLocalizations {
   /// **'Failed to export PDF: {error}'**
   String pdfExportFailed(String error);
 
-  /// PDF title meta line: audio duration (duration is preformatted mm:ss)
+  /// PDF title meta line: audio duration (duration is preformated mm:ss)
   ///
   /// In en, this message translates to:
   /// **'Duration {duration}'**
@@ -5405,13 +5405,13 @@ abstract class AppLocalizations {
   /// PDF content option: include key sentence translations
   ///
   /// In en, this message translates to:
-  /// **'Key Sentence Translation'**
+  /// **'Translations of saved sentences'**
   String get pdfOptionTranslation;
 
   /// PDF content option: include saved vocabulary definitions
   ///
   /// In en, this message translates to:
-  /// **'Saved Word Definitions'**
+  /// **'meanings of saved words'**
   String get pdfOptionVocab;
 
   /// PDF content option: include key sentence analysis appendix
@@ -5429,7 +5429,7 @@ abstract class AppLocalizations {
   /// Body of the one-time reminder shown on first PDF export
   ///
   /// In en, this message translates to:
-  /// **'We recommend exporting the PDF after completing your first study.\n\nIntensive listening, shadowing, and blind listening help you master the content, and the PDF gathers your translations, analysis, and saved words for later review.'**
+  /// **'We recommend exporting the PDF after completing your First Round.\n\n listening sentence by sentence, repeating, and listening without subtitles help you master what you heard, and the PDF collects the translations and analysis of saved sentences, and saved words for later review.'**
   String get pdfExportReminderMessage;
 
   /// Dismiss button for the first-time PDF export reminder
@@ -5495,7 +5495,7 @@ abstract class AppLocalizations {
   /// No description provided for @importConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'This will replace all current data including learning progress, favorites, and audio files. This action cannot be undone.'**
+  /// **'This will replace all current data, including learning progress, saved items, and audio files. This action cannot be undone.'**
   String get importConfirmMessage;
 
   /// No description provided for @backupTime.
@@ -5639,7 +5639,7 @@ abstract class AppLocalizations {
   /// No description provided for @restoreOverwriteMessage.
   ///
   /// In en, this message translates to:
-  /// **'This will overwrite learning data, settings, audio, subtitles, and dictionaries on this device. This action cannot be undone.'**
+  /// **'This will overwrite learning data, settings, audio files, subtitles, and dictionaries on this device. This action cannot be undone.'**
   String get restoreOverwriteMessage;
 
   /// No description provided for @restoreOverwriteAction.
@@ -5687,7 +5687,7 @@ abstract class AppLocalizations {
   /// No description provided for @monthlySummaryTitle.
   ///
   /// In en, this message translates to:
-  /// **'{month} Stats'**
+  /// **'{month} Statistics'**
   String monthlySummaryTitle(String month);
 
   /// No description provided for @monthlyTotal.
@@ -5729,7 +5729,7 @@ abstract class AppLocalizations {
   /// No description provided for @senseGroupSplit.
   ///
   /// In en, this message translates to:
-  /// **'Split into Groups'**
+  /// **'Split into Sense Groups'**
   String get senseGroupSplit;
 
   /// No description provided for @senseGroupLoading.
@@ -5741,7 +5741,7 @@ abstract class AppLocalizations {
   /// No description provided for @senseGroupSingleGroup.
   ///
   /// In en, this message translates to:
-  /// **'This sentence is a single group'**
+  /// **'This sentence is a single sense group'**
   String get senseGroupSingleGroup;
 
   /// No description provided for @senseGroupSave.
@@ -5759,25 +5759,25 @@ abstract class AppLocalizations {
   /// No description provided for @annotationBtnSenseGroup.
   ///
   /// In en, this message translates to:
-  /// **'Groups'**
+  /// **'Sense Groups'**
   String get annotationBtnSenseGroup;
 
   /// No description provided for @annotationBtnSenseGroupMedium.
   ///
   /// In en, this message translates to:
-  /// **'Larger Groups'**
+  /// **'Larger chunks'**
   String get annotationBtnSenseGroupMedium;
 
   /// No description provided for @annotationBtnSenseGroupFine.
   ///
   /// In en, this message translates to:
-  /// **'Smaller Groups'**
+  /// **'Smaller chunks'**
   String get annotationBtnSenseGroupFine;
 
   /// No description provided for @annotationBtnTranslation.
   ///
   /// In en, this message translates to:
-  /// **'Translate'**
+  /// **'Translation'**
   String get annotationBtnTranslation;
 
   /// No description provided for @annotationBtnAnalysis.
@@ -6029,7 +6029,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideLibraryCollectionListDescription.
   ///
   /// In en, this message translates to:
-  /// **'This is your collection list. Collections let you categorize audio by topic — tap any collection to see the audio inside.'**
+  /// **'This is your collection list. Collections let you sort audios by topic — tap any collection to see the audio files in it.'**
   String get guideLibraryCollectionListDescription;
 
   /// No description provided for @guideLibraryCollectionMenuDescription.
@@ -6047,13 +6047,13 @@ abstract class AppLocalizations {
   /// No description provided for @guideCollectionAudioListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap any audio to view its learning plan and current progress.'**
+  /// **'Tap any audio to view its practice plan and current progress.'**
   String get guideCollectionAudioListDescription;
 
   /// No description provided for @guideCollectionAudioMenuDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here to manage this audio\'s subtitles, collection, tags, and more.'**
+  /// **'Tap here to manage this audio\'s subtitles, the collection it belongs to, tags, and more.'**
   String get guideCollectionAudioMenuDescription;
 
   /// No description provided for @guideCollectionUploadDescription.
@@ -6071,7 +6071,7 @@ abstract class AppLocalizations {
   /// No description provided for @guidePlanAddSubtitleDescription.
   ///
   /// In en, this message translates to:
-  /// **'Generate subtitles with AI in one tap, or upload a local subtitle file. You can start learning this audio right after.'**
+  /// **'Generate subtitles with AI in one tap, or upload a local subtitle file. You can start practicing this audio right after.'**
   String get guidePlanAddSubtitleDescription;
 
   /// No description provided for @guidePlanAiTranscriptionTitle.
@@ -6095,25 +6095,25 @@ abstract class AppLocalizations {
   /// No description provided for @guidePlanFreePlayTitle.
   ///
   /// In en, this message translates to:
-  /// **'Free Play'**
+  /// **'Listen Your Way'**
   String get guidePlanFreePlayTitle;
 
   /// No description provided for @guidePlanFreePlayDescription.
   ///
   /// In en, this message translates to:
-  /// **'A flexible, all-in-one audio player for free practice. Learn at your own pace.'**
+  /// **'A flexible, all-in-one audio player for listening in your own way and at your own pace.'**
   String get guidePlanFreePlayDescription;
 
   /// No description provided for @guidePlanStartLearningTitle.
   ///
   /// In en, this message translates to:
-  /// **'Follow the plan'**
+  /// **'Follow the default practice plan'**
   String get guidePlanStartLearningTitle;
 
   /// No description provided for @guidePlanStartLearningDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here to follow the learning plan step by step. Echo Loop will guide you and remind you to review at the right time.'**
+  /// **'Tap here to follow the default practice plan step by step. Echo Loop will guide you and remind you to review at the right time.'**
   String get guidePlanStartLearningDescription;
 
   /// No description provided for @guidePlanPauseLearningTitle.
@@ -6125,19 +6125,19 @@ abstract class AppLocalizations {
   /// No description provided for @guidePlanPauseLearningDescription.
   ///
   /// In en, this message translates to:
-  /// **'If you no longer want to study this audio, tap here to pause anytime. Review reminders will stop, and you can resume with one tap later.'**
+  /// **'If you no longer want to practice this audio, tap here to pause anytime. Review reminders will stop, and you can resume with one tap later.'**
   String get guidePlanPauseLearningDescription;
 
   /// No description provided for @guideRetellSkipTitle.
   ///
   /// In en, this message translates to:
-  /// **'Skip this retell'**
+  /// **'Skip retelling this time'**
   String get guideRetellSkipTitle;
 
   /// No description provided for @guideRetellSkipDescription.
   ///
   /// In en, this message translates to:
-  /// **'Retelling builds speaking fast; if you want to focus on listening for now, tap here to skip this retell.'**
+  /// **'Retelling builds spoken English fast. If you want to focus on listening for now, tap here to skip this step.'**
   String get guideRetellSkipDescription;
 
   /// No description provided for @learningProgressLoadFailed.
@@ -6167,7 +6167,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideStudyTasksOverviewDescription.
   ///
   /// In en, this message translates to:
-  /// **'This area includes new audio to learn, due reviews, completed tasks, and more. Echo Loop will pace your learning for you.'**
+  /// **'This area includes new audio to practice, due reviews, completed tasks, and more. Echo Loop will pace your learning for you.'**
   String get guideStudyTasksOverviewDescription;
 
   /// No description provided for @guideStudyStatsHeaderTitle.
@@ -6185,13 +6185,13 @@ abstract class AppLocalizations {
   /// No description provided for @guideStudyStreakDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here to open your activity calendar. Check in every day and build a steady learning habit.'**
+  /// **'Tap here to open your activity calendar. Check in every day and build a good learning habit little by little.'**
   String get guideStudyStreakDescription;
 
   /// No description provided for @guideFavoritesSentencesListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your saved sentences, grouped by source audio. Tap {dumbbellIcon} to review every saved sentence from that audio at once.'**
+  /// **'Your saved sentences, grouped by source audio. Tap {dumbbellIcon} to review all the saved sentences from the same audio at once.'**
   String guideFavoritesSentencesListDescription(String dumbbellIcon);
 
   /// No description provided for @guideFavoritesSentencesReviewDescription.
@@ -6203,19 +6203,19 @@ abstract class AppLocalizations {
   /// No description provided for @guideFavoritesVocabularyListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your saved words and phrases. Expand a card to see definitions and hear how they sound in the original sentences.'**
+  /// **'Your saved words, phrases, and sense groups. Expand a flashcard to view meanings of a saved item and hear it in its original sentence.'**
   String get guideFavoritesVocabularyListDescription;
 
   /// No description provided for @guideFavoritesFlashcardDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here to enter flashcard mode and review every saved word. Seeing the word and hearing it in context makes memory stick.'**
+  /// **'Tap here to enter flashcard mode and review every saved words. Viewing the word and hearing it in context makes memory stick.'**
   String get guideFavoritesFlashcardDescription;
 
   /// No description provided for @guideIntensiveListenCantUnderstandDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here when a sentence is hard to follow. It will be auto-marked as difficult and you\'ll enter explanation mode.'**
+  /// **'Tap here when a sentence is hard to follow. It will be auto-saved and you\'ll enter the explanation mode.'**
   String get guideIntensiveListenCantUnderstandDescription;
 
   /// No description provided for @guideSentenceTileNumberDescription.
@@ -6227,7 +6227,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideSentenceTileBodyDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap the sentence to view the explanation.'**
+  /// **'Tap the sentence to view explanations.'**
   String get guideSentenceTileBodyDescription;
 
   /// No description provided for @guideSubtitleEditorBoundaryHandleDescription.
@@ -6401,7 +6401,7 @@ abstract class AppLocalizations {
   /// No description provided for @podcastPreviewAppleFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not resolve the Apple Podcasts link. The current network may not reach Apple\'s podcast lookup service. Try again later or switch networks.'**
+  /// **'Could not recognize the Apple Podcast link. The current network may not reach Apple\'s podcast lookup service. Try again later or switch networks.'**
   String get podcastPreviewAppleFailed;
 
   /// No description provided for @podcastPreviewParseFailed.
@@ -6449,13 +6449,13 @@ abstract class AppLocalizations {
   /// No description provided for @officialCollectionSignInRequiredMessage.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to add curated collections to My Collections and keep your learning content in sync.'**
+  /// **'Sign in to add any curated collections to My Collections and sync new episodes.'**
   String get officialCollectionSignInRequiredMessage;
 
   /// No description provided for @goLearn.
   ///
   /// In en, this message translates to:
-  /// **'Go Learn'**
+  /// **'Start Practicing'**
   String get goLearn;
 
   /// No description provided for @removeFromMyCollections.
@@ -6473,7 +6473,7 @@ abstract class AppLocalizations {
   /// No description provided for @enrollNeededMessage.
   ///
   /// In en, this message translates to:
-  /// **'Add this collection to your library, then you can start learning.'**
+  /// **'Add this collection to My Collection, then you can start practicing.'**
   String get enrollNeededMessage;
 
   /// No description provided for @enrollSucceeded.
@@ -6497,7 +6497,7 @@ abstract class AppLocalizations {
   /// No description provided for @removeOfficialConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'All audios, subtitles, and learning records in this collection will be deleted. This cannot be undone.'**
+  /// **'All audio files, their subtitles, and learning records in this collection will be deleted. This cannot be undone.'**
   String get removeOfficialConfirmMessage;
 
   /// No description provided for @removeOfficialConfirmConfirm.
@@ -6509,7 +6509,7 @@ abstract class AppLocalizations {
   /// No description provided for @officialCollectionDeprecated.
   ///
   /// In en, this message translates to:
-  /// **'This collection has been removed by the publisher. Your local copy remains available.'**
+  /// **'This collection has been removed. You can still use the local copy.'**
   String get officialCollectionDeprecated;
 
   /// No description provided for @downloadCancel.
@@ -6539,31 +6539,31 @@ abstract class AppLocalizations {
   /// No description provided for @updateOfficialSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Update Subtitle'**
+  /// **'Update Subtitles'**
   String get updateOfficialSubtitle;
 
   /// No description provided for @updateOfficialSubtitleConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Update subtitle?'**
+  /// **'Update subtitles?'**
   String get updateOfficialSubtitleConfirm;
 
   /// No description provided for @updateOfficialSubtitleWarning.
   ///
   /// In en, this message translates to:
-  /// **'Updating the subtitle will replace the local subtitle and clear all bookmarked sentences and learning progress for this audio.'**
+  /// **'Updating subtitles means replacing the local subtitles and clearing all saved sentences and learning progress of this audio.'**
   String get updateOfficialSubtitleWarning;
 
   /// No description provided for @officialSubtitleUpdated.
   ///
   /// In en, this message translates to:
-  /// **'Subtitle updated'**
+  /// **'Subtitles updated'**
   String get officialSubtitleUpdated;
 
   /// No description provided for @officialSubtitleUpdateFailed.
   ///
   /// In en, this message translates to:
-  /// **'Subtitle update failed, please retry'**
+  /// **'Subtitles update failed, please retry'**
   String get officialSubtitleUpdateFailed;
 
   /// No description provided for @downloadInProgressSnackbar.
@@ -6623,7 +6623,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingExamGaokao.
   ///
   /// In en, this message translates to:
-  /// **'Gaokao'**
+  /// **'the Gaokao'**
   String get onboardingExamGaokao;
 
   /// No description provided for @onboardingExamCet.
@@ -6695,43 +6695,43 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingSummaryHeadline.
   ///
   /// In en, this message translates to:
-  /// **'Improving listening & speaking\nisn\'t about hearing more,\nit\'s about practicing deeper.'**
+  /// **'Improving listening & speaking\nisn\'t about practicing with more materials,\nit\'s about practicing more thoroughly.'**
   String get onboardingSummaryHeadline;
 
   /// No description provided for @onboardingSummaryPoint1.
   ///
   /// In en, this message translates to:
-  /// **'Drill on audio that matches your level'**
+  /// **'Practice with audio that matches your level'**
   String get onboardingSummaryPoint1;
 
   /// No description provided for @onboardingSummaryPoint2.
   ///
   /// In en, this message translates to:
-  /// **'Read in sense groups, learn words in context'**
+  /// **'Understand what you hear in chunks and master vocabulary in context.'**
   String get onboardingSummaryPoint2;
 
   /// No description provided for @onboardingSummaryPoint3.
   ///
   /// In en, this message translates to:
-  /// **'Build input and intuition through intensive listening and shadowing'**
+  /// **'Develop a natural feel for English through extensive close listening and repetition.'**
   String get onboardingSummaryPoint3;
 
   /// No description provided for @onboardingSummaryPoint4.
   ///
   /// In en, this message translates to:
-  /// **'Practice speaking through retelling, turning comprehension into output'**
+  /// **'Practice speaking through retelling, and turn what you hear into what you can say.'**
   String get onboardingSummaryPoint4;
 
   /// No description provided for @onboardingStart.
   ///
   /// In en, this message translates to:
-  /// **'Start learning'**
+  /// **'Start Practicing'**
   String get onboardingStart;
 
   /// No description provided for @onboardingQ1Prompt.
   ///
   /// In en, this message translates to:
-  /// **'What\'s your main goal for English listening & speaking practice?'**
+  /// **'What\'s your main goal for improving your English listening & speaking?'**
   String get onboardingQ1Prompt;
 
   /// No description provided for @onboardingQ1OptionExam.
@@ -6743,7 +6743,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingQ1OptionDaily.
   ///
   /// In en, this message translates to:
-  /// **'Everyday conversation'**
+  /// **'Daily conversation'**
   String get onboardingQ1OptionDaily;
 
   /// No description provided for @onboardingQ1OptionWork.
@@ -6905,7 +6905,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingQ3OptionFriend.
   ///
   /// In en, this message translates to:
-  /// **'Friend or family'**
+  /// **'word of mouth'**
   String get onboardingQ3OptionFriend;
 
   /// No description provided for @onboardingQ3OptionOther.
@@ -6965,19 +6965,19 @@ abstract class AppLocalizations {
   /// No description provided for @autoSkipRetellToggle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-skip speaking practice'**
+  /// **'Auto-skip retelling practice'**
   String get autoSkipRetellToggle;
 
   /// No description provided for @autoSkipRetellSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-skip speaking tasks in your learning plan'**
+  /// **'Auto-skip retelling tasks in your learning plan'**
   String get autoSkipRetellSubtitle;
 
   /// No description provided for @autoExpandCachedAnnotationToggle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-expand Analysis'**
+  /// **'Auto-expand Sentence Analysis'**
   String get autoExpandCachedAnnotationToggle;
 
   /// No description provided for @autoExpandCachedAnnotationSubtitle.
@@ -7019,19 +7019,19 @@ abstract class AppLocalizations {
   /// No description provided for @autoPlayRetellRecordingToggle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-play retell recording'**
+  /// **'Auto-play retelling recording'**
   String get autoPlayRetellRecordingToggle;
 
   /// No description provided for @autoPlayRetellRecordingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'After retelling, automatically play your recording for pronunciation review'**
+  /// **'After each retelling, automatically play your recording for pronunciation review'**
   String get autoPlayRetellRecordingSubtitle;
 
   /// No description provided for @listenAndRepeatRatingToggle.
   ///
   /// In en, this message translates to:
-  /// **'Show rating during read-aloud'**
+  /// **'Show rating after each repeat'**
   String get listenAndRepeatRatingToggle;
 
   /// No description provided for @listenAndRepeatRatingSubtitle.
@@ -7043,13 +7043,13 @@ abstract class AppLocalizations {
   /// No description provided for @retellRatingToggle.
   ///
   /// In en, this message translates to:
-  /// **'Show rating during retelling'**
+  /// **'Show rating after each retelling'**
   String get retellRatingToggle;
 
   /// No description provided for @retellRatingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'When off, only recording playback is kept and scores are not shown'**
+  /// **'When off, your recording can still be played back, but scores aren\'t shown'**
   String get retellRatingSubtitle;
 
   /// No description provided for @retellSkip.
@@ -7073,7 +7073,7 @@ abstract class AppLocalizations {
   /// No description provided for @skipSilenceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Skip long silent gaps between sentences'**
+  /// **'Skip long silences between sentences'**
   String get skipSilenceDescription;
 
   /// No description provided for @silenceThreshold.
@@ -7091,7 +7091,7 @@ abstract class AppLocalizations {
   /// No description provided for @silenceSkipped.
   ///
   /// In en, this message translates to:
-  /// **'Skipped {seconds}s of silence part'**
+  /// **'Skipped {seconds}s of silence'**
   String silenceSkipped(int seconds);
 
   /// No description provided for @speechPermDialogTitleRequest.
@@ -7121,7 +7121,7 @@ abstract class AppLocalizations {
   /// No description provided for @speechPermItemMicDesc.
   ///
   /// In en, this message translates to:
-  /// **'Record your speech for pronunciation scoring'**
+  /// **'Record your speech for pronunciation evaluation'**
   String get speechPermItemMicDesc;
 
   /// No description provided for @speechPermItemSpeech.
@@ -7151,7 +7151,7 @@ abstract class AppLocalizations {
   /// No description provided for @speechPermDeniedHint.
   ///
   /// In en, this message translates to:
-  /// **'You previously denied access. Please enable it in System Settings.'**
+  /// **'You once denied access. Please enable it in System Settings.'**
   String get speechPermDeniedHint;
 
   /// No description provided for @speechPermRestrictedHint.
@@ -7187,7 +7187,7 @@ abstract class AppLocalizations {
   /// No description provided for @authChooseMethod.
   ///
   /// In en, this message translates to:
-  /// **'Choose how you want to continue.'**
+  /// **'Choose how you\'d like to continue.'**
   String get authChooseMethod;
 
   /// No description provided for @authContinueWithEmail.
@@ -7685,7 +7685,7 @@ abstract class AppLocalizations {
   /// No description provided for @subtitleStructureChangedWarning.
   ///
   /// In en, this message translates to:
-  /// **'This will clear learning progress and bookmarked sentences for this audio.'**
+  /// **'This will clear learning progress and saved sentences of this audio.'**
   String get subtitleStructureChangedWarning;
 
   /// No description provided for @subtitleEditsSaved.
@@ -7745,7 +7745,7 @@ abstract class AppLocalizations {
   /// No description provided for @importAudioFromCloudDrive.
   ///
   /// In en, this message translates to:
-  /// **'Import from Cloud Drive'**
+  /// **'Import from Cloud Storage'**
   String get importAudioFromCloudDrive;
 
   /// No description provided for @importAudioFromBaiduNetdisk.
@@ -7757,7 +7757,7 @@ abstract class AppLocalizations {
   /// No description provided for @cloudDriveSourceShort.
   ///
   /// In en, this message translates to:
-  /// **'Cloud Drive'**
+  /// **'Cloud Storage'**
   String get cloudDriveSourceShort;
 
   /// No description provided for @baiduNetdisk.
@@ -7913,7 +7913,7 @@ abstract class AppLocalizations {
   /// No description provided for @audioClipboardNoValidLink.
   ///
   /// In en, this message translates to:
-  /// **'Clipboard does not contain a valid link'**
+  /// **'Clipboard does not have a valid link'**
   String get audioClipboardNoValidLink;
 
   /// No description provided for @downloadAndImportAudio.
@@ -7943,7 +7943,7 @@ abstract class AppLocalizations {
   /// No description provided for @audioUrlDuplicate.
   ///
   /// In en, this message translates to:
-  /// **'An audio item with this name already exists'**
+  /// **'An audio file with this name already exists'**
   String get audioUrlDuplicate;
 
   /// No description provided for @audioDownloadFailed.
@@ -8051,7 +8051,7 @@ abstract class AppLocalizations {
   /// No description provided for @podcastAlreadySubscribed.
   ///
   /// In en, this message translates to:
-  /// **'Already subscribed — see collection \"{name}\"'**
+  /// **'Already subscribed — see Collection \"{name}\"'**
   String podcastAlreadySubscribed(String name);
 
   /// No description provided for @podcastRefreshFeed.
@@ -8207,7 +8207,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttsEnginePlatformDescription.
   ///
   /// In en, this message translates to:
-  /// **'Built into your device. Fast, no download, but average quality.'**
+  /// **'Built into your device. Fast, no download required, average quality.'**
   String get ttsEnginePlatformDescription;
 
   /// No description provided for @ttsEngineEchoLoop.
@@ -8405,7 +8405,7 @@ abstract class AppLocalizations {
   /// No description provided for @dictionaryWebAdsNotice.
   ///
   /// In en, this message translates to:
-  /// **'Online dictionaries may show their own ads, unrelated to Echo Loop.'**
+  /// **'Online dictionary ads are not affiliated with Echo Loop.'**
   String get dictionaryWebAdsNotice;
 
   /// No description provided for @dictSourceLocal.
@@ -8513,7 +8513,7 @@ abstract class AppLocalizations {
   /// No description provided for @dictAiExpressions.
   ///
   /// In en, this message translates to:
-  /// **'Common Expressions'**
+  /// **'collocation '**
   String get dictAiExpressions;
 
   /// No description provided for @dictAiWordFamily.
@@ -8687,7 +8687,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSignInMessage.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to use the AI assistant.'**
+  /// **'Sign in to use the AI Assistant.'**
   String get chatSignInMessage;
 
   /// No description provided for @chatScrollToBottom.
