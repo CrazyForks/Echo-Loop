@@ -21,6 +21,7 @@ import '../../providers/dictionary/dictionary_registry.dart';
 import '../../providers/dictionary/lookup_controller.dart';
 import '../../providers/dictionary_provider.dart';
 import '../../providers/saved_word_provider.dart';
+import '../../providers/saved_sense_group_provider.dart';
 import '../../providers/tts/tts_controller_provider.dart';
 import '../../services/dictionary/ai_dictionary_source.dart';
 import '../../services/dictionary/web_dictionary_source.dart';
@@ -202,6 +203,23 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       normalizeDictionaryQueryForPrompt(widget.query.word);
 
   Future<void> _toggleSave(String surfaceWord, bool currentlySaved) async {
+    if (widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup) {
+      final notifier = ref.read(savedSenseGroupListProvider.notifier);
+      if (currentlySaved) {
+        await notifier.removeSenseGroup(surfaceWord);
+      } else {
+        await notifier.saveSenseGroup(
+          phraseText: surfaceWord,
+          displayText: _lookupQuery,
+          audioItemId: widget.query.audioItemId,
+          sentenceIndex: widget.query.sentenceIndex,
+          sentenceText: widget.query.sentenceText,
+          sentenceStartMs: widget.query.sentenceStartMs,
+          sentenceEndMs: widget.query.sentenceEndMs,
+        );
+      }
+      return;
+    }
     final notifier = ref.read(savedWordListProvider.notifier);
     if (currentlySaved) {
       await notifier.removeWord(surfaceWord);
@@ -487,9 +505,11 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   Widget _buildTitleRow(ThemeData theme, String displayWord, String savedWord) {
     // 收藏态单一来源：与正文下划线、选区操作条共用同一个收藏词流，避免
     // 面板书签与操作条按钮出现「同一个词两种状态」的瞬时分歧。
-    final isSaved =
-        (ref.watch(savedWordTextsProvider).valueOrNull ?? const <String>{})
-            .contains(savedWord);
+    final savedTexts =
+        widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup
+        ? ref.watch(savedSenseGroupTextsProvider).valueOrNull
+        : ref.watch(savedWordTextsProvider).valueOrNull;
+    final isSaved = (savedTexts ?? const <String>{}).contains(savedWord);
     return Row(
       children: [
         Expanded(

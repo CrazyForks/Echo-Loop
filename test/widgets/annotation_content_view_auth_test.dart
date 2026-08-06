@@ -14,6 +14,8 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/daos/saved_sense_group_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
+import 'package:echo_loop/features/remote_config/remote_config.dart';
+import 'package:echo_loop/features/remote_config/remote_config_providers.dart';
 import 'package:echo_loop/features/subscription/models/premium_feature.dart';
 import 'package:echo_loop/features/subscription/models/ai_quota_rejection.dart';
 import 'package:echo_loop/features/subscription/providers/subscription_availability.dart';
@@ -28,6 +30,7 @@ import 'package:echo_loop/router/app_router.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
+import 'package:echo_loop/widgets/animated_bookmark_icon.dart';
 
 import '../helpers/mock_providers.dart';
 
@@ -143,6 +146,26 @@ class _RecordingSentenceAiNotifier extends SentenceAiNotifier {
     senseGroupRequests++;
     yield const SenseGroupResult(
       medium: ['Hello world'],
+      fine: ['Hello', 'world'],
+    );
+  }
+}
+
+class _TwoGroupSentenceAiNotifier extends _RecordingSentenceAiNotifier {
+  _TwoGroupSentenceAiNotifier({
+    required super.cacheDao,
+    required super.apiClient,
+  });
+
+  @override
+  Stream<SenseGroupResult> getSenseGroupsStream(
+    String text, {
+    String? accessToken,
+    CancelToken? cancelToken,
+    bool respectLocalQuotaReset = false,
+  }) async* {
+    yield const SenseGroupResult(
+      medium: ['Hello', 'world'],
       fine: ['Hello', 'world'],
     );
   }
@@ -558,13 +581,144 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Hello world'));
     await tester.pump();
-    expect(find.byKey(const Key('sense_group_lookup_action')), findsOneWidget);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Analysis')),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const Key('sense_group_lookup_action')));
+    await tester.tap(
+      find.byKey(const Key('selection_toolbar_button_Analysis')),
+    );
     await tester.pump();
 
-    expect(find.byKey(const Key('sense_group_lookup_action')), findsNothing);
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Analysis')),
+      findsNothing,
+    );
     expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
+  });
+
+  testWidgets('收藏意群后操作栏保持显示并随收藏真值切换为取消收藏', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    final savedTexts = StreamController<Set<String>>.broadcast();
+    addTearDown(savedTexts.close);
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => savedTexts.stream);
+    when(
+      () => savedSenseGroupDao.saveSenseGroup(
+        phraseText: any(named: 'phraseText'),
+        displayText: any(named: 'displayText'),
+        audioItemId: any(named: 'audioItemId'),
+        sentenceIndex: any(named: 'sentenceIndex'),
+        sentenceText: any(named: 'sentenceText'),
+        sentenceStartMs: any(named: 'sentenceStartMs'),
+        sentenceEndMs: any(named: 'sentenceEndMs'),
+        groupStartMs: any(named: 'groupStartMs'),
+        groupEndMs: any(named: 'groupEndMs'),
+      ),
+    ).thenAnswer((_) async => savedTexts.add({'hello world'}));
+    when(
+      () => savedSenseGroupDao.removeSenseGroup('hello world'),
+    ).thenAnswer((_) async => savedTexts.add(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      signedIn: true,
+      aiNotifier: _RecordingSentenceAiNotifier(
+        cacheDao: cacheDao,
+        apiClient: _NoopSentenceAiApiClient(),
+      ),
+      wrapDictionaryPanelHost: true,
+      senseGroupRangePlayback: _NoopSenseGroupRangePlayback(),
+      extraOverrides: [
+        dictionaryOverride(),
+        remoteFeatureEnabledProvider(
+          RemoteFeature.aiChatAssistant,
+        ).overrideWithValue(false),
+      ],
+    );
+    savedTexts.add(const {});
+
+    await tester.tap(find.byKey(const ValueKey('senseGroup')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hello world'));
+    await tester.pump();
+
+    final analysisButtonFinder = find.byKey(
+      const Key('selection_toolbar_button_Analysis'),
+    );
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('selection_toolbar_surface')),
+      findsOneWidget,
+    );
+
+    await tester.tap(analysisButtonFinder);
+    await tester.pump();
+
+    final bookmark = tester.widget<AnimatedBookmarkIcon>(
+      find.byKey(const Key('dict_panel_bookmark')),
+    );
+    expect(bookmark.isSaved, isTrue);
+
+    expect(bookmark.onPressed, isNotNull);
+    bookmark.onPressed!.call();
+    await tester.pump();
+    verify(() => savedSenseGroupDao.removeSenseGroup('hello world')).called(1);
+  });
+
+  testWidgets('意群操作栏显示时可一次点击直接切换到其它意群', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {'world'}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      signedIn: true,
+      aiNotifier: _TwoGroupSentenceAiNotifier(
+        cacheDao: cacheDao,
+        apiClient: _NoopSentenceAiApiClient(),
+      ),
+      senseGroupRangePlayback: _NoopSenseGroupRangePlayback(),
+      extraOverrides: [
+        remoteFeatureEnabledProvider(
+          RemoteFeature.aiChatAssistant,
+        ).overrideWithValue(false),
+      ],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('senseGroup')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hello'));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Save')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('world'));
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('selection_toolbar_button_Remove')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('自动加载翻译和解析同时超额时只展示一个弹窗', (tester) async {

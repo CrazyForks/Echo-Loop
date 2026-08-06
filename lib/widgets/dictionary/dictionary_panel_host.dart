@@ -32,6 +32,9 @@ void _traceDictionaryPanel(String message) {
   debugPrint('[DictionaryTrace][$timestamp][panel] $message');
 }
 
+/// 词典面板收藏按钮对应的数据类型。
+enum DictionaryBookmarkKind { word, senseGroup }
+
 /// 一次查词请求：查询文本 + 来源信息（收藏单词时记录出处）
 class DictionaryPanelQuery {
   /// 查询文本（单词或多词词组，未归一化的原始点选文本）
@@ -42,6 +45,9 @@ class DictionaryPanelQuery {
   /// 仅用于本次查询的初始选中源，不写入词典面板会话粘滞源。意群快捷 lookup
   /// 用它强制走 AI 源；普通点词/选词组不传，仍走默认源与词组优先 AI 规则。
   final String? preferredSourceId;
+
+  /// 收藏按钮读写的数据类型；普通查词默认使用词汇收藏。
+  final DictionaryBookmarkKind bookmarkKind;
 
   /// 来源音频 ID（可选）
   final String? audioItemId;
@@ -61,6 +67,7 @@ class DictionaryPanelQuery {
   const DictionaryPanelQuery({
     required this.word,
     this.preferredSourceId,
+    this.bookmarkKind = DictionaryBookmarkKind.word,
     this.audioItemId,
     this.sentenceIndex,
     this.sentenceText,
@@ -73,6 +80,7 @@ class DictionaryPanelQuery {
       other is DictionaryPanelQuery &&
       other.word == word &&
       other.preferredSourceId == preferredSourceId &&
+      other.bookmarkKind == bookmarkKind &&
       other.audioItemId == audioItemId &&
       other.sentenceIndex == sentenceIndex &&
       other.sentenceText == sentenceText &&
@@ -83,6 +91,7 @@ class DictionaryPanelQuery {
   int get hashCode => Object.hash(
     word,
     preferredSourceId,
+    bookmarkKind,
     audioItemId,
     sentenceIndex,
     sentenceText,

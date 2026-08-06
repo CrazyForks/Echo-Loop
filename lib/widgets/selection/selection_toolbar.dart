@@ -18,15 +18,14 @@ library;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../common/anchored_action_bar.dart';
+
 /// 选区操作条的单个动作项：文案 + 点击回调。
-class SelectionToolbarAction {
-  const SelectionToolbarAction({required this.label, required this.onPressed});
-
-  /// 按钮文案（已本地化）。
-  final String label;
-
-  /// 点击回调。
-  final VoidCallback onPressed;
+class SelectionToolbarAction extends AnchoredActionBarAction {
+  const SelectionToolbarAction({
+    required super.label,
+    required super.onPressed,
+  });
 }
 
 /// 选区气泡操作条。
@@ -42,14 +41,6 @@ class SelectionToolbar extends StatelessWidget {
 
   final TextSelectionToolbarAnchors anchors;
   final List<SelectionToolbarAction> actions;
-
-  static const double _kButtonHorizontalPadding = 16;
-  static const double _kButtonVerticalPadding = 4;
-  static const double _kButtonFontSize = 15;
-  static const double _kButtonMinWidth = 72;
-  static const BorderRadius _kToolbarBorderRadius = BorderRadius.all(
-    Radius.circular(10),
-  );
 
   /// 按「选区几何」计算锚点：操作条居中浮在选区上方，并保留 Flutter 默认间距。
   ///
@@ -71,140 +62,6 @@ class SelectionToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonWidth = _evenButtonWidth(context);
-    return CupertinoTextSelectionToolbar(
-      anchorAbove: anchors.primaryAnchor,
-      anchorBelow: anchors.secondaryAnchor ?? anchors.primaryAnchor,
-      toolbarBuilder: _buildPlainToolbar,
-      children: [
-        for (final action in actions)
-          _SelectionToolbarButton(
-            key: ValueKey('selection_toolbar_button_${action.label}'),
-            text: action.label,
-            width: buttonWidth,
-            onPressed: action.onPressed,
-          ),
-      ],
-    );
-  }
-
-  /// 无箭头工具条外壳；定位和分页仍交给 Flutter 官方组件处理。
-  static Widget _buildPlainToolbar(
-    BuildContext context,
-    Offset anchorAbove,
-    Offset anchorBelow,
-    Widget child,
-  ) {
-    final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
-    final background = isDark
-        ? const Color(0xFF222222)
-        : const Color(0xFFF6F6F6);
-    return DecoratedBox(
-      key: const ValueKey('selection_toolbar_surface'),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: _kToolbarBorderRadius,
-        boxShadow: isDark
-            ? const []
-            : [
-                BoxShadow(
-                  color: CupertinoColors.black.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-      ),
-      child: ClipRRect(borderRadius: _kToolbarBorderRadius, child: child),
-    );
-  }
-
-  /// 按最长文案统一按钮宽度，避免「复制 / 问 AI」这类短长文案让分割线偏移。
-  double _evenButtonWidth(BuildContext context) {
-    final direction = Directionality.of(context);
-    final scaler = MediaQuery.textScalerOf(context);
-    var maxTextWidth = 0.0;
-    for (final action in actions) {
-      final painter = TextPainter(
-        text: TextSpan(
-          text: action.label,
-          style: const TextStyle(fontSize: _kButtonFontSize),
-        ),
-        textDirection: direction,
-        textScaler: scaler,
-        maxLines: 1,
-      )..layout();
-      maxTextWidth = maxTextWidth < painter.width
-          ? painter.width
-          : maxTextWidth;
-    }
-    final contentWidth = maxTextWidth + _kButtonHorizontalPadding * 2;
-    return contentWidth < _kButtonMinWidth ? _kButtonMinWidth : contentWidth;
-  }
-}
-
-/// 选区操作条按钮：矮身 + 悬浮/按压背景反馈（桌面鼠标 + 移动点按皆适用）。
-///
-/// 竖直内边距 4（比原生 18 更矮、更贴气泡感）；悬浮/按压时叠加半透明底色，色随明暗
-/// 主题取黑或白。父级无箭头胶囊已裁剪圆角，首末按钮高亮自动跟随圆角。
-class _SelectionToolbarButton extends StatefulWidget {
-  const _SelectionToolbarButton({
-    super.key,
-    required this.text,
-    required this.width,
-    required this.onPressed,
-  });
-
-  final String text;
-  final double width;
-  final VoidCallback onPressed;
-
-  @override
-  State<_SelectionToolbarButton> createState() =>
-      _SelectionToolbarButtonState();
-}
-
-class _SelectionToolbarButtonState extends State<_SelectionToolbarButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
-    final tint = isDark ? CupertinoColors.white : CupertinoColors.black;
-    final overlayAlpha = _pressed ? 0.16 : (_hovered ? 0.08 : 0.0);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onPressed,
-        // 直接约束按钮本体宽度，不用 Expanded/Align 撑满父约束，避免 toolbar 误判换页。
-        child: Container(
-          width: widget.width,
-          alignment: Alignment.center,
-          color: tint.withValues(alpha: overlayAlpha),
-          padding: const EdgeInsets.symmetric(
-            horizontal: SelectionToolbar._kButtonHorizontalPadding,
-            vertical: SelectionToolbar._kButtonVerticalPadding,
-          ),
-          child: Text(
-            widget.text,
-            maxLines: 1,
-            softWrap: false,
-            style: TextStyle(
-              fontSize: SelectionToolbar._kButtonFontSize,
-              color: tint,
-            ),
-          ),
-        ),
-      ),
-    );
+    return AnchoredActionBar(anchors: anchors, actions: actions);
   }
 }
