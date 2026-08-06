@@ -102,7 +102,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Auto-skip speaking practice'), findsOneWidget);
+      expect(find.text('Auto-skip retelling practice'), findsOneWidget);
 
       // 默认 autoSkipRetell=false
       final context = tester.element(find.byType(EchoLoopApp));
@@ -114,7 +114,7 @@ void main() {
         (w) =>
             w is SwitchListTile &&
             w.title is Text &&
-            (w.title as Text).data == 'Auto-skip speaking practice',
+            (w.title as Text).data == 'Auto-skip retelling practice',
       );
       await tester.tap(autoSkipSwitch);
       await tester.pump(const Duration(milliseconds: 300));

@@ -64,8 +64,8 @@ void main() {
     await tester.pumpWidget(createTestWidget());
     await openSheet(tester);
 
-    final repeatTop = tester.getTopLeft(find.text('Repeat per paragraph')).dy;
-    final pauseTop = tester.getTopLeft(find.text('Pause between paragraphs')).dy;
+    final repeatTop = tester.getTopLeft(find.text('Repeat per segment')).dy;
+    final pauseTop = tester.getTopLeft(find.text('Pause between segments')).dy;
     final speedTop = tester.getTopLeft(find.text('Playback Speed')).dy;
 
     expect(speedTop, greaterThan(pauseTop));

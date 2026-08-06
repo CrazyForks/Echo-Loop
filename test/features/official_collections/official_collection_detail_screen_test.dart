@@ -95,7 +95,7 @@ void main() {
 
     expect(find.byType(RefreshIndicator), findsOneWidget);
     expect(find.byType(ListView), findsOneWidget);
-    expect(find.text('This collection has no audios yet'), findsOneWidget);
+    expect(find.text('This collection has no audio yet'), findsOneWidget);
 
     final listView = tester.widget<ListView>(find.byType(ListView));
     expect(listView.physics, isA<AlwaysScrollableScrollPhysics>());
@@ -131,7 +131,7 @@ void main() {
 
     expect(find.text('Sign in to add collections'), findsOneWidget);
     expect(
-      find.textContaining('Sign in to add curated collections'),
+      find.textContaining('Sign in to add any curated collections'),
       findsOneWidget,
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);

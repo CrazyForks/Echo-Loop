@@ -331,7 +331,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Groups'));
+    await tester.tap(find.text('Sense Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -348,7 +348,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Sign in to use AI features'), findsNothing);
 
-    await tester.tap(find.text('Groups'));
+    await tester.tap(find.text('Sense Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Sign In'));
@@ -371,7 +371,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Translate'));
+    await tester.tap(find.text('Translation'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -380,7 +380,7 @@ void main() {
     expect(find.text('Sign In'), findsOneWidget);
   });
 
-  for (final button in ['Translate', 'Analysis']) {
+  for (final button in ['Translation', 'Analysis']) {
     testWidgets('$button 超出额度时先弹提醒，点击订阅后进入订阅页', (tester) async {
       final cacheDao = _MockCacheDao();
       final savedSenseGroupDao = _MockSavedSenseGroupDao();
@@ -402,15 +402,15 @@ void main() {
         aiNotifier: aiNotifier,
       );
 
-      final buttonKey = button == 'Translate' ? 'translation' : 'analysis';
+      final buttonKey = button == 'Translation' ? 'translation' : 'analysis';
       await tester.tap(find.byKey(ValueKey(buttonKey)));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      final respectLocalQuotaResetValues = button == 'Translate'
+      final respectLocalQuotaResetValues = button == 'Translation'
           ? aiNotifier.translationRespectLocalQuotaResetValues
           : aiNotifier.analysisRespectLocalQuotaResetValues;
-      final quotaTitle = button == 'Translate'
+      final quotaTitle = button == 'Translation'
           ? "This month's free AI translation quota is used up"
           : "This month's free AI sentence analysis quota is used up";
       expect(respectLocalQuotaResetValues, [false]);

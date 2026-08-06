@@ -506,7 +506,7 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Bookmark Review'), findsOneWidget);
+      expect(find.text('Review Saved Items'), findsOneWidget);
     });
 
     testWidgets('显示关闭按钮', (tester) async {
@@ -560,7 +560,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Peek'), findsOneWidget);
+      expect(find.text('Peek at subtitles'), findsOneWidget);
       expect(find.text("Unclear"), findsOneWidget);
     });
 
@@ -632,7 +632,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 点击偷看
-      await tester.tap(find.text('Peek'));
+      await tester.tap(find.text('Peek at subtitles'));
       await tester.pumpAndSettle();
 
       // 统一可点词组件：整句渲染为单个 RichText
@@ -715,7 +715,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Peek'), findsNothing);
+      expect(find.text('Peek at subtitles'), findsNothing);
       expect(find.text("Unclear"), findsNothing);
     });
 
@@ -914,7 +914,7 @@ void main() {
 
       // 进入跟读模式后显示 SentenceAnnotationCard
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      expect(find.text('Peek'), findsNothing);
+      expect(find.text('Peek at subtitles'), findsNothing);
     });
   });
 

@@ -362,7 +362,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 权益列表仍展示
-    expect(find.text('More AI subtitle transcription'), findsOneWidget);
+    expect(find.text('More AI subtitle transcriptions'), findsOneWidget);
     expect(find.text('Special offer: 50% off your first year'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Subscribe'), findsOneWidget);
     expect(find.textContaining('RevenueCat'), findsNothing);
@@ -862,38 +862,38 @@ void main() {
 
     // 权益列表
     expect(find.text('Echo Loop Premium'), findsWidgets);
-    expect(find.text('Get more AI-powered learning'), findsOneWidget);
-    expect(find.text('More AI subtitle transcription'), findsOneWidget);
-    expect(find.text('More AI translation'), findsOneWidget);
-    expect(find.text('More AI word explanation'), findsOneWidget);
-    expect(find.text('More AI sentence breakdown'), findsOneWidget);
-    expect(find.text('More AI assistant conversations'), findsOneWidget);
+    expect(find.text('Unlock more AI-powered features'), findsOneWidget);
+    expect(find.text('More AI subtitle transcriptions'), findsOneWidget);
+    expect(find.text('More AI translations'), findsOneWidget);
+    expect(find.text('More AI word and phrase explanation'), findsOneWidget);
+    expect(find.text('More AI sentence analysis'), findsOneWidget);
+    expect(find.text('More AI assistant chats'), findsOneWidget);
     expect(find.text('Priority support'), findsOneWidget);
     expect(find.text('More AI sentence chunking'), findsOneWidget);
     expect(find.text('Special offer:'), findsNothing);
     expect(find.byKey(const ValueKey('paywall_header_logo')), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('More AI subtitle transcription')).dy <
-          tester.getTopLeft(find.text('More AI translation')).dy,
+      tester.getTopLeft(find.text('More AI subtitle transcriptions')).dy <
+          tester.getTopLeft(find.text('More AI translations')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI translation')).dy <
-          tester.getTopLeft(find.text('More AI word explanation')).dy,
+      tester.getTopLeft(find.text('More AI translations')).dy <
+          tester.getTopLeft(find.text('More AI word and phrase explanation')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI word explanation')).dy <
-          tester.getTopLeft(find.text('More AI sentence breakdown')).dy,
+      tester.getTopLeft(find.text('More AI word and phrase explanation')).dy <
+          tester.getTopLeft(find.text('More AI sentence analysis')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI sentence breakdown')).dy <
-          tester.getTopLeft(find.text('More AI assistant conversations')).dy,
+      tester.getTopLeft(find.text('More AI sentence analysis')).dy <
+          tester.getTopLeft(find.text('More AI assistant chats')).dy,
       isTrue,
     );
     expect(
-      tester.getTopLeft(find.text('More AI assistant conversations')).dy <
+      tester.getTopLeft(find.text('More AI assistant chats')).dy <
           tester.getTopLeft(find.text('More AI sentence chunking')).dy,
       isTrue,
     );
@@ -986,7 +986,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text("You're a member"), findsOneWidget);
+    expect(find.text("You're already on the Premium plan."), findsOneWidget);
     expect(find.text('Manage Subscription'), findsOneWidget);
     // 无到期时间 → 永久状态 + 永久说明；套餐无法判定 → 兜底「会员」徽章
     expect(find.text('Lifetime'), findsOneWidget);
@@ -1334,10 +1334,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Refresh membership'), findsOneWidget);
+    expect(find.text('Refresh premium status'), findsOneWidget);
     expect(find.text('Restore Purchases'), findsNothing);
 
-    await tester.tap(find.text('Refresh membership'));
+    await tester.tap(find.text('Refresh premium status'));
     await tester.pumpAndSettle();
 
     // 统一走 controller.restore()（无 webMode 分流）。

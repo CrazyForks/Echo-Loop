@@ -94,7 +94,7 @@ void main() {
     );
     expect(upgrade, findsOneWidget);
     expect(
-      find.text('Upgrade to unlock more AI usage and features.'),
+      find.text('Upgrade for more AI access and features.'),
       findsOneWidget,
     );
     expect(find.text('Upgrade Now'), findsOneWidget);

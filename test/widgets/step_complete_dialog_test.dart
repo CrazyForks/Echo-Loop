@@ -37,7 +37,7 @@ void main() {
         find.text('Listening sentence by sentence Complete'),
         findsOneWidget,
       );
-      expect(find.text('Step 1/4 (First Round)'), findsOneWidget);
+      expect(find.text('Stage 1/4 (First Round)'), findsOneWidget);
       expect(find.text('All 10 sentences'), findsOneWidget);
 
       // 难度选择器已移除
@@ -198,7 +198,7 @@ void main() {
                   title: 'Retell Complete',
                   stepIndex: 3,
                   totalSteps: 4,
-                  stageName: 'First Round',
+                  stageName: 'Intensive Listening',
                   isLastStep: true,
                 );
               },
@@ -211,8 +211,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Step 4/4 (First Round)'), findsOneWidget);
-      expect(find.text('Complete Review'), findsOneWidget);
+      expect(find.text('Stage 4/4 (Intensive Listening)'), findsOneWidget);
+      expect(find.text('Review Complete'), findsOneWidget);
       expect(find.text('Done'), findsNothing);
     });
 
@@ -229,7 +229,7 @@ void main() {
                   title: 'Retell Complete',
                   stepIndex: 3,
                   totalSteps: 4,
-                  stageName: 'First Round',
+                  stageName: 'Intensive Listening',
                   isLastStep: true,
                 );
               },
@@ -242,7 +242,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Complete Review'));
+      await tester.tap(find.text('Review Complete'));
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);

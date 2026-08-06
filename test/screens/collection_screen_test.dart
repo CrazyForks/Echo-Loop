@@ -176,7 +176,7 @@ void main() {
         );
         expect(find.text('New Collection'), findsOneWidget);
         expect(
-          find.text('Add audio or practice materials manually'),
+          find.text('Add audio manually'),
           findsOneWidget,
         );
         expect(find.text('Subscribe Podcast'), findsOneWidget);
@@ -283,7 +283,7 @@ void main() {
         // 应显示排序选项
         expect(find.text('Name (A-Z)'), findsOneWidget);
         expect(find.text('Name (Z-A)'), findsOneWidget);
-        expect(find.text('Oldest First'), findsOneWidget);
+        expect(find.text('oldest First'), findsOneWidget);
         expect(find.text('Newest First'), findsOneWidget);
       });
 
@@ -382,10 +382,10 @@ void main() {
           find.text('1 audio file(s) in this collection will also be deleted.'),
           findsOneWidget,
         );
-        expect(find.text('Also delete audio files'), findsOneWidget);
+        expect(find.text('Also delete audio file(s)?'), findsOneWidget);
 
         // 取消勾选 → 提示切换为保留。
-        await tester.tap(find.text('Also delete audio files'));
+        await tester.tap(find.text('Also delete audio file(s)?'));
         await tester.pumpAndSettle();
         expect(
           find.text('1 audio file(s) in this collection will be kept.'),

@@ -166,7 +166,7 @@ void main() {
     expect(find.text('Pause between sentences'), findsOneWidget);
     expect(find.text('Auto'), findsOneWidget);
 
-    await tester.tap(find.text('Start Practice'));
+    await tester.tap(find.text('Start Practicing'));
     await tester.pumpAndSettle();
 
     expect(selectedPause, const BriefingPauseChoice.smart());
@@ -262,7 +262,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('3x'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start Practice'));
+    await tester.tap(find.text('Start Practicing'));
     await tester.pumpAndSettle();
 
     expect(selectedPause, const BriefingPauseChoice.multiplier(3.0));

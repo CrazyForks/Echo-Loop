@@ -63,21 +63,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // 验证标题和提示
-      expect(find.text('Blind Listening'), findsOneWidget);
+      expect(find.text('Listen without subtitles'), findsOneWidget);
       expect(
-        find.text('Initial Learning - Blind Listening'),
+        find.text('First Round - Listen without subtitles'),
         findsOneWidget,
       );
       expect(
         find.text(
-          'Challenge yourself: listen without subtitles and grasp the main idea',
+          'Challenge yourself: listen without subtitles and get the gist',
         ),
         findsOneWidget,
       );
-      expect(find.text('Start Practice'), findsOneWidget);
+      expect(find.text('Start Practicing'), findsOneWidget);
 
       // 点击开始练习
-      await tester.tap(find.text('Start Practice'));
+      await tester.tap(find.text('Start Practicing'));
       await tester.pumpAndSettle();
 
       expect(startPracticeCalled, true);
@@ -105,7 +105,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Review 3 - Blind Listening'), findsOneWidget);
+      expect(find.text('Review 3 - Listen without subtitles'), findsOneWidget);
     });
 
     testWidgets('显示音频时长', (tester) async {

@@ -149,7 +149,7 @@ void main() {
 
     expect(find.text('0 words'), findsOneWidget);
     expect(
-      find.text('No learned words yet. Finish some listening first.'),
+      find.text('No words learned yet. Complete a listening session first.'),
       findsOneWidget,
     );
   });

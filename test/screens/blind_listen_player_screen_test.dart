@@ -182,7 +182,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final sentenceCard = find.byType(Card).first;
-      final toggleText = find.text('Peek');
+      final toggleText = find.text('Peek at subtitles');
 
       expect(toggleText, findsOneWidget);
       expect(
@@ -209,7 +209,7 @@ void main() {
       // 多段模式进度条按段落驱动，且可拖动跳段（共享骨架的进度区域）
       expect(find.byType(PracticeProgressSection), findsOneWidget);
       // 倒计时阶段不再显示多余的「回忆提示」label（仅倒计时行）。
-      expect(find.text('Try to recall what you just heard'), findsNothing);
+      expect(find.text('Recall what you just heard'), findsNothing);
       expect(find.byType(PlaybackControls), findsOneWidget);
     });
 
@@ -230,7 +230,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Listen first, then recall'), findsOneWidget);
-      expect(find.text('Try to recall what you just heard'), findsNothing);
+      expect(find.text('Recall what you just heard'), findsNothing);
     });
 
     testWidgets('WaitingForUser 态即使 isPlaying 为 true 也显示播放图标', (tester) async {
@@ -269,7 +269,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Try to recall what you just heard'), findsOneWidget);
+      expect(find.text('Recall what you just heard'), findsOneWidget);
       expect(find.text('Listen first, then recall'), findsNothing);
     });
 
@@ -289,7 +289,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Listen first, then recall'), findsOneWidget);
-      expect(find.text('Try to recall what you just heard'), findsNothing);
+      expect(find.text('Recall what you just heard'), findsNothing);
     });
 
     testWidgets('waiting for user 状态显示先听再回忆提示', (tester) async {
@@ -309,7 +309,7 @@ void main() {
 
       expect(find.text('Listen first, then recall'), findsOneWidget);
       expect(find.text('Listen closely...'), findsNothing);
-      expect(find.text('Try to recall what you just heard'), findsNothing);
+      expect(find.text('Recall what you just heard'), findsNothing);
     });
 
     testWidgets('完成后不再检查学习版通知提示', (tester) async {
