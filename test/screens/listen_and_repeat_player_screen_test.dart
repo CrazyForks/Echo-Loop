@@ -605,7 +605,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(find.text('Listen, then repeat'), findsOneWidget);
+      expect(find.text('Listen then repeat'), findsOneWidget);
       expect(find.byType(RecordingButton), findsNothing);
     });
 
@@ -748,7 +748,7 @@ void main() {
 
       expect(controller.applySettingsChangeCallCount, 1);
       expect(find.text('Tap to record'), findsNothing);
-      expect(find.text('Listen, then repeat'), findsNothing);
+      expect(find.text('Listen then repeat'), findsNothing);
       expect(find.textContaining('Round 1/5'), findsOneWidget);
     });
 

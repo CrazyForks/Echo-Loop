@@ -137,7 +137,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('This Week: 2h 0m'), findsOneWidget);
+      expect(find.text('Week: 2h 0m'), findsOneWidget);
       expect(find.byIcon(Icons.date_range_outlined), findsOneWidget);
     });
 

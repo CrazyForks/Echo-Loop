@@ -336,7 +336,7 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Practice saved Sentences'), findsOneWidget);
+      expect(find.text('Difficult Sentence Practice'), findsOneWidget);
     });
 
     testWidgets('显示进度文本', (tester) async {
@@ -359,7 +359,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Peek at subtitles'), findsOneWidget);
+      expect(find.text('Peek'), findsOneWidget);
       expect(find.text("Unclear"), findsOneWidget);
     });
 
@@ -581,7 +581,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.bookmark), findsOneWidget);
-      expect(find.text('Already saved, tap to undo'), findsOneWidget);
+      expect(find.text('Unsave'), findsOneWidget);
     });
   });
 
@@ -635,7 +635,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.bookmark), findsOneWidget);
-      expect(find.text('Already saved, tap to undo'), findsOneWidget);
+      expect(find.text('Unsave'), findsOneWidget);
     });
 
     testWidgets('跟读模式显示翻译和分析区域', (tester) async {
@@ -650,7 +650,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 工具栏按钮显示翻译和解析
-      expect(find.text('Translation'), findsOneWidget);
+      expect(find.text('Translate'), findsOneWidget);
       expect(find.text('Analysis'), findsOneWidget);
     });
 
@@ -665,7 +665,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Peek at subtitles'), findsNothing);
+      expect(find.text('Peek'), findsNothing);
       expect(find.text("Unclear"), findsNothing);
     });
 
@@ -841,7 +841,7 @@ void main() {
       // 进入跟读模式后应显示 SentenceAnnotationCard
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
       // 偷看和听不懂按钮应消失
-      expect(find.text('Peek at subtitles'), findsNothing);
+      expect(find.text('Peek'), findsNothing);
       expect(find.text("Unclear"), findsNothing);
     });
 
@@ -915,7 +915,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 完成弹窗应显示步骤完成对话框
-      expect(find.text('Saved Sentences Practice Complete'), findsOneWidget);
+      expect(find.text('Difficult Practice Complete'), findsOneWidget);
     });
 
     testWidgets('完成后不再检查学习版通知提示', (tester) async {
@@ -944,7 +944,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.check_circle_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.text('Saved Sentences Practice Complete'), findsOneWidget);
+      expect(find.text('Difficult Practice Complete'), findsOneWidget);
       verifyNever(() => notificationService.canShowPrompt());
     });
 
@@ -969,7 +969,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.check_circle_rounded));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Review Complete'));
+      await tester.tap(find.text('Complete Review'));
       await tester.pumpAndSettle();
 
       expect(find.text('Exit Practice?'), findsNothing);

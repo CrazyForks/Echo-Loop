@@ -37,7 +37,7 @@ void main() {
         find.text('Listening sentence by sentence Complete'),
         findsOneWidget,
       );
-      expect(find.text('Stage 1/4 (First Round)'), findsOneWidget);
+      expect(find.text('Step 1/4 (First Round)'), findsOneWidget);
       expect(find.text('All 10 sentences'), findsOneWidget);
 
       // 难度选择器已移除
@@ -187,7 +187,7 @@ void main() {
     });
 
     /// 末步骤（没有下一步）
-    testWidgets('末步骤 — 显示"完成首次学习"按钮', (tester) async {
+    testWidgets('末步骤 — 显示"完成复习"按钮', (tester) async {
       await tester.pumpWidget(
         createTestApp(
           Builder(
@@ -211,12 +211,12 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Stage 4/4 (First Round)'), findsOneWidget);
-      expect(find.text('First Round Complete'), findsOneWidget);
+      expect(find.text('Step 4/4 (First Round)'), findsOneWidget);
+      expect(find.text('Complete Review'), findsOneWidget);
       expect(find.text('Done'), findsNothing);
     });
 
-    testWidgets('末步骤 — 点击"完成首次学习"返回 back', (tester) async {
+    testWidgets('末步骤 — 点击"完成复习"返回 back', (tester) async {
       StepCompleteResult? result;
 
       await tester.pumpWidget(
@@ -242,7 +242,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('First Round Complete'));
+      await tester.tap(find.text('Complete Review'));
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);

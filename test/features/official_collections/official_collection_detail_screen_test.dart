@@ -95,7 +95,7 @@ void main() {
 
     expect(find.byType(RefreshIndicator), findsOneWidget);
     expect(find.byType(ListView), findsOneWidget);
-    expect(find.text('This collection has no audio yet'), findsOneWidget);
+    expect(find.text('This collection has no audios yet'), findsOneWidget);
 
     final listView = tester.widget<ListView>(find.byType(ListView));
     expect(listView.physics, isA<AlwaysScrollableScrollPhysics>());

@@ -331,7 +331,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Sense Groups'));
+    await tester.tap(find.text('Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -348,7 +348,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Sign in to use AI features'), findsNothing);
 
-    await tester.tap(find.text('Sense Groups'));
+    await tester.tap(find.text('Groups'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Sign In'));
@@ -371,7 +371,7 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
     );
 
-    await tester.tap(find.text('Translation'));
+    await tester.tap(find.text('Translate'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -745,8 +745,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    expect(find.byType(AlertDialog), findsOneWidget);
     expect(
-      find.text("This month's free AI translation quota is used up"),
+      find.text("This month's free AI sentence analysis quota is used up"),
       findsOneWidget,
     );
     expect(find.text('Got it'), findsOneWidget);

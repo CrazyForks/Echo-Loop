@@ -506,7 +506,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Added'), findsOneWidget);
-      expect(find.textContaining('Released'), findsNothing);
+      expect(find.textContaining('Published'), findsNothing);
     });
 
     testWidgets('podcast 单集显示「发布于」而非「添加于」', (tester) async {
@@ -519,7 +519,7 @@ void main() {
       await tester.pumpWidget(buildTile(item));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Released'), findsOneWidget);
+      expect(find.textContaining('Published'), findsOneWidget);
       expect(find.textContaining('Added'), findsNothing);
     });
   });
@@ -1141,7 +1141,7 @@ void main() {
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Update Subtitles'), findsOneWidget);
+      expect(find.text('Update Subtitle'), findsOneWidget);
       expect(find.text('Manage Subtitles'), findsNothing);
       expect(find.text('Edit subtitles'), findsNothing);
     });
@@ -1228,12 +1228,12 @@ void main() {
 
       await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Update Subtitles'));
+      await tester.tap(find.text('Update Subtitle'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Update subtitles?'), findsOneWidget);
+      expect(find.text('Update subtitle?'), findsOneWidget);
       expect(
-        find.textContaining('clearing all saved sentences'),
+        find.textContaining('clear all bookmarked sentences'),
         findsOneWidget,
       );
     });

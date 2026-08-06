@@ -392,7 +392,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 子阶段标签
-    expect(find.textContaining('Listen sentence by sentence'), findsAtLeast(1));
+    expect(find.textContaining('Intensive Listening'), findsAtLeast(1));
     // 按钮文案为 Continue（已开始首次学习）
     expect(find.text('Continue'), findsAtLeast(1));
   });

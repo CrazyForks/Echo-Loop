@@ -387,12 +387,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // 默认应选中 Visible Only
-      expect(find.text('Partially Visible'), findsOneWidget);
-      expect(find.text('Fully Visible'), findsOneWidget);
-      expect(find.text('Hided'), findsOneWidget);
+      expect(find.text('Visible Only'), findsOneWidget);
+      expect(find.text('Show All'), findsOneWidget);
+      expect(find.text('Hide All'), findsOneWidget);
 
       // 点击 Show All
-      await tester.tap(find.text('Fully Visible'));
+      await tester.tap(find.text('Show All'));
       await tester.pumpAndSettle();
 
       // 验证选中状态变化（通过 SegmentedButton 的 selected 属性）

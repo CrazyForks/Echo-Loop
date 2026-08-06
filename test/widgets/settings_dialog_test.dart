@@ -46,7 +46,7 @@ void main() {
 
         // 浮层不再显示「循环设置」标题
         expect(find.text('Loop Settings'), findsNothing);
-        expect(find.text('loop entire media'), findsOneWidget);
+        expect(find.text('Whole-text loop'), findsOneWidget);
         expect(find.text('Single-sentence loop'), findsOneWidget);
         expect(find.byType(Switch), findsNWidgets(2));
       });
@@ -134,7 +134,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('loop entire media'), findsOneWidget);
+        expect(find.text('Whole-text loop'), findsOneWidget);
         expect(find.text('Single-sentence loop'), findsNothing);
         expect(find.byType(Switch), findsOneWidget);
       });

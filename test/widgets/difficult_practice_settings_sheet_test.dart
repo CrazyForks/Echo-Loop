@@ -71,8 +71,8 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await openSheet(tester);
 
-      expect(find.text('Times to Listen without subtitles'), findsOneWidget);
-      expect(find.text('Times to Listen and Repeat'), findsOneWidget);
+      expect(find.text('Blind listen repeats'), findsOneWidget);
+      expect(find.text('Shadow reading repeats'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.arrow_drop_down).first);
       await tester.pumpAndSettle();
       expect(find.text('Infinite ∞'), findsWidgets);

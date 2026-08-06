@@ -1,9 +1,11 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-06（意群收藏状态与操作栏交互修复）
+> 最后更新：2026-08-06（全量 flutter test 过期断言清理）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 - [ ] 意群操作栏收藏⇄取消收藏切换时其余按钮跟着闪烁一下：已修复按钮宽度改为按各自文案独立计算（不再统一取最长文案等宽，避免收藏文案变长牵动其余按钮一起变宽），但闪烁本身未解决——曾尝试收藏按钮用固定 id + `ValueListenable<String>` 响应式文案、外层 `ref.listen` 替代 `ref.watch` 以保持 actions 列表引用稳定，验证后闪烁依旧存在（该改动已撤销），根因仍待排查。
+- [x] 全量 `flutter test` 过期断言清理，为跑 GitHub CI 做准备：全量跑出 72 项真实失败（均带 assertion error，非 CI runner 收尾 flakiness），绝大多数是 `lib/l10n/app_en.arb` 文案精简/改名后测试断言未同步（如 "Peek at subtitles"→"Peek"、"Sense Groups"→"Groups"、"Tap to mark as challenging"→"Save"），拆成 10 组分派并行修复，只改 `test/` 下断言与描述，不改 `lib/`；额外确认并修复 1 项与「按钮独立宽度」重构直接相关的真实回归——`AnchoredActionBar` 抽取后 AI 聊天选区操作条（复制/问 AI）不再等宽，按决定保留独立宽度设计，更新 `selectable_assistant_markdown_test.dart` 断言与组件过期文档注释。全量复跑 `+4894 ~13 -0` 全绿。**完成时间**: 2026-08-06
+  - 附带发现（未处理，供后续参考）：①`lib/widgets/dialogs/step_complete_dialog.dart:255` 用本地化后的字符串 `l10n.firstStudy` 做业务分支判断，换语言会失效，现有测试从未真正覆盖"首次学习"分支；②`annotation_content_view.dart` 翻译路径比解析路径多一个 `await resolveTranslationContext()` microtask，导致翻译和解析额度同时用尽时，抢到额度提示弹窗的从 translation 变成了 analysis——用户视角信息等价，暂按现状收敛测试断言，若产品要求"翻译优先提示"则需改 `lib/` 消除这个 microtask 差；③`review_difficult_practice_screen_test.dart` 内一条已 `skip: true` 的用例仍留有 "Peek at subtitles" 过期字符串，解封时需同步改成 "Hide"。
 - [x] 修复意群收藏状态与操作栏交互：意群 badge、快捷操作栏和意群入口打开的解析面板统一读写 `saved_sense_groups`，普通查词仍使用 `saved_words`；移除操作栏全屏点击拦截，支持一次点击直接切换其它意群，无关区域点击仍关闭操作栏；补充收藏/取消收藏和切换回归测试。**完成时间**: 2026-08-06
 - [x] 提取共享锚点操作栏并统一意群菜单：`SelectionToolbar` 保持既有接口、keys、定位、分页与交互行为不变，意群操作栏复用同一套等宽按钮、悬浮/按压反馈和边界避让；收藏/取消收藏后保留操作栏并随 provider 真值原地更新，其余三个动作继续关闭。**完成时间**: 2026-08-05
 - [x] 修复意群操作栏点击 AI 后未立即消失：打开 AI 词典面板前同步关闭意群快捷操作栏，避免两个浮层重叠；补充操作栏关闭与词典面板打开的 widget 回归测试。**完成时间**: 2026-08-05

@@ -320,7 +320,7 @@ void main() {
     expect(find.byType(CupertinoTextMagnifier), findsNothing);
   }, variant: iOS);
 
-  testWidgets('中文操作条按钮等宽且保持紧凑高度，分割线居中', (tester) async {
+  testWidgets('中文操作条按钮按各自文案独立计算宽度，保持紧凑高度', (tester) async {
     await pumpMarkdown(
       tester,
       SelectableAssistantMarkdown(data: 'hello world', onFollowUp: (_) {}),
@@ -336,12 +336,19 @@ void main() {
     );
     expect(copyButton, findsOneWidget);
     expect(askAiButton, findsOneWidget);
-    expect(tester.getSize(copyButton).width, tester.getSize(askAiButton).width);
-    final buttonContainer = tester.widget<Container>(
+    // 按钮宽度按各自文案独立计算（不再统一取最长文案等宽），故此处不再断言等宽。
+    final copyContainer = tester.widget<Container>(
       find.descendant(of: copyButton, matching: find.byType(Container)).first,
     );
+    final askAiContainer = tester.widget<Container>(
+      find.descendant(of: askAiButton, matching: find.byType(Container)).first,
+    );
     expect(
-      buttonContainer.padding,
+      copyContainer.padding,
+      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    );
+    expect(
+      askAiContainer.padding,
       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }, variant: iOS);
