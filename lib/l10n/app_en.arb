@@ -1494,9 +1494,10 @@
   "writeFeedback": "Write Feedback",
   "rateUs": "Rate Us",
   "joinCommunity": "Join Community",
-  "joinCommunityInviteSubtitle": "Find study buddies, share resources, request features",
+  "aboutCommunity": "Echo Loop Community",
+  "joinCommunityInviteSubtitle": "Learn, ask, and share",
   "networkError": "Unable to connect. Please check your network and try again.",
-  "viewSourceCode": "View Source Code",
+  "viewSourceCode": "Open Source Project",
 
   "updateAvailable": "New Version v{version}",
   "@updateAvailable": {

@@ -15,6 +15,7 @@ import '../../../providers/audio_library_provider.dart';
 import '../../../providers/learning_progress_provider.dart';
 import '../../../providers/listening_practice/listening_practice_provider.dart';
 import '../../../services/app_logger.dart';
+import '../../../services/reliable_http_downloader.dart';
 import '../../../utils/app_data_dir.dart';
 import '../../../utils/transcript_stats.dart';
 import '../data/official_collection_api.dart';
@@ -237,33 +238,36 @@ class OfficialDownload extends _$OfficialDownload {
     String remoteAudioId,
   ) async {
     final api = ref.read(officialCollectionApiProvider);
-    final dio = Dio();
+    final downloader = DioReliableHttpDownloader(dio: Dio());
     final docDir = await getAppDataDirectory();
     final tmpDir = Directory(p.join(docDir.path, 'tmp', 'official_audio'));
     await tmpDir.create(recursive: true);
-    final tmpAudioFile = File(p.join(tmpDir.path, '${audioItem.id}.m4a.part'));
+    final tmpAudioFile = File(p.join(tmpDir.path, '${audioItem.id}.m4a'));
 
     try {
       // 1) 拉 /content（SRT + wordTimestamps + audioUrl）
       final content = await api.getAudioContent(remoteAudioId);
       if (sid != _sessionId) return false; // 过期
 
-      // 2) 下载音频到 tmp
-      await dio.download(
-        content.audioUrl,
-        tmpAudioFile.path,
+      // 2) 下载音频到 tmp（allowResume: false——失败/取消不留 `.part` 残留，
+      // 与下方 finally 清理 tmp 文件的既有语义一致；取消判定不依赖异常类型，
+      // 由 [cancel] 提前递增 sessionId、下面的 `sid != _sessionId` 检查负责丢弃）。
+      await downloader.download(
+        uri: Uri.parse(content.audioUrl),
+        savePath: tmpAudioFile.path,
+        allowResume: false,
         cancelToken: _cancelToken,
-        onReceiveProgress: (received, total) {
+        onProgress: (received, total) {
           if (sid != _sessionId) return;
           if (state is! DownloadInProgress) return;
           final prev = state as DownloadInProgress;
-          final ratio = total > 0 ? received / total : -1.0;
+          final ratio = (total != null && total > 0) ? received / total : -1.0;
           state = DownloadInProgress(
             audioItemId: prev.audioItemId,
             displayName: prev.displayName,
             progress: ratio,
             receivedBytes: received,
-            totalBytes: total <= 0 ? null : total,
+            totalBytes: total,
           );
         },
       );

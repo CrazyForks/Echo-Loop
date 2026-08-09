@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/providers/tts/kokoro_model_provider.dart';
+import 'package:echo_loop/providers/tts/piper_model_provider.dart';
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
 import 'package:echo_loop/services/download/download_failure.dart';
 import 'package:echo_loop/screens/tts_settings_screen.dart';
@@ -42,6 +43,17 @@ class _TestKokoroNotifier extends KokoroModelNotifier {
   Future<void> deleteModel(KokoroModelVariant v) async => deleted.add(v);
 }
 
+class _TestPiperNotifier extends PiperModelNotifier {
+  _TestPiperNotifier(this._initial);
+  final PiperModelsState _initial;
+
+  @override
+  PiperModelsState build() => _initial;
+
+  @override
+  Future<void> ensureDownloaded(String voiceId) async {}
+}
+
 /// 构造仅含指定变体状态的 KokoroModelsState。
 KokoroModelsState _models({KokoroModelState? fp32, KokoroModelState? int8}) {
   return KokoroModelsState({
@@ -54,6 +66,7 @@ Widget _wrap(
   TtsSettings settings, {
   KokoroModelsState? models,
   _TestKokoroNotifier? notifier,
+  PiperModelsState? piperModels,
 }) {
   return ProviderScope(
     overrides: [
@@ -62,6 +75,9 @@ Widget _wrap(
         () =>
             notifier ??
             _TestKokoroNotifier(models ?? const KokoroModelsState({})),
+      ),
+      piperModelProvider.overrideWith(
+        () => _TestPiperNotifier(piperModels ?? const PiperModelsState({})),
       ),
     ],
     child: const MaterialApp(
@@ -153,7 +169,7 @@ void main() {
     expect(notifier.ensured, contains(KokoroModelVariant.int8));
   });
 
-  testWidgets('下载中 → 进度条 + 取消按钮，点取消触发 cancelDownload', (tester) async {
+  testWidgets('当前模型下载中 → 进度条但不显示取消按钮', (tester) async {
     final notifier = _TestKokoroNotifier(
       _models(
         fp32: const KokoroModelState(
@@ -171,11 +187,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Cancel'), findsNothing);
+  });
+
+  testWidgets('非当前模型下载中 → 显示取消按钮，点取消触发 cancelDownload', (tester) async {
+    final notifier = _TestKokoroNotifier(
+      _models(
+        int8: const KokoroModelState(
+          downloadStatus: AsrModelDownloadStatus.downloading,
+          downloadProgress: 0.42,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      _wrap(
+        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        notifier: notifier,
+      ),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(notifier.cancelled, [KokoroModelVariant.fp32]);
+    expect(notifier.cancelled, [KokoroModelVariant.int8]);
   });
 
   testWidgets('失败 → 错误 + 重试按钮，点重试触发 retryDownload', (tester) async {
@@ -202,6 +236,25 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(notifier.retried, [KokoroModelVariant.fp32]);
+  });
+
+  testWidgets('当前 Piper 音色下载中 → 保留进度但不显示取消或下载按钮', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const TtsSettings(engine: TtsEngineKind.piper),
+        piperModels: const PiperModelsState({
+          'en_US-amy-medium': PiperModelState(
+            downloadStatus: AsrModelDownloadStatus.downloading,
+            downloadProgress: 0.42,
+          ),
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byTooltip('Cancel'), findsNothing);
+    expect(find.byIcon(Icons.download_rounded), findsNWidgets(8));
   });
 
   testWidgets('存储空间不足 → 显清晰的空间不足文案（非原始异常）', (tester) async {

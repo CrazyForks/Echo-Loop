@@ -12,8 +12,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/api_config.dart';
-import '../services/backend_dio.dart';
 import 'analytics_channel.dart';
 import 'analytics_service.dart';
 import 'channels/firebase_channel.dart';
@@ -21,7 +19,6 @@ import 'channels/log_only_channel.dart';
 import 'channels/posthog_channel.dart';
 import 'channels/umeng_channel.dart';
 import 'consent_manager.dart';
-import 'geo_interceptor.dart';
 
 /// 分析服务单例（在 main() 中通过 [initAnalyticsService] 初始化）
 late AnalyticsService _analyticsService;
@@ -64,35 +61,6 @@ Future<AnalyticsService> initAnalyticsService(
   }
 
   return AnalyticsService(channel: channel, consent: consent);
-}
-
-/// 获取地区：缓存优先 → geo API → locale fallback
-///
-/// 当前仅供 GeoInterceptor 更新缓存使用，不再用于通道选择。
-/// API 成功的结果会持久化；locale fallback 不持久化。
-Future<bool> resolveIsMainlandChina(SharedPreferences prefs) async {
-  // 1. 有缓存直接用
-  final cached = prefs.getString(geoCountryKey);
-  if (cached != null) return cached == 'CN';
-
-  // 2. 无缓存：调 geo API
-  try {
-    final response = await createBackendDio(
-      connectTimeout: const Duration(seconds: 2),
-      receiveTimeout: const Duration(seconds: 2),
-    ).get('$apiBaseUrl/api/v1/user/geo');
-    final data = response.data;
-    final country = data is Map ? data['country'] as String? : null;
-    if (country != null && country.isNotEmpty) {
-      await prefs.setString(geoCountryKey, country);
-      return country == 'CN';
-    }
-  } catch (_) {
-    // API 不可用，继续 fallback
-  }
-
-  // 3. API 失败：locale fallback（不持久化）
-  return Platform.localeName.contains('CN');
 }
 
 /// 根据配置选择分析通道

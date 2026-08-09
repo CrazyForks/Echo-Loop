@@ -70,6 +70,7 @@ const double _settingsLeadingIconExtent = 32;
 const double _settingsSvgIconExtent = 26;
 const double _settingsBrandIconExtent = 20;
 const double _settingsMaterialIconExtent = 26;
+const _faqUrl = 'https://my.feishu.cn/docx/OPZRdXkRvoAW5Bx78LocBUdqn80';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -578,6 +579,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       title: l10n.about,
       children: [
         ListTile(
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/group.svg'),
+          title: Text(l10n.aboutCommunity),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            final isZh = Localizations.localeOf(context).languageCode == 'zh';
+            final path = isZh ? '/zh-CN/social' : '/en/social';
+            launchUrl(Uri.parse('$apiBaseUrl$path'));
+          },
+        ),
+        ListTile(
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/feedback.svg'),
+          title: Text(l10n.writeFeedback),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => launchUrl(Uri.parse('mailto:support@echo-loop.top')),
+        ),
+        if (defaultTargetPlatform == TargetPlatform.iOS)
+          ListTile(
+            leading: _settingsMaterialIcon(Icons.star_rounded),
+            title: Text(l10n.rateUs),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => launchUrl(
+              appStoreReviewUri,
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ListTile(
+          leading: _settingsSvgIcon('assets/icon/help.svg'),
+          title: const Text('FAQ'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => launchUrl(
+            Uri.parse(_faqUrl),
+            mode: LaunchMode.externalApplication,
+          ),
+        ),
+        ListTile(
           leading: _settingsThemedSvgIcon(context, 'assets/icon/refresh.svg'),
           title: Text(l10n.checkForUpdate),
           trailing: isChecking
@@ -603,32 +639,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               launchUrl(Uri.parse('https://www.echo-loop.top/privacy')),
         ),
         ListTile(
-          leading: _settingsThemedSvgIcon(context, 'assets/icon/feedback.svg'),
-          title: Text(l10n.writeFeedback),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => launchUrl(Uri.parse('mailto:support@echo-loop.top')),
-        ),
-        if (defaultTargetPlatform == TargetPlatform.iOS)
-          ListTile(
-            leading: _settingsMaterialIcon(Icons.star_rounded),
-            title: Text(l10n.rateUs),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => launchUrl(
-              appStoreReviewUri,
-              mode: LaunchMode.externalApplication,
-            ),
-          ),
-        ListTile(
-          leading: _settingsThemedSvgIcon(context, 'assets/icon/group.svg'),
-          title: Text(l10n.joinCommunity),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            final isZh = Localizations.localeOf(context).languageCode == 'zh';
-            final path = isZh ? '/zh-CN/social' : '/en/social';
-            launchUrl(Uri.parse('$apiBaseUrl$path'));
-          },
-        ),
-        ListTile(
           leading: SizedBox(
             width: _settingsLeadingIconExtent,
             height: _settingsLeadingIconExtent,
@@ -640,10 +650,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           title: Text(l10n.viewSourceCode),
-          subtitle: const Text(
-            'github.com/echo-loop/Echo-Loop',
-            style: TextStyle(fontSize: 12),
-          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () =>
               launchUrl(Uri.parse('https://github.com/echo-loop/Echo-Loop/')),

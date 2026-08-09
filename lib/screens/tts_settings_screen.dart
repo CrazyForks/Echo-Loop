@@ -421,10 +421,6 @@ class _ModelRow extends ConsumerWidget {
           ),
         ),
       );
-    } else {
-      children.add(
-        Text(l10n.ttsModelNotDownloaded, style: theme.textTheme.bodySmall),
-      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,7 +434,7 @@ class _ModelRow extends ConsumerWidget {
     WidgetRef ref,
     KokoroModelNotifier notifier,
   ) {
-    if (state.isDownloading) {
+    if (state.isDownloading && !isActive) {
       return TextButton(
         onPressed: () => notifier.cancelDownload(variant),
         child: Text(l10n.ttsCancelDownload),
@@ -1010,6 +1006,25 @@ class _PiperVoiceRow extends ConsumerWidget {
     }
     final notifier = ref.read(piperModelProvider.notifier);
     if (state.isDownloading) {
+      if (isActive) {
+        // 当前音色不可取消，但仍保留 Piper 专属的圆形进度反馈。
+        return SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: state.downloadProgress > 0
+                    ? state.downloadProgress
+                    : null,
+              ),
+            ),
+          ),
+        );
+      }
       // 进度环 + 取消，二者并排仍是单行高度。
       return Row(
         mainAxisSize: MainAxisSize.min,

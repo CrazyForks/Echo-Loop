@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../app_logger.dart';
+import '../reliable_http_downloader.dart';
 import 'offline_asr_engine.dart';
 
 // ---------------------------------------------------------------------------
@@ -181,7 +182,10 @@ class AsrModelDownloadProgress {
 ///
 /// 职责：模型下载、本地缓存管理、完整性校验、设备推荐。
 class AsrModelManager {
-  final Dio _dio;
+  /// `ReliableHttpDownloader` 接口本身不提供释放能力，[dispose] 需要靠持有
+  /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
+  late final Dio _dio;
+  late final ReliableHttpDownloader _downloader;
 
   /// 可选的下载基地址覆盖，仅用于测试。
   final String? baseUrlOverride;
@@ -193,9 +197,11 @@ class AsrModelManager {
     Dio? dio,
     this.baseUrlOverride,
     Map<String, AsrModelManifest>? modelRegistryOverride,
-  }) : _dio = dio ?? Dio(),
-       modelRegistryOverride =
-           modelRegistryOverride ?? _defaultModelFileRegistry;
+  }) : modelRegistryOverride =
+           modelRegistryOverride ?? _defaultModelFileRegistry {
+    _dio = dio ?? Dio();
+    _downloader = DioReliableHttpDownloader(dio: _dio);
+  }
 
   /// 模型存储根目录。
   Future<String> get _modelsRoot async {
@@ -287,30 +293,27 @@ class AsrModelManager {
       final localFile = File(p.join(dir, file.path));
       if (localFile.existsSync()) continue;
 
-      final tempFile = File('${localFile.path}.tmp');
       try {
         final downloadUrl = '$baseUrl/model/$modelId/${file.path}';
         AppLogger.log('ASRModel', '│ downloading file=${file.path}');
-        await _dio.download(
-          downloadUrl,
-          tempFile.path,
+        await _downloader.download(
+          uri: Uri.parse(downloadUrl),
+          savePath: localFile.path,
+          identityKey: file.sha256,
           cancelToken: cancelToken,
-          onReceiveProgress: (received, total) {
-            final fileFraction = total > 0 ? received / total : 0.0;
+          onProgress: (received, total) {
+            final fileFraction = (total != null && total > 0)
+                ? received / total
+                : 0.0;
             reportProgress(fileFraction);
           },
         );
-        await tempFile.rename(localFile.path);
         completedFileCount++;
         AppLogger.log(
           'ASRModel',
           '│ file done=${file.path} size=${localFile.lengthSync()}',
         );
       } catch (e) {
-        // 清理临时文件。
-        if (tempFile.existsSync()) {
-          await tempFile.delete();
-        }
         AppLogger.log(
           'ASRModel',
           '└ downloadModel failed file=${file.path} error=$e',

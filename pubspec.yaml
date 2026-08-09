@@ -180,6 +180,7 @@ flutter:
     - assets/icon/diskette.svg
     - assets/icon/documents.svg
     - assets/icon/feedback.svg
+    - assets/icon/help.svg
     - assets/icon/group.svg
     - assets/icon/locale-1.svg
     - assets/icon/locale.svg

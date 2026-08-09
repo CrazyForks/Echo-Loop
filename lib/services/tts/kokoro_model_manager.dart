@@ -2,7 +2,8 @@
 ///
 /// 与 Whisper 不同，Kokoro 含 `espeak-ng-data` 目录树，故托管为单个 `tar.gz`
 /// 归档：下载归档 → 校验整包 SHA-256 → 流式解包到模型目录 → 校验关键文件存在。
-/// 复用 dio 下载 + 进度 + [CancelToken] + `.part` 改名套路（同 `AsrModelManager`）。
+/// 下载基于 `ReliableHttpDownloader`（同 `PiperModelManager`），`allowResume: false`
+/// 保证归档下载失败/取消时不留任何残留。
 library;
 
 import 'dart:io';
@@ -16,6 +17,7 @@ import 'package:path_provider/path_provider.dart';
 import '../app_logger.dart';
 import '../asr/asr_model_manager.dart'
     show AsrModelDownloadStatus, AsrModelDownloadProgress;
+import '../reliable_http_downloader.dart';
 import 'tts_engine.dart' show KokoroModelVariant;
 
 // 复用 ASR 的下载状态/进度类型（已是通用命名，避免重复定义）。
@@ -120,7 +122,10 @@ class KokoroModelPaths {
 /// 每个变体一个实例（见 `kokoroModelManagerProvider` 的 family）；方法均针对
 /// 本实例绑定的 [spec] 操作，互不干扰，故各模型可独立下载/删除/校验。
 class KokoroModelManager {
-  final Dio _dio;
+  /// `ReliableHttpDownloader` 接口本身不提供释放能力，[dispose] 需要靠持有
+  /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
+  late final Dio _dio;
+  late final ReliableHttpDownloader _downloader;
 
   /// 本管理器绑定的模型规格（决定目录名/归档/SHA/模型文件名）。
   final KokoroModelSpec spec;
@@ -136,8 +141,10 @@ class KokoroModelManager {
     KokoroModelSpec? spec,
     this.baseUrlOverride,
     this.modelsRootResolver,
-  }) : _dio = dio ?? Dio(),
-       spec = spec ?? kokoroSpecOf(kokoroDefaultVariant);
+  }) : spec = spec ?? kokoroSpecOf(kokoroDefaultVariant) {
+    _dio = dio ?? Dio();
+    _downloader = DioReliableHttpDownloader(dio: _dio);
+  }
 
   /// 模型存储根目录。
   Future<String> get _modelsRoot async {
@@ -202,12 +209,16 @@ class KokoroModelManager {
 
     try {
       // 1. 下载归档（进度映射到 0..0.95，留 0.05 给校验+解包）。
-      await _dio.download(
-        url,
-        archiveFile.path,
+      // allowResume: false——归档下载失败/取消必须不留任何残留（.part 也不留，
+      // 与下方 finally 清理临时归档的既有设计一致，见类文档注释）。
+      await _downloader.download(
+        uri: Uri.parse(url),
+        savePath: archiveFile.path,
+        identityKey: spec.sha256,
+        allowResume: false,
         cancelToken: cancelToken,
-        onReceiveProgress: (received, total) {
-          final frac = total > 0 ? received / total : 0.0;
+        onProgress: (received, total) {
+          final frac = (total != null && total > 0) ? received / total : 0.0;
           onProgress?.call(
             AsrModelDownloadProgress(
               status: AsrModelDownloadStatus.downloading,

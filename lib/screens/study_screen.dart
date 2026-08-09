@@ -763,7 +763,7 @@ String _timeAgo(AppLocalizations l10n, DateTime now, DateTime completedAt) {
 ///
 /// 学习 Tab 顶部置顶，保持单行紧凑样式：
 /// 图标 + 标题 + 副标题 + chevron，颜色对齐发现入口。
-/// 点击行为与设置页「加入学习社群」一致：按 locale 打开对应社群页面。
+/// 点击行为与设置页「Echo Loop 社区」一致：按 locale 打开对应社群页面。
 class _CommunityInviteCard extends ConsumerWidget {
   const _CommunityInviteCard();
 
@@ -810,7 +810,7 @@ class _CommunityInviteCard extends ConsumerWidget {
                   Icon(Icons.group_rounded, size: 20, color: palette.icon),
                   const SizedBox(width: 10),
                   Text(
-                    l10n.joinCommunity,
+                    l10n.aboutCommunity,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(

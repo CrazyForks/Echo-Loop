@@ -710,15 +710,18 @@ class _RetellPlayerScreenState extends ConsumerState<RetellPlayerScreen>
             'badgePrompt=${_ratingBadgeController.attachedPromptId ?? "none"}, '
             'badgePath=${_ratingBadgeController.attachedFilePath ?? "none"}',
       );
-      if (_manualStoppedThisParagraph) {
-        AppLogger.log('RetellScreen', '评估完成后保持用户接管状态');
-        player.enterWaitingForUser();
-        return;
-      }
       if (state.settings.autoPlayRecordingAfterCompletion &&
           attempt?.hasRecording == true) {
         await _playAttemptRecordingAutomatically(token);
         if (!_isAutoPlaybackCurrent(token)) return;
+      }
+
+      // 用户之前停止过倒计时/播放并接管本段时，本次新录音仍应自动回放；
+      // 但回放完成后继续保持 waiting，不能重新启动段间倒计时。
+      if (_manualStoppedThisParagraph) {
+        AppLogger.log('RetellScreen', '评估完成后保持用户接管状态');
+        player.enterWaitingForUser();
+        return;
       }
 
       final latestState = ref.read(retellPlayerProvider);

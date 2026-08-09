@@ -1,9 +1,16 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/providers/offline_asr_settings_provider.dart';
+import 'package:echo_loop/providers/asr_engine_provider.dart';
 import 'package:echo_loop/services/asr/asr_model_manager.dart';
 import 'package:echo_loop/services/asr/offline_asr_engine.dart';
+import 'package:echo_loop/services/download/download_failure.dart';
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 
 class _FakeAsrModelManager extends AsrModelManager {
   _FakeAsrModelManager({
@@ -13,12 +20,44 @@ class _FakeAsrModelManager extends AsrModelManager {
 
   final bool downloaded;
   final int localSizeBytes;
+  int deleteModelCallCount = 0;
 
   @override
   Future<bool> isModelDownloaded(String modelId) async => downloaded;
 
   @override
   Future<int> modelLocalSize(String modelId) async => localSizeBytes;
+
+  @override
+  Future<void> deleteModel(String modelId) async {
+    deleteModelCallCount += 1;
+  }
+}
+
+class _TestOfflineAsrSettingsNotifier extends OfflineAsrSettingsNotifier {
+  _TestOfflineAsrSettingsNotifier(this._initialState);
+
+  final OfflineAsrSettingsState _initialState;
+
+  @override
+  OfflineAsrSettingsState build() => _initialState;
+}
+
+class _DelayedAsrModelManager extends _FakeAsrModelManager {
+  _DelayedAsrModelManager() : super(downloaded: false, localSizeBytes: 99);
+
+  final downloadCompleter = Completer<String>();
+  CancelToken? downloadCancelToken;
+
+  @override
+  Future<String> downloadModel(
+    String modelId, {
+    void Function(AsrModelDownloadProgress)? onProgress,
+    CancelToken? cancelToken,
+  }) {
+    downloadCancelToken = cancelToken;
+    return downloadCompleter.future;
+  }
 }
 
 void main() {
@@ -93,5 +132,92 @@ void main() {
       prefs.getBool('offline_asr_downloaded_whisper-base-en-int8'),
       isFalse,
     );
+  });
+
+  test('主动取消下载会清理残留并回到未下载态，不显示失败', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final manager = _FakeAsrModelManager(downloaded: false, localSizeBytes: 99);
+    final modelId = recommendedModel.id;
+    final initialState = OfflineAsrSettingsState(
+      backend: AsrBackend.offline,
+      recommendedModel: recommendedModel,
+      modelStates: {
+        modelId: const AsrModelState(
+          downloadStatus: AsrModelDownloadStatus.downloading,
+          downloadProgress: 0.4,
+          localSizeBytes: 99,
+          downloadError: DownloadFailureKind.network,
+        ),
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        asrModelManagerProvider.overrideWithValue(manager),
+        offlineAsrSettingsProvider.overrideWith(
+          () => _TestOfflineAsrSettingsNotifier(initialState),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(offlineAsrSettingsProvider.notifier).cancelDownload();
+
+    final state = container.read(offlineAsrSettingsProvider);
+    expect(manager.deleteModelCallCount, 1);
+    expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+    expect(state.downloadProgress, 0);
+    expect(state.localSizeBytes, 0);
+    expect(state.downloadError, isNull);
+    expect(prefs.getBool('offline_asr_downloaded_$modelId'), isFalse);
+  });
+
+  test('取消后立即重置 UI，底层写入报存储异常仍不显示重试', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final manager = _DelayedAsrModelManager();
+    final initialState = OfflineAsrSettingsState(
+      backend: AsrBackend.offline,
+      recommendedModel: recommendedModel,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        asrModelManagerProvider.overrideWithValue(manager),
+        offlineAsrSettingsProvider.overrideWith(
+          () => _TestOfflineAsrSettingsNotifier(initialState),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final download = container
+        .read(offlineAsrSettingsProvider.notifier)
+        .retryDownload();
+    await Future<void>.delayed(Duration.zero);
+    expect(manager.downloadCancelToken, isNotNull);
+
+    final cancel = container
+        .read(offlineAsrSettingsProvider.notifier)
+        .cancelDownload();
+    await Future<void>.delayed(Duration.zero);
+
+    final immediateState = container.read(offlineAsrSettingsProvider);
+    expect(immediateState.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+    expect(immediateState.downloadProgress, 0);
+    expect(immediateState.localSizeBytes, 0);
+    expect(immediateState.downloadError, isNull);
+
+    manager.downloadCompleter.completeError(
+      const ReliableDownloadException(
+        'directory removed during cancellation',
+        kind: ReliableDownloadFailure.storage,
+      ),
+    );
+    await cancel;
+    await download;
+
+    final state = container.read(offlineAsrSettingsProvider);
+    expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+    expect(state.downloadError, isNull);
+    expect(state.localSizeBytes, 0);
   });
 }

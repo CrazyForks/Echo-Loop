@@ -250,7 +250,7 @@ class _AsrSettingsScreenState extends ConsumerState<AsrSettingsScreen> {
     AsrModelState state,
     bool isSelected,
   ) {
-    if (state.isDownloading) {
+    if (state.isDownloading && !isSelected) {
       return TextButton(
         onPressed: () => ref
             .read(offlineAsrSettingsProvider.notifier)

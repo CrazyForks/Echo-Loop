@@ -182,13 +182,9 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     } on DioException catch (error) {
       throw _mapDioException(error, fallbackMessage: 'Baidu download failed.');
     } on ReliableDownloadException catch (error) {
-      throw BaiduNetdiskFileException(
-        kind: BaiduNetdiskFileErrorKind.network,
-        message: _displayMessageForReliableDownloadException(
-          error,
-          fallbackMessage: 'Baidu download failed.',
-        ),
-        cause: error,
+      throw _mapReliableDownloadException(
+        error,
+        fallbackMessage: 'Baidu download failed.',
       );
     }
   }
@@ -252,6 +248,40 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     return BaiduNetdiskFileException(
       kind: kind,
       message: _displayMessageForDioException(
+        error,
+        fallbackMessage: fallbackMessage,
+      ),
+      cause: error,
+    );
+  }
+
+  /// 把 [ReliableHttpDownloader] 的结构化异常映射回既有错误分类。
+  ///
+  /// httpStatus 按 statusCode 复用与 [_mapDioException] 相同的
+  /// unauthorized/notFound/rateLimited 判定；cancelled 映射为 canceled；
+  /// 其余 kind（network/timeout/redirect/storage/integrity/conflict/unknown）
+  /// 统一归为 network，与迁移前「非 DioException 一律 network」的行为一致。
+  BaiduNetdiskFileException _mapReliableDownloadException(
+    ReliableDownloadException error, {
+    required String fallbackMessage,
+  }) {
+    if (error.kind == ReliableDownloadFailure.cancelled) {
+      return const BaiduNetdiskFileException(
+        kind: BaiduNetdiskFileErrorKind.canceled,
+        message: 'Baidu request canceled.',
+      );
+    }
+    final kind = switch (error.kind == ReliableDownloadFailure.httpStatus
+        ? error.statusCode
+        : null) {
+      401 || 403 => BaiduNetdiskFileErrorKind.unauthorized,
+      404 => BaiduNetdiskFileErrorKind.notFound,
+      429 => BaiduNetdiskFileErrorKind.rateLimited,
+      _ => BaiduNetdiskFileErrorKind.network,
+    };
+    return BaiduNetdiskFileException(
+      kind: kind,
+      message: _displayMessageForReliableDownloadException(
         error,
         fallbackMessage: fallbackMessage,
       ),

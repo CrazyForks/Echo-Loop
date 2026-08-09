@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:echo_loop/services/asr/asr_model_manager.dart';
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 
 /// Mock HTTP client adapter for Dio that returns predefined file payloads
 class MockHttpClientAdapter implements HttpClientAdapter {
@@ -155,6 +156,42 @@ void main() {
     expect(await encoder.length(), 100);
     final result = await manager.validateModel('test-model');
     expect(result.isValid, isTrue);
+  });
+
+  test('downloadModel 下载失败时抛出结构化 ReliableDownloadException', () async {
+    final rootDir = await Directory.systemTemp.createTemp('asr-download-fail');
+    addTearDown(() async {
+      if (await rootDir.exists()) {
+        await rootDir.delete(recursive: true);
+      }
+    });
+
+    // adapter 未登记 encoder.onnx 的 payload，MockHttpClientAdapter 回 404，
+    // 验证迁移到 ReliableHttpDownloader 后错误仍能正确抛出（不被吞掉），
+    // 且已归类为结构化异常（迁移前是裸 DioException）。
+    final dio = Dio();
+    dio.httpClientAdapter = MockHttpClientAdapter(
+      filePayloads: <String, List<int>>{
+        'decoder.onnx': List<int>.filled(100, 2),
+        'tokens.txt': List<int>.filled(50, 3),
+      },
+    );
+
+    final manager = _TestAsrModelManager(
+      rootDir,
+      dio: dio,
+      baseUrlOverride: 'http://mock.local',
+      modelRegistryOverride: manifest,
+    );
+
+    await expectLater(
+      manager.downloadModel('test-model'),
+      throwsA(
+        isA<ReliableDownloadException>()
+            .having((e) => e.kind, 'kind', ReliableDownloadFailure.httpStatus)
+            .having((e) => e.statusCode, 'statusCode', 404),
+      ),
+    );
   });
 
   test('recommendModel 默认推荐 Balanced 档位', () {

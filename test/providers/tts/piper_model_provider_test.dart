@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/providers/tts/piper_model_provider.dart';
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:echo_loop/services/tts/piper_model_manager.dart';
 import 'package:echo_loop/services/tts/piper_voices.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
@@ -30,6 +33,7 @@ class _FakeManager extends PiperModelManager {
   int sizeAfterDownload;
   bool _downloaded;
   int downloadCount = 0;
+  int deleteCount = 0;
 
   @override
   Future<String> downloadModel({
@@ -44,9 +48,12 @@ class _FakeManager extends PiperModelManager {
       ),
     );
     if (shouldCancel) {
-      throw DioException(
-        requestOptions: RequestOptions(path: '/'),
-        type: DioExceptionType.cancel,
+      // 迁移到 ReliableHttpDownloader 后，PiperModelManager 取消时抛的是
+      // 结构化 ReliableDownloadException（不再是裸 DioException），fake 需要
+      // 如实模拟，否则测不出 provider 对新异常类型的取消判定分支。
+      throw const ReliableDownloadException(
+        'cancelled',
+        kind: ReliableDownloadFailure.cancelled,
       );
     }
     if (shouldFail) throw StateError('boom');
@@ -63,7 +70,27 @@ class _FakeManager extends PiperModelManager {
 
   @override
   Future<void> deleteModel() async {
+    deleteCount++;
     _downloaded = false;
+  }
+}
+
+class _BlockingCancelManager extends _FakeManager {
+  final release = Completer<void>();
+
+  @override
+  Future<String> downloadModel({
+    void Function(AsrModelDownloadProgress)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    downloadCount++;
+    if (cancelToken == null) throw StateError('cancel token is required');
+    await cancelToken.whenCancel;
+    await release.future;
+    throw const ReliableDownloadException(
+      'cancelled',
+      kind: ReliableDownloadFailure.cancelled,
+    );
   }
 }
 
@@ -149,6 +176,33 @@ void main() {
     final s = c.read(piperModelProvider).of(_us);
     expect(s.downloadStatus, AsrModelDownloadStatus.notDownloaded);
     expect(s.downloadError, isNull);
+  });
+
+  test('用户取消 → 立即重置 UI，后台清理文件与标记', () async {
+    final manager = _BlockingCancelManager();
+    final c = _container((_) => manager);
+    addTearDown(c.dispose);
+    final downloading = c
+        .read(piperModelProvider.notifier)
+        .ensureDownloaded(_us);
+    await Future<void>.delayed(Duration.zero);
+
+    final cancelling = c.read(piperModelProvider.notifier).cancelDownload(_us);
+    await Future<void>.delayed(Duration.zero);
+
+    final immediateState = c.read(piperModelProvider).of(_us);
+    expect(immediateState.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+    expect(immediateState.localSizeBytes, 0);
+    expect(immediateState.downloadError, isNull);
+    expect(manager.deleteCount, 0);
+
+    manager.release.complete();
+    await cancelling;
+    await downloading;
+
+    expect(manager.deleteCount, 1);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('piper_model_downloaded_$_us'), isFalse);
   });
 
   test('音色互相独立：下载美音不影响英音', () async {

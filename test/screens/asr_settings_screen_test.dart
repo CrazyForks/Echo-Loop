@@ -113,6 +113,38 @@ void main() {
     expect(find.textContaining('153 MB'), findsAny);
   });
 
+  testWidgets('取消下载仅显示在未选中的下载模型上', (tester) async {
+    const selectedId = 'whisper-base-en-int8';
+    const otherId = 'whisper-tiny-en-int8';
+    final notifier = _StaticOfflineAsrSettingsNotifier(
+      OfflineAsrSettingsState(
+        enabled: true,
+        backend: AsrBackend.offline,
+        selectedModel: const AsrModelInfo(
+          id: selectedId,
+          displayName: 'Whisper Base.en',
+          type: AsrModelType.whisper,
+        ),
+        recommendedModel: recommendedModel,
+        modelStates: const {
+          selectedId: AsrModelState(
+            downloadStatus: AsrModelDownloadStatus.downloading,
+            downloadProgress: 0.4,
+          ),
+          otherId: AsrModelState(
+            downloadStatus: AsrModelDownloadStatus.downloading,
+            downloadProgress: 0.2,
+          ),
+        },
+      ),
+    );
+
+    await tester.pumpWidget(_buildTestWidget(notifier));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel'), findsOneWidget);
+  });
+
   testWidgets('Echo Loop AI 模型列表单独成组并显示预估大小', (tester) async {
     final notifier = _StaticOfflineAsrSettingsNotifier(
       OfflineAsrSettingsState(

@@ -2755,15 +2755,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get joinCommunity => 'Join Community';
 
   @override
-  String get joinCommunityInviteSubtitle =>
-      'Find study buddies, share resources, request features';
+  String get aboutCommunity => 'Echo Loop Community';
+
+  @override
+  String get joinCommunityInviteSubtitle => 'Learn, ask, and share';
 
   @override
   String get networkError =>
       'Unable to connect. Please check your network and try again.';
 
   @override
-  String get viewSourceCode => 'View Source Code';
+  String get viewSourceCode => 'Open Source Project';
 
   @override
   String updateAvailable(String version) {

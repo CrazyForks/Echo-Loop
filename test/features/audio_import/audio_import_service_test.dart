@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:echo_loop/features/audio_import/audio_import_models.dart';
@@ -12,6 +13,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockDio extends Mock implements Dio {}
+
+/// 构造 `ReliableHttpDownloader` 内部 `dio.get<ResponseBody>` 期待的流式响应
+/// （`ResponseType.stream` 下 `Response.data` 就是原始 `ResponseBody`）。
+Response<ResponseBody> _streamResponse(
+  List<int> bytes, {
+  int statusCode = 200,
+}) {
+  return Response<ResponseBody>(
+    requestOptions: RequestOptions(path: ''),
+    statusCode: statusCode,
+    headers: Headers.fromMap({
+      'content-length': ['${bytes.length}'],
+    }),
+    data: ResponseBody(
+      Stream.fromIterable([Uint8List.fromList(bytes)]),
+      statusCode,
+      headers: {},
+    ),
+  );
+}
 
 class _FakeAudioLibrary extends AudioLibrary {
   _FakeAudioLibrary([this.initialState = const AudioLibraryState()]);
@@ -526,21 +547,12 @@ void main() {
         ),
       );
       when(
-        () => dio.download(
+        () => dio.get<ResponseBody>(
           any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
           options: any(named: 'options'),
-          onReceiveProgress: any(named: 'onReceiveProgress'),
+          cancelToken: any(named: 'cancelToken'),
         ),
-      ).thenAnswer((invocation) async {
-        final savePath = invocation.positionalArguments[1] as String;
-        final callback =
-            invocation.namedArguments[#onReceiveProgress] as ProgressCallback?;
-        callback?.call(4, 4);
-        await File(savePath).writeAsBytes([1, 2, 3, 4]);
-        return Response<void>(requestOptions: RequestOptions(path: ''));
-      });
+      ).thenAnswer((_) async => _streamResponse([1, 2, 3, 4]));
     });
 
     tearDown(() async {
@@ -586,6 +598,79 @@ void main() {
       expect(item.importSourceUrl, 'https://example.com/lesson.mp3');
       expect(container.read(audioLibraryProvider).audioItems, [item]);
       expect(await File('${tmpDir.path}/${item.audioPath}').exists(), isTrue);
+      expect(await _tmpAudioImportFiles(tmpDir), isEmpty);
+    });
+
+    test('下载被取消 → AudioImportException(canceled) 且不留临时文件', () async {
+      when(
+        () => dio.get<ResponseBody>(
+          any(),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          type: DioExceptionType.cancel,
+        ),
+      );
+      final service = AudioImportService(
+        dio: dio,
+        resolveDataDir: () async => tmpDir,
+      );
+      final container = ProviderContainer(
+        overrides: [audioLibraryProvider.overrideWith(_FakeAudioLibrary.new)],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(
+        service.importFromUrl(
+          url: 'https://example.com/lesson.mp3',
+          audioLibrary: container.read(audioLibraryProvider.notifier),
+          audioLibraryState: container.read(audioLibraryProvider),
+        ),
+        throwsA(
+          isA<AudioImportException>().having(
+            (e) => e.code,
+            'code',
+            AudioImportFailureCode.canceled,
+          ),
+        ),
+      );
+      expect(await _tmpAudioImportFiles(tmpDir), isEmpty);
+    });
+
+    test('下载网络失败（404）→ AudioImportException(network) 且不留临时文件', () async {
+      when(
+        () => dio.get<ResponseBody>(
+          any(),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => _streamResponse(const [], statusCode: 404));
+      final service = AudioImportService(
+        dio: dio,
+        resolveDataDir: () async => tmpDir,
+      );
+      final container = ProviderContainer(
+        overrides: [audioLibraryProvider.overrideWith(_FakeAudioLibrary.new)],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(
+        service.importFromUrl(
+          url: 'https://example.com/lesson.mp3',
+          audioLibrary: container.read(audioLibraryProvider.notifier),
+          audioLibraryState: container.read(audioLibraryProvider),
+        ),
+        throwsA(
+          isA<AudioImportException>().having(
+            (e) => e.code,
+            'code',
+            AudioImportFailureCode.network,
+          ),
+        ),
+      );
       expect(await _tmpAudioImportFiles(tmpDir), isEmpty);
     });
 
@@ -649,18 +734,12 @@ void main() {
       tmpDir = await Directory.systemTemp.createTemp('episode_download_test_');
       dio = _MockDio();
       when(
-        () => dio.download(
+        () => dio.get<ResponseBody>(
           any(),
-          any(),
-          cancelToken: any(named: 'cancelToken'),
           options: any(named: 'options'),
-          onReceiveProgress: any(named: 'onReceiveProgress'),
+          cancelToken: any(named: 'cancelToken'),
         ),
-      ).thenAnswer((invocation) async {
-        final savePath = invocation.positionalArguments[1] as String;
-        await File(savePath).writeAsBytes([5, 6, 7, 8]);
-        return Response<void>(requestOptions: RequestOptions(path: ''));
-      });
+      ).thenAnswer((_) async => _streamResponse([5, 6, 7, 8]));
     });
 
     tearDown(() async {
@@ -733,12 +812,10 @@ void main() {
 
       final captured =
           verify(
-                () => dio.download(
+                () => dio.get<ResponseBody>(
                   captureAny(),
-                  any(),
-                  cancelToken: any(named: 'cancelToken'),
                   options: any(named: 'options'),
-                  onReceiveProgress: any(named: 'onReceiveProgress'),
+                  cancelToken: any(named: 'cancelToken'),
                 ),
               ).captured.single
               as String;

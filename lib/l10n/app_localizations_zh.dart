@@ -2642,13 +2642,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get joinCommunity => '加入学习社群';
 
   @override
-  String get joinCommunityInviteSubtitle => '找搭子，共享学习资料，提需求';
+  String get aboutCommunity => 'Echo Loop 社区';
+
+  @override
+  String get joinCommunityInviteSubtitle => '学习交流，反馈建议';
 
   @override
   String get networkError => '无法连接，请检查网络后重试';
 
   @override
-  String get viewSourceCode => '查看源代码';
+  String get viewSourceCode => '开源项目';
 
   @override
   String updateAvailable(String version) {

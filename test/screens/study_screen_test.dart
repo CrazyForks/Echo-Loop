@@ -545,11 +545,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Join Community'), findsOneWidget);
-    expect(
-      find.text('Find study buddies, share resources, request features'),
-      findsOneWidget,
-    );
+    expect(find.text('Echo Loop Community'), findsOneWidget);
+    expect(find.text('Learn, ask, and share'), findsOneWidget);
 
     final communityDecoration = tester
         .widgetList<DecoratedBox>(find.byType(DecoratedBox))

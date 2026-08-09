@@ -235,5 +235,56 @@ void main() {
         ),
       );
     });
+
+    test(
+      'downloadToFile ReliableDownloadException httpStatus 401 映射为 unauthorized',
+      () async {
+        downloader.error = const ReliableDownloadException(
+          'unauthorized',
+          kind: ReliableDownloadFailure.httpStatus,
+          statusCode: 401,
+        );
+
+        await expectLater(
+          api.downloadToFile(
+            accessToken: 'access-token',
+            dlink: 'https://d.pcs.baidu.com/file/lesson',
+            savePath: '/tmp/lesson.mp3',
+          ),
+          throwsA(
+            isA<BaiduNetdiskFileException>().having(
+              (error) => error.kind,
+              'kind',
+              BaiduNetdiskFileErrorKind.unauthorized,
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'downloadToFile ReliableDownloadException cancelled 映射为 canceled',
+      () async {
+        downloader.error = const ReliableDownloadException(
+          'cancelled',
+          kind: ReliableDownloadFailure.cancelled,
+        );
+
+        await expectLater(
+          api.downloadToFile(
+            accessToken: 'access-token',
+            dlink: 'https://d.pcs.baidu.com/file/lesson',
+            savePath: '/tmp/lesson.mp3',
+          ),
+          throwsA(
+            isA<BaiduNetdiskFileException>().having(
+              (error) => error.kind,
+              'kind',
+              BaiduNetdiskFileErrorKind.canceled,
+            ),
+          ),
+        );
+      },
+    );
   });
 }

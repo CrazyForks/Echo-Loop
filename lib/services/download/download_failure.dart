@@ -13,6 +13,8 @@ import 'dart:io' show FileSystemException;
 
 import 'package:dio/dio.dart';
 
+import '../reliable_http_downloader.dart';
+
 /// 下载失败的归类原因。
 enum DownloadFailureKind {
   /// 设备存储空间不足（errno 28 / No space left on device）。
@@ -33,6 +35,41 @@ enum DownloadFailureKind {
 /// 仅用于**失败**场景；取消（[DioExceptionType.cancel]）不是失败，由调用方在归类
 /// 之前单独处理，不要传进来。
 DownloadFailureKind classifyDownloadFailure(Object error) {
+  // ReliableHttpDownloader 的结构化异常：优先按 kind 分类，kind 不够确定时
+  // 递归看 cause（如底层 FileSystemException 的 errno 28），仍不确定才归为
+  // unknown——不能直接退化到下面的通用分支，因为 ReliableDownloadException
+  // 自身的 toString() 不含 cause 详情，字符串匹配分支会失效。
+  if (error is ReliableDownloadException) {
+    switch (error.kind) {
+      case ReliableDownloadFailure.storage:
+        return DownloadFailureKind.insufficientStorage;
+      case ReliableDownloadFailure.integrity:
+        return DownloadFailureKind.verification;
+      case ReliableDownloadFailure.cancelled:
+        return DownloadFailureKind.unknown;
+      case ReliableDownloadFailure.network:
+      case ReliableDownloadFailure.timeout:
+      case ReliableDownloadFailure.httpStatus:
+      case ReliableDownloadFailure.redirect:
+      case ReliableDownloadFailure.conflict:
+      case ReliableDownloadFailure.unknown:
+        break;
+    }
+    final cause = error.cause;
+    if (cause != null) {
+      final fromCause = classifyDownloadFailure(cause);
+      if (fromCause != DownloadFailureKind.unknown) return fromCause;
+    }
+    switch (error.kind) {
+      case ReliableDownloadFailure.network:
+      case ReliableDownloadFailure.timeout:
+      case ReliableDownloadFailure.httpStatus:
+        return DownloadFailureKind.network;
+      default:
+        return DownloadFailureKind.unknown;
+    }
+  }
+
   // 网络层异常（dio）：连接失败 / 超时 / 服务器错误等。
   if (error is DioException) {
     return DownloadFailureKind.network;

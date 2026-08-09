@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../services/app_logger.dart';
 import '../services/dictionary_download_manager.dart';
 import '../services/dictionary_service.dart';
+import '../services/reliable_http_downloader.dart';
 import 'settings_provider.dart';
 
 part 'dictionary_provider.g.dart';
@@ -155,24 +156,31 @@ class Dictionary extends _$Dictionary {
         status: DictionaryStatus.downloaded,
         progress: 1.0,
       );
-    } on DioException catch (e) {
-      if (e.type == DioExceptionType.cancel) return; // 取消不算失败
-      AppLogger.log(
-        'Dict',
-        'download failed lang=$nativeLanguage '
-            'type=${e.type} message=${e.message} '
-            'url=${e.requestOptions.uri}',
-      );
-      state = state.copyWith(
-        status: DictionaryStatus.failed,
-        error: e.message ?? 'Download failed',
-      );
     } catch (e) {
-      AppLogger.log('Dict', 'download failed lang=$nativeLanguage error=$e');
-      state = state.copyWith(
-        status: DictionaryStatus.failed,
-        error: e.toString(),
-      );
+      final isCancelled =
+          (e is DioException && e.type == DioExceptionType.cancel) ||
+          (e is ReliableDownloadException &&
+              e.kind == ReliableDownloadFailure.cancelled);
+      if (isCancelled) return; // 取消不算失败
+
+      if (e is DioException) {
+        AppLogger.log(
+          'Dict',
+          'download failed lang=$nativeLanguage '
+              'type=${e.type} message=${e.message} '
+              'url=${e.requestOptions.uri}',
+        );
+        state = state.copyWith(
+          status: DictionaryStatus.failed,
+          error: e.message ?? 'Download failed',
+        );
+      } else {
+        AppLogger.log('Dict', 'download failed lang=$nativeLanguage error=$e');
+        state = state.copyWith(
+          status: DictionaryStatus.failed,
+          error: e.toString(),
+        );
+      }
     }
   }
 

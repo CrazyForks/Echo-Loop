@@ -19,6 +19,8 @@ import '../analytics/models/event_names.dart';
 import '../database/providers.dart';
 import '../features/podcast/podcast_refresh_controller.dart';
 import '../features/remote_config/remote_config_providers.dart';
+import '../features/user_region/user_region.dart';
+import '../features/user_region/user_region_providers.dart';
 import '../providers/app_update_provider.dart';
 import '../providers/audio_library_provider.dart';
 import '../providers/collection_provider.dart';
@@ -113,6 +115,11 @@ class _MainShellState extends ConsumerState<MainShell> {
           .read(notificationPermissionServiceProvider)
           .syncSystemAuthorizationStatus();
       _remoteConfigController.startPeriodicRefresh(forceFirst: true);
+      unawaited(
+        ref
+            .read(userRegionProvider.notifier)
+            .refresh(UserRegionRefreshTrigger.startup),
+      );
 
       AppLogger.log('StartupLoad', 'study bootstrap start');
       try {
@@ -392,6 +399,11 @@ class _MainShellState extends ConsumerState<MainShell> {
     unawaited(ref.read(appUpdateProvider.notifier).checkInBackground());
     unawaited(_refreshSubscribedPodcastsInBackground());
     ref.read(remoteConfigProvider.notifier).startPeriodicRefresh();
+    unawaited(
+      ref
+          .read(userRegionProvider.notifier)
+          .refresh(UserRegionRefreshTrigger.resume),
+    );
     // 回前台时同步系统通知权限状态，覆盖用户在系统设置中手动变更的情况
     unawaited(
       ref

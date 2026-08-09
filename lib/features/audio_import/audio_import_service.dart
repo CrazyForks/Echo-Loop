@@ -9,6 +9,7 @@ import '../../models/audio_item.dart';
 import '../../providers/audio_library_provider.dart';
 import '../../providers/collection_provider.dart';
 import '../../services/app_logger.dart';
+import '../../services/reliable_http_downloader.dart';
 import '../../utils/app_data_dir.dart';
 import '../../utils/audio_duration.dart';
 import 'audio_finalization_service.dart';
@@ -44,9 +45,15 @@ class AudioImportService {
          transcodeService: transcodeService ?? AudioTranscodeService(),
          computeSha256: computeSha256,
          uuid: uuid,
-       );
+       ) {
+    _downloader = DioReliableHttpDownloader(dio: _dio);
+  }
 
   final Dio _dio;
+
+  /// `ReliableHttpDownloader` 接口本身不提供释放能力，本类也不做 `dispose`
+  /// （复用调用方注入的 [_dio] 或全局默认 Dio，生命周期不归本类管）。
+  late final ReliableHttpDownloader _downloader;
   final Uuid _uuid;
   final Future<Directory> Function() _resolveDataDir;
   final Future<int> Function(String relativePath) _readDurationSeconds;
@@ -278,30 +285,37 @@ class AudioImportService {
     final tmpDir = Directory(p.join(dataDir.path, 'tmp', 'audio_import'));
     await tmpDir.create(recursive: true);
 
-    final tmpFile = File(p.join(tmpDir.path, '$audioId.part'));
     final downloadedFile = File(
       p.join(tmpDir.path, '$audioId.${resolved.extension}'),
     );
     try {
-      await _dio.download(
-        resolved.uri.toString(),
-        tmpFile.path,
+      // allowResume: false——导入取消/失败不需要跨调用续传，失败即清理
+      // `.part`，与迁移前手写 finally 删临时文件的既有语义一致。
+      await _downloader.download(
+        uri: resolved.uri,
+        savePath: downloadedFile.path,
+        allowResume: false,
         cancelToken: cancelToken,
-        options: Options(followRedirects: true),
-        onReceiveProgress: (received, total) {
-          onProgress?.call(received, total <= 0 ? null : total);
-        },
+        onProgress: (received, total) => onProgress?.call(received, total),
       );
-      await tmpFile.rename(downloadedFile.path);
       return p.join('tmp', 'audio_import', p.basename(downloadedFile.path));
-    } on DioException catch (e) {
-      if (CancelToken.isCancel(e)) {
+    } on ReliableDownloadException catch (e) {
+      if (e.kind == ReliableDownloadFailure.cancelled) {
         throw const AudioImportException(
           AudioImportFailureCode.canceled,
           'Audio import canceled',
         );
       }
       _logDownloadFailure(resolved.uri, e);
+      // 磁盘写入失败已被下载器内部归类为 storage（如空间不足），单独区分，
+      // 不与「网络请求失败」混为一谈。
+      if (e.kind == ReliableDownloadFailure.storage) {
+        throw AudioImportException(
+          AudioImportFailureCode.storage,
+          'Failed to save audio',
+          e,
+        );
+      }
       throw AudioImportException(
         AudioImportFailureCode.network,
         'Failed to download audio',
@@ -313,12 +327,6 @@ class AudioImportService {
         'Failed to save audio',
         e,
       );
-    } finally {
-      if (await tmpFile.exists()) {
-        try {
-          await tmpFile.delete();
-        } catch (_) {}
-      }
     }
   }
 
@@ -365,14 +373,14 @@ class AudioImportService {
     return uri.replace(scheme: 'https', pathSegments: nextSegments);
   }
 
-  void _logDownloadFailure(Uri uri, DioException error) {
+  void _logDownloadFailure(Uri uri, ReliableDownloadException error) {
     AppLogger.log(
       _logTag,
       'download failed url=$uri '
-      'type=${error.type} '
-      'status=${error.response?.statusCode ?? "(null)"} '
-      'message=${error.message ?? "(null)"} '
-      'cause=${error.error ?? "(null)"}',
+      'kind=${error.kind} '
+      'status=${error.statusCode ?? "(null)"} '
+      'message=${error.message} '
+      'cause=${error.cause ?? "(null)"}',
     );
   }
 

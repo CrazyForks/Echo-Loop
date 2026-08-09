@@ -20,6 +20,7 @@ import 'package:path_provider/path_provider.dart';
 import '../app_logger.dart';
 import '../asr/asr_model_manager.dart'
     show AsrModelDownloadStatus, AsrModelDownloadProgress;
+import '../reliable_http_downloader.dart';
 import 'piper_voices.dart';
 
 // 复用 ASR 的下载状态/进度类型（已是通用命名，避免重复定义）。
@@ -58,7 +59,10 @@ class PiperModelPaths {
 /// 每个音色一个实例（见 `piperModelManagerProvider` 的 family）；方法均针对本实例
 /// 绑定的音色操作，互不干扰，故各音色可独立下载/删除/校验。
 class PiperModelManager {
-  final Dio _dio;
+  /// `ReliableHttpDownloader` 接口本身不提供释放能力，[dispose] 需要靠持有
+  /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
+  late final Dio _dio;
+  late final ReliableHttpDownloader _downloader;
 
   /// 本管理器绑定的音色（决定目录名/归档/SHA）。
   final PiperVoice voice;
@@ -74,7 +78,10 @@ class PiperModelManager {
     Dio? dio,
     this.baseUrlOverride,
     this.modelsRootResolver,
-  }) : _dio = dio ?? Dio();
+  }) {
+    _dio = dio ?? Dio();
+    _downloader = DioReliableHttpDownloader(dio: _dio);
+  }
 
   /// 模型存储根目录（与 Kokoro 共用 `tts-models`，各音色子目录隔离）。
   Future<String> get _modelsRoot async {
@@ -139,12 +146,16 @@ class PiperModelManager {
 
     try {
       // 1. 下载归档（进度映射到 0..0.95，留 0.05 给校验+解包）。
-      await _dio.download(
-        url,
-        archiveFile.path,
+      // allowResume: false——归档下载失败/取消必须不留任何残留（.part 也不留，
+      // 与下方 finally 清理临时归档的既有设计一致，见类文档注释）。
+      await _downloader.download(
+        uri: Uri.parse(url),
+        savePath: archiveFile.path,
+        identityKey: voice.sha256.isEmpty ? null : voice.sha256,
+        allowResume: false,
         cancelToken: cancelToken,
-        onReceiveProgress: (received, total) {
-          final frac = total > 0 ? received / total : 0.0;
+        onProgress: (received, total) {
+          final frac = (total != null && total > 0) ? received / total : 0.0;
           onProgress?.call(
             AsrModelDownloadProgress(
               status: AsrModelDownloadStatus.downloading,

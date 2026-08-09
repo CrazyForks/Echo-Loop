@@ -17,6 +17,7 @@ import '../services/app_logger.dart';
 import '../services/asr/asr_model_manager.dart';
 import '../services/asr/offline_asr_engine.dart';
 import '../services/download/download_failure.dart';
+import '../services/reliable_http_downloader.dart';
 import '../utils/app_data_dir.dart';
 import 'asr_engine_provider.dart';
 
@@ -272,6 +273,8 @@ final recommendedAsrModelProvider = Provider<AsrModelInfo>(
 /// 离线 ASR 设置 Notifier。
 class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
   final Map<String, CancelToken> _downloadCancelTokens = {};
+  final Map<String, Future<void>> _downloadTasks = {};
+  final Set<String> _cancellingModelIds = {};
 
   @override
   OfflineAsrSettingsState build() {
@@ -425,23 +428,30 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
   /// 取消当前或指定模型正在进行的下载。
   Future<void> cancelDownload([String? modelId]) async {
     final targetId = modelId ?? state.selectedModel.id;
+    final task = _downloadTasks[targetId];
     _downloadCancelTokens.remove(targetId)?.cancel();
-    final modelManager = ref.read(asrModelManagerProvider);
-    final localSize = await modelManager.modelLocalSize(targetId);
+    // 与 TTS 下载统一：用户点击取消后立即撤销下载 UI，文件句柄释放和目录清理
+    // 在后台继续，避免大文件下载的取消反馈被底层 I/O 阻塞。
     state = state.withModelState(
       targetId,
-      state
-          .modelStateOf(targetId)
-          .copyWith(
-            downloadStatus: _deriveStoredDownloadStatus(
-              fullyDownloaded: false,
-              localSizeBytes: localSize,
-            ),
-            downloadProgress: 0,
-            localSizeBytes: localSize,
-          ),
+      const AsrModelState(downloadStatus: AsrModelDownloadStatus.notDownloaded),
     );
     await _persistDownloadCompleted(targetId, false);
+    if (task == null) {
+      // 兼容状态恢复后的残留：没有在途下载也要回收目录。
+      await ref.read(asrModelManagerProvider).deleteModel(targetId);
+      return;
+    }
+    _cancellingModelIds.add(targetId);
+    // 等待下载器释放文件句柄后再删除目录，避免主动取消被记录成 PathNotFound/storage 失败。
+    try {
+      await task;
+      final modelManager = ref.read(asrModelManagerProvider);
+      // 主动取消不是失败；删除整个模型目录，连同下载器留下的 `.part` 和元数据一起清理。
+      await modelManager.deleteModel(targetId);
+    } finally {
+      _cancellingModelIds.remove(targetId);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -449,6 +459,19 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
   // ---------------------------------------------------------------------------
 
   Future<void> _downloadAndInitialize(String modelId) async {
+    if (_cancellingModelIds.contains(modelId)) return;
+    final task = _runDownloadAndInitialize(modelId);
+    _downloadTasks[modelId] = task;
+    try {
+      await task;
+    } finally {
+      if (identical(_downloadTasks[modelId], task)) {
+        _downloadTasks.remove(modelId);
+      }
+    }
+  }
+
+  Future<void> _runDownloadAndInitialize(String modelId) async {
     await _persistDownloadCompleted(modelId, false);
     state = state.withModelState(
       modelId,
@@ -470,7 +493,10 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
         modelId,
         cancelToken: cancelToken,
         onProgress: (progress) {
-          if (cancelToken.isCancelled) return;
+          if (cancelToken.isCancelled ||
+              !identical(_downloadCancelTokens[modelId], cancelToken)) {
+            return;
+          }
           state = state.withModelState(
             modelId,
             state
@@ -485,6 +511,10 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
         await modelManager.downloadModel(vadModelId, cancelToken: cancelToken);
       }
 
+      if (cancelToken.isCancelled ||
+          !identical(_downloadCancelTokens[modelId], cancelToken)) {
+        return;
+      }
       _downloadCancelTokens.remove(modelId);
       final localSize = await modelManager.modelLocalSize(modelId);
 
@@ -502,9 +532,25 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
 
       await _initializeEngine(modelId);
     } catch (e) {
-      _downloadCancelTokens.remove(modelId);
+      final isCurrentDownload = identical(
+        _downloadCancelTokens[modelId],
+        cancelToken,
+      );
+      if (isCurrentDownload) {
+        _downloadCancelTokens.remove(modelId);
+      } else if (_downloadCancelTokens.containsKey(modelId)) {
+        // 同一模型已发起新下载，旧会话不得覆盖其状态或完成标记。
+        return;
+      }
       // 取消不是失败：恢复未下载态，不显错误。
-      if (e is DioException && e.type == DioExceptionType.cancel) {
+      final isCancelled =
+          cancelToken.isCancelled ||
+          (e is DioException && e.type == DioExceptionType.cancel) ||
+          (e is ReliableDownloadException &&
+              e.kind == ReliableDownloadFailure.cancelled);
+      if (isCancelled) {
+        // 文件已由 cancelDownload 的用户动作路径立即清理；这里不能再次删除，
+        // 否则迟到回调可能误删用户重试后新任务写入的文件。
         state = state.withModelState(
           modelId,
           state
@@ -512,6 +558,8 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
               .copyWith(
                 downloadStatus: AsrModelDownloadStatus.notDownloaded,
                 downloadProgress: 0,
+                localSizeBytes: 0,
+                clearError: true,
               ),
         );
       } else {

@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart';
 
 /// 返回预置归档字节的 mock dio adapter（按 URL 末段匹配）。
@@ -33,6 +34,19 @@ class _MockArchiveAdapter implements HttpClientAdapter {
       },
     );
   }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// 对任何请求都返回 404 的 mock adapter，用于模拟归档下载的网络失败。
+class _AlwaysNotFoundAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody(const Stream.empty(), 404, headers: {});
 
   @override
   void close({bool force = false}) {}
@@ -110,6 +124,36 @@ void main() {
     final leftovers = root.listSync().whereType<File>().where(
       (f) => f.path.endsWith('.tar.gz'),
     );
+    expect(leftovers, isEmpty);
+  });
+
+  test('归档下载网络失败 → 抛结构化异常且不留 .part 残留', () async {
+    final dio = Dio();
+    dio.httpClientAdapter = _AlwaysNotFoundAdapter();
+    final manager = KokoroModelManager(
+      dio: dio,
+      baseUrlOverride: 'http://mock.local',
+      spec: const KokoroModelSpec(
+        variant: KokoroModelVariant.int8,
+        id: 'test-model',
+        archivePath: 'tts/test.tar.gz',
+        sha256: 'irrelevant',
+        modelFileName: 'model.int8.onnx',
+      ),
+      modelsRootResolver: () async => root.path,
+    );
+
+    await expectLater(
+      manager.downloadModel(),
+      throwsA(
+        isA<ReliableDownloadException>().having(
+          (e) => e.kind,
+          'kind',
+          ReliableDownloadFailure.httpStatus,
+        ),
+      ),
+    );
+    final leftovers = root.listSync().whereType<File>();
     expect(leftovers, isEmpty);
   });
 

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo_loop/services/download/download_failure.dart';
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 
 void main() {
   group('classifyDownloadFailure', () {
@@ -53,6 +54,66 @@ void main() {
         classifyDownloadFailure(StateError('something else')),
         DownloadFailureKind.unknown,
       );
+    });
+
+    test('ReliableDownloadException(storage) → insufficientStorage', () {
+      const e = ReliableDownloadException(
+        'disk full',
+        kind: ReliableDownloadFailure.storage,
+      );
+      expect(
+        classifyDownloadFailure(e),
+        DownloadFailureKind.insufficientStorage,
+      );
+    });
+
+    test('ReliableDownloadException(integrity) → verification', () {
+      const e = ReliableDownloadException(
+        'size mismatch',
+        kind: ReliableDownloadFailure.integrity,
+      );
+      expect(classifyDownloadFailure(e), DownloadFailureKind.verification);
+    });
+
+    test('ReliableDownloadException(network/httpStatus) → network', () {
+      const network = ReliableDownloadException(
+        'connection failed',
+        kind: ReliableDownloadFailure.network,
+      );
+      const httpStatus = ReliableDownloadException(
+        'bad status',
+        kind: ReliableDownloadFailure.httpStatus,
+        statusCode: 500,
+      );
+      expect(classifyDownloadFailure(network), DownloadFailureKind.network);
+      expect(classifyDownloadFailure(httpStatus), DownloadFailureKind.network);
+    });
+
+    test('ReliableDownloadException 的 cause 是 errno 28 时递归识别为存储不足', () {
+      final e = ReliableDownloadException(
+        'write failed',
+        kind: ReliableDownloadFailure.storage,
+        cause: const FileSystemException(
+          'writeFrom failed',
+          '/tmp/temp.part',
+          OSError('No space left on device', 28),
+        ),
+      );
+      // kind 本身已是 storage，无需依赖 cause 递归也能得到同样结果，
+      // 这里额外验证 kind 更笼统（unknown）时仍能从 cause 兜底识别。
+      final wrapped = ReliableDownloadException('write failed', cause: e);
+      expect(
+        classifyDownloadFailure(wrapped),
+        DownloadFailureKind.insufficientStorage,
+      );
+    });
+
+    test('ReliableDownloadException(cancelled) → unknown（取消不是失败，调用方应单独处理）', () {
+      const e = ReliableDownloadException(
+        'cancelled',
+        kind: ReliableDownloadFailure.cancelled,
+      );
+      expect(classifyDownloadFailure(e), DownloadFailureKind.unknown);
     });
   });
 }

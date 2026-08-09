@@ -1045,6 +1045,85 @@ void main() {
       expect(player.lastPostEvaluationScore, 0.83);
     });
 
+    testWidgets('同一段再次录音完成后仍会自动回听最新录音', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        LearningSettingsKeys.retellAutoPlaybackPromptShown: true,
+        LearningSettingsKeys.autoPlayRetellRecordingAfterCompletion: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final service = _BlockingAudioPlaybackService();
+      final testParagraphs = createTestParagraphs();
+      final player = _StaticRetellPlayer(
+        RetellPlayerState(
+          currentParagraphIndex: 0,
+          totalParagraphs: testParagraphs.length,
+          phase: RetellPhase.retelling,
+          settings: const RetellSettings(
+            keywordMethod: KeywordMethod.random,
+            controlMode: ShadowingControlMode.manual,
+            autoPlayRecordingAfterCompletion: true,
+          ),
+        ),
+        testParagraphs,
+        const {},
+      );
+      final recordingController = _RecordingResultRetellController(
+        const RetellRecordingState(
+          phase: RetellRecordingPhase.recording,
+          promptId: 'retell:a1:0',
+        ),
+      );
+
+      await tester.pumpWidget(
+        createTestWidget(
+          paragraphs: testParagraphs,
+          playerFactory: (_, __, ___) => player,
+          recordingState: const RetellRecordingState(
+            phase: RetellRecordingPhase.recording,
+            promptId: 'retell:a1:0',
+          ),
+          extraOverrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            initialLearningSettingsProvider.overrideWithValue(
+              LearningSettings.fromPrefsSync(prefs),
+            ),
+            retellRecordingPreviewProvider.overrideWithValue(
+              AudioPreviewController(service: service),
+            ),
+            retellRecordingControllerProvider.overrideWith(
+              () => recordingController,
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      // 第一次录音完成并自动回听。
+      await tester.tap(find.byType(RecordingButton));
+      await tester.pump();
+      await tester.pump();
+      expect(service.playedFiles, ['/tmp/manual-stop-retell.m4a']);
+      service.playCompleter?.complete();
+      await tester.pumpAndSettle();
+
+      // 用户不点击主播放按钮，直接开始并停止同一段的第二次录音。
+      recordingController.setState(
+        const RetellRecordingState(
+          phase: RetellRecordingPhase.recording,
+          promptId: 'retell:a1:0',
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byType(RecordingButton));
+      await tester.pump();
+      await tester.pump();
+
+      expect(service.playedFiles, [
+        '/tmp/manual-stop-retell.m4a',
+        '/tmp/manual-stop-retell.m4a',
+      ]);
+    });
+
     testWidgets('等待态下手动开始录音，完成后仍会自动回听并启动倒计时', (tester) async {
       // Bug：打开设置面板会进入 isWaitingForUser=true，随后直接点录音按钮开始录音，
       // 若不退出等待态，评估完成处理会被 !isWaitingForUser 门控整体跳过 →

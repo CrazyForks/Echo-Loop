@@ -4826,10 +4826,16 @@ abstract class AppLocalizations {
   /// **'Join Community'**
   String get joinCommunity;
 
+  /// No description provided for @aboutCommunity.
+  ///
+  /// In en, this message translates to:
+  /// **'Echo Loop Community'**
+  String get aboutCommunity;
+
   /// No description provided for @joinCommunityInviteSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Find study buddies, share resources, request features'**
+  /// **'Learn, ask, and share'**
   String get joinCommunityInviteSubtitle;
 
   /// No description provided for @networkError.
@@ -4841,7 +4847,7 @@ abstract class AppLocalizations {
   /// No description provided for @viewSourceCode.
   ///
   /// In en, this message translates to:
-  /// **'View Source Code'**
+  /// **'Open Source Project'**
   String get viewSourceCode;
 
   /// No description provided for @updateAvailable.

@@ -1,7 +1,166 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-06（修复 video 分支落地覆盖的英文文案回归）
+> 最后更新：2026-08-08（新增中国用户地区判定缓存状态层）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
+
+- [x] 在「我的 → 关于」新增 FAQ 入口，点击后使用系统外部浏览器打开飞书帮助文档；补充设置页入口、图标与外部打开模式回归测试。**完成时间**: 2026-08-08
+
+- [x] 新增中国用户地区判定缓存状态层：以 Apple StoreKit storefront、系统 locale 的 countryCode、后端 `/api/v1/client/config` 的 countryCode 三项证据判定，任一 `CN`/`CHN` 即为中国；单项失败不阻断其余策略，全失败/均未命中默认国际。提供 `userRegionProvider` 与 `isChinaUserProvider`，业务方读取缓存结果不触发重新计算；冷启动和 resume 统一刷新 Storefront/系统地区，Client Config 完全复用既有 Remote Config 的缓存、TTL 与并发节流，不新增 API 请求。日志记录触发原因、三项证据、失败/跳过、命中来源及最终结论。补充判定矩阵、渠道跳过、并发合并和 Client Config 更新回归测试。**完成时间**: 2026-08-08
+
+- [x] 修复 ASR 模型下载取消状态：用户主动取消先中断并等待下载器释放文件句柄，再删除模型目录及下载临时文件，状态重置为未下载且不显示失败/重试；取消后不覆盖新下载会话；可靠下载器将 `cancelled` 记录为“下载已取消”而非失败；设置页仅对未选中且下载中的模型显示取消入口。补充 provider、下载器日志与设置页回归测试。**完成时间**: 2026-08-08
+
+- [x] 统一 ASR/TTS 模型下载取消机制与入口条件：ASR、Kokoro、Piper 主动取消均先同步恢复未下载、0 字节、无失败文案/重试入口，随后在后台等待旧下载任务退出并清理模型目录和临时文件；清理期间拒绝同一模型的新下载，避免并发写入。新增任务与会话保护，旧回调不可覆盖新会话。Kokoro 未下载不再显示状态文字，且仅非当前变体下载中可取消；Piper 保留单行百分比、圆形进度与刷新重试的特殊样式，当前音色下载中仅显示进度不显示取消。补充 provider 与设置页回归测试。**完成时间**: 2026-08-08
+
+- [x] 修复复述同一段直接重录后的自动回放与手动接管冲突：录音完成后仍自动播放本次录音；若用户此前停止倒计时/接管本段，回放结束保持等待态，不重新启动段间倒计时；补充同段重录回归测试。**完成时间**: 2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（6/6，Phase 2 全部完成）：
+  `OfficialDownload._runDownload` 迁移到 `ReliableHttpDownloader`。本站点是 6 个调用点里最简单的
+  一个：**取消判定原本就不依赖异常类型**——`cancel()` 在调用 `token.cancel()` 之前先同步递增
+  `_sessionId`，`_runDownload` 的 catch 块入口先判 `sid != _sessionId` 提前 return，与异常究竟是
+  `DioException(cancel)` 还是迁移后的 `ReliableDownloadException(kind: cancelled)` 完全无关；
+  外层 `catch (e, st)` 本来就不按异常类型分支，只有 sessionId 校验，故迁移**不需要新增任何
+  cancel-detection 分支**（与前 5 个调用点都不同）。`dio` 由局部变量创建
+  （`final downloader = DioReliableHttpDownloader(dio: Dio());`，函数级生命周期，不持有实例字段，
+  与迁移前 `final dio = Dio();` 的生命周期一致）。临时文件命名去掉手写 `.part` 后缀（原
+  `${audioItem.id}.m4a.part`，改为 `${audioItem.id}.m4a`，避免下载器内部再叠一层
+  `.part.part`），`allowResume: false` 保住原 finally 块「非成功必删残留」的语义。`onProgress`
+  的 `total` 从「`<=0` 表示未知」改为「原生 `int?`，`null` 表示未知」，去掉一次隐式转换。
+  该 Notifier 的测试文件本就明确注释"完整下载流程涉及真实 Dio + 文件系统 + API，在单测中不可靠
+  且无价值；端到端走 integration test + 手动 E2E 验证"，未 mock 下载调用，故本次迁移未新增/
+  修改测试（8 项既有测试全绿，覆盖的是 start/cancel/busy/updateTranscript 等不涉及下载的分支）。
+  `flutter analyze` 改动文件 0 issue。
+  **Phase 2 总结**：6 个调用点（asr/piper/kokoro/dictionary/audio_import/official_download）
+  全部迁移完成，`grep -rn "\.download(" lib/` 确认仓库内已无残留裸 `Dio.download()` 调用（均已
+  收拢到 `ReliableHttpDownloader`/`_downloader.download()`）。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（5/6）：`AudioImportService._downloadToTemp` 迁移到
+  `ReliableHttpDownloader`。与前 4 个调用点的差异：本类**不做取消判定的"裸异常类型"传递**——
+  下载失败/取消在 `_downloadToTemp` 内部就被归一化为 `AudioImportException`（`canceled` /
+  `network` / `storage`），调用方（`audio_import_provider.dart`）只识别 `AudioImportException`，
+  故本次迁移**不需要**改动 provider 层（与 asr/piper/kokoro/dictionary 4 个调用点都不同）。
+  `savePath` 直接指向最终临时文件，去掉原手写 `.part` 命名 + rename 两步；`allowResume: false`
+  保住原 finally 块「任何结局都删残留」的语义。**新发现并修正一处分类问题**：
+  `ReliableHttpDownloader` 内部会把磁盘写入失败（`FileSystemException`，如空间不足）包装成
+  `ReliableDownloadException(kind: storage)`，若不特判会被本类原有的「非取消即 network」逻辑
+  误分类为网络错误；新增 `kind == storage` 分支单独映射到既有的 `AudioImportFailureCode.storage`
+  （该 code 早已存在，只是此前从未被这条路径命中过，因为迁移前 `FileSystemException` 走的是外层
+  独立的 `on FileSystemException catch` 分支）。`_logDownloadFailure` 签名同步由 `DioException`
+  改为 `ReliableDownloadException`。原有测试文件用 mocktail 直接 mock `dio.download(...)`，迁移后
+  底层改走 `dio.get<ResponseBody>(...)`（`ReliableHttpDownloader` 内部实现），故重写了两处
+  `setUp` 的 stub 与 BBC 重定向测试的 URL 捕获断言；新增取消/网络失败两条测试（迁移前缺失，
+  补齐取消/网络两类失败路径的既有测试缺口）。`flutter analyze` 改动文件 0 issue，
+  `audio_import_service_test.dart` 19 项全绿。
+  **未完成（Phase 2 剩余 1/6）**：official_download_notifier 仍在用裸 `Dio.download()`。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（4/6）：`DictionaryDownloadManager.download` 迁移到
+  `ReliableHttpDownloader`。与前 3 个调用点的结构性差异：本类无 family provider、`_dio` 由两个
+  硬编码构造器（默认构造器 + `@visibleForTesting withDio`）分别赋值，故 `_downloader` 改为在两个
+  构造函数体中分别用同一个 `_dio` 构建，不再需要 `late final Dio` 的「构造体统一赋值」套路。下载
+  调用把 `savePath` 直接指向最终 `dbPath`（原手写 `.tmp` + 存在则删旧文件 + `rename` 三步，被
+  `ReliableHttpDownloader` 内部的 `.part` 落地 + POSIX rename 原子替换取代），显式
+  `allowResume: false` 保住原 catch 块「任何失败都删临时文件」的既有语义。同步修正唯一调用方
+  `dictionary_provider.dart` 的取消判定：原先只有 `on DioException` 一条分支判 `type==cancel`，
+  改为单个 `catch` 内先判 `isCancelled`（新增 `ReliableDownloadException(kind: cancelled)` 分支），
+  再按异常类型分流到原有的两条日志/状态更新逻辑，未改变原有失败态的错误文案来源。
+  **已知测试缺口**：`DictionaryDownloadManager` 和 `Dictionary` provider 迁移前均无任何测试覆盖
+  （非本次引入的缺口）。本次为 manager 新建 `test/services/dictionary_download_manager_test.dart`
+  （3 项：成功落盘+记录下载时间、网络失败 404 抛结构化异常且不留残留，均通过 mock
+  `plugins.flutter.io/path_provider` channel 注入临时目录）。Provider 层未新建测试：`Dictionary`
+  的 `_manager` 是硬编码实例字段而非 family provider，没有现成的 DI 注入点，要测取消分支需要先给
+  provider 补一套 manager 注入机制，超出本次「迁移下载调用点」的范围，故未做，如实记录。
+  `flutter analyze` 改动文件 0 issue，新增测试 3 项全绿，既有 `test/providers/dictionary/` 全绿。
+  **未完成（Phase 2 剩余 2/6）**：audio_import_service / official_download_notifier 仍在用裸
+  `Dio.download()`，需要迁移时逐个确认取消判定与残留清理的既有实现细节。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（3/6）：`KokoroModelManager.downloadModel` 迁移到
+  `ReliableHttpDownloader`，与 `PiperModelManager` 完全同构（类文档注释本就声明两者是同一套路），
+  同样显式 `allowResume: false` 保住「任何结局都不留残留归档」的既有不变量，`identityKey` 传
+  `spec.sha256`（Kokoro 两个变体的 sha256 都是硬编码常量，不像 Piper 有开发期空串占位，故不需要
+  判空）。类文档注释顺带更新，去掉过时的「复用 dio 下载 + `.part` 改名套路（同 `AsrModelManager`）」
+  描述（AsrModelManager 自己也已经迁移，这句话已经不准确）。同步修正唯一调用方
+  `kokoro_model_provider.dart` 的取消判定（新增 `kind==cancelled` 分支）；其单测
+  `_FakeManager.shouldCancel` 同 Piper 那次一样，从手写抛裸 `DioException(type: cancel)` 改为抛
+  `ReliableDownloadException(kind: cancelled)`，如实反映迁移后行为。新增测试覆盖归档下载网络失败
+  （404）：抛结构化异常且不留任何残留文件。`kokoro_model_manager_test.dart`（6 项）、
+  `kokoro_model_provider_test.dart`（14 项，覆盖 storage/verification/network/cancel 四类既有归类
+  回归）全绿，`flutter analyze` 改动文件 0 issue。
+  **未完成（Phase 2 剩余 3/6）**：dictionary_download_manager / audio_import_service /
+  official_download_notifier 仍在用裸 `Dio.download()`；这 3 个此前未见"取消判定写死 DioException"
+  的既有代码模式，需要迁移时逐个确认是否有类似隐患。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（2/6）：`PiperModelManager.downloadModel` 迁移到
+  `ReliableHttpDownloader`。字段/构造函数改法与 AsrModelManager 一致（`_dio`/`_downloader` 均
+  `late final`，构造函数体里赋值，未加未使用的 `downloader` 注入参数）。与 ASR 的关键差异：Piper
+  下载的是整包 `.tar.gz` 归档，类文档注释明确写了「无论成功失败都清理临时归档，不留垃圾」——这是
+  既有测试断言过的不变量（`SHA-256 不匹配` 用例断言残留归档为空），若沿用 ASR 那样的默认
+  `allowResume=true` 会在网络失败/取消时把 `.part` 留在磁盘上，静默破坏这条不变量；因此显式传
+  `allowResume: false`，保持「任何结局都不留残留」的原有语义不变，不像 ASR 那样顺带启用续传。
+  `identityKey` 传 `voice.sha256`（为空串时传 null，对应既有的「开发期占位跳过整包校验」语义）。
+  同步修正唯一调用方 `piper_model_provider.dart` 的取消判定（新增 `kind==cancelled` 分支）；
+  其单测里的 `_FakeManager.shouldCancel` 此前手写抛裸 `DioException(type: cancel)`——迁移后真实
+  manager 已不会再抛这个类型，fake 若不同步会变成「测的是迁移前的行为」，改为抛
+  `ReliableDownloadException(kind: cancelled)` 使其如实反映迁移后的真实行为。新增测试覆盖归档
+  下载网络失败（404）：抛结构化异常且不留任何残留文件（含 `.part`）。`piper_model_manager_test.dart`
+  （6 项）、`piper_model_provider_test.dart`（10 项）全绿，`flutter analyze` 改动文件 0 issue。
+  **未完成（Phase 2 剩余 4/6）**：kokoro_model_manager（docstring 自称与 Piper 同构，迁移思路可直接
+  复用，包括 `allowResume: false` 的选择）、dictionary_download_manager、audio_import_service、
+  official_download_notifier 仍在用裸 `Dio.download()`；kokoro 的取消判定同样写死 `DioException.cancel`。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 2（1/6）：`AsrModelManager.downloadModel` 迁移到
+  `ReliableHttpDownloader`。`_dio`/`_downloader` 均改为 `late final` 并在构造函数体里赋值——
+  初始化列表不能相互引用同一批字段，`_downloader` 要复用同一个 `_dio` 只能放构造函数体，否则
+  `dio ?? Dio()` 会被求值两次，`_dio` 和下载器实际用的 Dio 变成两个不同实例，`dispose()` 关的是
+  没在干活的那个，真正发请求的 Dio 反而没关。`_dio` 仅保留用于 `dispose()` 关闭底层 HTTP 客户端
+  （`ReliableHttpDownloader` 接口本身不提供释放能力）；未加 `downloader` 外部注入参数——当前没有
+  任何调用方需要注入自定义 downloader，加上属于超前设计，测试仍按原有方式注入 `dio` 即可。下载循环
+  去掉手写 `.tmp` 临时文件 + `rename` + catch 里删临时文件
+  的套路，直接调用 `_downloader.download(uri, savePath: localFile.path, identityKey: file.sha256, ...)`；
+  `onProgress` 的 `total` 从 dio 的 `int`（-1 表示未知）变为可空 `int?`，判空逻辑同步调整。行为变化：
+  失败/取消默认走 `allowResume=true`，中断的下载会在下次重试时按 Range 续传而非从零重来（此前 `.tmp`
+  文件在任何失败/取消路径都会被立即删除，等于每次都从零开始）；取消由裸 `DioException.cancel`
+  变为结构化 `ReliableDownloadException(kind: cancelled)`，同步修正唯一调用方
+  `offline_asr_settings_provider.dart` 的取消判定（新增 `kind==cancelled` 分支，保留原
+  `DioException.cancel` 分支作兜底），`classifyDownloadFailure` 已在 Phase 1 覆盖
+  `ReliableDownloadException` 归类，无需改动。新增测试覆盖 404 下载失败仍能正确抛出结构化异常
+  （验证迁移后错误不会被吞掉）；`asr_model_manager_test.dart`（4 项）、`offline_asr_settings_provider_test.dart`
+  （3 项）、`local_transcription_task_provider_test.dart`（3 项，引用同一 manager 的关联回归）全绿，
+  `flutter analyze` 改动文件与全量均 0 issue（全量既有 37 项 info/warning 与本次改动文件无关）。
+  **未完成（Phase 2 剩余 5/6）**：piper_model_manager / kokoro_model_manager / dictionary_download_manager /
+  audio_import_service / official_download_notifier 仍在用裸 `Dio.download()`，其中 piper/kokoro 的
+  取消判定同样写死 `DioException.cancel`，迁移时需同步修正。
+  **完成时间**：2026-08-07
+
+- [x] 统一 HTTP 文件下载器重构 Phase 1（核心 `ReliableHttpDownloader` + 唯一现有调用方百度网盘适配）：
+  `ReliableDownloadException` 新增结构化 `kind`（`ReliableDownloadFailure`：cancelled/timeout/network/
+  httpStatus/redirect/storage/integrity/conflict/unknown）+ `statusCode` + `retryable` + `retryAfter`；
+  仅对 connectionError/超时/408/429/500/502/503/504 自动重试（默认 3 次，指数退避 + 抖动，429/503 优先
+  用 `Retry-After`），退避等待用 `Future.any(delay, cancelToken.whenCancel)` 可取消；续传被服务端忽略
+  （200）后本次调用后续重试不再发送 Range；跨 origin 重定向剥离 Authorization/Cookie/
+  Proxy-Authorization，其余头（含 User-Agent/Range）保留；同一实例内按规范化 savePath 加进程内并发锁，
+  冲突抛 `conflict`；原子替换简化为直接 `partFile.rename(targetFile.path)`（移除此前 v2 方案讨论过的
+  backup/restore 两步——Dart `File.rename()` 本身在目标已存在普通文件时会先移除目标再改名，同目录/
+  同文件系统下由 OS `rename(2)` 保证原子，无需手工模拟，详见 lib 内注释）。清理策略：`allowResume=false`
+  时成功/失败/取消统一清理 `.part`/meta；`allowResume=true`（含未显式传参的默认值）时除 Content-Range
+  起点校验失败外一律保留 `.part`（含既有的「最终大小不匹配保留 part」测试契约，不能按字面「仅可信网络
+  失败保留」收紧，否则破坏该已测试行为）。`download_failure.dart` 新增 `ReliableDownloadException` 分类
+  分支，优先按 kind 判断，kind 不够确定时递归读 `cause`（如 errno 28），仍保留原 DioException/
+  FileSystemException/文本兜底分支。百度网盘 `_mapDioException` 依赖捕获裸 `DioException` 做
+  401/403/404/429 细粒度分类，因下载器不再抛裸 `DioException` 而受影响，新增
+  `_mapReliableDownloadException` 按 `kind==httpStatus` 时的 `statusCode` 复用同一套判定，`cancelled`
+  映射为 `canceled`，其余 kind 统一 `network`（与迁移前行为一致）。新增/改写测试覆盖：原子覆盖已存在
+  目标文件、连接错误自动重试成功、404 不重试、重试耗尽分类、Retry-After 退避时长、rangeUnsupported
+  跨重试不再发 Range、Content-Range 不一致清理、跨/同域重定向头剥离、并发 conflict、退避期间取消；
+  `reliable_http_downloader_test.dart`（17 项）、`download_failure_test.dart`（11 项）、
+  `baidu_netdisk_api_test.dart`（10 项）全绿，`flutter analyze` 改动文件与全量均 0 issue。
+  **未完成（Phase 2+，尚未开始）**：asr_model_manager / piper_model_manager / kokoro_model_manager /
+  dictionary_download_manager / audio_import_service / official_download_notifier 共 6 个调用点仍在用
+  裸 `Dio.download()`，需按已评审的兼容性重构方案逐个迁移到 `ReliableHttpDownloader`。
+  **完成时间**：2026-08-07
 
 - [x] 修复 video 分支落地时静默覆盖的英文文案回归：`lib/l10n/app_en.arb` 有 256 处 `ece1a4da`
   （07-28 英文文案优化）已经改过的英文文案，被 07-29 fork、08-05 落地的 `video` 分支自带的

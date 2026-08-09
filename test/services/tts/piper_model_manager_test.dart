@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:echo_loop/services/tts/piper_model_manager.dart';
 import 'package:echo_loop/services/tts/piper_voices.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
@@ -38,6 +39,19 @@ class _MockArchiveAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// 对任何请求都返回 404 的 mock adapter，用于模拟归档下载的网络失败。
+class _AlwaysNotFoundAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody(const Stream.empty(), 404, headers: {});
+
+  @override
+  void close({bool force = false}) {}
+}
+
 /// 构造含关键文件的 tar.gz：`<id>.onnx` + `<id>.onnx.json`（应被忽略）+ tokens +
 /// espeak-ng-data。Piper 单说话人，无 voices.bin。
 List<int> _buildArchive({
@@ -58,11 +72,7 @@ List<int> _buildArchive({
   return GZipEncoder().encodeBytes(tar);
 }
 
-PiperModelManager _manager(
-  Directory root,
-  List<int> archive, {
-  String? sha,
-}) {
+PiperModelManager _manager(Directory root, List<int> archive, {String? sha}) {
   final dio = Dio();
   dio.httpClientAdapter = _MockArchiveAdapter(archive);
   return PiperModelManager(
@@ -115,6 +125,37 @@ void main() {
     final leftovers = root.listSync().whereType<File>().where(
       (f) => f.path.endsWith('.tar.gz'),
     );
+    expect(leftovers, isEmpty);
+  });
+
+  test('归档下载网络失败 → 抛结构化异常且不留 .part 残留', () async {
+    final dio = Dio();
+    dio.httpClientAdapter = _AlwaysNotFoundAdapter();
+    final manager = PiperModelManager(
+      dio: dio,
+      baseUrlOverride: 'http://mock.local',
+      voice: const PiperVoice(
+        id: 'en_US-amy-medium',
+        displayName: 'Amy',
+        accent: TtsAccent.us,
+        isFemale: true,
+        archivePath: 'tts/vits-piper-en_US-amy-medium.tar.gz',
+        sha256: 'irrelevant',
+      ),
+      modelsRootResolver: () async => root.path,
+    );
+
+    await expectLater(
+      manager.downloadModel(),
+      throwsA(
+        isA<ReliableDownloadException>().having(
+          (e) => e.kind,
+          'kind',
+          ReliableDownloadFailure.httpStatus,
+        ),
+      ),
+    );
+    final leftovers = root.listSync().whereType<File>();
     expect(leftovers, isEmpty);
   });
 
