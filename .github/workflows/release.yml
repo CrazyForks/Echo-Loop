@@ -214,10 +214,15 @@ jobs:
               addressing_style = virtual
           EOF
           APK="build/release/Echo-Loop-${BUILD_NAME}-arm64.apk"
-          aws s3 cp "$APK" "s3://${COS_BUCKET}/android/$(basename "$APK")" \
+          # COS 对 aws s3 cp 自动启用的 multipart UploadPart 不接受缺失
+          # Content-Length 的请求。APK 远小于单请求 PUT 的 5 GiB 上限，
+          # 因此使用 s3api put-object 强制单请求上传，由 CLI 写入长度头。
+          aws s3api put-object --body "$APK" \
+            --bucket "$COS_BUCKET" --key "android/$(basename "$APK")" \
             --endpoint-url "$COS_ENDPOINT" --region "$COS_REGION" \
             --content-type "application/vnd.android.package-archive"
-          aws s3 cp "$APK" "s3://${COS_BUCKET}/android/Echo-Loop-latest.apk" \
+          aws s3api put-object --body "$APK" \
+            --bucket "$COS_BUCKET" --key "android/Echo-Loop-latest.apk" \
             --endpoint-url "$COS_ENDPOINT" --region "$COS_REGION" \
             --content-type "application/vnd.android.package-archive"
 

@@ -176,7 +176,7 @@ void main() {
 
       expect(find.text('Loading video…'), findsOneWidget);
       // 加载层只覆盖 Scaffold.body，不能像整页遮罩一样吞掉盲听的 AppBar。
-      expect(find.text('Blind Listening'), findsOneWidget);
+      expect(find.text('Listen without subtitles'), findsOneWidget);
       final canvasTop = tester
           .getTopLeft(find.byKey(const ValueKey('managed-media-overlay-canvas')))
           .dy;

@@ -656,7 +656,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsOneWidget,
     );
     expect(
@@ -716,7 +716,7 @@ void main() {
     await tester.pump();
 
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsOneWidget,
     );
   });

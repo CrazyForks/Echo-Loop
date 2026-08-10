@@ -3,6 +3,8 @@
 > 最后更新：2026-08-10（句子讲解工具栏按钮按内容宽度排列）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 修复 GitHub CI / Release 失败：同步视频盲听 AppBar 与选区“Unsave”操作的过期 widget 测试断言；腾讯 COS APK 上传由会触发 multipart `MissingContentLength` 的 `aws s3 cp` 改为单请求 `aws s3api put-object`，保留 virtual-hosted endpoint、内容类型与双文件覆盖发布。**完成时间**: 2026-08-10
+
 - [x] 修复 Android 备份保存后被系统追加 `.zip` 导致恢复报无效文件：恢复入口兼容 `.elbak.zip`，仍由 ZIP 清单与数据库校验验证真实性。**完成时间**: 2026-08-10
 
 - [x] 将应用版本号由 `1.0.28` 升级至 `1.0.29`，供下一次构建发布使用。**完成时间**: 2026-08-10

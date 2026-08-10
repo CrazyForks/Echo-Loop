@@ -613,7 +613,7 @@ void main() {
       findsNothing,
     );
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsOneWidget,
     );
   });
@@ -634,17 +634,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsOneWidget,
     );
-    await tester.tap(find.byKey(const Key('selection_toolbar_button_Remove')));
+    await tester.tap(find.byKey(const Key('selection_toolbar_button_Unsave')));
     await tester.pumpAndSettle();
 
     expect(dao.removedWord, 'beta');
     expect(selectionState(tester).hasActiveSelection, isTrue);
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsNothing,
     );
     expect(
@@ -685,7 +685,7 @@ void main() {
     expect(find.byKey(const Key('dict_sheet_sizer')), findsOneWidget);
     expect(find.byIcon(Icons.bookmark), findsOneWidget);
     expect(
-      find.byKey(const Key('selection_toolbar_button_Remove')),
+      find.byKey(const Key('selection_toolbar_button_Unsave')),
       findsOneWidget,
     );
 
