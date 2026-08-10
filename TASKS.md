@@ -1,11 +1,9 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-10（新增 GitHub Hosted Runner COS 手动诊断）
+> 最后更新：2026-08-10（Release Android 发布仅保留 Cloudflare R2）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
-- [x] 修复 Release 的腾讯 COS APK 上传挂起：由 AWS S3 兼容层改用固定版本 `coscli v1.0.8` 原生客户端，使用无配置临时密钥参数上传版本 APK 与 latest APK；下载、单对象上传均设置有限重试和硬超时，避免网络无响应耗尽整个 60 分钟发布 job。本地以 105.91MB APK 验证上传成功（约 19 秒），临时对象已删除。**完成时间**: 2026-08-10
-
-- [x] 新增 GitHub Hosted Runner 腾讯 COS 手动诊断：`workflow_dispatch` 专用、无 checkout 的 15 分钟 Ubuntu job，记录地域 endpoint 的 DNS/TLS 状态，使用固定 `coscli v1.0.8` 上传 1 MiB 隔离对象并在完成后删除；失败时保留 COSCLI 错误输出并上传 `coscli_output` artifact（7 天）。**完成时间**: 2026-08-10
+- [x] 移除 Release 的腾讯 COS APK 上传及独立 COS 诊断 workflow：GitHub Hosted Runner 到 COS 的跨境链路吞吐量不足以支撑发布；Android 继续上传 Cloudflare R2、GitHub Release 附件和 Google Play，避免 COS 阻塞整个 Release。**完成时间**: 2026-08-10
 
 - [x] 修复统一音视频单句讲解后视频全屏失效：`PracticeMediaPresentationHost` 按目标状态正确映射进入/退出全屏，避免首次及后续点击始终执行退出；新增真实宿主全屏状态 widget 回归。**完成时间**: 2026-08-10
 
