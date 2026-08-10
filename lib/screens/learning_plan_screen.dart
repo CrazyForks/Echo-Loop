@@ -15,6 +15,7 @@ import '../models/learning_plan.dart';
 import '../models/learning_progress.dart';
 import '../models/media_learning_startup.dart';
 import '../models/media_load_result.dart';
+import '../models/sentence.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
 import '../providers/audio_library_provider.dart';
 import '../providers/audio_sentences_provider.dart';
@@ -67,6 +68,49 @@ import '../providers/learning_session/sentence_playback_engine.dart';
 ///
 /// 使用固定 SVG，避免 `🔁` emoji 在不同平台被系统字体渲染成不一致的蓝色方块。
 const String _refreshIconAsset = 'assets/icon/refresh.svg';
+
+/// 统一打开音频或视频复述任务，保持所有计划入口的分流与补做参数一致。
+Future<void> _openRetellPractice({
+  required BuildContext context,
+  required WidgetRef ref,
+  required AudioItem audioItem,
+  required String? collectionId,
+  required List<List<Sentence>> paragraphs,
+  required String loadKey,
+  bool isFreePlay = false,
+  LearningStage? catchUpStage,
+  SubStageType? catchUpSubStage,
+}) async {
+  final session = ref.read(learningSessionProvider.notifier);
+  if (audioItem.isVideo) {
+    if (!context.mounted) return;
+    context.push(
+      AppRoutes.retellPlayer(collectionId, audioItem.id),
+      extra: MediaLearningStartup(
+        loadKey: loadKey,
+        load: () => session.enterMediaRetellMode(
+          audioItem,
+          paragraphs,
+          isFreePlay: isFreePlay,
+          catchUpStage: catchUpStage,
+          catchUpSubStage: catchUpSubStage,
+        ),
+        cancel: session.cancelMediaRetellEntry,
+      ),
+    );
+    return;
+  }
+
+  await session.enterRetellMode(
+    audioItem.id,
+    paragraphs,
+    isFreePlay: isFreePlay,
+    catchUpStage: catchUpStage,
+    catchUpSubStage: catchUpSubStage,
+  );
+  if (!context.mounted) return;
+  context.push(AppRoutes.retellPlayer(collectionId, audioItem.id));
+}
 
 /// 学习计划大阶段完成标记图标。
 ///
@@ -989,10 +1033,18 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = await _ensureAudioLoaded();
-    if (!context.mounted || lpState == null) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final lpState = audioItem.isVideo ? null : await _ensureAudioLoaded();
+    if (!context.mounted) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : lpState?.sentences;
+    if (!context.mounted || sentences == null) return;
 
-    if (lpState.sentences.isEmpty) {
+    if (sentences.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1008,13 +1060,13 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     if (isSummary) {
       // reviewRetellSummary：全文作为单个段落；停顿/速度已由复习简报落入偏好,
       // enterRetellMode 内部按槽位 resolve 出完整设置。
-      await ref.read(learningSessionProvider.notifier).enterRetellMode(
-        widget.audioItemId,
-        [lpState.sentences],
-      );
-      if (!context.mounted) return;
-      context.push(
-        AppRoutes.retellPlayer(widget.collectionId, widget.audioItemId),
+      await _openRetellPractice(
+        context: context,
+        ref: ref,
+        audioItem: audioItem,
+        collectionId: widget.collectionId,
+        paragraphs: [sentences],
+        loadKey: '${audioItem.id}:retell-summary:planned',
       );
       return;
     }
@@ -1034,10 +1086,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     // 按当前难句书签数实时重算难度，难度降低后速度/可见词比例随之调整
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(
-          widget.audioItemId,
-          lpState.sentences.length,
-        );
+        .refreshDifficultyFromBookmarks(widget.audioItemId, sentences.length);
     if (!context.mounted) return;
     final smartRatio = KeywordRatio.forDifficultyAndStage(
       liveDifficulty,
@@ -1055,7 +1104,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     showRetellBriefingSheet(
       context: context,
-      sentences: lpState.sentences,
+      sentences: sentences,
       defaultSeconds: prefill.seconds,
       stageLabel: isReview ? reviewStageLabel(l10n, currentStage) : null,
       defaultKeywordRatio: progress != null ? prefill.ratio : null,
@@ -1065,15 +1114,16 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       onStartPractice:
           (targetDuration, pause, keywordRatio, playbackSpeed) async {
             final paragraphs = groupSentencesIntoParagraphs(
-              lpState.sentences,
+              sentences,
               targetDuration,
             );
-            await ref
-                .read(learningSessionProvider.notifier)
-                .enterRetellMode(widget.audioItemId, paragraphs);
-            if (!context.mounted) return;
-            context.push(
-              AppRoutes.retellPlayer(widget.collectionId, widget.audioItemId),
+            await _openRetellPractice(
+              context: context,
+              ref: ref,
+              audioItem: audioItem,
+              collectionId: widget.collectionId,
+              paragraphs: paragraphs,
+              loadKey: '${audioItem.id}:retell-paragraph:planned',
             );
           },
       // 按计划学习路径才显示「跳过」按钮；自由练习路径无此回调
@@ -1430,12 +1480,20 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = await _ensureAudioLoaded();
-    if (!context.mounted || lpState == null) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final lpState = audioItem.isVideo ? null : await _ensureAudioLoaded();
+    if (!context.mounted) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : lpState?.sentences;
+    if (!context.mounted || sentences == null) return;
     final l10n = AppLocalizations.of(context)!;
 
     // 无字幕则提示
-    if (lpState.sentences.isEmpty) {
+    if (sentences.isEmpty) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -1460,10 +1518,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     // 按当前难句书签数实时重算难度，难度降低后速度/可见词比例随之调整
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(
-          widget.audioItemId,
-          lpState.sentences.length,
-        );
+        .refreshDifficultyFromBookmarks(widget.audioItemId, sentences.length);
     if (!context.mounted) return;
     final hasProgress = progressForDefault != null;
     final smartRatio = KeywordRatio.forDifficultyAndStage(
@@ -1482,7 +1537,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     showRetellBriefingSheet(
       context: context,
-      sentences: lpState.sentences,
+      sentences: sentences,
       defaultSeconds: prefill.seconds,
       defaultKeywordRatio: hasProgress ? prefill.ratio : null,
       defaultPlaybackSpeed: prefill.speed,
@@ -1491,16 +1546,17 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       onStartPractice:
           (targetDuration, pause, keywordRatio, playbackSpeed) async {
             final paragraphs = groupSentencesIntoParagraphs(
-              lpState.sentences,
+              sentences,
               targetDuration,
             );
 
-            await ref
-                .read(learningSessionProvider.notifier)
-                .enterRetellMode(widget.audioItemId, paragraphs);
-            if (!context.mounted) return;
-            context.push(
-              AppRoutes.retellPlayer(widget.collectionId, widget.audioItemId),
+            await _openRetellPractice(
+              context: context,
+              ref: ref,
+              audioItem: audioItem,
+              collectionId: widget.collectionId,
+              paragraphs: paragraphs,
+              loadKey: '${audioItem.id}:retell:planned',
             );
           },
       // 按计划学习路径才显示「跳过」按钮；自由练习路径无此回调
@@ -2916,8 +2972,14 @@ class _FirstStudySection extends ConsumerWidget {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = ref.read(listeningPracticeProvider);
-    if (lpState.sentences.isEmpty) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (!context.mounted || sentences.isEmpty) return;
 
     // 段落时长 default 按用户**当前**学习阶段算（review28 用户能驾驭长段），
     // 与 catchUpStage（始终 firstLearn，因为这是 firstLearn 子步骤的补练）解耦。
@@ -2930,7 +2992,7 @@ class _FirstStudySection extends ConsumerWidget {
     // 按当前难句书签数实时重算难度，难度降低后速度/可见词比例随之调整
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(audioItemId, lpState.sentences.length);
+        .refreshDifficultyFromBookmarks(audioItemId, sentences.length);
     if (!context.mounted) return;
     // 自由练习复述属 firstLearn 补练,槽位 retell:firstLearn,与按计划共用偏好。
     final slot = stageSlotKey(
@@ -2951,7 +3013,7 @@ class _FirstStudySection extends ConsumerWidget {
     );
     showRetellBriefingSheet(
       context: context,
-      sentences: lpState.sentences,
+      sentences: sentences,
       defaultSeconds: prefill.seconds,
       defaultKeywordRatio: progressForDefault != null ? prefill.ratio : null,
       defaultPlaybackSpeed: prefill.speed,
@@ -2960,22 +3022,21 @@ class _FirstStudySection extends ConsumerWidget {
       onStartPractice:
           (targetDuration, pause, keywordRatio, playbackSpeed) async {
             final paragraphs = groupSentencesIntoParagraphs(
-              lpState.sentences,
+              sentences,
               targetDuration,
             );
 
-            await ref
-                .read(learningSessionProvider.notifier)
-                .enterRetellMode(
-                  audioItemId,
-                  paragraphs,
-                  isFreePlay: true,
-                  catchUpStage: LearningStage.firstLearn,
-                  catchUpSubStage: SubStageType.retell,
-                );
-            if (context.mounted) {
-              context.push(AppRoutes.retellPlayer(collectionId, audioItemId));
-            }
+            await _openRetellPractice(
+              context: context,
+              ref: ref,
+              audioItem: audioItem,
+              collectionId: collectionId,
+              paragraphs: paragraphs,
+              loadKey: '${audioItem.id}:retell:free-play',
+              isFreePlay: true,
+              catchUpStage: LearningStage.firstLearn,
+              catchUpSubStage: SubStageType.retell,
+            );
           },
     );
   }
@@ -3634,8 +3695,14 @@ class _ReviewRoundSection extends ConsumerWidget {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = ref.read(listeningPracticeProvider);
-    if (lpState.sentences.isEmpty) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (!context.mounted || sentences.isEmpty) return;
 
     final catchUpSub = isSummary
         ? SubStageType.reviewRetellSummary
@@ -3643,18 +3710,17 @@ class _ReviewRoundSection extends ConsumerWidget {
 
     if (isSummary) {
       // 全文复述：全文作为单个段落，无需选择时长
-      await ref
-          .read(learningSessionProvider.notifier)
-          .enterRetellMode(
-            audioItemId,
-            [lpState.sentences],
-            isFreePlay: true,
-            catchUpStage: review.stage,
-            catchUpSubStage: catchUpSub,
-          );
-      if (context.mounted) {
-        context.push(AppRoutes.retellPlayer(collectionId, audioItemId));
-      }
+      await _openRetellPractice(
+        context: context,
+        ref: ref,
+        audioItem: audioItem,
+        collectionId: collectionId,
+        paragraphs: [sentences],
+        loadKey: '${audioItem.id}:retell-summary:${review.stage.key}:free-play',
+        isFreePlay: true,
+        catchUpStage: review.stage,
+        catchUpSubStage: catchUpSub,
+      );
       return;
     }
 
@@ -3665,7 +3731,7 @@ class _ReviewRoundSection extends ConsumerWidget {
     // 按当前难句书签数实时重算难度，难度降低后速度/可见词比例随之调整
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(audioItemId, lpState.sentences.length);
+        .refreshDifficultyFromBookmarks(audioItemId, sentences.length);
     if (!context.mounted) return;
     final slot = stageSlotKey(StageSettingsSlots.retell, review.stage);
     final prefill = retellBriefingDefaults(
@@ -3682,31 +3748,30 @@ class _ReviewRoundSection extends ConsumerWidget {
     );
     showRetellBriefingSheet(
       context: context,
-      sentences: lpState.sentences,
+      sentences: sentences,
       defaultSeconds: prefill.seconds,
       defaultKeywordRatio: progressForRetell != null ? prefill.ratio : null,
       defaultPlaybackSpeed: prefill.speed,
       defaultPause: prefill.pause,
       onSelectionChanged: retellPrefsRecorder(ref, slot, prefill.settings),
-      onStartPractice:
-          (targetDuration, pause, keywordRatio, playbackSpeed) async {
-            final paragraphs = groupSentencesIntoParagraphs(
-              lpState.sentences,
-              targetDuration,
-            );
-            await ref
-                .read(learningSessionProvider.notifier)
-                .enterRetellMode(
-                  audioItemId,
-                  paragraphs,
-                  isFreePlay: true,
-                  catchUpStage: review.stage,
-                  catchUpSubStage: catchUpSub,
-                );
-            if (context.mounted) {
-              context.push(AppRoutes.retellPlayer(collectionId, audioItemId));
-            }
-          },
+      onStartPractice: (targetDuration, pause, keywordRatio, playbackSpeed) async {
+        final paragraphs = groupSentencesIntoParagraphs(
+          sentences,
+          targetDuration,
+        );
+        await _openRetellPractice(
+          context: context,
+          ref: ref,
+          audioItem: audioItem,
+          collectionId: collectionId,
+          paragraphs: paragraphs,
+          loadKey:
+              '${audioItem.id}:retell-paragraph:${review.stage.key}:free-play',
+          isFreePlay: true,
+          catchUpStage: review.stage,
+          catchUpSubStage: catchUpSub,
+        );
+      },
     );
   }
 

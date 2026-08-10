@@ -15,6 +15,7 @@ import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provide
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
+import 'package:echo_loop/providers/learning_session/paragraph_playback_driver.dart';
 import 'package:echo_loop/providers/learning_session/retell_player_provider.dart';
 
 import '../../helpers/mock_providers.dart';
@@ -140,6 +141,63 @@ class _PassiveLearningSession extends TestLearningSession {
 
   @override
   void addOutputWords(int count) {}
+}
+
+/// 记录复述状态机对底层播放契约的调用，不依赖音频或视频实现。
+class _RecordingParagraphPlaybackDriver implements ParagraphPlaybackDriver {
+  int _sessionId = 0;
+  final List<({Duration start, Duration end})> ranges = [];
+  final List<double> speeds = [];
+  final List<Duration> seeks = [];
+  int pauseCalls = 0;
+
+  @override
+  int newSession() => ++_sessionId;
+
+  @override
+  bool isActiveSession(int sessionId) => sessionId == _sessionId;
+
+  @override
+  Stream<Duration> get positionStream => const Stream.empty();
+
+  @override
+  Future<void> pause() async => pauseCalls += 1;
+
+  @override
+  Future<void> setSpeed(double speed) async => speeds.add(speed);
+
+  @override
+  Future<void> seek(Duration position) async => seeks.add(position);
+
+  @override
+  Future<void> playRange(
+    Duration start,
+    Duration end,
+    int sessionId, {
+    required void Function() onRangeReady,
+  }) async {
+    ranges.add((start: start, end: end));
+    onRangeReady();
+    // 模拟切换页面或任务导致本次播放过期，避免进入复述倒计时。
+    _sessionId += 1;
+  }
+
+  @override
+  void bindLockScreen({
+    required Future<void> Function() onPlay,
+    required Future<void> Function() onPause,
+    required Future<void> Function() onNext,
+    required Future<void> Function() onPrevious,
+  }) {}
+
+  @override
+  void setSessionActive(bool active) {}
+
+  @override
+  void setProgressFrozen(bool frozen) {}
+
+  @override
+  void unbindLockScreen() {}
 }
 
 /// 用于复现“倒计时中切段”问题：
@@ -399,6 +457,49 @@ void main() {
     });
 
     tearDown(() => container.dispose());
+
+    test('注入的段落播放驱动承接播放、暂停、变速和跳转且丢弃过期 session', () async {
+      final driver = _RecordingParagraphPlaybackDriver();
+      final paragraphs = [
+        [
+          Sentence(
+            index: 0,
+            text: 'First',
+            startTime: const Duration(seconds: 1),
+            endTime: const Duration(seconds: 2),
+          ),
+          Sentence(
+            index: 1,
+            text: 'Second',
+            startTime: const Duration(seconds: 2),
+            endTime: const Duration(seconds: 4),
+          ),
+        ],
+      ];
+
+      notifier.initialize(paragraphs, playbackDriver: driver);
+      await notifier.startPlaying();
+
+      expect(driver.ranges.single.start, const Duration(seconds: 1));
+      expect(driver.ranges.single.end, const Duration(seconds: 4));
+      expect(driver.speeds, [1.0]);
+      expect(container.read(retellPlayerProvider).phase, RetellPhase.listening);
+
+      notifier.updateSettings(
+        container
+            .read(retellPlayerProvider)
+            .settings
+            .copyWith(playbackSpeed: 1.25),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await notifier.pause();
+      await notifier.seekToSentence(1);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(driver.speeds, contains(1.25));
+      expect(driver.pauseCalls, greaterThanOrEqualTo(2));
+      expect(driver.ranges.last.start, const Duration(seconds: 2));
+    });
 
     test('goToNextParagraph 等待 stopPlayback 完成后才开始下一段播放', () async {
       final sentences = [

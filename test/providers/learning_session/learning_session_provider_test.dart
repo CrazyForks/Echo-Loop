@@ -14,6 +14,7 @@ import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
 import 'package:echo_loop/providers/learning_session/blind_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
+import 'package:echo_loop/providers/learning_session/paragraph_playback_driver.dart';
 import 'package:echo_loop/providers/learning_session/review_difficult_practice_provider.dart';
 import 'package:echo_loop/providers/learning_session/retell_player_provider.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
@@ -144,6 +145,25 @@ class _BlockingMediaEngine extends MediaEngine {
   @override
   Future<void> releaseFromScreen() async {
     releaseCalls += 1;
+  }
+}
+
+class _SuccessfulMediaEngine extends MediaEngine {
+  int subtitleClearCalls = 0;
+
+  @override
+  MediaEngineState build() => const MediaEngineState();
+
+  @override
+  Future<Duration?> loadMedia(
+    model.AudioItem item,
+    double speed, {
+    Duration initialPosition = Duration.zero,
+  }) async => const Duration(minutes: 1);
+
+  @override
+  Future<void> setSubtitleTrackData(String? srt) async {
+    subtitleClearCalls += 1;
   }
 }
 
@@ -715,8 +735,9 @@ void main() {
     ];
 
     ProviderContainer createContainer(
-      LearningProgressNotifier progressNotifier,
-    ) {
+      LearningProgressNotifier progressNotifier, {
+      MediaEngine? mediaEngine,
+    }) {
       return ProviderContainer(
         overrides: [
           appDatabaseProvider.overrideWithValue(_createTestDb()),
@@ -731,6 +752,8 @@ void main() {
           dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
           bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao({1, 3})),
           analyticsOverride(),
+          if (mediaEngine != null)
+            mediaEngineProvider.overrideWith(() => mediaEngine),
         ],
       );
     }
@@ -845,6 +868,109 @@ void main() {
 
       final playerState = container.read(retellPlayerProvider);
       expect(playerState.currentParagraphIndex, 1);
+    });
+
+    test('视频复述进入媒体链路并复用段落播放驱动与自由练习断点', () async {
+      final progress = LearningProgress(
+        audioItemId: 'video-retell',
+        currentStage: LearningStage.review1,
+        currentSubStage: SubStageType.retell,
+        freePlayRetellSentenceIndex: 2,
+        freePlayBreakpointSavedAt: DateTime.now(),
+        updatedAt: DateTime(2026, 8, 11),
+      );
+      final mediaEngine = _SuccessfulMediaEngine();
+      final player = TestRetellPlayer();
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(_createTestDb()),
+          audioEngineProvider.overrideWith(() => TestAudioEngine()),
+          listeningPracticeProvider.overrideWith(() => TestListeningPractice()),
+          learningProgressNotifierProvider.overrideWith(
+            () => TestLearningProgressNotifier(
+              LearningProgressState(progressMap: {'video-retell': progress}),
+            ),
+          ),
+          retellPlayerProvider.overrideWith(() => player),
+          blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
+          dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
+          mediaEngineProvider.overrideWith(() => mediaEngine),
+          analyticsOverride(),
+        ],
+      );
+      addTearDown(container.dispose);
+      final paragraphs = [
+        [sentences[0], sentences[1]],
+        [sentences[2], sentences[3]],
+      ];
+
+      final result = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaRetellMode(
+            model.AudioItem(
+              id: 'video-retell',
+              name: 'Video retell',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 8, 11),
+            ),
+            paragraphs,
+            isFreePlay: true,
+          );
+
+      expect(result, MediaLoadResult.ready);
+      expect(
+        container.read(learningSessionProvider).playbackChain,
+        LearningPlaybackChain.media,
+      );
+      expect(container.read(retellPlayerProvider).currentParagraphIndex, 1);
+      expect(player.lastPlaybackDriver, isA<MediaParagraphPlaybackDriver>());
+      expect(mediaEngine.subtitleClearCalls, 1);
+    });
+
+    test('视频复述加载失败不进入会话，取消后迟到成功也被丢弃', () async {
+      final failedEngine = _FailingMediaEngine();
+      final failedContainer = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: failedEngine,
+      );
+      addTearDown(failedContainer.dispose);
+      final item = model.AudioItem(
+        id: 'video-retell-failure',
+        name: 'Video',
+        audioPath: 'video.mp4',
+        addedDate: DateTime(2026, 8, 11),
+      );
+
+      expect(
+        await failedContainer
+            .read(learningSessionProvider.notifier)
+            .enterMediaRetellMode(item, [sentences]),
+        MediaLoadResult.failure,
+      );
+      expect(failedEngine.releaseCalls, 1);
+      expect(
+        failedContainer.read(learningSessionProvider).isInLearningMode,
+        isFalse,
+      );
+
+      final blockingEngine = _BlockingMediaEngine();
+      final cancelledContainer = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: blockingEngine,
+      );
+      addTearDown(cancelledContainer.dispose);
+      final session = cancelledContainer.read(learningSessionProvider.notifier);
+      final entry = session.enterMediaRetellMode(item, [sentences]);
+      await blockingEngine.loadStarted.future;
+      await session.cancelMediaRetellEntry();
+      blockingEngine.loadResult.complete(const Duration(minutes: 1));
+
+      expect(await entry, MediaLoadResult.cancelled);
+      expect(blockingEngine.releaseCalls, 1);
+      expect(
+        cancelledContainer.read(learningSessionProvider).isInLearningMode,
+        isFalse,
+      );
     });
 
     // TODO: 旧 ListenAndRepeatPlayer 已删除，需要基于新播放器重写

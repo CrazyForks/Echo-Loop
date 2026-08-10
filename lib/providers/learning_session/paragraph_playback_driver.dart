@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../audio_engine/audio_engine_provider.dart';
+import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../media_engine/media_engine_provider.dart';
 
 /// 段落任务的底层播放契约。
@@ -86,6 +87,59 @@ class AudioParagraphPlaybackDriver implements ParagraphPlaybackDriver {
     _engine.setProgressFrozen(false);
     unawaited(_engine.stopKeepAlive());
   }
+}
+
+/// 前台音频段落适配器，供复述等录音任务使用。
+///
+/// 该适配器只操作裸播放器，不注册系统媒体会话；锁屏、保活和进度冻结方法均为
+/// no-op。中断播放使用 `stopPlayback`，保持复述原有的 clip 切换时序。
+class ForegroundParagraphPlaybackDriver implements ParagraphPlaybackDriver {
+  ForegroundParagraphPlaybackDriver(this._engine);
+
+  final ForegroundAudioEngine _engine;
+
+  @override
+  int newSession() => _engine.newSession();
+
+  @override
+  bool isActiveSession(int sessionId) => _engine.isActiveSession(sessionId);
+
+  @override
+  Stream<Duration> get positionStream => _engine.absolutePositionStream;
+
+  @override
+  Future<void> pause() => _engine.stopPlayback();
+
+  @override
+  Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
+
+  @override
+  Future<void> seek(Duration position) => _engine.seekToAbsolute(position);
+
+  @override
+  Future<void> playRange(
+    Duration start,
+    Duration end,
+    int sessionId, {
+    required void Function() onRangeReady,
+  }) => _engine.playRangeOnce(start, end, sessionId, onClipReady: onRangeReady);
+
+  @override
+  void bindLockScreen({
+    required Future<void> Function() onPlay,
+    required Future<void> Function() onPause,
+    required Future<void> Function() onNext,
+    required Future<void> Function() onPrevious,
+  }) {}
+
+  @override
+  void setSessionActive(bool active) {}
+
+  @override
+  void setProgressFrozen(bool frozen) {}
+
+  @override
+  void unbindLockScreen() {}
 }
 
 /// MediaEngine 段落适配器，供视频盲听和后续视频复述复用。

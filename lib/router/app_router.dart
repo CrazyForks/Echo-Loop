@@ -395,9 +395,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           final collectionId =
                               state.pathParameters['collectionId']!;
                           final audioId = state.pathParameters['audioId']!;
+                          final startup = state.extra;
                           return RetellPlayerScreen(
                             collectionId: collectionId,
                             audioItemId: audioId,
+                            mediaStartup: startup is MediaLearningStartup
+                                ? startup
+                                : null,
                           );
                         },
                         routes: [_sentenceDetailRoute()],
@@ -634,7 +638,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final audioId = state.pathParameters['audioId']!;
-          return RetellPlayerScreen(collectionId: null, audioItemId: audioId);
+          final startup = state.extra;
+          return RetellPlayerScreen(
+            collectionId: null,
+            audioItemId: audioId,
+            mediaStartup: startup is MediaLearningStartup ? startup : null,
+          );
         },
         routes: [_sentenceDetailRoute()],
       ),

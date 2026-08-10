@@ -54,6 +54,7 @@ import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/models/learning_plan.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_playback_driver.dart';
+import 'package:echo_loop/providers/learning_session/paragraph_playback_driver.dart';
 import 'package:echo_loop/models/playback_settings.dart';
 import 'package:echo_loop/models/retell_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
@@ -1372,6 +1373,7 @@ class FakeRetellPlayer extends RetellPlayer {
   Map<int, Set<int>> testKeywords;
   int postEvaluationPauseCalls = 0;
   double? lastPostEvaluationScore;
+  ParagraphPlaybackDriver? lastPlaybackDriver;
 
   FakeRetellPlayer([
     this.initialState = const RetellPlayerState(),
@@ -1418,7 +1420,9 @@ class FakeRetellPlayer extends RetellPlayer {
     int? startSentenceIndex,
     RetellSettings settings = const RetellSettings(),
     String? settingsSlot,
+    ParagraphPlaybackDriver? playbackDriver,
   }) {
+    lastPlaybackDriver = playbackDriver;
     testParagraphs = paragraphs;
     testKeywords = const {};
     var safeIndex = 0;

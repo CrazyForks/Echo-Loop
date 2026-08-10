@@ -38,6 +38,7 @@ import '../retell_prefs_provider.dart';
 import 'countdown_controller.dart';
 import '../learning_progress_provider.dart';
 import 'learning_session_provider.dart';
+import 'paragraph_playback_driver.dart';
 
 part 'retell_player_provider.g.dart';
 
@@ -201,6 +202,14 @@ class RetellPlayer extends _$RetellPlayer {
   /// 当前 AudioEngine sessionId
   int _sessionId = -1;
 
+  /// 当前复述会话的段落播放驱动；音频默认使用独立前台引擎，视频由入口注入。
+  ParagraphPlaybackDriver? _playbackDriver;
+
+  ParagraphPlaybackDriver get _playback =>
+      _playbackDriver ??= ForegroundParagraphPlaybackDriver(
+        ref.read(foregroundAudioEngineProvider.notifier),
+      );
+
   /// 倒计时运行版本号
   ///
   /// 每次启动或取消复述倒计时都递增，用于屏蔽已取消倒计时的过期回调。
@@ -280,10 +289,10 @@ class RetellPlayer extends _$RetellPlayer {
       );
 
       // 停止段落音频播放
-      final engine = ref.read(foregroundAudioEngineProvider.notifier);
-      _sessionId = engine.newSession();
+      final playback = _playback;
+      _sessionId = playback.newSession();
       _positionSub?.cancel();
-      engine.stopPlayback();
+      playback.pause();
 
       // 取消倒计时
       if (state.isRetellCountdown) {
@@ -316,9 +325,15 @@ class RetellPlayer extends _$RetellPlayer {
     int? startSentenceIndex,
     RetellSettings settings = const RetellSettings(),
     String? settingsSlot,
+    ParagraphPlaybackDriver? playbackDriver,
   }) {
     _settingsSlot = settingsSlot;
     _cleanup();
+    _playbackDriver =
+        playbackDriver ??
+        ForegroundParagraphPlaybackDriver(
+          ref.read(foregroundAudioEngineProvider.notifier),
+        );
     _paragraphs = paragraphs;
     _allSentences = paragraphs.expand((p) => p).toList();
 
@@ -574,11 +589,11 @@ class RetellPlayer extends _$RetellPlayer {
   Future<void> pause() async {
     // 先快照，避免 stopPlayback 期间异步事件污染 playingSentenceIndex
     final snapshotIdx = state.playingSentenceIndex;
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    _sessionId = engine.newSession();
+    final playback = _playback;
+    _sessionId = playback.newSession();
     _positionSub?.cancel();
     _invalidateRetellCountdown();
-    await engine.stopPlayback();
+    await playback.pause();
     if (snapshotIdx >= 0) {
       _resumeStartLocalSentenceIndex = snapshotIdx;
     }
@@ -793,11 +808,11 @@ class RetellPlayer extends _$RetellPlayer {
     }
 
     _waitAfterCurrentParagraph = false;
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    _sessionId = engine.newSession();
+    final playback = _playback;
+    _sessionId = playback.newSession();
     _positionSub?.cancel();
     _invalidateRetellCountdown();
-    unawaited(engine.stopPlayback());
+    unawaited(playback.pause());
     state = state.copyWith(
       phase: RetellPhase.retelling,
       isPlaying: false,
@@ -863,11 +878,7 @@ class RetellPlayer extends _$RetellPlayer {
     state = state.copyWith(settings: newSettings);
 
     if (speedChanged) {
-      unawaited(
-        ref
-            .read(foregroundAudioEngineProvider.notifier)
-            .setSpeed(newSettings.playbackSpeed),
-      );
+      unawaited(_playback.setSpeed(newSettings.playbackSpeed));
     }
 
     if (shouldKeepWaiting) {
@@ -880,9 +891,9 @@ class RetellPlayer extends _$RetellPlayer {
     // 自动↔手动切换时，停在当前段落，取消一切异步操作
     if (modeChanged) {
       _invalidateRetellCountdown();
-      final engine = ref.read(foregroundAudioEngineProvider.notifier);
-      _sessionId = engine.newSession();
-      unawaited(engine.stopPlayback());
+      final playback = _playback;
+      _sessionId = playback.newSession();
+      unawaited(playback.pause());
       state = state.copyWith(
         isPlaying: false,
         isRetellCountdown: false,
@@ -915,6 +926,7 @@ class RetellPlayer extends _$RetellPlayer {
   void disposePlayer() {
     ref.read(retellRecordingControllerProvider.notifier).setRecorder(null);
     _cleanup();
+    _playbackDriver = null;
     _paragraphs = [];
     _allSentences = [];
     _keywordsMap = {};
@@ -958,8 +970,8 @@ class RetellPlayer extends _$RetellPlayer {
       _resumeStartLocalSentenceIndex = 0; // 只用一次
     }
 
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    _sessionId = engine.newSession();
+    final playback = _playback;
+    _sessionId = playback.newSession();
     final sid = _sessionId; // 捕获局部变量
 
     // override 模式下不重置 displayMode（同段 seek 保留用户视图）；其他模式按既有逻辑
@@ -980,18 +992,18 @@ class RetellPlayer extends _$RetellPlayer {
     final start = sentences[startLocalIdx].startTime;
     final end = sentences.last.endTime;
 
-    await engine.setSpeed(state.settings.playbackSpeed);
+    await playback.setSpeed(state.settings.playbackSpeed);
     // 订阅 position stream 实现句子高亮——必须等 clip+seek(0) 落定后才订阅，
     // 否则 setClip/seek 过渡期的陈旧 position 会把高亮跳到错误句、污染断点。
-    await engine.playRangeOnce(
+    await playback.playRange(
       start,
       end,
       sid,
-      onClipReady: () => _startPositionTracking(sentences),
+      onRangeReady: () => _startPositionTracking(sentences),
     );
 
     // 播放完成后进入复述阶段（用局部变量检查）
-    final sessionStillActive = engine.isActiveSession(sid);
+    final sessionStillActive = playback.isActiveSession(sid);
     AppLogger.log(
       'RetellPlayer',
       'playRangeOnce 返回: sessionActive=$sessionStillActive, '
@@ -1035,10 +1047,10 @@ class RetellPlayer extends _$RetellPlayer {
   void _startPositionTracking(List<Sentence> sentences) {
     _positionSub?.cancel();
     _lastSkippedSilenceKey = null; // 新段落，清空去重指针
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
+    final playback = _playback;
 
-    _positionSub = engine.absolutePositionStream.listen((position) {
-      if (!engine.isActiveSession(_sessionId)) return;
+    _positionSub = playback.positionStream.listen((position) {
+      if (!playback.isActiveSession(_sessionId)) return;
       if (state.phase != RetellPhase.listening) return;
       // 防御：clip 切换后仍可能残留一次旧 emission。落在本段范围外的 position
       // 一律丢弃，绝不改高亮、不写断点、不触发静音跳过。
@@ -1076,11 +1088,7 @@ class RetellPlayer extends _$RetellPlayer {
     if (_lastSkippedSilenceKey == result.dedupKey) return;
 
     _lastSkippedSilenceKey = result.dedupKey;
-    unawaited(
-      ref
-          .read(foregroundAudioEngineProvider.notifier)
-          .seekToAbsolute(result.skipTo),
-    );
+    unawaited(_playback.seek(result.skipTo));
 
     if (result.gapDuration.inSeconds > 5) {
       _silenceSkipEvents.add(result.gapDuration);
@@ -1191,12 +1199,12 @@ class RetellPlayer extends _$RetellPlayer {
   /// 这里必须等待底层 stop 完成，避免在切段时与下一次 setClip
   /// 并发触发 just_audio 的 "Loading interrupted"。
   Future<void> _cancelAll() async {
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    _sessionId = engine.newSession();
+    final playback = _playback;
+    _sessionId = playback.newSession();
     _positionSub?.cancel();
     _invalidateRetellCountdown();
     _waitAfterCurrentParagraph = false;
-    await engine.stopPlayback();
+    await playback.pause();
   }
 
   /// 使当前复述倒计时失效
