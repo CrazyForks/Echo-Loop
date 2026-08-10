@@ -2,6 +2,8 @@
 //
 // 验证共享段落骨架已经接入，页面底部只有一套播放控制，
 // 且文本显隐开关位于句子列表下方。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/blind_listen_settings.dart';
+import 'package:echo_loop/models/media_learning_startup.dart';
+import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart'
     show ShadowingControlMode;
 import 'package:echo_loop/models/sentence.dart';
@@ -31,8 +35,10 @@ import '../helpers/mock_providers.dart';
 class _StaticBlindListenPlayer extends TestBlindListenPlayer {
   _StaticBlindListenPlayer(super.initialState);
 
+  VoidCallback? onStart;
+
   @override
-  Future<void> startPlaying() async {}
+  Future<void> startPlaying() async => onStart?.call();
 }
 
 class _MutableBlindListenPlayer extends _StaticBlindListenPlayer {
@@ -79,6 +85,7 @@ void main() {
     Locale locale = const Locale('en'),
     BlindListenPlayerState? playerState,
     List<Override> extraOverrides = const [],
+    MediaLearningStartup? mediaStartup,
     TestBlindListenPlayer Function(BlindListenPlayerState initialState)?
     playerFactory,
   }) {
@@ -103,6 +110,7 @@ void main() {
             return BlindListenPlayerScreen(
               collectionId: collectionId,
               audioItemId: audioId,
+              mediaStartup: mediaStartup,
             );
           },
         ),
@@ -143,6 +151,45 @@ void main() {
   }
 
   group('BlindListenPlayerScreen', () {
+    testWidgets('视频启动完成后显示共享画面，启动前不播放', (tester) async {
+      final load = Completer<MediaLoadResult>();
+      var starts = 0;
+      final session = TestLearningSession(
+        const LearningSessionState(
+          learningMode: LearningMode.blindListen,
+          playbackChain: LearningPlaybackChain.media,
+        ),
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          mediaStartup: MediaLearningStartup(
+            loadKey: 'video-1',
+            load: () => load.future,
+            cancel: () async {},
+          ),
+          playerFactory: (state) =>
+              _StaticBlindListenPlayer(state)..onStart = () => starts += 1,
+          extraOverrides: [learningSessionProvider.overrideWith(() => session)],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Loading video…'), findsOneWidget);
+      // 加载层只覆盖 Scaffold.body，不能像整页遮罩一样吞掉盲听的 AppBar。
+      expect(find.text('Blind Listening'), findsOneWidget);
+      final canvasTop = tester
+          .getTopLeft(find.byKey(const ValueKey('managed-media-overlay-canvas')))
+          .dy;
+      expect(canvasTop, greaterThan(0));
+      expect(starts, 0);
+
+      load.complete(MediaLoadResult.ready);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('media-video-canvas')), findsOneWidget);
+      expect(starts, 1);
+    });
+
     testWidgets('只渲染一套底部播放控制', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();

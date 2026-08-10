@@ -42,6 +42,7 @@ import '../listening_practice/listening_practice_provider.dart';
 import '../media_engine/media_engine_provider.dart';
 import '../media_engine/media_sense_group_range_playback.dart';
 import 'blind_listen_player_provider.dart';
+import 'paragraph_playback_driver.dart';
 import 'intensive_listen_player_provider.dart';
 import 'intensive_listen_playback_driver.dart';
 import 'retell_player_provider.dart';
@@ -489,6 +490,89 @@ class LearningSession extends _$LearningSession {
       settingsSlot: stageSlotKey(StageSettingsSlots.blindListen, stage),
     );
     _trackSessionStart();
+  }
+
+  /// 进入视频盲听：仅占用 MediaEngine，不触碰既有音频盲听加载链路。
+  Future<MediaLoadResult> enterMediaBlindListenMode(
+    AudioItem mediaItem, {
+    required List<List<Sentence>> paragraphs,
+    required BlindListenSettings settings,
+    LearningStage? stage,
+    bool isFreePlay = false,
+  }) async {
+    final progress = await ref
+        .read(learningProgressNotifierProvider.notifier)
+        .getLatestOrEnsureProgress(mediaItem.id);
+    await ref.read(audioEngineProvider.notifier).pause();
+    final mediaEngine = ref.read(mediaEngineProvider.notifier);
+    final duration = await mediaEngine.loadMedia(
+      mediaItem,
+      settings.playbackSpeed,
+    );
+    if (duration == null) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.failure;
+    }
+    await mediaEngine.setSubtitleTrackData(null);
+
+    int? startSentenceIndex;
+    if (isFreePlay && _isBreakpointValid(progress.freePlayBreakpointSavedAt)) {
+      startSentenceIndex = progress.freePlayBlindListenSentenceIndex;
+    } else if (!isFreePlay &&
+        _isBreakpointValid(progress.newLearningBreakpointSavedAt)) {
+      startSentenceIndex = progress.blindListenSentenceIndex;
+    }
+    var startParagraphIndex = 0;
+    var startSentenceLocalIndex = 0;
+    if (startSentenceIndex != null) {
+      for (
+        var paragraphIndex = 0;
+        paragraphIndex < paragraphs.length;
+        paragraphIndex++
+      ) {
+        final localIndex = paragraphs[paragraphIndex].indexWhere(
+          (sentence) => sentence.index == startSentenceIndex,
+        );
+        if (localIndex >= 0) {
+          startParagraphIndex = paragraphIndex;
+          startSentenceLocalIndex = localIndex;
+          break;
+        }
+      }
+    }
+
+    state = state.copyWith(
+      learningMode: LearningMode.blindListen,
+      blindListenCompleted: false,
+      blindListenPassCount: progress.blindListenPassCount + 1,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+      clearSavedSettings: true,
+    );
+    ref
+        .read(blindListenPlayerProvider.notifier)
+        .initializeParagraphs(
+          paragraphs,
+          settings,
+          startParagraphIndex: startParagraphIndex,
+          startSentenceLocalIndex: startSentenceLocalIndex,
+          settingsSlot: stageSlotKey(StageSettingsSlots.blindListen, stage),
+          playbackDriver: MediaParagraphPlaybackDriver(mediaEngine),
+        );
+    _startStudyTimer();
+    _trackSessionStart();
+    return MediaLoadResult.ready;
+  }
+
+  /// 取消视频盲听进入或结束已准备好的媒体会话。
+  Future<void> cancelMediaBlindListenEntry() async {
+    if (state.learningMode == LearningMode.blindListen &&
+        state.playbackChain == LearningPlaybackChain.media) {
+      await exitLearningMode();
+    } else {
+      await ref.read(mediaEngineProvider.notifier).releaseFromScreen();
+    }
   }
 
   /// 再听一遍：重置到第一段，递增遍数

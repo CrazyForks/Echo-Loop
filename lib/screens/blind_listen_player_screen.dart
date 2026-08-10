@@ -17,6 +17,7 @@ import '../database/enums.dart';
 import '../utils/playback_speed.dart';
 import '../utils/wakelock_mixin.dart';
 import '../l10n/app_localizations.dart';
+import '../models/media_learning_startup.dart';
 import '../models/retell_settings.dart';
 import '../models/sentence.dart';
 import '../providers/learning_plan_provider.dart';
@@ -40,6 +41,8 @@ import '../widgets/dialogs/free_play_complete_dialog.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/player_hotkey_scope.dart';
 import '../widgets/practice/practice_play_count_label.dart';
+import '../widgets/common/managed_media_visual_surface.dart';
+import '../widgets/common/practice_media_presentation_host.dart';
 
 /// 盲听播放器页面
 class BlindListenPlayerScreen extends ConsumerStatefulWidget {
@@ -49,10 +52,14 @@ class BlindListenPlayerScreen extends ConsumerStatefulWidget {
   /// 音频项 ID
   final String audioItemId;
 
+  /// 视频盲听在路由进入后延迟加载媒体，音频任务保持 null。
+  final MediaLearningStartup? mediaStartup;
+
   const BlindListenPlayerScreen({
     super.key,
     this.collectionId,
     required this.audioItemId,
+    this.mediaStartup,
   });
 
   @override
@@ -84,6 +91,7 @@ class _BlindListenPlayerScreenState
   final GlobalKey _guideBodyKey = GlobalKey(debugLabel: 'guideSentenceBody');
   ProviderSubscription<BlindListenPlayerState>? _playerSubscription;
   StreamSubscription<Duration>? _silenceSkipSub;
+  bool _mediaStartupReady = false;
 
   @override
   void initState() {
@@ -104,7 +112,14 @@ class _BlindListenPlayerScreenState
         .read(blindListenPlayerProvider.notifier)
         .silenceSkipEventStream
         .listen(_showSilenceSkippedSnackBar);
+    if (widget.mediaStartup == null) {
+      _scheduleStartPlaying();
+    }
+  }
+
+  void _scheduleStartPlaying() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       AppLogger.log('BlindListenScreen', '首帧后启动播放');
       ref.read(blindListenPlayerProvider.notifier).startPlaying();
       // 从 DB 拉取最新的收藏状态（覆盖 initializeParagraphs 时的同步快照）
@@ -114,6 +129,29 @@ class _BlindListenPlayerScreenState
             .initializeBookmarks(widget.audioItemId),
       );
     });
+  }
+
+  void _handleMediaStartupReady() {
+    if (!mounted || _mediaStartupReady) return;
+    setState(() => _mediaStartupReady = true);
+    _scheduleStartPlaying();
+  }
+
+  Future<void> _handleMediaStartupExit() async {
+    await widget.mediaStartup?.cancel();
+    if (mounted) context.pop();
+  }
+
+  Widget _wrapMediaStartup(Widget child) {
+    final startup = widget.mediaStartup;
+    if (startup == null) return child;
+    return ManagedMediaVisualSurface(
+      loadKey: startup.loadKey,
+      load: startup.load,
+      cancel: startup.cancel,
+      onReady: _handleMediaStartupReady,
+      child: child,
+    );
   }
 
   @override
@@ -495,8 +533,31 @@ class _BlindListenPlayerScreenState
     );
     final playerState = ref.read(blindListenPlayerProvider);
 
+    final mediaReady = widget.mediaStartup == null || _mediaStartupReady;
     return wakelockBody(
-      child: _buildParagraphMode(context, l10n, theme, playerState),
+      child: PracticeMediaPresentationHost(
+        enabled:
+            mediaReady &&
+            ref.read(learningSessionProvider).playbackChain ==
+                LearningPlaybackChain.media,
+        audioItemId: widget.audioItemId,
+        isPlaying: playerState.isPlaying,
+        onPlayPause: () {
+          final player = ref.read(blindListenPlayerProvider.notifier);
+          playerState.isPlaying
+              ? unawaited(player.pause())
+              : unawaited(player.resume());
+        },
+        builder: (context, presentation, mediaSurface) => _buildParagraphMode(
+          context,
+          l10n,
+          theme,
+          playerState,
+          topContent: presentation.enabled ? mediaSurface : null,
+          bodyWrapper: _wrapMediaStartup,
+          fullscreenBody: presentation.expanded ? mediaSurface : null,
+        ),
+      ),
     );
   }
 
@@ -539,8 +600,11 @@ class _BlindListenPlayerScreenState
     BuildContext context,
     AppLocalizations l10n,
     ThemeData theme,
-    BlindListenPlayerState playerState,
-  ) {
+    BlindListenPlayerState playerState, {
+    Widget? topContent,
+    Widget Function(Widget child)? bodyWrapper,
+    Widget? fullscreenBody,
+  }) {
     final player = ref.read(blindListenPlayerProvider.notifier);
 
     final sentences = player.currentParagraphSentences;
@@ -609,7 +673,11 @@ class _BlindListenPlayerScreenState
         canPop: false,
         onPopInvokedWithResult: (didPop, _) async {
           if (didPop) return;
-          await _handleExit();
+          if (widget.mediaStartup != null && !_mediaStartupReady) {
+            await _handleMediaStartupExit();
+          } else {
+            await _handleExit();
+          }
         },
         child: GuideFlowSequenceHost(
           flows: guideFlows,
@@ -652,6 +720,9 @@ class _BlindListenPlayerScreenState
               numberAreaGuideStep: numberStep,
               bodyAreaGuideStep: bodyStep,
             ),
+            topContent: topContent,
+            bodyWrapper: bodyWrapper,
+            fullscreenBody: fullscreenBody,
             contentControls: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 36),
               child: GestureDetector(

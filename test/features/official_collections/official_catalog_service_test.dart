@@ -52,7 +52,7 @@ void main() {
     }
   });
 
-  test('节流 10min 内 outcome=throttled，dio 不发请求', () async {
+  test('节流 2h 内 outcome=throttled，dio 不发请求', () async {
     final body = snapshotToBody(
       makeSnapshot(collections: [makeCatalogCollection()]),
     );

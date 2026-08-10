@@ -95,6 +95,35 @@ void main() {
     expect(readyCalls, 1);
   });
 
+  testWidgets('极大系统字号下加载提示保持在视频画布内', (tester) async {
+    final completer = Completer<MediaLoadResult>();
+    await tester.pumpWidget(
+      createTestApp(
+        MediaQuery(
+          data: MediaQueryData.fromView(
+            tester.view,
+          ).copyWith(textScaler: const TextScaler.linear(4)),
+          child: ManagedMediaVisualSurface(
+            loadKey: 'video-1',
+            load: () => completer.future,
+            cancel: () async {},
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final textSize = tester.getSize(find.text('Loading video…'));
+    final canvasSize = tester.getSize(
+      find.byKey(const ValueKey('managed-media-overlay-canvas')),
+    );
+    expect(textSize.width, lessThanOrEqualTo(canvasSize.width));
+    expect(textSize.height, lessThan(canvasSize.height));
+    expect(textSize.height, lessThan(30));
+  });
+
   testWidgets('失败后原地重试并可成功', (tester) async {
     var loadCalls = 0;
     var readyCalls = 0;

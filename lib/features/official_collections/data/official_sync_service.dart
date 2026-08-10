@@ -46,7 +46,7 @@ class OfficialSyncStats {
 /// 全局唯一同步入口。
 ///
 /// 策略（见 plan §Stage 6.1 + v2.1）：
-/// 1. 调 `OfficialCatalogService.refresh(force)` —— 内部 inflight + 10min 节流 + sha256 比对
+/// 1. 调 `OfficialCatalogService.refresh(force)` —— 内部 inflight + 2h 节流 + sha256 比对
 /// 2. 仅 [CatalogUpdated] 才走后续 diff（unchanged / throttled / failed 全部跳过）
 /// 3. 对所有"已加入且未软删"的官方合集做 diff（含 deprecated 的，可能要 undeprecate）
 /// 4. catalog 含某 collection → 比对 detail 应用差异；catalog 不含 → markDeprecated

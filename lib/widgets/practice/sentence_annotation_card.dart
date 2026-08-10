@@ -908,17 +908,35 @@ class SentenceAnnotationCardState extends State<SentenceAnnotationCard> {
       onPressed: _onTapSenseGroup,
     );
 
+    // 按钮之间固定间距；剩余宽度按各自内容占比给按钮，而非留成过大空隙。
     return Row(
       children: [
-        Expanded(child: _wrapGuide(widget.analysisGuideStep, analysisBtn)),
+        Expanded(
+          flex: _toolbarButtonFlex(l10n.annotationBtnAnalysis, context),
+          child: _wrapGuide(widget.analysisGuideStep, analysisBtn),
+        ),
         const SizedBox(width: AppSpacing.s),
         Expanded(
+          flex: _toolbarButtonFlex(l10n.annotationBtnTranslation, context),
           child: _wrapGuide(widget.translationGuideStep, translationBtn),
         ),
         const SizedBox(width: AppSpacing.s),
-        Expanded(child: _wrapGuide(widget.senseGroupGuideStep, senseGroupBtn)),
+        Expanded(
+          flex: _toolbarButtonFlex(senseGroupLabel, context),
+          child: _wrapGuide(widget.senseGroupGuideStep, senseGroupBtn),
+        ),
       ],
     );
+  }
+
+  /// 根据图标、文字和水平内边距计算按钮的相对占宽，维持内容比例。
+  int _toolbarButtonFlex(String label, BuildContext context) {
+    final textStyle = Theme.of(context).textTheme.labelMedium;
+    final textWidth = TextPainter(
+      text: TextSpan(text: label, style: textStyle),
+      textDirection: Directionality.of(context),
+    )..layout();
+    return (16 + 4 + 16 + textWidth.width).ceil();
   }
 
   /// 可选地包一层 [GuideTarget]。step 为空时直接返回 child。

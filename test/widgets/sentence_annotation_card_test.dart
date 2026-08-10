@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/models/sense_group_result.dart';
 import 'package:echo_loop/models/sentence_ai_result.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/utils/sense_group_timing.dart';
 import 'package:echo_loop/widgets/common/shimmer_placeholder.dart';
 import 'package:echo_loop/widgets/practice/selectable_sentence_text.dart';
@@ -94,6 +95,38 @@ void main() {
       expect(find.text('Sense Groups'), findsOneWidget);
       expect(find.text('Translation'), findsOneWidget);
       expect(find.text('Analysis'), findsOneWidget);
+    });
+
+    testWidgets('工具栏按内容比例撑满整行且保持固定间距', (tester) async {
+      await tester.pumpWidget(
+        createTestApp(
+          SentenceAnnotationCard(
+            text: 'Test',
+            onRequestTranslation: _translate('翻译'),
+            onRequestAnalysis: _dummyStream,
+            onRequestSenseGroups: (_) async {},
+          ),
+        ),
+      );
+
+      final analysisRect = tester.getRect(
+        find.byKey(const ValueKey('analysis')),
+      );
+      final translationRect = tester.getRect(
+        find.byKey(const ValueKey('translation')),
+      );
+      final senseGroupRect = tester.getRect(
+        find.byKey(const ValueKey('senseGroup')),
+      );
+
+      expect(analysisRect.top, translationRect.top);
+      expect(translationRect.top, senseGroupRect.top);
+      expect(analysisRect.left, 0);
+      expect(senseGroupRect.right, tester.view.physicalSize.width);
+      expect(translationRect.left - analysisRect.right, AppSpacing.s);
+      expect(senseGroupRect.left - translationRect.right, AppSpacing.s);
+      expect(analysisRect.width, isNot(translationRect.width));
+      expect(translationRect.width, isNot(senseGroupRect.width));
     });
 
     testWidgets('无词级时间戳时拆意群按钮仍可用', (tester) async {

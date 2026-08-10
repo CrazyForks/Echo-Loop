@@ -4331,7 +4331,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoritesUnsaveVocabulary.
   ///
   /// In en, this message translates to:
-  /// **'Remove'**
+  /// **'Unsave'**
   String get favoritesUnsaveVocabulary;
 
   /// No description provided for @bookmarkReviewTitle.

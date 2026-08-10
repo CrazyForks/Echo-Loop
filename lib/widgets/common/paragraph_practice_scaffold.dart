@@ -32,6 +32,14 @@ class ParagraphPracticeScaffold extends StatelessWidget {
   final void Function(int targetIndex)? onSeekToIndex;
 
   final Widget paragraphContent;
+
+  /// 视频段落任务的画面插槽；音频任务保持 null。
+  final Widget? topContent;
+  /// 包装页面 body 的可选宿主，例如视频加载状态托管层。
+  final Widget Function(Widget child)? bodyWrapper;
+
+  /// 全屏时替换普通段落内容的 body；传入后同时隐藏 AppBar。
+  final Widget? fullscreenBody;
   final Widget? contentControls;
   final Widget? practiceControls;
   final bool canGoPrev;
@@ -57,6 +65,9 @@ class ParagraphPracticeScaffold extends StatelessWidget {
     this.durationText,
     this.onSeekToIndex,
     required this.paragraphContent,
+    this.topContent,
+    this.bodyWrapper,
+    this.fullscreenBody,
     this.contentControls,
     this.practiceControls,
     required this.canGoPrev,
@@ -74,55 +85,67 @@ class ParagraphPracticeScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final body = Column(
+      children: [
+        if (topContent != null) topContent!,
+        PracticeProgressSection(
+          current: current,
+          total: total,
+          progressText: progressText,
+          durationText: durationText,
+          onSeek: onSeekToIndex,
+        ),
+        Expanded(child: paragraphContent),
+        if (contentControls != null)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.m,
+              right: AppSpacing.m,
+              top: AppSpacing.s,
+            ),
+            child: contentControls!,
+          ),
+        if (practiceControls != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.s),
+            child: practiceControls!,
+          ),
+        const SizedBox(height: AppSpacing.m),
+        PracticePlaybackFooter(
+          canGoPrev: canGoPrev,
+          isLast: isLast,
+          centerIcon: centerIcon,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onCenter: onCenter,
+          isManualMode: isManualMode,
+          playCountText: playCountText,
+          statusSuffixText: statusSuffixText,
+          l10n: l10n,
+          theme: theme,
+        ),
+      ],
+    );
+    final isFullscreen = fullscreenBody != null;
+    final pageBody = fullscreenBody ?? body;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        centerTitle: true,
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: onClose),
-        actions: [
-          IconButton(icon: const Icon(Icons.tune), onPressed: onOpenSettings),
-        ],
-      ),
-      body: Column(
-        children: [
-          PracticeProgressSection(
-            current: current,
-            total: total,
-            progressText: progressText,
-            durationText: durationText,
-            onSeek: onSeekToIndex,
-          ),
-          Expanded(child: paragraphContent),
-          if (contentControls != null)
-            Padding(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.m,
-                right: AppSpacing.m,
-                top: AppSpacing.s,
+      appBar: isFullscreen
+          ? null
+          : AppBar(
+              title: Text(title),
+              centerTitle: true,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: onClose,
               ),
-              child: contentControls!,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.tune),
+                  onPressed: onOpenSettings,
+                ),
+              ],
             ),
-          if (practiceControls != null)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.s),
-              child: practiceControls!,
-            ),
-          const SizedBox(height: AppSpacing.m),
-          PracticePlaybackFooter(
-            canGoPrev: canGoPrev,
-            isLast: isLast,
-            centerIcon: centerIcon,
-            onPrevious: onPrevious,
-            onNext: onNext,
-            onCenter: onCenter,
-            isManualMode: isManualMode,
-            playCountText: playCountText,
-            statusSuffixText: statusSuffixText,
-            l10n: l10n,
-            theme: theme,
-          ),
-        ],
-      ),
+      body: bodyWrapper?.call(pageBody) ?? pageBody,
     );
   }
 }

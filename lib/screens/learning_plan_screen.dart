@@ -1093,10 +1093,16 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     BuildContext context,
     LearningProgress? progress,
   ) async {
-    // 等待音频加载完成，获取字幕
-    final lpState = await _ensureAudioLoaded();
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    // 视频字幕直接从数据库读取，避免把视频送入原音频播放链路。
+    final lpState = audioItem.isVideo ? null : await _ensureAudioLoaded();
     if (!context.mounted) return;
-    final sentences = lpState?.sentences ?? const [];
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : lpState?.sentences ?? const [];
 
     if (sentences.isEmpty) return;
 
@@ -1147,14 +1153,33 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
           sentences,
           targetDuration,
         );
-        await ref
-            .read(learningSessionProvider.notifier)
-            .enterBlindListenMode(
+        if (!context.mounted) return;
+        final session = ref.read(learningSessionProvider.notifier);
+        if (audioItem.isVideo) {
+          context.push(
+            AppRoutes.blindListenPlayer(
+              widget.collectionId,
               widget.audioItemId,
-              paragraphs: paragraphs,
-              settings: settings,
-              stage: stage,
-            );
+            ),
+            extra: MediaLearningStartup(
+              loadKey: '${audioItem.id}:blind-listen:planned',
+              load: () => session.enterMediaBlindListenMode(
+                audioItem,
+                paragraphs: paragraphs,
+                settings: settings,
+                stage: stage,
+              ),
+              cancel: session.cancelMediaBlindListenEntry,
+            ),
+          );
+          return;
+        }
+        await session.enterBlindListenMode(
+          widget.audioItemId,
+          paragraphs: paragraphs,
+          settings: settings,
+          stage: stage,
+        );
         if (!context.mounted) return;
         context.push(
           AppRoutes.blindListenPlayer(widget.collectionId, widget.audioItemId),
@@ -2561,7 +2586,13 @@ class _FirstStudySection extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final sentences = ref.read(listeningPracticeProvider).sentences;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
     if (sentences.isEmpty) return;
 
     // 按当前难句书签数实时重算难度，难度降低后速度随之回升（与难句跟读/复述一致）
@@ -2608,6 +2639,33 @@ class _FirstStudySection extends ConsumerWidget {
           targetDuration,
         );
         final notifier = ref.read(learningSessionProvider.notifier);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.blindListenPlayer(collectionId, audioItemId),
+            extra: MediaLearningStartup(
+              loadKey: '${audioItem.id}:blind-listen:free-play',
+              load: () async {
+                final result = await notifier.enterMediaBlindListenMode(
+                  audioItem,
+                  isFreePlay: true,
+                  paragraphs: paragraphs,
+                  settings: settings,
+                  stage: stage,
+                );
+                if (result == MediaLoadResult.ready) {
+                  notifier.setCatchUp(
+                    LearningStage.firstLearn,
+                    SubStageType.blindListen,
+                  );
+                }
+                return result;
+              },
+              cancel: notifier.cancelMediaBlindListenEntry,
+            ),
+          );
+          return;
+        }
         await notifier.enterBlindListenMode(
           audioItemId,
           isFreePlay: true,
@@ -2615,7 +2673,6 @@ class _FirstStudySection extends ConsumerWidget {
           settings: settings,
           stage: stage,
         );
-        // 补做语义：首次学习盲听不可跳过，传 firstLearn:blindListen 仅作幂等占位
         notifier.setCatchUp(LearningStage.firstLearn, SubStageType.blindListen);
         if (context.mounted) {
           context.push(AppRoutes.blindListenPlayer(collectionId, audioItemId));

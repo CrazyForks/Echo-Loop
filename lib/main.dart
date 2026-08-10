@@ -480,7 +480,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
       }
     });
 
-    // 冷启动后异步触发 catalog 同步。force=true 绕过本地 10min 节流，
+    // 冷启动后异步触发 catalog 同步。force=true 绕过本地 2h 节流，
     // 避免运营刚调整精选合集后启动仍停留在旧磁盘缓存。
     Future.delayed(
       const Duration(seconds: 3),
@@ -528,7 +528,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
     }
   }
 
-  /// 全局唯一同步入口；inflight + 10min 节流防止重复请求。
+  /// 全局唯一同步入口；inflight + 2h 节流防止重复请求。
   /// updated 时由 helper 自动 loadLibrary + loadCollections + invalidate catalog。
   void _triggerCatalogSync({bool force = false}) {
     if (!mounted) return;

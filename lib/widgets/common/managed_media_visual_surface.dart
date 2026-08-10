@@ -155,19 +155,25 @@ class _MediaLoadingOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return _MediaOverlayFrame(
-      child: Semantics(
-        label: l10n.videoLoading,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: Colors.white),
-            const SizedBox(height: 12),
-            Text(
-              l10n.videoLoading,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ],
+    // 视频加载画布是固定格式的临时状态，不应被系统字体缩放撑破。用局部
+    // MediaQuery 固定整个遮罩，确保进度圈、间距和文案始终是同一视觉规格。
+    return MediaQuery.withNoTextScaling(
+      child: _MediaOverlayFrame(
+        child: Semantics(
+          label: l10n.videoLoading,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 12),
+              Text(
+                l10n.videoLoading,
+                style: const TextStyle(color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
