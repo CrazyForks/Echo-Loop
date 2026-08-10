@@ -70,7 +70,6 @@ jobs:
             --secret-id "$COS_SECRET_ID" --secret-key "$COS_SECRET_KEY" \
             --endpoint "$COS_ENDPOINT" --protocol https \
             cp "$TEST_FILE" "$OBJECT_URI" \
-            --parallel 10 \
             --meta "Content-Type:application/octet-stream"
           upload_exit_code=$?
           set -e
