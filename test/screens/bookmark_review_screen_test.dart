@@ -28,6 +28,7 @@ import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/services/speech_permission_service.dart';
 import 'package:echo_loop/services/transcription_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 import 'package:echo_loop/widgets/common/recording_button.dart';
 
@@ -661,13 +662,23 @@ void main() {
       expect(player.enteredBlindWaitingForUser, isTrue);
     });
 
-    testWidgets('显示收藏标记行', (tester) async {
+    testWidgets('盲听模式收藏按钮与进度信息同行并右对齐', (tester) async {
       await tester.pumpWidget(
         createTestWidget(playerState: createPlayerState(isPlaying: true)),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.bookmark), findsAtLeast(1));
+      final progressFinder = find.text('Sentence 1/5');
+      final bookmarkFinder = find.byType(BookmarkToggleRow);
+      expect(bookmarkFinder, findsOneWidget);
+      expect(
+        tester.getCenter(bookmarkFinder).dy,
+        closeTo(tester.getCenter(progressFinder).dy, 3),
+      );
+      expect(
+        tester.getTopRight(bookmarkFinder).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
     });
 
     testWidgets('句间停顿显示倒计时', (tester) async {
@@ -690,6 +701,30 @@ void main() {
   });
 
   group('BookmarkReviewScreen — 跟读模式', () {
+    testWidgets('跟读模式收藏按钮与进度信息同行并右对齐', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final progressFinder = find.text('Sentence 1/5');
+      final bookmarkFinder = find.byType(BookmarkToggleRow);
+      expect(bookmarkFinder, findsOneWidget);
+      expect(
+        tester.getCenter(bookmarkFinder).dy,
+        closeTo(tester.getCenter(progressFinder).dy, 3),
+      );
+      expect(
+        tester.getTopRight(bookmarkFinder).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
+    });
+
     testWidgets('跟读模式显示 SentenceAnnotationCard', (tester) async {
       await tester.pumpWidget(
         createTestWidget(

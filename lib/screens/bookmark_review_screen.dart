@@ -334,6 +334,11 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                     audioName: currentBookmark?.audioName,
                     showAudioSource: true,
                     l10n: l10n,
+                    // 收藏操作与进度信息同行，避免随正文模式切换而发生垂直偏移。
+                    trailing: BookmarkToggleRow(
+                      isDifficult: currentSentence?.isBookmarked ?? true,
+                      onTap: _handleToggleBookmark,
+                    ),
                   ),
 
                   // 主体内容：盲听/跟读 双态切换
@@ -347,13 +352,6 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                                 ? const SizedBox.shrink()
                                 : Column(
                                     children: [
-                                      const SizedBox(height: AppSpacing.s),
-                                      BookmarkToggleRow(
-                                        isDifficult:
-                                            currentSentence.isBookmarked,
-                                        onTap: _handleToggleBookmark,
-                                      ),
-                                      const SizedBox(height: AppSpacing.m),
                                       Expanded(
                                         child: AnnotationContentView(
                                           text: currentSentence.text,
@@ -432,6 +430,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                                 player.enterAnnotationMode(),
                             onToggleMark: _handleToggleBookmark,
                             isDifficult: currentSentence?.isBookmarked ?? true,
+                            showBookmarkRow: false,
                             sentenceText: currentSentence?.text,
                             lookupOrigin: currentSentence != null
                                 ? DictionaryLookupOrigin(

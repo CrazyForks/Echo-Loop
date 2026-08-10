@@ -3,6 +3,8 @@
 > 最后更新：2026-08-10（Release Android 发布仅保留 Cloudflare R2）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 修复收藏句子复习页收藏按钮位置：将按钮收拢到进度信息行右侧，盲听与跟读模式均与其他练习页保持一致；补充两种模式的右对齐几何回归测试。**完成时间**: 2026-08-10
+
 - [x] 修复 macOS 触控板 `PointerPanZoom` 时间戳偶发乱序触发 Flutter 滚动速度追踪器断言：全局滚动行为在 macOS 使用容忍乱序时间戳的通用 `VelocityTracker`，保留 iOS 原生惯性策略；补充 macOS 乱序时间戳和 iOS 分流回归测试。**完成时间**: 2026-08-10
 
 - [x] 移除 Release 的腾讯 COS APK 上传及独立 COS 诊断 workflow：GitHub Hosted Runner 到 COS 的跨境链路吞吐量不足以支撑发布；Android 继续上传 Cloudflare R2、GitHub Release 附件和 Google Play，避免 COS 阻塞整个 Release。**完成时间**: 2026-08-10
