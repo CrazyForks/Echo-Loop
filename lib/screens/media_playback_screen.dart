@@ -501,8 +501,14 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
           startTimeMs: sentence.startTime.inMilliseconds,
           endTimeMs: sentence.endTime.inMilliseconds,
           rangePlayback: controller.senseGroupRangePlayback,
-          mediaContext: SentenceDetailMediaContext(
+          mediaSession: SentenceDetailMediaSession(
+            readState: () => ref.read(mediaPlaybackProvider),
+            setVisible: controller.setVisualTrackVisible,
+            setSubtitleVisible: controller.setVideoSubtitleVisible,
             setFullscreen: _setVisualTrackExpanded,
+            buildVideoView: (size) => ref
+                .read(mediaEngineProvider.notifier)
+                .buildVideoView(viewportSize: size),
           ),
         ),
       );

@@ -38,6 +38,30 @@ typedef PracticeMediaPresentationBuilder =
       Widget visualSurface,
     );
 
+/// 通知父任务当前可借用的视频会话；null 表示宿主已释放。
+typedef PracticeMediaPresentationSessionChanged =
+    void Function(PracticeMediaPresentationSession? session);
+
+/// 任务页面与句子讲解页共享的视频呈现控制。
+///
+/// 宿主拥有状态和系统全屏生命周期，详情页只借用，避免两个路由维护两套
+/// 可见性、CC 与全屏状态。
+class PracticeMediaPresentationSession {
+  const PracticeMediaPresentationSession({
+    required this.readState,
+    required this.setVisible,
+    required this.setSubtitleVisible,
+    required this.setFullscreen,
+    required this.buildVideoView,
+  });
+
+  final PracticeMediaPresentationState Function() readState;
+  final Future<void> Function(bool visible) setVisible;
+  final Future<void> Function(bool visible) setSubtitleVisible;
+  final Future<void> Function(bool expanded) setFullscreen;
+  final Widget Function(Size viewportSize) buildVideoView;
+}
+
 /// 逐句精听与难句跟读共用的视频画面宿主。
 ///
 /// 统一管理隐藏画面、CC、全屏和 App 生命周期视频轨；播放状态和业务动作仍由
@@ -50,6 +74,8 @@ class PracticeMediaPresentationHost extends ConsumerStatefulWidget {
     required this.isPlaying,
     required this.onPlayPause,
     required this.builder,
+    this.onSessionChanged,
+    this.suppressVisualView = false,
   });
 
   /// 是否启用媒体呈现；音频任务保持 false，不创建视频资源。
@@ -66,6 +92,12 @@ class PracticeMediaPresentationHost extends ConsumerStatefulWidget {
 
   /// 组装页面业务内容与共享视频画面。
   final PracticeMediaPresentationBuilder builder;
+
+  /// 由父任务保存当前会话，并在导航时注入句子讲解页。
+  final PracticeMediaPresentationSessionChanged? onSessionChanged;
+
+  /// 子路由借用同一视频纹理期间，父页保留等比例黑色画布而不创建第二个纹理。
+  final bool suppressVisualView;
 
   @override
   ConsumerState<PracticeMediaPresentationHost> createState() =>
@@ -108,7 +140,24 @@ class _PracticeMediaPresentationHostState
       if (mounted) setState(() => _expanded = expanded);
     });
     _lifecycle = AppLifecycleListener(onStateChange: _handleLifecycle);
+    widget.onSessionChanged?.call(_session);
   }
+
+  PracticeMediaPresentationSession get _session =>
+      PracticeMediaPresentationSession(
+        readState: () => PracticeMediaPresentationState(
+          enabled: widget.enabled,
+          visualTrackVisible: _visible,
+          expanded: _expanded,
+          subtitleVisible: _subtitleVisible,
+        ),
+        setVisible: _setVisible,
+        setSubtitleVisible: _setSubtitleVisible,
+        setFullscreen: _setFullscreen,
+        buildVideoView: (size) => ref
+            .read(mediaEngineProvider.notifier)
+            .buildVideoView(viewportSize: size),
+      );
 
   void _handleLifecycle(AppLifecycleState state) {
     final engine = ref.read(mediaEngineProvider.notifier);
@@ -130,9 +179,12 @@ class _PracticeMediaPresentationHostState
   }
 
   Future<void> _toggleSubtitle() async {
-    final next = !_subtitleVisible;
+    await _setSubtitleVisible(!_subtitleVisible);
+  }
+
+  Future<void> _setSubtitleVisible(bool visible) async {
     final engine = ref.read(mediaEngineProvider.notifier);
-    if (next) {
+    if (visible) {
       final srt = await ref
           .read(audioItemDaoProvider)
           .getTranscriptSrt(widget.audioItemId);
@@ -140,23 +192,28 @@ class _PracticeMediaPresentationHostState
     } else {
       await engine.setSubtitleTrackData(null);
     }
-    if (mounted) setState(() => _subtitleVisible = next);
+    if (mounted) setState(() => _subtitleVisible = visible);
   }
 
   Future<void> _toggleFullscreen() async {
+    await _setFullscreen(!_expanded);
+  }
+
+  Future<void> _setFullscreen(bool expanded) async {
     final service = _fullscreenService;
     if (service == null) return;
-    if (_expanded) {
-      await service.exit();
-    } else {
+    if (expanded) {
       await service.enter(
         isLandscapeVideo:
             ref.read(mediaEngineProvider.notifier).isLandscapeVideo ?? false,
       );
+      return;
     }
+    await service.exit();
   }
 
   Future<void> _releasePresentation() async {
+    widget.onSessionChanged?.call(null);
     _lifecycle?.dispose();
     _lifecycle = null;
     await _fullscreenSubscription?.cancel();
@@ -183,7 +240,7 @@ class _PracticeMediaPresentationHostState
       expanded: widget.enabled && _expanded,
       subtitleVisible: widget.enabled && _subtitleVisible,
     );
-    final surface = widget.enabled
+    final surface = widget.enabled && !widget.suppressVisualView
         ? MediaVisualSurface(
             state: MediaVisualSurfaceState(
               visible: _visible,
@@ -202,6 +259,11 @@ class _PracticeMediaPresentationHostState
             buildVideoView: (size) => ref
                 .read(mediaEngineProvider.notifier)
                 .buildVideoView(viewportSize: size),
+          )
+        : widget.enabled
+        ? const AspectRatio(
+            aspectRatio: 16 / 9,
+            child: ColoredBox(color: Colors.black),
           )
         : const SizedBox.shrink();
     return widget.builder(context, presentation, surface);

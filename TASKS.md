@@ -3,6 +3,10 @@
 > 最后更新：2026-08-10（句子讲解工具栏按钮按内容宽度排列）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 修复统一音视频单句讲解后视频全屏失效：`PracticeMediaPresentationHost` 按目标状态正确映射进入/退出全屏，避免首次及后续点击始终执行退出；新增真实宿主全屏状态 widget 回归。**完成时间**: 2026-08-10
+
+- [x] 统一音视频单句讲解：保留唯一 `SentenceDetailScreen`，以父任务借用的媒体会话注入视频画面、CC、全屏与区间播放；视频随心听迁移到该契约，视频盲听复用同一会话并在路由交接时以黑色画布避免双视频纹理。音频讲解不注入媒体会话，保持既有播放、意群、收藏与 AI 工具链路不变；为后续视频复述提供相同接入点。补充单句讲解的音频/视频 widget 回归并完成盲听回归。**完成时间**: 2026-08-10
+
 - [x] 修复 GitHub CI / Release 失败：同步视频盲听 AppBar 与选区“Unsave”操作的过期 widget 测试断言；腾讯 COS APK 上传由会触发 multipart `MissingContentLength` 的 `aws s3 cp` 改为单请求 `aws s3api put-object`，保留 virtual-hosted endpoint、内容类型与双文件覆盖发布。**完成时间**: 2026-08-10
 
 - [x] 修复 Android 备份保存后被系统追加 `.zip` 导致恢复报无效文件：恢复入口兼容 `.elbak.zip`，仍由 ZIP 清单与数据库校验验证真实性。**完成时间**: 2026-08-10

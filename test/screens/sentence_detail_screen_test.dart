@@ -44,13 +44,11 @@ class _TestMediaPlayback extends MediaPlayback {
   @override
   Future<void> setVisualTrackVisible(bool value) async {
     visible = value;
-    state = state.copyWith(visualTrackVisible: value);
   }
 
   @override
   Future<void> setVideoSubtitleVisible(bool value) async {
     subtitleVisible = value;
-    state = state.copyWith(videoSubtitleVisible: value);
   }
 }
 
@@ -124,8 +122,13 @@ void main() {
             startTimeMs: 1000,
             endTimeMs: 3000,
             rangePlayback: rangePlayback,
-            mediaContext: SentenceDetailMediaContext(
+            mediaSession: SentenceDetailMediaSession(
+              readState: () => const MediaPlaybackState(),
+              setVisible: mediaPlayback.setVisualTrackVisible,
+              setSubtitleVisible: mediaPlayback.setVideoSubtitleVisible,
               setFullscreen: (expanded) async => fullscreen = expanded,
+              buildVideoView: (size) =>
+                  _VideoViewMediaEngine().buildVideoView(viewportSize: size),
             ),
           ),
         ),

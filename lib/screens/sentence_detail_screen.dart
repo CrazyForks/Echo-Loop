@@ -23,8 +23,6 @@ import '../models/media_playback_state.dart';
 import '../models/sense_group_range_playback.dart';
 import '../models/sentence.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
-import '../providers/media_engine/media_engine_provider.dart';
-import '../providers/media_playback/media_playback_provider.dart';
 import '../providers/listening_practice/bookmark_manager.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/sentence_ai_provider.dart';
@@ -35,6 +33,27 @@ import '../widgets/common/media_visual_surface.dart';
 import '../widgets/common/tappable_wrapper.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/annotation_content_view.dart';
+
+/// 句子讲解页借用的视频会话。
+///
+/// 会话由父任务创建并持有 [MediaEngine] 的生命周期；本页只通过这份契约
+/// 渲染画面及发出控制意图，因而不会依赖某个具体任务的 Provider。
+class SentenceDetailMediaSession {
+  const SentenceDetailMediaSession({
+    required this.readState,
+    required this.setVisible,
+    required this.setSubtitleVisible,
+    required this.setFullscreen,
+    required this.buildVideoView,
+  });
+
+  /// 父任务提供的媒体视觉单一状态源。
+  final MediaPlaybackState Function() readState;
+  final Future<void> Function(bool visible) setVisible;
+  final Future<void> Function(bool visible) setSubtitleVisible;
+  final Future<void> Function(bool expanded) setFullscreen;
+  final Widget Function(Size viewportSize) buildVideoView;
+}
 
 /// 句子详情页面参数
 class SentenceDetailArgs {
@@ -69,7 +88,7 @@ class SentenceDetailArgs {
   ///
   /// 仅作为当前父级媒体会话的视图与全屏协调入口，不拥有、不加载也不释放
   /// `MediaEngine`。为空时讲解页保持原有纯音频布局。
-  final SentenceDetailMediaContext? mediaContext;
+  final SentenceDetailMediaSession? mediaSession;
 
   const SentenceDetailArgs({
     required this.audioItemId,
@@ -80,16 +99,8 @@ class SentenceDetailArgs {
     required this.startTimeMs,
     required this.endTimeMs,
     this.rangePlayback,
-    this.mediaContext,
+    this.mediaSession,
   });
-}
-
-/// 视频句子讲解页借用父级媒体会话所需的最小上下文。
-class SentenceDetailMediaContext {
-  const SentenceDetailMediaContext({required this.setFullscreen});
-
-  /// 由持有 [MediaFullscreenService] 的随心听父页面执行全屏切换。
-  final Future<void> Function(bool expanded) setFullscreen;
 }
 
 /// 句子详情页面
@@ -121,7 +132,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
       'Navigation',
       'sentence-detail init audio=${widget.args.audioItemId} '
           'sentence=${widget.args.sentenceIndex} '
-          'media=${widget.args.mediaContext != null}',
+          'media=${widget.args.mediaSession != null}',
     );
     _engine = ref.read(audioEngineProvider.notifier);
     _loadBookmarkStatus();
@@ -140,14 +151,14 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     // 这里只暂停并失效讲解页 session，不 stop；否则晚到的 stop 会在播放器返回后
     // 重置 clip/position，造成句首短暂漏播和按钮状态误判。
     final rangePlayback = widget.args.rangePlayback;
-    final mediaContext = widget.args.mediaContext;
-    if (mediaContext != null && _mediaExpanded) {
+    final mediaSession = widget.args.mediaSession;
+    if (mediaSession != null && _mediaExpanded) {
       AppLogger.log(
         'SentenceDetailMedia',
         'exit fullscreen on dispose audio=${widget.args.audioItemId} '
             'sentence=${widget.args.sentenceIndex}',
       );
-      unawaited(Future<void>(() => mediaContext.setFullscreen(false)));
+      unawaited(Future<void>(() => mediaSession.setFullscreen(false)));
     }
     if (rangePlayback != null) {
       unawaited(Future<void>(() => rangePlayback.cancel()));
@@ -349,16 +360,16 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
         ? '第 ${args.sentenceIndex + 1} 句'
         : '第 ${args.sentenceIndex + 1}/${args.totalSentenceCount} 句';
 
-    final mediaContext = args.mediaContext;
-    final mediaState = mediaContext == null
-        ? null
-        : ref.watch(mediaPlaybackProvider);
-    final expanded = mediaState?.visualTrackExpanded ?? false;
+    final mediaSession = args.mediaSession;
+    final hasMedia = mediaSession != null;
+    final mediaState = hasMedia
+        ? mediaSession.readState()
+        : const MediaPlaybackState();
+    final expanded = hasMedia && mediaState.visualTrackExpanded;
     _mediaExpanded = expanded;
-    final mediaSurface = mediaState == null || mediaContext == null
-        ? null
-        : _buildMediaSurface(mediaState, mediaContext);
-
+    final mediaSurface = hasMedia
+        ? _buildMediaSurface(mediaState, mediaSession)
+        : null;
     return Scaffold(
       backgroundColor: expanded ? Colors.black : null,
       appBar: expanded
@@ -457,9 +468,8 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
   /// 使用随心听的单一状态源组装共享 media_kit 视频外壳。
   Widget _buildMediaSurface(
     MediaPlaybackState state,
-    SentenceDetailMediaContext context,
+    SentenceDetailMediaSession session,
   ) {
-    final controller = ref.read(mediaPlaybackProvider.notifier);
     return MediaVisualSurface(
       state: MediaVisualSurfaceState(
         visible: state.visualTrackVisible,
@@ -468,20 +478,42 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
         subtitleVisible: state.videoSubtitleVisible,
       ),
       actions: MediaVisualSurfaceActions(
-        onShow: () => unawaited(controller.setVisualTrackVisible(true)),
-        onHide: () => unawaited(controller.setVisualTrackVisible(false)),
+        onShow: () => unawaited(_setMediaVisible(session, true)),
+        onHide: () => unawaited(_setMediaVisible(session, false)),
         onPlayPause: () => unawaited(_playSentence()),
         onSubtitleToggle: () => unawaited(
-          controller.setVideoSubtitleVisible(!state.videoSubtitleVisible),
+          _setMediaSubtitleVisible(session, !state.videoSubtitleVisible),
         ),
         onFullscreenToggle: () =>
-            unawaited(context.setFullscreen(!state.visualTrackExpanded)),
+            unawaited(_setMediaFullscreen(session, !state.visualTrackExpanded)),
       ),
       fillAvailableHeight: state.visualTrackExpanded,
-      buildVideoView: (size) => ref
-          .read(mediaEngineProvider.notifier)
-          .buildVideoView(viewportSize: size),
+      buildVideoView: session.buildVideoView,
     );
+  }
+
+  Future<void> _setMediaVisible(
+    SentenceDetailMediaSession session,
+    bool visible,
+  ) async {
+    await session.setVisible(visible);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setMediaSubtitleVisible(
+    SentenceDetailMediaSession session,
+    bool visible,
+  ) async {
+    await session.setSubtitleVisible(visible);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setMediaFullscreen(
+    SentenceDetailMediaSession session,
+    bool expanded,
+  ) async {
+    await session.setFullscreen(expanded);
+    if (mounted) setState(() {});
   }
 }
 

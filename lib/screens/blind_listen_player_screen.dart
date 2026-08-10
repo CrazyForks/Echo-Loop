@@ -18,12 +18,15 @@ import '../utils/playback_speed.dart';
 import '../utils/wakelock_mixin.dart';
 import '../l10n/app_localizations.dart';
 import '../models/media_learning_startup.dart';
+import '../models/media_playback_state.dart';
 import '../models/retell_settings.dart';
 import '../models/sentence.dart';
 import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
 import '../providers/learning_session/blind_listen_player_provider.dart';
 import '../providers/learning_session/learning_session_provider.dart';
+import '../providers/media_engine/media_engine_provider.dart';
+import '../providers/media_engine/media_sense_group_range_playback.dart';
 import '../providers/listening_practice/listening_practice_provider.dart';
 import '../providers/new_user_guide_provider.dart';
 import 'sentence_detail_screen.dart';
@@ -92,6 +95,7 @@ class _BlindListenPlayerScreenState
   ProviderSubscription<BlindListenPlayerState>? _playerSubscription;
   StreamSubscription<Duration>? _silenceSkipSub;
   bool _mediaStartupReady = false;
+  PracticeMediaPresentationSession? _mediaPresentationSession;
 
   @override
   void initState() {
@@ -211,7 +215,7 @@ class _BlindListenPlayerScreenState
 
     final lpState = ref.read(listeningPracticeProvider);
     final audioName = lpState.currentAudioItem?.name ?? '';
-
+    final usesMedia = widget.mediaStartup != null && _mediaStartupReady;
     await AppRoutes.pushNested(
       context,
       AppRoutes.sentenceDetailSegment,
@@ -220,18 +224,48 @@ class _BlindListenPlayerScreenState
         audioName: audioName,
         sentenceText: sentence.text,
         sentenceIndex: sentence.index,
+        totalSentenceCount: ref
+            .read(blindListenPlayerProvider.notifier)
+            .totalSentenceCount,
         startTimeMs: sentence.startTime.inMilliseconds,
         endTimeMs: sentence.endTime.inMilliseconds,
+        rangePlayback: usesMedia ? _blindMediaRangePlayback : null,
+        mediaSession: usesMedia ? _buildMediaSession() : null,
       ),
     );
 
     _isNavigatingToDetail = false;
-
     // 返回后刷新收藏状态（详情页可能修改了收藏）
     if (!mounted) return;
     await ref
         .read(blindListenPlayerProvider.notifier)
         .initializeBookmarks(widget.audioItemId);
+  }
+
+  late final MediaSenseGroupRangePlayback _blindMediaRangePlayback =
+      MediaSenseGroupRangePlayback(
+        engine: ref.read(mediaEngineProvider.notifier),
+        playbackSpeed: () =>
+            ref.read(blindListenPlayerProvider).settings.playbackSpeed,
+      );
+
+  SentenceDetailMediaSession? _buildMediaSession() {
+    final session = _mediaPresentationSession;
+    if (session == null) return null;
+    return SentenceDetailMediaSession(
+      readState: () {
+        final state = session.readState();
+        return MediaPlaybackState(
+          visualTrackVisible: state.visualTrackVisible,
+          visualTrackExpanded: state.expanded,
+          videoSubtitleVisible: state.subtitleVisible,
+        );
+      },
+      setVisible: session.setVisible,
+      setSubtitleVisible: session.setSubtitleVisible,
+      setFullscreen: session.setFullscreen,
+      buildVideoView: session.buildVideoView,
+    );
   }
 
   // ========== 完成处理 ==========
@@ -540,6 +574,7 @@ class _BlindListenPlayerScreenState
             mediaReady &&
             ref.read(learningSessionProvider).playbackChain ==
                 LearningPlaybackChain.media,
+        suppressVisualView: _isNavigatingToDetail,
         audioItemId: widget.audioItemId,
         isPlaying: playerState.isPlaying,
         onPlayPause: () {
@@ -548,6 +583,7 @@ class _BlindListenPlayerScreenState
               ? unawaited(player.pause())
               : unawaited(player.resume());
         },
+        onSessionChanged: (session) => _mediaPresentationSession = session,
         builder: (context, presentation, mediaSurface) => _buildParagraphMode(
           context,
           l10n,
