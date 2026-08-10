@@ -200,31 +200,32 @@ jobs:
         if: matrix.platform == 'android'
         env:
           BUILD_NAME: ${{ steps.ver.outputs.name }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.COS_SECRET_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.COS_SECRET_KEY }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
         run: |
           COS_BUCKET="echo-loop-public-1451816464"
           COS_REGION="ap-nanjing"
-          COS_ENDPOINT="https://cos.${COS_REGION}.myqcloud.com"
-          # COS 的 S3 兼容层要求 virtual-hosted 风格域名，aws cli 对自定义 endpoint 默认走 path 风格，需显式声明。
-          export AWS_CONFIG_FILE="$RUNNER_TEMP/aws-cos-config"
-          cat > "$AWS_CONFIG_FILE" <<'EOF'
-          [default]
-          s3 =
-              addressing_style = virtual
-          EOF
+          COS_ENDPOINT="cos.${COS_REGION}.myqcloud.com"
+          COSCLI="$RUNNER_TEMP/coscli"
+          # 使用腾讯 COS 原生客户端，避免 AWS S3 兼容层的 multipart
+          # MissingContentLength 与 put-object 无响应问题；固定版本保证发布可复现。
+          curl -fL --retry 3 --connect-timeout 15 --max-time 120 \
+            "https://github.com/tencentyun/coscli/releases/download/v1.0.8/coscli-v1.0.8-linux-amd64" \
+            -o "$COSCLI"
+          chmod +x "$COSCLI"
           APK="build/release/Echo-Loop-${BUILD_NAME}-arm64.apk"
-          # COS 对 aws s3 cp 自动启用的 multipart UploadPart 不接受缺失
-          # Content-Length 的请求。APK 远小于单请求 PUT 的 5 GiB 上限，
-          # 因此使用 s3api put-object 强制单请求上传，由 CLI 写入长度头。
-          aws s3api put-object --body "$APK" \
-            --bucket "$COS_BUCKET" --key "android/$(basename "$APK")" \
-            --endpoint-url "$COS_ENDPOINT" --region "$COS_REGION" \
-            --content-type "application/vnd.android.package-archive"
-          aws s3api put-object --body "$APK" \
-            --bucket "$COS_BUCKET" --key "android/Echo-Loop-latest.apk" \
-            --endpoint-url "$COS_ENDPOINT" --region "$COS_REGION" \
-            --content-type "application/vnd.android.package-archive"
+          cos_upload() {
+            local destination="$1"
+            timeout 180 "$COSCLI" --init-skip --disable-log \
+              --secret-id "$COS_SECRET_ID" --secret-key "$COS_SECRET_KEY" \
+              --endpoint "$COS_ENDPOINT" --protocol https \
+              cp "$APK" "$destination" \
+              --meta "Content-Type:application/vnd.android.package-archive" \
+              --err-retry-num 2 --err-retry-interval 3 \
+              --process-log=false --fail-output=false
+          }
+          cos_upload "cos://${COS_BUCKET}/android/$(basename "$APK")"
+          cos_upload "cos://${COS_BUCKET}/android/Echo-Loop-latest.apk"
 
       - name: Upload APK artifact
         if: matrix.platform == 'android'
