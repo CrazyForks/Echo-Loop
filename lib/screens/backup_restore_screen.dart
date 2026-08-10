@@ -95,7 +95,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     if (path == null) return;
     final pickedName =
         result?.files.firstOrNull?.name ?? File(path).uri.pathSegments.last;
-    if (!_isBackupFileName(pickedName)) {
+    if (!isBackupFileName(pickedName)) {
       if (mounted) _showError(l10n.importInvalidFile);
       return;
     }
@@ -517,10 +517,6 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       final file = File(path);
       if (await file.exists()) await file.delete();
     } catch (_) {}
-  }
-
-  static bool _isBackupFileName(String name) {
-    return name.toLowerCase().endsWith('.$backupFileExtension');
   }
 
   static Future<void> _clearDialogFeedback(
