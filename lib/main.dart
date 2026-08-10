@@ -11,6 +11,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'l10n/app_localizations.dart';
 import 'utils/time_format.dart';
+import 'utils/echo_loop_scroll_behavior.dart';
 import 'database/app_database.dart';
 import 'database/providers.dart';
 import 'database/migration/sp_to_drift_migration.dart';
@@ -561,6 +562,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
     return MaterialApp.router(
       title: 'Echo Loop',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const EchoLoopScrollBehavior(),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: settings.themeMode,
