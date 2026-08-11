@@ -69,6 +69,66 @@ import '../providers/learning_session/sentence_playback_engine.dart';
 /// 使用固定 SVG，避免 `🔁` emoji 在不同平台被系统字体渲染成不一致的蓝色方块。
 const String _refreshIconAsset = 'assets/icon/refresh.svg';
 
+/// 统一打开音频或视频盲听任务，避免首次学习与复习入口各自维护媒体分流。
+///
+/// 自由练习的补做目标只在视频加载成功或音频初始化完成后写入，加载失败和取消
+/// 不会提前改变学习进度语义。
+Future<void> _openBlindListenPractice({
+  required BuildContext context,
+  required WidgetRef ref,
+  required AudioItem audioItem,
+  required String? collectionId,
+  required List<List<Sentence>> paragraphs,
+  required BlindListenSettings settings,
+  required LearningStage stage,
+  required String loadKey,
+  bool isFreePlay = false,
+  LearningStage? catchUpStage,
+  SubStageType? catchUpSubStage,
+}) async {
+  final session = ref.read(learningSessionProvider.notifier);
+  final route = AppRoutes.blindListenPlayer(collectionId, audioItem.id);
+  if (audioItem.isVideo) {
+    if (!context.mounted) return;
+    context.push(
+      route,
+      extra: MediaLearningStartup(
+        loadKey: loadKey,
+        load: () async {
+          final result = await session.enterMediaBlindListenMode(
+            audioItem,
+            paragraphs: paragraphs,
+            settings: settings,
+            stage: stage,
+            isFreePlay: isFreePlay,
+          );
+          if (result == MediaLoadResult.ready &&
+              catchUpStage != null &&
+              catchUpSubStage != null) {
+            session.setCatchUp(catchUpStage, catchUpSubStage);
+          }
+          return result;
+        },
+        cancel: session.cancelMediaBlindListenEntry,
+      ),
+    );
+    return;
+  }
+
+  await session.enterBlindListenMode(
+    audioItem.id,
+    paragraphs: paragraphs,
+    settings: settings,
+    stage: stage,
+    isFreePlay: isFreePlay,
+  );
+  if (catchUpStage != null && catchUpSubStage != null) {
+    session.setCatchUp(catchUpStage, catchUpSubStage);
+  }
+  if (!context.mounted) return;
+  context.push(route);
+}
+
 /// 统一打开音频或视频复述任务，保持所有计划入口的分流与补做参数一致。
 Future<void> _openRetellPractice({
   required BuildContext context,
@@ -856,13 +916,24 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     BuildContext context, {
     required LearningStage stage,
   }) async {
-    final lpState = await _ensureAudioLoaded();
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final lpState = audioItem.isVideo ? null : await _ensureAudioLoaded();
     if (!context.mounted) return;
-    final sentences = lpState?.sentences ?? const [];
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : lpState?.sentences ?? const <Sentence>[];
+    if (!context.mounted) return;
     if (sentences.isEmpty) return;
 
     final l10n = AppLocalizations.of(context)!;
-    final estimatedDuration = _estimateReviewDuration(SubStageType.blindListen);
+    final estimatedDuration = estimateBlindListenSessionDuration(
+      sentences: sentences,
+      fullAudioDuration: ref.read(audioEngineProvider).totalDuration,
+      skipSilenceEnabled: ref.read(appSettingsProvider).skipSilenceEnabled,
+    );
     final estimatedText = estimatedDuration != null
         ? formatEstimatedDuration(l10n, estimatedDuration)
         : null;
@@ -905,17 +976,15 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
           sentences,
           targetDuration,
         );
-        await ref
-            .read(learningSessionProvider.notifier)
-            .enterBlindListenMode(
-              widget.audioItemId,
-              paragraphs: paragraphs,
-              settings: settings,
-              stage: stage,
-            );
-        if (!context.mounted) return;
-        context.push(
-          AppRoutes.blindListenPlayer(widget.collectionId, widget.audioItemId),
+        await _openBlindListenPractice(
+          context: context,
+          ref: ref,
+          audioItem: audioItem,
+          collectionId: widget.collectionId,
+          paragraphs: paragraphs,
+          settings: settings,
+          stage: stage,
+          loadKey: '${audioItem.id}:blind-listen:${stage.key}:planned',
         );
       },
     );
@@ -1226,36 +1295,15 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
           sentences,
           targetDuration,
         );
-        if (!context.mounted) return;
-        final session = ref.read(learningSessionProvider.notifier);
-        if (audioItem.isVideo) {
-          context.push(
-            AppRoutes.blindListenPlayer(
-              widget.collectionId,
-              widget.audioItemId,
-            ),
-            extra: MediaLearningStartup(
-              loadKey: '${audioItem.id}:blind-listen:planned',
-              load: () => session.enterMediaBlindListenMode(
-                audioItem,
-                paragraphs: paragraphs,
-                settings: settings,
-                stage: stage,
-              ),
-              cancel: session.cancelMediaBlindListenEntry,
-            ),
-          );
-          return;
-        }
-        await session.enterBlindListenMode(
-          widget.audioItemId,
+        await _openBlindListenPractice(
+          context: context,
+          ref: ref,
+          audioItem: audioItem,
+          collectionId: widget.collectionId,
           paragraphs: paragraphs,
           settings: settings,
           stage: stage,
-        );
-        if (!context.mounted) return;
-        context.push(
-          AppRoutes.blindListenPlayer(widget.collectionId, widget.audioItemId),
+          loadKey: '${audioItem.id}:blind-listen:planned',
         );
       },
     );
@@ -2717,45 +2765,19 @@ class _FirstStudySection extends ConsumerWidget {
           sentences,
           targetDuration,
         );
-        final notifier = ref.read(learningSessionProvider.notifier);
-        if (audioItem.isVideo) {
-          if (!context.mounted) return;
-          context.push(
-            AppRoutes.blindListenPlayer(collectionId, audioItemId),
-            extra: MediaLearningStartup(
-              loadKey: '${audioItem.id}:blind-listen:free-play',
-              load: () async {
-                final result = await notifier.enterMediaBlindListenMode(
-                  audioItem,
-                  isFreePlay: true,
-                  paragraphs: paragraphs,
-                  settings: settings,
-                  stage: stage,
-                );
-                if (result == MediaLoadResult.ready) {
-                  notifier.setCatchUp(
-                    LearningStage.firstLearn,
-                    SubStageType.blindListen,
-                  );
-                }
-                return result;
-              },
-              cancel: notifier.cancelMediaBlindListenEntry,
-            ),
-          );
-          return;
-        }
-        await notifier.enterBlindListenMode(
-          audioItemId,
-          isFreePlay: true,
+        await _openBlindListenPractice(
+          context: context,
+          ref: ref,
+          audioItem: audioItem,
+          collectionId: collectionId,
           paragraphs: paragraphs,
           settings: settings,
           stage: stage,
+          loadKey: '${audioItem.id}:blind-listen:free-play',
+          isFreePlay: true,
+          catchUpStage: LearningStage.firstLearn,
+          catchUpSubStage: SubStageType.blindListen,
         );
-        notifier.setCatchUp(LearningStage.firstLearn, SubStageType.blindListen);
-        if (context.mounted) {
-          context.push(AppRoutes.blindListenPlayer(collectionId, audioItemId));
-        }
       },
     );
   }
@@ -3575,7 +3597,14 @@ class _ReviewRoundSection extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final sentences = ref.read(listeningPracticeProvider).sentences;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (!context.mounted) return;
     if (sentences.isEmpty) return;
 
     // 按当前难句书签数实时重算难度，难度降低后速度随之回升
@@ -3619,19 +3648,19 @@ class _ReviewRoundSection extends ConsumerWidget {
           sentences,
           targetDuration,
         );
-        final notifier = ref.read(learningSessionProvider.notifier);
-        await notifier.enterBlindListenMode(
-          audioItemId,
-          isFreePlay: true,
+        await _openBlindListenPractice(
+          context: context,
+          ref: ref,
+          audioItem: audioItem,
+          collectionId: collectionId,
           paragraphs: paragraphs,
           settings: settings,
           stage: review.stage,
+          loadKey: '${audioItem.id}:blind-listen:${review.stage.key}:free-play',
+          isFreePlay: true,
+          catchUpStage: review.stage,
+          catchUpSubStage: SubStageType.blindListen,
         );
-        // 补做语义：复习盲听可被跳过，完成后回收为已完成
-        notifier.setCatchUp(review.stage, SubStageType.blindListen);
-        if (context.mounted) {
-          context.push(AppRoutes.blindListenPlayer(collectionId, audioItemId));
-        }
       },
     );
   }

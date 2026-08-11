@@ -973,6 +973,26 @@ class FakeLearningSession extends LearningSession {
   }
 
   @override
+  Future<MediaLoadResult> enterMediaBlindListenMode(
+    AudioItem mediaItem, {
+    required List<List<Sentence>> paragraphs,
+    required BlindListenSettings settings,
+    LearningStage? stage,
+    bool isFreePlay = false,
+  }) async {
+    state = state.copyWith(
+      learningMode: LearningMode.blindListen,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+    );
+    return MediaLoadResult.ready;
+  }
+
+  @override
+  Future<void> cancelMediaBlindListenEntry() async {}
+
+  @override
   Future<void> enterIntensiveListenMode(
     String audioItemId,
     List<Sentence> sentences, {

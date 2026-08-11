@@ -15,6 +15,7 @@ import 'package:echo_loop/screens/learning_plan_screen.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/media_intensive_listen_startup.dart';
+import 'package:echo_loop/models/media_learning_startup.dart';
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
 import 'package:echo_loop/providers/audio_sentences_provider.dart';
@@ -251,8 +252,13 @@ void main() {
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/blind-listen',
-          builder: (context, state) =>
-              const Scaffold(body: Text('Listen without subtitles')),
+          builder: (context, state) {
+            final startup = state.extra;
+            return _MediaStartupTestScreen(
+              startup: startup is MediaLearningStartup ? startup : null,
+              label: 'Listen without subtitles',
+            );
+          },
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/intensive-listen',
@@ -473,6 +479,113 @@ void main() {
       expect(session.audioItemId, testVideoItem.id);
       expect(lp.loadAudioCalls, isEmpty);
       expect(find.text('Review Difficult Practice'), findsOneWidget);
+    });
+
+    testWidgets('视频条目：计划内复习盲听走独立媒体会话且不加载音频链路', (tester) async {
+      final now = DateTime(2026, 8, 11, 10);
+      final lp = _RecordingListeningPractice();
+      final sentences = createTestSentences();
+      final progressState = LearningProgressState(
+        progressMap: {
+          testVideoItem.id: LearningProgress(
+            audioItemId: testVideoItem.id,
+            currentStage: LearningStage.review1,
+            currentSubStage: SubStageType.blindListen,
+            lastStageCompletedAt: now.subtract(const Duration(days: 1)),
+            updatedAt: now,
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          progressState: progressState,
+          fixedNow: now,
+          listeningPracticeOverride: () => lp,
+          videoSentences: sentences,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final planContext = tester.element(find.byType(LearningPlanScreen));
+      final container = ProviderScope.containerOf(planContext);
+
+      await tester.tap(find.text('Continue practicing'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start Practicing'));
+      await tester.pumpAndSettle();
+
+      final session = container.read(learningSessionProvider);
+      expect(session.learningMode, LearningMode.blindListen);
+      expect(session.playbackChain, LearningPlaybackChain.media);
+      expect(session.audioItemId, testVideoItem.id);
+      expect(lp.loadAudioCalls, isEmpty);
+      expect(find.text('Listen without subtitles'), findsOneWidget);
+    });
+
+    testWidgets('视频条目：已完成复习盲听可用媒体链路自由练习并保留补做目标', (tester) async {
+      final now = DateTime(2026, 8, 11, 10);
+      final lp = _RecordingListeningPractice();
+      final sentences = createTestSentences();
+      final progressState = LearningProgressState(
+        progressMap: {
+          testVideoItem.id: LearningProgress(
+            audioItemId: testVideoItem.id,
+            currentStage: LearningStage.review2,
+            currentSubStage: SubStageType.reviewDifficultPractice,
+            updatedAt: now,
+          ),
+        },
+        completionsByAudio: const {
+          'test-1': {'review1:blindListen'},
+        },
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          progressState: progressState,
+          fixedNow: now,
+          listeningPracticeOverride: () => lp,
+          videoSentences: sentences,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final planContext = tester.element(find.byType(LearningPlanScreen));
+      final container = ProviderScope.containerOf(planContext);
+
+      await tester.scrollUntilVisible(find.text('Review 2'), 200);
+      await tester.tap(find.text('Review 2'));
+      await tester.pumpAndSettle();
+      final reviewTitleY = tester.getTopLeft(find.text('Review 2')).dy;
+      final reviewBlindText = tester
+          .elementList(find.text('Listen without subtitles'))
+          .where(
+            (element) =>
+                tester.getTopLeft(find.byWidget(element.widget)).dy >
+                reviewTitleY,
+          )
+          .reduce((nearest, candidate) {
+            final nearestY = tester
+                .getTopLeft(find.byWidget(nearest.widget))
+                .dy;
+            final candidateY = tester
+                .getTopLeft(find.byWidget(candidate.widget))
+                .dy;
+            return candidateY < nearestY ? candidate : nearest;
+          });
+      final reviewBlindFinder = find.byWidget(reviewBlindText.widget);
+      await tester.ensureVisible(reviewBlindFinder);
+      await tester.tap(reviewBlindFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start Practicing'));
+      await tester.pumpAndSettle();
+
+      final session = container.read(learningSessionProvider);
+      expect(session.learningMode, LearningMode.blindListen);
+      expect(session.playbackChain, LearningPlaybackChain.media);
+      expect(session.isFreePlay, isTrue);
+      expect(session.catchUpStage, LearningStage.review1);
+      expect(session.catchUpSubStage, SubStageType.blindListen);
+      expect(lp.loadAudioCalls, isEmpty);
     });
 
     testWidgets('视频条目：随心听分流到视频测试页', (tester) async {
