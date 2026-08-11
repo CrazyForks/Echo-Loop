@@ -22,13 +22,72 @@ import 'package:echo_loop/providers/listening_practice/listening_practice_provid
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/speech_practice_models.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
+import 'package:echo_loop/services/speech_permission_service.dart';
+import 'package:echo_loop/database/daos/bookmark_dao.dart';
+import 'package:echo_loop/database/app_database.dart' show Bookmark;
+import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/providers/time_provider.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../helpers/mock_providers.dart';
+
+class _ReadySpeechPermissionService implements SpeechPermissionService {
+  const _ReadySpeechPermissionService();
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Future<SpeechPracticePermissionState> getStatus() async =>
+      const SpeechPracticePermissionState(
+        microphone: SpeechPracticePermissionStatus.granted,
+        speech: SpeechPracticePermissionStatus.granted,
+      );
+
+  @override
+  Future<SpeechPracticePermissionState> request({required bool onlyMic}) =>
+      getStatus();
+
+  @override
+  Future<void> openAppSettings() async {}
+}
+
+class _ReviewBookmarkDao implements BookmarkDao {
+  _ReviewBookmarkDao(this.sentence);
+
+  final Sentence sentence;
+
+  Bookmark get _bookmark => Bookmark(
+    id: 1,
+    audioItemId: 'test-1',
+    sentenceIndex: sentence.index,
+    sentenceText: sentence.text,
+    startTime: sentence.startTime.inMilliseconds / 1000,
+    endTime: sentence.endTime.inMilliseconds / 1000,
+    createdAt: DateTime(2026, 8, 11),
+    updatedAt: DateTime(2026, 8, 11),
+    syncStatus: 0,
+  );
+
+  @override
+  Future<Set<int>> getBookmarkedIndices(String audioItemId) async => {
+    sentence.index,
+  };
+
+  @override
+  Future<List<Bookmark>> getByAudioId(String audioItemId) async => [_bookmark];
+
+  @override
+  Stream<List<Bookmark>> watchByAudioId(String audioItemId) =>
+      Stream.value([_bookmark]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -169,6 +228,7 @@ void main() {
     TestListeningPractice Function()? listeningPracticeOverride,
     List<Sentence>? videoSentences,
     Map<String, DateTime>? completedStageTimes,
+    List<Override> extraOverrides = const [],
   }) {
     final item = audioItem ?? testAudioItem;
     final router = GoRouter(
@@ -205,8 +265,13 @@ void main() {
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/review-difficult-practice',
-          builder: (context, state) =>
-              const Scaffold(body: Text('Review Difficult Practice')),
+          builder: (context, state) {
+            final startup = state.extra;
+            return _MediaStartupTestScreen(
+              startup: startup is MediaIntensiveListenStartup ? startup : null,
+              label: 'Review Difficult Practice',
+            );
+          },
         ),
         GoRoute(
           path: '/collections/:collectionId/:audioId/media-player',
@@ -246,6 +311,7 @@ void main() {
         if (videoSentences != null)
           audioSentencesProvider(item.id).overrideWith((ref) => videoSentences),
         if (fixedNow != null) nowProvider.overrideWithValue(() => fixedNow),
+        ...extraOverrides,
         reviewStageCompletionTimesProvider(item.id).overrideWith(
           (ref) =>
               Stream.value(completedStageTimes ?? const <String, DateTime>{}),
@@ -343,6 +409,70 @@ void main() {
       expect(session.audioItemId, testVideoItem.id);
       expect(lp.loadAudioCalls, isEmpty);
       expect(find.text('Listen sentence by sentence'), findsOneWidget);
+    });
+
+    testWidgets('视频条目：复习难句补练走独立媒体会话且不加载音频链路', (tester) async {
+      final now = DateTime(2026, 8, 11, 10);
+      final lp = _RecordingListeningPractice();
+      final sentences = createTestSentences();
+      final progressState = LearningProgressState(
+        progressMap: {
+          testVideoItem.id: LearningProgress(
+            audioItemId: testVideoItem.id,
+            currentStage: LearningStage.review0,
+            currentSubStage: SubStageType.reviewDifficultPractice,
+            firstLearnCompletedAt: now.subtract(const Duration(days: 1)),
+            lastStageCompletedAt: now.subtract(const Duration(days: 1)),
+            manualUnlockAt: now,
+            updatedAt: now,
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          audioItem: testVideoItem,
+          progressState: progressState,
+          fixedNow: now,
+          listeningPracticeOverride: () => lp,
+          videoSentences: sentences,
+          extraOverrides: [
+            bookmarkDaoProvider.overrideWithValue(
+              _ReviewBookmarkDao(sentences.first),
+            ),
+            speechPermissionServiceProvider.overrideWithValue(
+              const _ReadySpeechPermissionService(),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final planContext = tester.element(find.byType(LearningPlanScreen));
+      final container = ProviderScope.containerOf(planContext);
+
+      await tester.scrollUntilVisible(
+        find.text('Practice saved sentences').last,
+        200,
+      );
+      await tester.tap(
+        find
+            .ancestor(
+              of: find.text('Practice saved sentences').last,
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Start Practicing'), findsOneWidget);
+
+      await tester.tap(find.text('Start Practicing'));
+      await tester.pumpAndSettle();
+
+      final session = container.read(learningSessionProvider);
+      expect(session.learningMode, LearningMode.reviewDifficultPractice);
+      expect(session.playbackChain, LearningPlaybackChain.media);
+      expect(session.audioItemId, testVideoItem.id);
+      expect(lp.loadAudioCalls, isEmpty);
+      expect(find.text('Review Difficult Practice'), findsOneWidget);
     });
 
     testWidgets('视频条目：随心听分流到视频测试页', (tester) async {
@@ -1919,9 +2049,10 @@ void main() {
 
 /// 模拟生产精听页消费路由启动任务，避免入口测试绕过媒体加载契约。
 class _MediaStartupTestScreen extends StatefulWidget {
-  const _MediaStartupTestScreen({this.startup});
+  const _MediaStartupTestScreen({this.startup, this.label});
 
   final MediaIntensiveListenStartup? startup;
+  final String? label;
 
   @override
   State<_MediaStartupTestScreen> createState() =>
@@ -1942,7 +2073,7 @@ class _MediaStartupTestScreenState extends State<_MediaStartupTestScreen> {
 
   @override
   Widget build(BuildContext context) =>
-      const Scaffold(body: Text('Listen sentence by sentence'));
+      Scaffold(body: Text(widget.label ?? 'Listen sentence by sentence'));
 }
 
 /// 记录 loadAudio 调用的测试用 LP，初始为空状态（无 currentAudioItem）。

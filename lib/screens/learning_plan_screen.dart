@@ -936,11 +936,19 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = await _ensureAudioLoaded();
-    if (!context.mounted || lpState == null) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(widget.audioItemId);
+    if (audioItem == null) return;
+    final lpState = audioItem.isVideo ? null : await _ensureAudioLoaded();
+    if (!context.mounted) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(widget.audioItemId).future)
+        : lpState?.sentences;
+    if (!context.mounted || sentences == null) return;
     final l10n = AppLocalizations.of(context)!;
 
-    if (lpState.sentences.isEmpty) {
+    if (sentences.isEmpty) {
       // 无字幕 → 跳过
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -972,21 +980,36 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
       return;
     }
 
-    await ref
-        .read(learningSessionProvider.notifier)
-        .enterReviewDifficultPracticeMode(
-          widget.audioItemId,
-          lpState.sentences,
-          settings: settings,
-          stage: stage,
-        );
-    if (!context.mounted) return;
-    context.push(
-      AppRoutes.reviewDifficultPractice(
-        widget.collectionId,
-        widget.audioItemId,
-      ),
+    final session = ref.read(learningSessionProvider.notifier);
+    final route = AppRoutes.reviewDifficultPractice(
+      widget.collectionId,
+      widget.audioItemId,
     );
+    if (audioItem.isVideo) {
+      context.push(
+        route,
+        extra: MediaLearningStartup(
+          loadKey:
+              '${audioItem.id}:review-difficult:${stage?.key ?? 'current'}:planned',
+          load: () => session.enterMediaReviewDifficultPracticeMode(
+            audioItem,
+            sentences,
+            settings: settings,
+            stage: stage,
+          ),
+          cancel: session.cancelMediaReviewDifficultPracticeEntry,
+        ),
+      );
+      return;
+    }
+
+    await session.enterReviewDifficultPracticeMode(
+      widget.audioItemId,
+      sentences,
+      settings: settings,
+      stage: stage,
+    );
+    if (context.mounted) context.push(route);
   }
 
   /// 自动完成难句补练后，按新的 `currentSubStage` 自动进入下一个子步骤。
@@ -3625,11 +3648,17 @@ class _ReviewRoundSection extends ConsumerWidget {
     );
     if (!allowed || !context.mounted) return;
 
-    final lpState = ref.read(listeningPracticeProvider);
-    if (lpState.sentences.isEmpty) return;
+    final audioItem = ref
+        .read(audioLibraryProvider.notifier)
+        .getItemById(audioItemId);
+    if (audioItem == null) return;
+    final sentences = audioItem.isVideo
+        ? await ref.read(audioSentencesProvider(audioItemId).future)
+        : ref.read(listeningPracticeProvider).sentences;
+    if (sentences.isEmpty || !context.mounted) return;
 
     // 难句补练自由练习也按"先弹 briefing 含速度下拉"流程，与按计划学习对齐。
-    final difficultDuration = lpState.sentences
+    final difficultDuration = sentences
         .where((s) => s.isBookmarked)
         .fold<Duration>(Duration.zero, (sum, s) => sum + s.duration);
     final estimated = difficultDuration == Duration.zero
@@ -3638,7 +3667,7 @@ class _ReviewRoundSection extends ConsumerWidget {
     // 按当前难句书签数实时重算难度，难度降低后速度随之回升
     final liveDifficulty = await ref
         .read(learningProgressNotifierProvider.notifier)
-        .refreshDifficultyFromBookmarks(audioItemId, lpState.sentences.length);
+        .refreshDifficultyFromBookmarks(audioItemId, sentences.length);
     if (!context.mounted) return;
     final smartSpeed = progress == null
         ? 1.0
@@ -3662,9 +3691,38 @@ class _ReviewRoundSection extends ConsumerWidget {
             .read(difficultPracticePrefsProvider.notifier)
             .resolve(slot, smartSpeed: smartSpeed);
         final notifier = ref.read(learningSessionProvider.notifier);
+        if (audioItem.isVideo) {
+          if (!context.mounted) return;
+          context.push(
+            AppRoutes.reviewDifficultPractice(collectionId, audioItemId),
+            extra: MediaLearningStartup(
+              loadKey:
+                  '${audioItem.id}:review-difficult:${review.stage.key}:free-play',
+              load: () async {
+                final result = await notifier
+                    .enterMediaReviewDifficultPracticeMode(
+                      audioItem,
+                      sentences,
+                      isFreePlay: true,
+                      settings: settings,
+                      stage: review.stage,
+                    );
+                if (result == MediaLoadResult.ready) {
+                  notifier.setCatchUp(
+                    review.stage,
+                    SubStageType.reviewDifficultPractice,
+                  );
+                }
+                return result;
+              },
+              cancel: notifier.cancelMediaReviewDifficultPracticeEntry,
+            ),
+          );
+          return;
+        }
         await notifier.enterReviewDifficultPracticeMode(
           audioItemId,
-          lpState.sentences,
+          sentences,
           isFreePlay: true,
           settings: settings,
           stage: review.stage,

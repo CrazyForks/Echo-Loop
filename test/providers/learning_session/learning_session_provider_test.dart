@@ -815,6 +815,98 @@ void main() {
       expect(playerState.currentSentenceIndex, 1);
     });
 
+    test('视频难句补练加载成功后使用独立媒体链路和共享播放器状态', () async {
+      final mediaEngine = _SuccessfulMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaReviewDifficultPracticeMode(
+            model.AudioItem(
+              id: 'video-review',
+              name: 'Video review',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 8, 11),
+            ),
+            sentences,
+          );
+
+      expect(result, MediaLoadResult.ready);
+      expect(
+        container.read(learningSessionProvider).playbackChain,
+        LearningPlaybackChain.media,
+      );
+      final playerState = container.read(reviewDifficultPracticeProvider);
+      expect(playerState.usesMediaEngine, isTrue);
+      expect(playerState.totalSentences, 2);
+      expect(
+        container
+            .read(reviewDifficultPracticeProvider.notifier)
+            .sentences
+            .every((sentence) => sentence.isBookmarked),
+        isTrue,
+      );
+      expect(mediaEngine.subtitleClearCalls, 1);
+    });
+
+    test('视频难句补练加载失败时释放媒体且不进入学习模式', () async {
+      final mediaEngine = _FailingMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaReviewDifficultPracticeMode(
+            model.AudioItem(
+              id: 'video-review-failure',
+              name: 'Video review',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 8, 11),
+            ),
+            sentences,
+          );
+
+      expect(result, MediaLoadResult.failure);
+      expect(mediaEngine.releaseCalls, 1);
+      expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
+    });
+
+    test('视频难句补练加载中取消会丢弃迟到结果并释放媒体', () async {
+      final mediaEngine = _BlockingMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+      final session = container.read(learningSessionProvider.notifier);
+
+      final entry = session.enterMediaReviewDifficultPracticeMode(
+        model.AudioItem(
+          id: 'video-review-cancelled',
+          name: 'Video review',
+          audioPath: 'video.mp4',
+          addedDate: DateTime(2026, 8, 11),
+        ),
+        sentences,
+      );
+      await mediaEngine.loadStarted.future;
+
+      await session.cancelMediaReviewDifficultPracticeEntry();
+      mediaEngine.loadResult.complete(const Duration(minutes: 1));
+
+      expect(await entry, MediaLoadResult.cancelled);
+      expect(mediaEngine.releaseCalls, 1);
+      expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
+      expect(session.isStudyTimerRunning, isFalse);
+    });
+
     test('复述正常学习从头开始，忽略遗留断点', () async {
       final progress = LearningProgress(
         audioItemId: 'audio-1',

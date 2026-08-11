@@ -1034,6 +1034,26 @@ class FakeLearningSession extends LearningSession {
   }
 
   @override
+  Future<MediaLoadResult> enterMediaReviewDifficultPracticeMode(
+    AudioItem mediaItem,
+    List<Sentence> allSentences, {
+    bool isFreePlay = false,
+    DifficultPracticeSettings settings = const DifficultPracticeSettings(),
+    LearningStage? stage,
+  }) async {
+    state = state.copyWith(
+      learningMode: LearningMode.reviewDifficultPractice,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+    );
+    return MediaLoadResult.ready;
+  }
+
+  @override
+  Future<void> cancelMediaReviewDifficultPracticeEntry() async {}
+
+  @override
   Future<void> enterRetellMode(
     String audioItemId,
     List<List<Sentence>> paragraphs, {
@@ -1695,6 +1715,8 @@ class FakeReviewDifficultPractice extends ReviewDifficultPractice {
     int startIndex = 0,
     DifficultPracticeSettings settings = const DifficultPracticeSettings(),
     String? settingsSlot,
+    SentencePlaybackDriver? playbackDriver,
+    bool usesMediaEngine = false,
   }) {
     testSentences = List.of(sentences);
     final validIndex = testSentences.isEmpty
@@ -1704,6 +1726,7 @@ class FakeReviewDifficultPractice extends ReviewDifficultPractice {
       currentSentenceIndex: validIndex,
       totalSentences: sentences.length,
       settings: settings,
+      usesMediaEngine: usesMediaEngine,
     );
   }
 

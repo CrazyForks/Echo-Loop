@@ -205,6 +205,9 @@ class LearningSession extends _$LearningSession {
   /// 视频复述进入流程 generation；取消、重试或退出会使旧异步结果失效。
   int _mediaRetellEntryGeneration = 0;
 
+  /// 视频难句补练进入流程 generation；取消、重试或退出会使旧结果失效。
+  int _mediaReviewDifficultEntryGeneration = 0;
+
   /// 学习计时器，进入学习模式时启动，退出时停止
   final Stopwatch _studyStopwatch = Stopwatch();
 
@@ -1102,6 +1105,7 @@ class LearningSession extends _$LearningSession {
       audioItemId: audioItemId,
       savedSettings: currentSettings,
       isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.audio,
     );
 
     // 暂停 LP 的 stream 监听
@@ -1134,6 +1138,115 @@ class LearningSession extends _$LearningSession {
     _trackSessionStart();
   }
 
+  /// 进入视频难句补练：媒体只负责原句区间播放，练习流程与音频共用。
+  Future<MediaLoadResult> enterMediaReviewDifficultPracticeMode(
+    AudioItem mediaItem,
+    List<Sentence> allSentences, {
+    bool isFreePlay = false,
+    DifficultPracticeSettings settings = const DifficultPracticeSettings(),
+    LearningStage? stage,
+  }) async {
+    final generation = ++_mediaReviewDifficultEntryGeneration;
+    bool isCurrentGeneration() =>
+        generation == _mediaReviewDifficultEntryGeneration;
+
+    final bookmarkDao = ref.read(bookmarkDaoProvider);
+    final bookmarkedIndices = await bookmarkDao.getBookmarkedIndices(
+      mediaItem.id,
+    );
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+
+    final difficultSentences = allSentences
+        .where((sentence) => bookmarkedIndices.contains(sentence.index))
+        .map((sentence) => sentence.copyWith(isBookmarked: true))
+        .toList();
+    final progress = await ref
+        .read(learningProgressNotifierProvider.notifier)
+        .getLatestOrEnsureProgress(mediaItem.id);
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+
+    var startIndex = 0;
+    if (isFreePlay && _isBreakpointValid(progress.freePlayBreakpointSavedAt)) {
+      startIndex = progress.freePlayDifficultPracticeSentenceIndex ?? 0;
+    } else if (!isFreePlay &&
+        _isBreakpointValid(progress.newLearningBreakpointSavedAt)) {
+      startIndex = progress.difficultPracticeSentenceIndex ?? 0;
+    }
+
+    // 录音类视频任务不复用前台音频播放器；这里只清理旧系统媒体会话。
+    await ref.read(audioEngineProvider.notifier).stop();
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+
+    final mediaEngine = ref.read(mediaEngineProvider.notifier);
+    final duration = await mediaEngine.loadMedia(
+      mediaItem,
+      settings.playbackSpeed,
+    );
+    if (!isCurrentGeneration()) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.cancelled;
+    }
+    if (duration == null) {
+      AppLogger.log(
+        'Session',
+        '✗ enterMediaReviewDifficultPracticeMode load failed: ${mediaItem.id}',
+      );
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.failure;
+    }
+
+    await mediaEngine.setSubtitleTrackData(null);
+    if (!isCurrentGeneration()) {
+      await mediaEngine.releaseFromScreen();
+      return MediaLoadResult.cancelled;
+    }
+
+    state = state.copyWith(
+      learningMode: LearningMode.reviewDifficultPractice,
+      blindListenCompleted: false,
+      audioItemId: mediaItem.id,
+      isFreePlay: isFreePlay,
+      playbackChain: LearningPlaybackChain.media,
+      clearSavedSettings: true,
+    );
+
+    ref
+        .read(reviewDifficultPracticeProvider.notifier)
+        .initialize(
+          difficultSentences,
+          startIndex: startIndex,
+          settings: settings,
+          settingsSlot: stageSlotKey(
+            StageSettingsSlots.reviewDifficultPractice,
+            stage,
+          ),
+          playbackDriver: MediaSentencePlaybackDriver(mediaEngine),
+          usesMediaEngine: true,
+        );
+    if (!isCurrentGeneration()) {
+      await exitLearningMode();
+      return MediaLoadResult.cancelled;
+    }
+
+    _startStudyTimer();
+    _trackSessionStart();
+    AppLogger.log(
+      'Session',
+      '🎬 enterMediaReviewDifficultPracticeMode: targetId=${mediaItem.id}, '
+          'sentences=${difficultSentences.length}',
+    );
+    return MediaLoadResult.ready;
+  }
+
+  /// 取消视频难句补练加载，或退出已建立的媒体会话。
+  Future<void> cancelMediaReviewDifficultPracticeEntry() async {
+    _mediaReviewDifficultEntryGeneration += 1;
+    if (state.learningMode == LearningMode.reviewDifficultPractice &&
+        state.playbackChain == LearningPlaybackChain.media) {
+      await exitLearningMode();
+    }
+  }
+
   /// 退出学习模式
   ///
   /// 根据当前学习模式分支处理：停止播放、释放资源、恢复 LP 监听。
@@ -1148,6 +1261,9 @@ class LearningSession extends _$LearningSession {
     final usesMediaChain = state.playbackChain == LearningPlaybackChain.media;
     if (mode == LearningMode.retell && usesMediaChain) {
       _mediaRetellEntryGeneration += 1;
+    }
+    if (mode == LearningMode.reviewDifficultPractice && usesMediaChain) {
+      _mediaReviewDifficultEntryGeneration += 1;
     }
     if (mode == LearningMode.blindListen) {
       final blindPlayer = ref.read(blindListenPlayerProvider.notifier);
@@ -1169,9 +1285,12 @@ class LearningSession extends _$LearningSession {
       player.disposePlayer();
     }
 
-    // 录音控制器属于复述任务本身，音频和视频退出都必须先完整复位。
+    // 录音控制器属于录音任务本身，音频和视频退出都必须先完整复位。
     if (mode == LearningMode.retell) {
       await ref.read(retellRecordingControllerProvider.notifier).fullReset();
+    }
+    if (mode == LearningMode.reviewDifficultPractice) {
+      await ref.read(speechRecordingControllerProvider.notifier).fullReset();
     }
 
     if (usesMediaChain) {
@@ -1191,8 +1310,7 @@ class LearningSession extends _$LearningSession {
       await engine.setSpeed(savedSettings.playbackSpeed);
     }
     // 按模式调用对应录音控制器的 fullReset
-    if (mode == LearningMode.listenAndRepeat ||
-        mode == LearningMode.reviewDifficultPractice) {
+    if (mode == LearningMode.listenAndRepeat) {
       await ref.read(speechRecordingControllerProvider.notifier).fullReset();
     }
 

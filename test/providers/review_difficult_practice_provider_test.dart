@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/models/audio_engine_state.dart';
+import 'package:echo_loop/models/difficult_practice_settings.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/sentence.dart';
@@ -13,6 +14,7 @@ import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provide
 import 'package:echo_loop/providers/blind_flow/blind_practice_flow_phase.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
+import 'package:echo_loop/providers/learning_session/intensive_listen_playback_driver.dart';
 import 'package:echo_loop/providers/learning_session/review_difficult_practice_provider.dart';
 import 'package:echo_loop/providers/repeat_flow/repeat_flow_phase.dart';
 import 'package:echo_loop/providers/speech/speech_recording_controller.dart';
@@ -101,6 +103,60 @@ class _PassiveLearningSession extends TestLearningSession {
   void addOutputWords(int count) {}
 }
 
+class _RecordingPlaybackDriver implements SentencePlaybackDriver {
+  int _sessionId = 0;
+  int pauseCalls = 0;
+  final List<double> speeds = [];
+  final List<Sentence> playedSentences = [];
+
+  @override
+  bool get recordsStudyEventsInternally => false;
+
+  @override
+  int newSession() => ++_sessionId;
+
+  @override
+  bool isActiveSession(int sessionId) => sessionId == _sessionId;
+
+  @override
+  Future<void> invalidateSession() async {
+    _sessionId += 1;
+    pauseCalls += 1;
+  }
+
+  @override
+  Future<void> pause() async {
+    pauseCalls += 1;
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    speeds.add(speed);
+  }
+
+  @override
+  Future<void> playSentence(Sentence sentence, int sessionId) async {
+    if (isActiveSession(sessionId)) playedSentences.add(sentence);
+  }
+
+  @override
+  void bindLockScreen({
+    required Future<void> Function() onPlay,
+    required Future<void> Function() onPause,
+    required Future<void> Function() onNext,
+    required Future<void> Function() onPrevious,
+  }) {}
+
+  @override
+  void setProgressFrozen(bool frozen) {}
+
+  @override
+  void setSessionActive(bool active) {}
+
+  @override
+  void unbindLockScreen() {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -109,6 +165,61 @@ void main() {
   });
 
   group('ReviewDifficultPractice 开始播放时保存断点', () {
+    test('媒体会话复用注入驱动播放原句且发布媒体标记', () async {
+      final playback = _RecordingPlaybackDriver();
+      final container = ProviderContainer(
+        overrides: [
+          foregroundAudioEngineProvider.overrideWith(
+            () => _ReplayTestAudioEngine(),
+          ),
+          learningProgressNotifierProvider.overrideWith(
+            () => _RecordingLearningProgressNotifier(
+              const LearningProgressState(),
+            ),
+          ),
+          learningSessionProvider.overrideWith(
+            () => _PassiveLearningSession(
+              const LearningSessionState(
+                learningMode: LearningMode.reviewDifficultPractice,
+                audioItemId: 'video-1',
+                playbackChain: LearningPlaybackChain.media,
+              ),
+            ),
+          ),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(reviewDifficultPracticeProvider.notifier);
+      notifier.initialize(
+        [
+          Sentence(
+            index: 0,
+            text: 'Video sentence',
+            startTime: Duration.zero,
+            endTime: const Duration(seconds: 1),
+          ),
+        ],
+        settings: const DifficultPracticeSettings(
+          controlMode: ShadowingControlMode.manual,
+          playbackSpeed: 1.25,
+        ),
+        playbackDriver: playback,
+        usesMediaEngine: true,
+      );
+
+      await notifier.startPlaying();
+
+      expect(
+        container.read(reviewDifficultPracticeProvider).usesMediaEngine,
+        isTrue,
+      );
+      expect(playback.playedSentences.single.text, 'Video sentence');
+      expect(playback.speeds, contains(1.25));
+    });
+
     test('startPlaying 会异步保存当前句索引', () async {
       final progressNotifier = _RecordingLearningProgressNotifier(
         LearningProgressState(

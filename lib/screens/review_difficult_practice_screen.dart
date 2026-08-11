@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../router/app_router.dart';
+import '../models/media_learning_startup.dart';
 import '../widgets/speech_permission_dialog.dart';
 import '../database/enums.dart';
 import '../features/chatbot/widgets/sentence_chat_button.dart';
@@ -51,6 +52,8 @@ import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/annotation_content_view.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/practice_playback_footer.dart';
+import '../widgets/common/managed_media_visual_surface.dart';
+import '../widgets/common/practice_media_presentation_host.dart';
 import '../widgets/practice/practice_progress_section.dart';
 import '../widgets/practice/practice_play_count_label.dart';
 
@@ -62,10 +65,14 @@ class ReviewDifficultPracticeScreen extends ConsumerStatefulWidget {
   /// 音频项 ID
   final String audioItemId;
 
+  /// 视频入口的延迟启动命令；音频或已初始化路由为 null。
+  final MediaLearningStartup? mediaStartup;
+
   const ReviewDifficultPracticeScreen({
     super.key,
     this.collectionId,
     required this.audioItemId,
+    this.mediaStartup,
   });
 
   @override
@@ -87,6 +94,9 @@ class _ReviewDifficultPracticeScreenState
   bool _isShowingDialog = false;
 
   ProviderSubscription<ReviewDifficultPracticeState>? _playerSubscription;
+  bool _speechReady = false;
+  bool _mediaStartupReady = false;
+  bool _autoPlayScheduled = false;
 
   @override
   void initState() {
@@ -100,15 +110,50 @@ class _ReviewDifficultPracticeScreenState
       );
       if (!mounted) return;
       if (!ok) {
+        await widget.mediaStartup?.cancel();
+        if (!mounted) return;
         if (context.canPop()) context.pop();
         return;
       }
-      ref.read(reviewDifficultPracticeProvider.notifier).syncRecordingMode();
-      ref.read(reviewDifficultPracticeProvider.notifier).startPlaying();
+      _speechReady = true;
+      _maybeStartPlaying();
     });
     _playerSubscription = ref.listenManual<ReviewDifficultPracticeState>(
       reviewDifficultPracticeProvider,
       _handlePlayerStateChanged,
+    );
+  }
+
+  /// 媒体与录音权限均准备完成后，只启动一次难句补练。
+  void _maybeStartPlaying() {
+    final mediaReady = widget.mediaStartup == null || _mediaStartupReady;
+    if (!_speechReady || !mediaReady || _autoPlayScheduled) return;
+    _autoPlayScheduled = true;
+    final player = ref.read(reviewDifficultPracticeProvider.notifier);
+    player.syncRecordingMode();
+    unawaited(player.startPlaying());
+  }
+
+  void _handleMediaStartupReady() {
+    if (!mounted || _mediaStartupReady) return;
+    setState(() => _mediaStartupReady = true);
+    _maybeStartPlaying();
+  }
+
+  Future<void> _handleMediaStartupExit() async {
+    await widget.mediaStartup?.cancel();
+    if (mounted) context.pop();
+  }
+
+  Widget _wrapMediaStartup(Widget child) {
+    final startup = widget.mediaStartup;
+    if (startup == null) return child;
+    return ManagedMediaVisualSurface(
+      loadKey: startup.loadKey,
+      load: startup.load,
+      cancel: startup.cancel,
+      onReady: _handleMediaStartupReady,
+      child: child,
     );
   }
 
@@ -414,6 +459,7 @@ class _ReviewDifficultPracticeScreenState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final mediaReady = widget.mediaStartup == null || _mediaStartupReady;
 
     // select 过滤倒计时 tick（100ms 一次的 remaining 变化），避免整页频繁 rebuild
     // 导致 TapGestureRecognizer 被反复 dispose/重建，点击单词无法触发词典弹窗。
@@ -442,6 +488,7 @@ class _ReviewDifficultPracticeScreenState
           s.repeatFlowState?.isReviewPlaybackActive,
           s.repeatFlowState?.recordingScore,
           s.blindFlowState?.phase.runtimeType,
+          s.usesMediaEngine,
         ),
       ),
     );
@@ -480,221 +527,275 @@ class _ReviewDifficultPracticeScreenState
         : null;
     return wakelockBody(
       child: LearningHotkeyScope(
-        onPlayPause: () {
-          unawaited(_cancelRecordingAndPlayback());
-          if (playerState.isPauseBetweenPlays) {
-            ref
-                .read(speechRecordingControllerProvider.notifier)
-                .clearRecording();
-            player.replayDuringCountdown();
-          } else if (playerState.isPlaying) {
-            player.pause();
-          } else {
-            player.resume();
-          }
-        },
-        onPrevious: () {
-          unawaited(_cancelRecordingAndPlayback());
-          ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-          player.goToPrevious();
-        },
-        onNext: () {
-          unawaited(_cancelRecordingAndPlayback());
-          ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-          player.goToNext();
-        },
+        onPlayPause: mediaReady
+            ? () {
+                unawaited(_cancelRecordingAndPlayback());
+                if (playerState.isPauseBetweenPlays) {
+                  ref
+                      .read(speechRecordingControllerProvider.notifier)
+                      .clearRecording();
+                  player.replayDuringCountdown();
+                } else if (playerState.isPlaying) {
+                  player.pause();
+                } else {
+                  player.resume();
+                }
+              }
+            : () {},
+        onPrevious: mediaReady
+            ? () {
+                unawaited(_cancelRecordingAndPlayback());
+                ref
+                    .read(speechRecordingControllerProvider.notifier)
+                    .clearRecording();
+                player.goToPrevious();
+              }
+            : () {},
+        onNext: mediaReady
+            ? () {
+                unawaited(_cancelRecordingAndPlayback());
+                ref
+                    .read(speechRecordingControllerProvider.notifier)
+                    .clearRecording();
+                player.goToNext();
+              }
+            : () {},
         child: PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
-            _handleExit();
+            mediaReady ? _handleExit() : _handleMediaStartupExit();
           },
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(l10n.reviewDifficultPracticeTitle),
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _handleExit,
-              ),
-              actions: [
-                // AI 助手入口：打开前暂停自动推进（同设置按钮的处理）。
-                SentenceChatButton(
-                  sentenceText: currentSentence?.text ?? '',
-                  onBeforeOpen: () {
-                    if (playerState.isAnnotationMode) {
-                      player.repeatEngine?.onUserInteraction();
-                    } else {
-                      player.enterWaitingForUserInBlindMode();
-                    }
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.tune),
-                  onPressed: () {
-                    final player = ref.read(
-                      reviewDifficultPracticeProvider.notifier,
-                    );
-                    if (playerState.isAnnotationMode) {
-                      player.repeatEngine?.onUserInteraction();
-                    } else {
-                      player.enterWaitingForUserInBlindMode();
-                    }
-                    showDifficultPracticeSettingsSheet(context: context);
-                  },
-                ),
-              ],
-            ),
-            // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）
-            body: DictionaryPanelHost(
-              key: _dictPanelHostKey,
-              child: Column(
-                children: [
-                  // 进度区域
-                  PracticeProgressSection(
-                    current: playerState.currentSentenceIndex + 1,
-                    total: playerState.totalSentences,
-                    progressText: l10n.reviewDifficultPracticeProgress(
-                      playerState.currentSentenceIndex + 1,
-                      playerState.totalSentences,
+          child: PracticeMediaPresentationHost(
+            enabled: playerState.usesMediaEngine,
+            audioItemId: widget.audioItemId,
+            isPlaying: _isCurrentPlaybackActive(playerState),
+            onPlayPause: _handleCenter,
+            builder: (context, presentation, mediaSurface) => Scaffold(
+              appBar: presentation.expanded
+                  ? null
+                  : AppBar(
+                      title: Text(l10n.reviewDifficultPracticeTitle),
+                      centerTitle: true,
+                      leading: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: mediaReady
+                            ? _handleExit
+                            : _handleMediaStartupExit,
+                      ),
+                      actions: mediaReady
+                          ? [
+                              // AI 助手入口：打开前暂停自动推进（同设置按钮的处理）。
+                              SentenceChatButton(
+                                sentenceText: currentSentence?.text ?? '',
+                                onBeforeOpen: () {
+                                  if (playerState.isAnnotationMode) {
+                                    player.repeatEngine?.onUserInteraction();
+                                  } else {
+                                    player.enterWaitingForUserInBlindMode();
+                                  }
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.tune),
+                                onPressed: () {
+                                  final player = ref.read(
+                                    reviewDifficultPracticeProvider.notifier,
+                                  );
+                                  if (playerState.isAnnotationMode) {
+                                    player.repeatEngine?.onUserInteraction();
+                                  } else {
+                                    player.enterWaitingForUserInBlindMode();
+                                  }
+                                  showDifficultPracticeSettingsSheet(
+                                    context: context,
+                                  );
+                                },
+                              ),
+                            ]
+                          : const [],
                     ),
-                    durationText: durationText,
-                    showAudioSource: false,
-                    onSeek: (i) => ref
-                        .read(reviewDifficultPracticeProvider.notifier)
-                        .goToSentence(i),
-                  ),
-
-                  // 主体内容：盲听/跟读 双态切换
-                  Expanded(
-                    child: playerState.isAnnotationMode
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.l,
-                            ),
-                            child: currentSentence != null
-                                ? Column(
-                                    children: [
-                                      const SizedBox(height: AppSpacing.s),
-                                      BookmarkToggleRow(
-                                        isDifficult:
-                                            currentSentence.isBookmarked,
-                                        onTap: _handleToggleDifficult,
-                                      ),
-                                      const SizedBox(height: AppSpacing.m),
-                                      Expanded(
-                                        child: AnnotationContentView(
-                                          text: currentSentence.text,
-                                          aiNotifier: ref.read(
-                                            sentenceAiNotifierProvider,
-                                          ),
-                                          audioItemId: widget.audioItemId,
-                                          sentenceIndex: player.currentIndex,
-                                          sentenceStartMs: currentSentence
-                                              .startTime
-                                              .inMilliseconds,
-                                          sentenceEndMs: currentSentence
-                                              .endTime
-                                              .inMilliseconds,
-                                          highlightedSegments:
-                                              currentAttempt?.referenceSegments,
-                                          onStopMainPlayer: () {
-                                            player.repeatEngine
-                                                ?.enterWaitingForUser();
-                                          },
-                                          onToolbarButtonTapped: () {
-                                            player.repeatEngine
-                                                ?.onUserInteraction();
-                                          },
-                                        ),
-                                      ),
-                                      _buildAnnotationMiddlePanel(
-                                        playerState: playerState,
-                                        turnState: turnState,
-                                        currentAttempt: currentAttempt,
-                                        currentPromptId: currentPromptId,
-                                        l10n: l10n,
-                                        theme: theme,
-                                      ),
-                                    ],
-                                  )
-                                : const SizedBox.shrink(),
-                          )
-                        : PracticeNormalModeView(
-                            l10n: l10n,
-                            theme: theme,
-                            isTextRevealed: playerState.isTextRevealed,
-                            countdown: Consumer(
-                              builder: (context, ref, _) {
-                                final s = ref.watch(
-                                  reviewDifficultPracticeProvider.select(
-                                    (s) => (
-                                      show:
-                                          s.isPauseBetweenPlays &&
-                                          !s.isManualMode,
-                                      total: s.pauseDuration,
-                                      paused: s.isCountdownPaused,
-                                      fastForward: s.isCountdownFastForward,
-                                    ),
+              // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）
+              body: _wrapMediaStartup(
+                presentation.expanded
+                    ? mediaSurface
+                    : DictionaryPanelHost(
+                        key: _dictPanelHostKey,
+                        child: Column(
+                          children: [
+                            if (playerState.usesMediaEngine) mediaSurface,
+                            // 进度区域
+                            PracticeProgressSection(
+                              current: playerState.currentSentenceIndex + 1,
+                              total: playerState.totalSentences,
+                              progressText: l10n
+                                  .reviewDifficultPracticeProgress(
+                                    playerState.currentSentenceIndex + 1,
+                                    playerState.totalSentences,
                                   ),
-                                );
-                                if (!s.show) return const SizedBox.shrink();
-                                return CountdownChip(
-                                  total: s.total,
-                                  isPaused: s.paused,
-                                  isFastForward: s.fastForward,
-                                  onTap: player.enterWaitingForUserInBlindMode,
-                                  onPause: () => player.pauseCountdown(),
-                                  onResume: () => player.resumeCountdown(),
-                                );
-                              },
-                            ),
-                            onPeekToggle: () {
-                              player.enterWaitingForUserInBlindMode();
-                              player.setTextRevealed(
-                                !playerState.isTextRevealed,
-                              );
-                            },
-                            onCantUnderstand: () =>
-                                player.enterAnnotationMode(),
-                            onToggleMark: _handleToggleDifficult,
-                            isDifficult: currentSentence?.isBookmarked ?? true,
-                            sentenceText: currentSentence?.text,
-                            lookupOrigin: currentSentence != null
-                                ? DictionaryLookupOrigin(
-                                    audioItemId: widget.audioItemId,
-                                    sentenceIndex: currentSentence.index,
-                                    sentenceText: currentSentence.text,
-                                    sentenceStartMs: currentSentence
-                                        .startTime
-                                        .inMilliseconds,
-                                    sentenceEndMs:
-                                        currentSentence.endTime.inMilliseconds,
+                              durationText: durationText,
+                              showAudioSource: false,
+                              // 收藏操作固定在进度信息行，避免盲听/跟读切换时发生位移。
+                              trailing: BookmarkToggleRow(
+                                isDifficult:
+                                    currentSentence?.isBookmarked ?? true,
+                                onTap: _handleToggleDifficult,
+                              ),
+                              onSeek: (i) => ref
+                                  .read(
+                                    reviewDifficultPracticeProvider.notifier,
                                   )
-                                : null,
-                            onBeforeLookup: () =>
-                                player.enterWaitingForUserInBlindMode(),
-                          ),
-                  ),
+                                  .goToSentence(i),
+                            ),
 
-                  PracticePlaybackFooter(
-                    canGoPrev: playerState.currentSentenceIndex > 0,
-                    isLast:
-                        playerState.currentSentenceIndex >=
-                        playerState.totalSentences - 1,
-                    centerIcon: _buildFooterCenterIcon(playerState),
-                    onPrevious: _handlePrevious,
-                    onNext: _handleNext,
-                    onCenter: _handleCenter,
-                    isManualMode: playerState.isManualMode,
-                    playCountText: _buildPlayCountText(playerState, l10n),
-                    statusSuffixText: _formatSpeed(
-                      playerState.settings.playbackSpeed,
-                    ),
-                    l10n: l10n,
-                    theme: theme,
-                  ),
-                ],
+                            // 主体内容：盲听/跟读 双态切换
+                            Expanded(
+                              child: playerState.isAnnotationMode
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.l,
+                                      ),
+                                      child: currentSentence != null
+                                          ? Column(
+                                              children: [
+                                                Expanded(
+                                                  child: AnnotationContentView(
+                                                    text: currentSentence.text,
+                                                    aiNotifier: ref.read(
+                                                      sentenceAiNotifierProvider,
+                                                    ),
+                                                    audioItemId:
+                                                        widget.audioItemId,
+                                                    sentenceIndex:
+                                                        player.currentIndex,
+                                                    sentenceStartMs:
+                                                        currentSentence
+                                                            .startTime
+                                                            .inMilliseconds,
+                                                    sentenceEndMs:
+                                                        currentSentence
+                                                            .endTime
+                                                            .inMilliseconds,
+                                                    highlightedSegments:
+                                                        currentAttempt
+                                                            ?.referenceSegments,
+                                                    onStopMainPlayer: () {
+                                                      player.repeatEngine
+                                                          ?.enterWaitingForUser();
+                                                    },
+                                                    onToolbarButtonTapped: () {
+                                                      player.repeatEngine
+                                                          ?.onUserInteraction();
+                                                    },
+                                                  ),
+                                                ),
+                                                _buildAnnotationMiddlePanel(
+                                                  playerState: playerState,
+                                                  turnState: turnState,
+                                                  currentAttempt:
+                                                      currentAttempt,
+                                                  currentPromptId:
+                                                      currentPromptId,
+                                                  l10n: l10n,
+                                                  theme: theme,
+                                                ),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
+                                    )
+                                  : PracticeNormalModeView(
+                                      l10n: l10n,
+                                      theme: theme,
+                                      isTextRevealed:
+                                          playerState.isTextRevealed,
+                                      countdown: Consumer(
+                                        builder: (context, ref, _) {
+                                          final s = ref.watch(
+                                            reviewDifficultPracticeProvider
+                                                .select(
+                                                  (s) => (
+                                                    show:
+                                                        s.isPauseBetweenPlays &&
+                                                        !s.isManualMode,
+                                                    total: s.pauseDuration,
+                                                    paused: s.isCountdownPaused,
+                                                    fastForward: s
+                                                        .isCountdownFastForward,
+                                                  ),
+                                                ),
+                                          );
+                                          if (!s.show) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          return CountdownChip(
+                                            total: s.total,
+                                            isPaused: s.paused,
+                                            isFastForward: s.fastForward,
+                                            onTap: player
+                                                .enterWaitingForUserInBlindMode,
+                                            onPause: () =>
+                                                player.pauseCountdown(),
+                                            onResume: () =>
+                                                player.resumeCountdown(),
+                                          );
+                                        },
+                                      ),
+                                      onPeekToggle: () {
+                                        player.enterWaitingForUserInBlindMode();
+                                        player.setTextRevealed(
+                                          !playerState.isTextRevealed,
+                                        );
+                                      },
+                                      onCantUnderstand: () =>
+                                          player.enterAnnotationMode(),
+                                      onToggleMark: _handleToggleDifficult,
+                                      isDifficult:
+                                          currentSentence?.isBookmarked ?? true,
+                                      showBookmarkRow: false,
+                                      sentenceText: currentSentence?.text,
+                                      lookupOrigin: currentSentence != null
+                                          ? DictionaryLookupOrigin(
+                                              audioItemId: widget.audioItemId,
+                                              sentenceIndex:
+                                                  currentSentence.index,
+                                              sentenceText:
+                                                  currentSentence.text,
+                                              sentenceStartMs: currentSentence
+                                                  .startTime
+                                                  .inMilliseconds,
+                                              sentenceEndMs: currentSentence
+                                                  .endTime
+                                                  .inMilliseconds,
+                                            )
+                                          : null,
+                                      onBeforeLookup: () => player
+                                          .enterWaitingForUserInBlindMode(),
+                                    ),
+                            ),
+
+                            PracticePlaybackFooter(
+                              canGoPrev: playerState.currentSentenceIndex > 0,
+                              isLast:
+                                  playerState.currentSentenceIndex >=
+                                  playerState.totalSentences - 1,
+                              centerIcon: _buildFooterCenterIcon(playerState),
+                              onPrevious: _handlePrevious,
+                              onNext: _handleNext,
+                              onCenter: _handleCenter,
+                              isManualMode: playerState.isManualMode,
+                              playCountText: _buildPlayCountText(
+                                playerState,
+                                l10n,
+                              ),
+                              statusSuffixText: _formatSpeed(
+                                playerState.settings.playbackSpeed,
+                              ),
+                              l10n: l10n,
+                              theme: theme,
+                            ),
+                          ],
+                        ),
+                      ),
               ),
             ),
           ),
@@ -801,6 +902,14 @@ class _ReviewDifficultPracticeScreenState
         !state.isPauseBetweenPlays &&
         !state.isPauseBetweenSentences &&
         !state.isCountdownPaused;
+  }
+
+  bool _isCurrentPlaybackActive(ReviewDifficultPracticeState state) {
+    final repeatState = state.repeatFlowState;
+    if (state.isAnnotationMode && repeatState != null) {
+      return _isRepeatPromptPlaybackActive(repeatState);
+    }
+    return _isBlindSentencePlaybackActive(state);
   }
 
   String _buildPlayCountText(

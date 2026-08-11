@@ -35,8 +35,9 @@ import '../repeat_flow/repeat_flow_engine.dart';
 import '../repeat_flow/repeat_flow_phase.dart';
 import '../repeat_flow/repeat_flow_state.dart';
 import '../speech/speech_recording_controller.dart';
+import 'intensive_listen_playback_driver.dart';
 import 'learning_session_provider.dart';
-import 'sentence_playback_engine.dart';
+import 'sentence_playback_engine.dart' show listenAndRepeatPauseCalculator;
 
 part 'review_difficult_practice_provider.g.dart';
 
@@ -124,6 +125,9 @@ class ReviewDifficultPracticeState {
   /// 盲听模式下的流程状态（blind mode 时有值）
   final BlindPracticeFlowState? blindFlowState;
 
+  /// 当前任务是否由独立 MediaEngine 提供原句播放。
+  final bool usesMediaEngine;
+
   /// 是否处于手动模式
   bool get isManualMode => settings.isManualMode || isManualForSentence;
 
@@ -147,6 +151,7 @@ class ReviewDifficultPracticeState {
     this.isManualForSentence = false,
     this.repeatFlowState,
     this.blindFlowState,
+    this.usesMediaEngine = false,
   });
 
   ReviewDifficultPracticeState copyWith({
@@ -169,6 +174,7 @@ class ReviewDifficultPracticeState {
     bool? isManualForSentence,
     RepeatFlowState? repeatFlowState,
     BlindPracticeFlowState? blindFlowState,
+    bool? usesMediaEngine,
     bool clearRepeatFlowState = false,
     bool clearBlindFlowState = false,
   }) {
@@ -198,6 +204,7 @@ class ReviewDifficultPracticeState {
       blindFlowState: clearBlindFlowState
           ? null
           : (blindFlowState ?? this.blindFlowState),
+      usesMediaEngine: usesMediaEngine ?? this.usesMediaEngine,
     );
   }
 }
@@ -214,8 +221,8 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
   /// 学习事件记录器
   late StudyEventRecorder _recorder;
 
-  /// 盲听播放引擎
-  late SentencePlaybackEngine _engine;
+  /// 当前会话句子播放驱动；音频与视频共用同一练习状态机。
+  late SentencePlaybackDriver _playback;
 
   /// 跟读流程引擎（跟读模式时创建，退出时销毁）
   RepeatFlowEngine? _repeatEngine;
@@ -227,8 +234,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     return BlindPracticeFlowEngine(
       onStateChanged: _onBlindFlowStateChanged,
       callbacks: BlindPracticeFlowCallbacks(
-        pauseAudio: () =>
-            ref.read(foregroundAudioEngineProvider.notifier).pause(),
+        pauseAudio: () => unawaited(_playback.pause()),
         playSentence: _playSentenceForBlind,
       ),
       logTag: 'RDP-Blind',
@@ -249,9 +255,8 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
       stage: StudyStage.reviewDifficultPractice,
     );
 
-    _engine = SentencePlaybackEngine(
-      getEngine: () => ref.read(foregroundAudioEngineProvider.notifier),
-      recorder: _recorder,
+    _playback = ForegroundSentencePlaybackDriver(
+      ref.read(foregroundAudioEngineProvider.notifier),
     );
     _blindEngine = _createBlindEngine();
 
@@ -259,7 +264,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     ref.listen(speechRecordingControllerProvider, _onRecordingStateChanged);
 
     ref.onDispose(() {
-      _engine.cleanup();
+      unawaited(_playback.invalidateSession());
       _blindEngine.dispose();
       _repeatEngine?.dispose();
     });
@@ -276,9 +281,16 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     int startIndex = 0,
     DifficultPracticeSettings settings = const DifficultPracticeSettings(),
     String? settingsSlot,
+    SentencePlaybackDriver? playbackDriver,
+    bool usesMediaEngine = false,
   }) {
     _settingsSlot = settingsSlot;
-    _engine.cleanup();
+    unawaited(_playback.invalidateSession());
+    _playback =
+        playbackDriver ??
+        ForegroundSentencePlaybackDriver(
+          ref.read(foregroundAudioEngineProvider.notifier),
+        );
     _blindEngine.dispose();
     _blindEngine = _createBlindEngine();
     _repeatEngine?.dispose();
@@ -294,6 +306,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
       totalSentences: _sentences.length,
       // [settings] 已由调用方从按槽位偏好 resolve 出(默认+记忆),直接 seed。
       settings: settings,
+      usesMediaEngine: usesMediaEngine,
     );
     _prepareBlindFlow(startIndex: validIndex);
     ref.read(analyticsServiceProvider).track(Events.difficultPracticeStart, {
@@ -304,7 +317,9 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     // 注入 recorder
     ref.read(speechRecordingControllerProvider.notifier).setRecorder(_recorder);
     // 也注入到前台引擎（盲听/跟读子流程都经前台引擎播放原句，不上锁屏）。
-    ref.read(foregroundAudioEngineProvider.notifier).setRecorder(_recorder);
+    if (!usesMediaEngine) {
+      ref.read(foregroundAudioEngineProvider.notifier).setRecorder(_recorder);
+    }
   }
 
   /// 更新设置并重新开始当前句
@@ -328,11 +343,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
         newSettings.pauseMultiplier == old.pauseMultiplier;
     if (speedOnly) {
       state = state.copyWith(settings: newSettings);
-      unawaited(
-        ref
-            .read(foregroundAudioEngineProvider.notifier)
-            .setSpeed(newSettings.playbackSpeed),
-      );
+      unawaited(_playback.setSpeed(newSettings.playbackSpeed));
       return;
     }
 
@@ -352,7 +363,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
       state = state.copyWith(settings: newSettings);
       return;
     }
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     _blindEngine.stopSession();
     _exitAnnotationMode();
     state = state.copyWith(
@@ -415,7 +426,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 暂停
   void pause() {
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     if (state.isAnnotationMode) {
       _repeatEngine?.enterWaitingForUser();
     } else {
@@ -443,7 +454,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
   void enterAnnotationMode() {
     if (state.isAnnotationMode) return;
 
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     _blindEngine.stopSession();
     _startRepeatFlow();
   }
@@ -474,7 +485,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
   Sentence? removeDifficultMark() {
     if (_sentences.isEmpty) return null;
 
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     _blindEngine.stopSession();
     _exitAnnotationMode();
 
@@ -558,7 +569,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 切换到指定句子并重启盲听 flow（goToNext/goToPrevious/goToSentence 共用）
   Future<void> _goToSentenceIndex(int target) async {
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     _exitAnnotationMode();
     _blindEngine.stopSession();
     state = state.copyWith(
@@ -604,7 +615,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 倒计时期间重播
   Future<void> replayDuringCountdown() async {
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     if (state.isAnnotationMode) {
       _repeatEngine?.replayCurrentSentence();
     } else {
@@ -614,7 +625,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 停止播放
   void stopPlayback() {
-    _engine.invalidateSession();
+    unawaited(_playback.invalidateSession());
     _blindEngine.stopSession();
     _exitAnnotationMode();
     state = state.copyWith(
@@ -628,8 +639,10 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
   /// 释放资源
   void disposePlayer() {
     ref.read(speechRecordingControllerProvider.notifier).setRecorder(null);
-    ref.read(foregroundAudioEngineProvider.notifier).setRecorder(null);
-    _engine.cleanup();
+    if (!state.usesMediaEngine) {
+      ref.read(foregroundAudioEngineProvider.notifier).setRecorder(null);
+    }
+    unawaited(_playback.invalidateSession());
     _blindEngine.stopSession();
     _repeatEngine?.dispose();
     _repeatEngine = null;
@@ -639,7 +652,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 重置到第一句
   Future<void> resetToStart() async {
-    _engine.cleanup();
+    await _playback.invalidateSession();
     _blindEngine.stopSession();
     _exitAnnotationMode();
     state = ReviewDifficultPracticeState(
@@ -661,8 +674,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     _repeatEngine ??= RepeatFlowEngine(
       onStateChanged: _onRepeatFlowStateChanged,
       callbacks: RepeatFlowCallbacks(
-        pauseAudio: () =>
-            ref.read(foregroundAudioEngineProvider.notifier).pause(),
+        pauseAudio: () => unawaited(_playback.pause()),
         playSentence: _playSentenceForRepeat,
         startRecording: _startRecordingForRepeat,
         cancelRecording: _cancelRecordingForRepeat,
@@ -773,10 +785,14 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
   // ========== 跟读引擎回调实现 ==========
 
   Future<void> _playSentenceForRepeat(Sentence sentence, int flowToken) async {
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    final sessionId = engine.newSession();
-    await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playClipOnce(sentence, sessionId);
+    final playback = _playback;
+    final sessionId = playback.newSession();
+    await playback.setSpeed(state.settings.playbackSpeed);
+    await playback.playSentence(sentence, sessionId);
+    if (!playback.recordsStudyEventsInternally &&
+        playback.isActiveSession(sessionId)) {
+      _recorder.onSentencePlayed(sentence);
+    }
   }
 
   void _startRecordingForRepeat({
@@ -895,10 +911,10 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   /// 播放一遍盲听原句。
   Future<bool> _playSentenceForBlind(Sentence sentence, int flowToken) async {
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    final sessionId = engine.newSession();
-    await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playClipOnce(sentence, sessionId);
+    final playback = _playback;
+    final sessionId = playback.newSession();
+    await playback.setSpeed(state.settings.playbackSpeed);
+    await playback.playSentence(sentence, sessionId);
     return true;
   }
 

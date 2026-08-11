@@ -1,6 +1,8 @@
 // 难句补练页面 Widget 测试
 //
 // 验证盲听模式和跟读模式的 UI 渲染、按钮交互、状态切换。
+import 'dart:async';
+
 import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,9 +12,13 @@ import 'package:go_router/go_router.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/models/speech_practice_models.dart';
+import 'package:echo_loop/models/media_engine_state.dart';
+import 'package:echo_loop/models/media_learning_startup.dart';
+import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/screens/review_difficult_practice_screen.dart';
 import 'package:echo_loop/providers/listening_practice/listening_practice_provider.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
 import 'package:echo_loop/providers/learning_session/review_difficult_practice_provider.dart';
@@ -33,6 +39,7 @@ import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/services/speech_permission_service.dart';
 import 'package:echo_loop/services/transcription_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 import 'package:echo_loop/widgets/practice/practice_normal_mode_view.dart';
 import 'package:echo_loop/widgets/common/recording_button.dart';
@@ -45,6 +52,17 @@ class _MockNotificationPermissionService extends Mock
     implements NotificationPermissionService {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {}
+
+class _VideoViewMediaEngine extends MediaEngine {
+  @override
+  MediaEngineState build() => const MediaEngineState();
+
+  @override
+  Widget buildVideoView({Size? viewportSize}) => const ColoredBox(
+    key: ValueKey('review-difficult-video-view'),
+    color: Colors.black,
+  );
+}
 
 class _ReadySpeechPermissionService implements SpeechPermissionService {
   const _ReadySpeechPermissionService();
@@ -167,6 +185,7 @@ void main() {
     Duration pauseDuration = Duration.zero,
     bool isCountdownPaused = false,
     bool isCountdownFastForward = false,
+    bool usesMediaEngine = false,
   }) {
     final repeatFlowState = isAnnotationMode
         ? RepeatFlowState(
@@ -207,6 +226,7 @@ void main() {
       isCountdownPaused: isCountdownPaused,
       isCountdownFastForward: isCountdownFastForward,
       repeatFlowState: repeatFlowState,
+      usesMediaEngine: usesMediaEngine,
     );
   }
 
@@ -219,6 +239,7 @@ void main() {
     List<Override> extraOverrides = const [],
     bool startAtHome = false,
     bool listenAndRepeatRatingEnabled = true,
+    MediaLearningStartup? mediaStartup,
     TestReviewDifficultPractice Function(
       ReviewDifficultPracticeState initialState,
       List<Sentence> sentences,
@@ -263,6 +284,7 @@ void main() {
             return ReviewDifficultPracticeScreen(
               collectionId: collectionId,
               audioItemId: audioId,
+              mediaStartup: mediaStartup,
             );
           },
         ),
@@ -282,6 +304,7 @@ void main() {
           ),
         ),
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
+        mediaEngineProvider.overrideWith(_VideoViewMediaEngine.new),
         learningProgressNotifierProvider.overrideWith(
           () => TestLearningProgressNotifier(),
         ),
@@ -332,6 +355,43 @@ void main() {
   }
 
   group('ReviewDifficultPracticeScreen — 盲听模式', () {
+    testWidgets('视频加载完成后显示共享画面且保留原难句补练交互', (tester) async {
+      final load = Completer<MediaLoadResult>();
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(usesMediaEngine: true),
+          mediaStartup: MediaLearningStartup(
+            loadKey: 'video-review-1',
+            load: () => load.future,
+            cancel: () async {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Loading video…'), findsOneWidget);
+      expect(find.byIcon(Icons.tune), findsNothing);
+
+      load.complete(MediaLoadResult.ready);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('media-video-canvas')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('review-difficult-video-view')),
+        findsOneWidget,
+      );
+      expect(find.text('Peek at subtitles'), findsOneWidget);
+      expect(find.text('Unclear'), findsOneWidget);
+    });
+
+    testWidgets('音频难句补练不创建媒体画面', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('media-video-canvas')), findsNothing);
+      expect(find.text('Peek at subtitles'), findsOneWidget);
+    });
+
     testWidgets('显示 AppBar 标题', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
@@ -583,6 +643,25 @@ void main() {
       expect(find.byIcon(Icons.bookmark), findsOneWidget);
       expect(find.text('Unsave'), findsOneWidget);
     });
+
+    testWidgets('盲听模式收藏按钮与进度信息同行并右对齐', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(playerState: createPlayerState(isPlaying: true)),
+      );
+      await tester.pumpAndSettle();
+
+      final progressFinder = find.text('Sentence 1/5');
+      final bookmarkFinder = find.byType(BookmarkToggleRow);
+      expect(bookmarkFinder, findsOneWidget);
+      expect(
+        tester.getCenter(bookmarkFinder).dy,
+        closeTo(tester.getCenter(progressFinder).dy, 3),
+      );
+      expect(
+        tester.getTopRight(bookmarkFinder).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
+    });
   });
 
   group('ReviewDifficultPracticeScreen — 跟读模式', () {
@@ -636,6 +715,30 @@ void main() {
 
       expect(find.byIcon(Icons.bookmark), findsOneWidget);
       expect(find.text('Unsave'), findsOneWidget);
+    });
+
+    testWidgets('跟读模式收藏按钮与进度信息同行并右对齐', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final progressFinder = find.text('Sentence 1/5');
+      final bookmarkFinder = find.byType(BookmarkToggleRow);
+      expect(bookmarkFinder, findsOneWidget);
+      expect(
+        tester.getCenter(bookmarkFinder).dy,
+        closeTo(tester.getCenter(progressFinder).dy, 3),
+      );
+      expect(
+        tester.getTopRight(bookmarkFinder).dx,
+        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
+      );
     });
 
     testWidgets('跟读模式显示翻译和分析区域', (tester) async {
