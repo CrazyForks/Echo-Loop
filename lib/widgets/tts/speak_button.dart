@@ -1,7 +1,7 @@
 /// 统一发音按钮
 ///
-/// 点击走统一 TTS（[ttsControllerProvider]）发音。朗读期间显激活态（图标变主色），
-/// 结束自动复位；连续点击由协调器打断重播；错误静默复位（发音是辅助功能，不弹窗）。
+/// 点击走统一发音链路：单词优先离线发音库，未命中、多词或本地播放失败时走
+/// [ttsControllerProvider] 缓存/生成。朗读期间显激活态（图标变主色），结束自动复位。
 ///
 /// 单词、词典例句等所有发音入口统一使用本组件，保证交互一致。
 library;
@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/pronunciation/pronunciation_providers.dart';
 import '../../providers/tts/tts_controller_provider.dart';
 
 class SpeakButton extends ConsumerWidget {
@@ -56,7 +57,16 @@ class SpeakButton extends ConsumerWidget {
     final speakingKey = ref.watch(
       ttsControllerProvider.select((s) => s.speakingKey),
     );
-    final isSpeaking = speakingKey == key;
+    final localPlayingKey = ref.watch(
+      pronunciationPlaybackProvider.select((s) => s.playingKey),
+    );
+    final localClips = ref.watch(pronunciationClipsProvider(text));
+    final localPlaybackKey = localClips.isEmpty
+        ? null
+        : localClips.first.playbackKey;
+    final isSpeaking =
+        speakingKey == key ||
+        (localPlaybackKey != null && localPlayingKey == localPlaybackKey);
     final theme = Theme.of(context);
     final iconColor = isSpeaking
         ? theme.colorScheme.primary
@@ -71,7 +81,7 @@ class SpeakButton extends ConsumerWidget {
       onPressed: text.trim().isEmpty
           ? null
           : () => ref
-                .read(ttsControllerProvider.notifier)
+                .read(pronunciationPlaybackProvider.notifier)
                 .speak(text, key: key),
       icon: Icon(icon, color: iconColor),
     );

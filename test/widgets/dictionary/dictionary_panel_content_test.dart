@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
+import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
+import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
 import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -74,11 +76,28 @@ Database _createTestDb() {
 }
 
 /// 构建打开面板的测试页面（经 DictionaryPanelHost 非 modal 打开）
-Widget _buildTestPage(String word, {String? sentenceText}) {
+Widget _buildTestPage(
+  String word, {
+  String? sentenceText,
+  bool hasLocalPronunciation = false,
+}) {
   return ProviderScope(
     overrides: [
       analyticsOverride(),
       dictionaryOverride(),
+      pronunciationClipsProvider.overrideWith(
+        (ref, lookupWord) => hasLocalPronunciation
+            ? [
+                PronunciationClip(
+                  word: lookupWord,
+                  locale: 'us',
+                  audioFilename: '${lookupWord}_us.opus',
+                  absolutePath: '/audio/${lookupWord}_us.opus',
+                  reason: null,
+                ),
+              ]
+            : const [],
+      ),
       sharedPreferencesProvider.overrideWithValue(_prefs),
       ttsControllerProvider.overrideWith(_StubTtsController.new),
     ],
@@ -217,15 +236,12 @@ void main() {
       expect(find.text('/test/'), findsOneWidget);
     });
 
-    testWidgets('词形还原 fallback（running → run）：标题保留表面词形 + 原形提示', (tester) async {
+    testWidgets('未收录变形词不回退原形', (tester) async {
       await _openSheet(tester, 'running');
 
-      // 标题保留用户所选表面词形 running（不再显示词干 run）
       expect(find.text('running'), findsWidgets);
-      // 释义仍通过词形还原命中原形 run
-      expect(find.text('/rʌn/'), findsOneWidget);
-      // 弱化提示告知展示的是原形 run 的查词结果
-      expect(find.textContaining('base form'), findsOneWidget);
+      expect(find.text('/rʌn/'), findsNothing);
+      expect(find.text('Word not found in dictionary'), findsOneWidget);
     });
 
     testWidgets('标题保留大小写，本地查询仍大小写不敏感（Abandon）', (tester) async {
@@ -248,11 +264,21 @@ void main() {
       expect(_prewarmCalls, isNotEmpty);
       expect(_prewarmCalls.first, ['running']);
 
-      // 查词完成后：完整批次照旧触发（本地源 running→run，headword='run'），
-      // 且作为最后发起的批次持最新 token、完整跑完，不被 initState 单词预热干扰。
+      // 未收录的变形词不产生原形结果，初始预热不被后续查询改写。
       await tester.pumpAndSettle();
-      expect(_prewarmCalls.length, greaterThanOrEqualTo(2));
-      expect(_prewarmCalls.last, ['run']);
+      expect(_prewarmCalls, [
+        ['running'],
+      ]);
+    });
+
+    testWidgets('已有离线发音时跳过标题单词的 TTS 预热', (tester) async {
+      await tester.pumpWidget(
+        _buildTestPage('running', hasLocalPronunciation: true),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(_prewarmCalls, isEmpty);
     });
 
     testWidgets('弹窗内容可滚动', (tester) async {

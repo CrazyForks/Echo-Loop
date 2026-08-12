@@ -28,6 +28,7 @@ import '../../models/flashcard_settings.dart';
 import '../../models/study_stage.dart';
 import '../../providers/audio_engine/audio_engine_provider.dart';
 import '../../providers/audio_engine/foreground_audio_engine_provider.dart';
+import '../../providers/pronunciation/pronunciation_providers.dart';
 import '../../services/app_logger.dart';
 import '../../services/dictionary_service.dart';
 import '../../services/study_time_service.dart';
@@ -330,7 +331,9 @@ class FlashcardNotifier extends _$FlashcardNotifier {
         playedOriginal = await _playPhraseAudio(item);
       }
       if (!playedOriginal) {
-        await ref.read(ttsControllerProvider.notifier).speak(item.displayText);
+        await ref
+            .read(pronunciationPlaybackProvider.notifier)
+            .speak(item.displayText);
       }
 
       _inputStopwatch.stop();
@@ -665,7 +668,7 @@ class FlashcardNotifier extends _$FlashcardNotifier {
       playedOriginal = await _playPhraseAudio(item);
     }
     if (!playedOriginal) {
-      await ref.read(ttsControllerProvider.notifier).speak(word);
+      await ref.read(pronunciationPlaybackProvider.notifier).speak(word);
     }
 
     _inputStopwatch.stop();

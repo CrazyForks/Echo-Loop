@@ -20,6 +20,7 @@ import '../models/audio_item.dart' as model;
 import '../models/dict_entry.dart';
 import '../screens/sentence_detail_screen.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
+import '../providers/pronunciation/pronunciation_providers.dart';
 import '../providers/tts/tts_controller_provider.dart';
 import '../widgets/tts/speak_button.dart';
 import '../providers/flashcard/flashcard_provider.dart';
@@ -866,7 +867,10 @@ class _WordsViewState extends ConsumerState<_WordsView> {
     if (!widget.isActive) return;
     _ttsController = ref.read(ttsControllerProvider.notifier);
     final speakTexts = <String>[
-      for (final w in words) w.word,
+      // 已命中离线发音库的单词由本地 Opus 播放，不再重复生成 TTS；意群没有
+      // 对应的离线单词音频，仍照常预热。
+      for (final w in words)
+        if (ref.watch(pronunciationClipsProvider(w.word)).isEmpty) w.word,
       for (final p in phrases) p.displayText,
     ];
     final sig = speakTexts.join('');
@@ -1151,6 +1155,17 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 意群同样属于收藏词汇：喇叭朗读收藏文本；下方圆形按钮
+                    // 保留用于回放原始素材中的对应片段。
+                    SpeakButton(
+                      key: const Key('favorite_phrase_speak'),
+                      text: phrase.displayText,
+                      size: 18,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
                     // 来源句子（可播放）
                     if (phrase.sentenceText != null) ...[
                       InkWell(
@@ -1193,7 +1208,6 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                             );
                           },
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.headphones,
@@ -1202,11 +1216,15 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                                     .withValues(alpha: 0.5),
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                l10n.bookmarkReviewFromAudio(_audioName!),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.5),
+                              Expanded(
+                                child: Text(
+                                  l10n.bookmarkReviewFromAudio(_audioName!),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.5),
+                                  ),
                                 ),
                               ),
                             ],
@@ -1394,7 +1412,6 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final word = widget.savedWord;
-
     return Dismissible(
       key: ValueKey('word_${word.id}'),
       direction: DismissDirection.endToStart,
@@ -1451,32 +1468,31 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 音标 + 完整释义
-                    if (widget.dictEntry != null) ...[
-                      if (widget.dictEntry!.phonetic.isNotEmpty)
-                        Row(
-                          children: [
-                            Text(
-                              '/${widget.dictEntry!.phonetic}/',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                    // 播放入口不依赖本地词典命中：多词和变形词均可回退 TTS。
+                    Row(
+                      children: [
+                        if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
+                          Text(
+                            '/${widget.dictEntry!.phonetic}/',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            // TTS 发音按钮
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppSpacing.xs,
-                              ),
-                              child: SpeakButton(
-                                text: word.word,
-                                size: 18,
-                                padding: EdgeInsets.zero,
-                                visualDensity: VisualDensity.compact,
-                                constraints: const BoxConstraints(),
-                              ),
-                            ),
-                          ],
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: AppSpacing.xs),
+                          child: SpeakButton(
+                            key: const Key('favorite_speak'),
+                            text: word.word,
+                            size: 18,
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(),
+                          ),
                         ),
+                      ],
+                    ),
+                    // 完整释义仅在本地词典精确命中时展示。
+                    if (widget.dictEntry != null) ...[
                       if (widget.dictEntry!.translation != null) ...[
                         const SizedBox(height: AppSpacing.xs),
                         Text(
@@ -1548,7 +1564,6 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                             );
                           },
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.headphones,
@@ -1558,7 +1573,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Flexible(
+                              Expanded(
                                 child: Text(
                                   l10n.bookmarkReviewFromAudio(_audioName!),
                                   maxLines: 1,

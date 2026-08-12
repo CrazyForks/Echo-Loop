@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/dictionary/dictionary_entry.dart';
+import '../../providers/pronunciation/pronunciation_providers.dart';
 import '../../providers/tts/tts_controller_provider.dart';
 import '../../theme/app_theme.dart';
 
@@ -300,7 +301,9 @@ class _ExampleView extends ConsumerWidget {
       child: InkWell(
         onTap: sentence.isEmpty
             ? null
-            : () => ref.read(ttsControllerProvider.notifier).speak(sentence),
+            : () => ref
+                  .read(pronunciationPlaybackProvider.notifier)
+                  .speak(sentence),
         borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.only(left: 10),

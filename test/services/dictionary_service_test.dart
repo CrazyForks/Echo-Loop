@@ -1,6 +1,6 @@
-/// DictionaryService 词形还原查询测试
+/// DictionaryService 精确查询测试
 ///
-/// 使用内存 SQLite 数据库验证精确匹配和词形还原 fallback 逻辑。
+/// 使用内存 SQLite 数据库验证清洗后、大小写不敏感的精确匹配逻辑。
 library;
 
 import 'dart:io';
@@ -98,8 +98,6 @@ void main() {
       // NOCASE 查询命中（输入小写，headword 大写）
       expect(svc.lookup('message')?.word, 'Message');
 
-      // 预热词形还原器不抛异常
-      svc.warmUpLemmatizer();
       // 预热数据库页缓存不抛异常，且不影响后续查询
       svc.warmUpDatabase();
       expect(svc.lookup('message')?.word, 'Message');
@@ -160,65 +158,22 @@ void main() {
     });
   });
 
-  group('词形还原 fallback', () {
-    test('复数 -s → 原形（professors → professor）', () {
-      final entry = service.lookup('professors');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'professor');
-    });
-
-    test('动词 -ing → 原形（running → run）', () {
-      final entry = service.lookup('running');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'run');
-    });
-
-    test('动词 -s → 原形（goes → go）', () {
-      final entry = service.lookup('goes');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'go');
-    });
-
-    test('比较级 -er → 原形（happier → happy）', () {
-      final entry = service.lookup('happier');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'happy');
-    });
-
-    test('过去式 -ied → 原形（studied → study）', () {
-      final entry = service.lookup('studied');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'study');
-    });
-
-    test('不规则复数（children → child）', () {
-      final entry = service.lookup('children');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'child');
-    });
-
-    test('不规则复数（mice → mouse）', () {
-      final entry = service.lookup('mice');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'mouse');
-    });
-
-    test('不规则过去式（went → go）', () {
-      final entry = service.lookup('went');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'go');
-    });
-
-    test('最高级 -est → 原形（happiest → happy）', () {
-      final entry = service.lookup('happiest');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'happy');
-    });
-
-    test('过去分词 -ed（studied → study）', () {
-      final entry = service.lookup('studies');
-      expect(entry, isNotNull);
-      expect(entry!.word, 'study');
+  group('未精确收录的词形', () {
+    test('不会回退到原形', () {
+      for (final word in [
+        'professors',
+        'running',
+        'goes',
+        'happier',
+        'studied',
+        'children',
+        'mice',
+        'went',
+        'happiest',
+        'studies',
+      ]) {
+        expect(service.lookup(word), isNull, reason: '$word 必须精确匹配');
+      }
     });
   });
 
@@ -237,23 +192,19 @@ void main() {
       expect(results.containsKey('xyznotaword'), isFalse);
     });
 
-    test('词形还原 fallback', () {
+    test('未精确收录的词形不出现在结果中', () {
       final results = service.lookupAll(['professors', 'running']);
-      expect(results['professors'], isNotNull);
-      expect(results['professors']!.word, 'professor');
-      expect(results['running'], isNotNull);
-      expect(results['running']!.word, 'run');
+      expect(results, isEmpty);
     });
 
-    test('词组（含空格）不做词形还原，未收录即不命中', () {
-      // "going to" 是词组，本地库只收单词，不应被拆词还原到 go
+    test('未收录词组不命中', () {
       final results = service.lookupAll(['going to']);
       expect(results.containsKey('going to'), isFalse);
     });
   });
 
-  group('词组不做词形还原', () {
-    test('lookup 词组精确未命中直接返回 null（不还原到 go）', () {
+  group('词组精确匹配', () {
+    test('未收录词组直接返回 null', () {
       expect(service.lookup('going to'), isNull);
     });
 

@@ -448,6 +448,23 @@ void main() {
     });
   });
 
+  group('FavoritesScreen - source audio layout', () {
+    testWidgets('long labels stay within a narrow row', (tester) async {
+      await tester.pumpWidget(const Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 120,
+          child: Row(children: [
+            Icon(Icons.headphones, size: 12),
+            SizedBox(width: 4),
+            Expanded(child: Text('From: exceptionally long audio lesson', maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ]),
+        ),
+      ));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('FavoritesScreen — 单词例句显示', () {
     testWidgets('展开单词后长例句完整显示（无 maxLines 截断）', (tester) async {
       final longSentence =

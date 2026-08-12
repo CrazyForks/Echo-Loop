@@ -16,6 +16,7 @@ import '../../providers/dictionary/lookup_controller.dart';
 import '../../features/subscription/models/premium_feature.dart';
 import '../../features/subscription/models/ai_quota_rejection.dart';
 import '../../features/subscription/utils/ai_quota_copy.dart';
+import '../../providers/pronunciation/pronunciation_providers.dart';
 import '../../providers/tts/tts_controller_provider.dart';
 import '../../theme/app_theme.dart';
 import '../common/shimmer_placeholder.dart';
@@ -606,8 +607,9 @@ class _ExampleView extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 6, left: 2),
       child: InkWell(
-        onTap: () =>
-            ref.read(ttsControllerProvider.notifier).speak(example.sentence),
+        onTap: () => ref
+            .read(pronunciationPlaybackProvider.notifier)
+            .speak(example.sentence),
         borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.only(left: 10),

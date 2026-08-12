@@ -217,15 +217,11 @@ class Dictionary extends _$Dictionary {
 
   /// 词典打开后，启动空闲期预热
   ///
-  /// 预热两项冷成本，避免落在首次查词/PDF 导出等关键路径上：
-  /// - 数据库页缓存：`openDatabase` 不读行数据，首次批量查词要冷加载 B-tree 页；
-  /// - 词形还原器：首次 `lemmas()` 有 ~1s 同步冷加载。
-  /// 延迟 2s 让启动流程先跑完；先预热 DB（快）再预热词形还原器（~1s CPU）。
+  /// 预热数据库页缓存，避免首次查词/PDF 导出冷加载 B-tree 页。
+  /// 延迟 2s，让启动流程先跑完。
   void _scheduleWarmUp() {
     Future.delayed(const Duration(seconds: 2), () {
-      DictionaryService.instance
-        ..warmUpDatabase()
-        ..warmUpLemmatizer();
+      DictionaryService.instance.warmUpDatabase();
     });
   }
 

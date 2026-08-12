@@ -9025,6 +9025,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get videoRetry;
+
+  /// No description provided for @pronunciationPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play pronunciation'**
+  String get pronunciationPlay;
+
+  /// No description provided for @pronunciationStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronunciation'**
+  String get pronunciationStandard;
+
+  /// No description provided for @pronunciationAdjective.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjective'**
+  String get pronunciationAdjective;
+
+  /// No description provided for @pronunciationNoun.
+  ///
+  /// In en, this message translates to:
+  /// **'Noun'**
+  String get pronunciationNoun;
+
+  /// No description provided for @pronunciationNounAdjective.
+  ///
+  /// In en, this message translates to:
+  /// **'Noun / adjective'**
+  String get pronunciationNounAdjective;
+
+  /// No description provided for @pronunciationVerb.
+  ///
+  /// In en, this message translates to:
+  /// **'Verb'**
+  String get pronunciationVerb;
+
+  /// No description provided for @pronunciationPastTense.
+  ///
+  /// In en, this message translates to:
+  /// **'Past tense'**
+  String get pronunciationPastTense;
+
+  /// No description provided for @pronunciationPresentTense.
+  ///
+  /// In en, this message translates to:
+  /// **'Present tense'**
+  String get pronunciationPresentTense;
+
+  /// No description provided for @pronunciationInterjection.
+  ///
+  /// In en, this message translates to:
+  /// **'Interjection'**
+  String get pronunciationInterjection;
+
+  /// No description provided for @pronunciationLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline Pronunciation Library'**
+  String get pronunciationLibrary;
+
+  /// No description provided for @pronunciationLibraryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads after the dictionary and provides offline word audio.'**
+  String get pronunciationLibraryDescription;
+
+  /// No description provided for @pronunciationLibraryWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the dictionary to finish downloading'**
+  String get pronunciationLibraryWaiting;
+
+  /// No description provided for @pronunciationLibraryDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading pronunciation library…'**
+  String get pronunciationLibraryDownloading;
+
+  /// No description provided for @pronunciationLibraryInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing pronunciation library…'**
+  String get pronunciationLibraryInstalling;
+
+  /// No description provided for @pronunciationLibraryReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded · {size}'**
+  String pronunciationLibraryReady(String size);
+
+  /// No description provided for @pronunciationLibraryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronunciation library download failed'**
+  String get pronunciationLibraryFailed;
+
+  /// No description provided for @redownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download again'**
+  String get redownload;
 }
 
 class _AppLocalizationsDelegate

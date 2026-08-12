@@ -19,11 +19,15 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
+import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
 import 'package:echo_loop/screens/favorites_screen.dart';
+import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import '../helpers/mock_providers.dart';
 
@@ -67,6 +71,7 @@ class _TestSavedSenseGroupDao implements SavedSenseGroupDao {
 /// 录制预热调用的 TTS 控制器：build 跳过真实协调器/数据库，仅记录 prewarm/cancel。
 class _RecordingTtsController extends TtsController {
   final List<List<String>> prewarmCalls = [];
+  final List<String> spokenTexts = [];
   int cancelCount = 0;
 
   @override
@@ -78,7 +83,51 @@ class _RecordingTtsController extends TtsController {
   }
 
   @override
+  Future<void> speak(String text, {String? key}) async {
+    spokenTexts.add(text);
+  }
+
+  @override
   void cancelTextsPrewarm() => cancelCount++;
+}
+
+/// 记录收藏卡片是否把命中的单词交给离线发音控制器，而非直接调用 TTS。
+class _RecordingPronunciationPlayback extends PronunciationPlaybackController {
+  final List<PronunciationClip> playedClips = [];
+
+  @override
+  PronunciationPlaybackState build() => const PronunciationPlaybackState();
+
+  @override
+  Future<void> play(
+    PronunciationClip clip, {
+    required String fallbackText,
+    String? fallbackKey,
+  }) async {
+    playedClips.add(clip);
+  }
+}
+
+Database _createDictionaryDatabase() {
+  final database = sqlite3.openInMemory();
+  database.execute('''
+    CREATE TABLE words (
+      word TEXT PRIMARY KEY,
+      phonetic TEXT NOT NULL,
+      translation TEXT,
+      collins INTEGER DEFAULT 0,
+      tag TEXT
+    )
+  ''');
+  database.execute(
+    "INSERT INTO words (word, phonetic, translation) "
+    "VALUES ('tomorrow', 'təmɒrəʊ', 'adv. 明天')",
+  );
+  database.execute(
+    "INSERT INTO words (word, phonetic, translation) "
+    "VALUES ('instructions', '', 'n. 指令')",
+  );
+  return database;
 }
 
 SavedWord _word(int id, String word) => SavedWord(
@@ -125,21 +174,31 @@ void main() {
   late StreamController<List<SavedWord>> wordC;
   late StreamController<List<SavedSenseGroup>> phraseC;
   late _RecordingTtsController rec;
+  late _RecordingPronunciationPlayback pronunciationPlayback;
+  late Database dictionaryDatabase;
+  late DictionaryService oldDictionaryService;
 
   setUp(() {
     bookmarkC = StreamController<List<BookmarkWithAudio>>.broadcast();
     wordC = StreamController<List<SavedWord>>.broadcast();
     phraseC = StreamController<List<SavedSenseGroup>>.broadcast();
     rec = _RecordingTtsController();
+    pronunciationPlayback = _RecordingPronunciationPlayback();
+    dictionaryDatabase = _createDictionaryDatabase();
+    oldDictionaryService = DictionaryService.replaceInstance(
+      DictionaryService.withDatabase(dictionaryDatabase),
+    );
   });
 
   tearDown(() {
     bookmarkC.close();
     wordC.close();
     phraseC.close();
+    DictionaryService.replaceInstance(oldDictionaryService);
+    dictionaryDatabase.dispose();
   });
 
-  Widget createWidget() {
+  Widget createWidget({Set<String> locallyPronouncedWords = const {}}) {
     final router = GoRouter(
       initialLocation: '/favorites',
       routes: [
@@ -157,6 +216,19 @@ void main() {
       overrides: [
         analyticsOverride(),
         ...studyTimeOverrides(),
+        pronunciationClipsProvider.overrideWith(
+          (ref, word) => locallyPronouncedWords.contains(word)
+              ? [
+                  PronunciationClip(
+                    word: word,
+                    locale: 'us',
+                    audioFilename: '${word}_us.opus',
+                    absolutePath: '/audio/${word}_us.opus',
+                    reason: null,
+                  ),
+                ]
+              : const [],
+        ),
         bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao(bookmarkC)),
         savedWordDaoProvider.overrideWithValue(_TestSavedWordDao(wordC)),
         savedSenseGroupDaoProvider.overrideWithValue(
@@ -171,6 +243,7 @@ void main() {
           ),
         ),
         ttsControllerProvider.overrideWith(() => rec),
+        pronunciationPlaybackProvider.overrideWith(() => pronunciationPlayback),
       ],
       child: MaterialApp.router(
         locale: const Locale('en'),
@@ -212,6 +285,105 @@ void main() {
     final texts = rec.prewarmCalls.last;
     // 单词用 word，意群用 displayText（原始大小写）。
     expect(texts, containsAll(['tomorrow', 'finished', 'can I book a table']));
+  });
+
+  testWidgets('已有离线发音的收藏单词跳过 TTS 预热，意群保留', (tester) async {
+    await tester.pumpWidget(createWidget(locallyPronouncedWords: {'tomorrow'}));
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'tomorrow'), _word(2, 'finished')]);
+    phraseC.add([_phrase(1, 'can I book a table')]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+
+    final texts = rec.prewarmCalls.last;
+    expect(texts, isNot(contains('tomorrow')));
+    expect(texts, containsAll(['finished', 'can I book a table']));
+  });
+
+  testWidgets('收藏意群显示朗读按钮并朗读意群文本', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([]);
+    phraseC.add([_phrase(1, 'said they were shy.')]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('said they were shy.'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('favorite_phrase_speak')));
+
+    expect(find.byKey(const Key('favorite_phrase_speak')), findsOneWidget);
+    expect(rec.spokenTexts, ['said they were shy.']);
+  });
+
+  testWidgets('点击命中离线发音的收藏单词走本地播放器', (tester) async {
+    await tester.pumpWidget(createWidget(locallyPronouncedWords: {'tomorrow'}));
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'tomorrow')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('tomorrow'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('favorite_speak')));
+
+    expect(pronunciationPlayback.playedClips, hasLength(1));
+    expect(
+      pronunciationPlayback.playedClips.single.absolutePath,
+      '/audio/tomorrow_us.opus',
+    );
+  });
+
+  testWidgets('无音标的收藏单词仍显示播放按钮', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'instructions')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('instructions'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('favorite_speak')), findsOneWidget);
+  });
+
+  testWidgets('词典未收录的收藏多词仍显示播放按钮并回退 TTS', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'birthday card')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('birthday card'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('favorite_speak')));
+
+    expect(find.byKey(const Key('favorite_speak')), findsOneWidget);
+    expect(rec.spokenTexts, ['birthday card']);
+  });
+
+  testWidgets('词典未收录的收藏变形词仍显示播放按钮', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'carrying')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('carrying'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('favorite_speak')), findsOneWidget);
   });
 
   testWidgets('切离词汇 tab 取消在途预热', (tester) async {

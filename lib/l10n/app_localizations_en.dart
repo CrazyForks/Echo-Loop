@@ -5134,4 +5134,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get videoRetry => 'Retry';
+
+  @override
+  String get pronunciationPlay => 'Play pronunciation';
+
+  @override
+  String get pronunciationStandard => 'Pronunciation';
+
+  @override
+  String get pronunciationAdjective => 'Adjective';
+
+  @override
+  String get pronunciationNoun => 'Noun';
+
+  @override
+  String get pronunciationNounAdjective => 'Noun / adjective';
+
+  @override
+  String get pronunciationVerb => 'Verb';
+
+  @override
+  String get pronunciationPastTense => 'Past tense';
+
+  @override
+  String get pronunciationPresentTense => 'Present tense';
+
+  @override
+  String get pronunciationInterjection => 'Interjection';
+
+  @override
+  String get pronunciationLibrary => 'Offline Pronunciation Library';
+
+  @override
+  String get pronunciationLibraryDescription =>
+      'Downloads after the dictionary and provides offline word audio.';
+
+  @override
+  String get pronunciationLibraryWaiting =>
+      'Waiting for the dictionary to finish downloading';
+
+  @override
+  String get pronunciationLibraryDownloading =>
+      'Downloading pronunciation library…';
+
+  @override
+  String get pronunciationLibraryInstalling =>
+      'Installing pronunciation library…';
+
+  @override
+  String pronunciationLibraryReady(String size) {
+    return 'Downloaded · $size';
+  }
+
+  @override
+  String get pronunciationLibraryFailed =>
+      'Pronunciation library download failed';
+
+  @override
+  String get redownload => 'Download again';
 }

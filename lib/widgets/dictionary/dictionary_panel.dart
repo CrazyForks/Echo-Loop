@@ -17,9 +17,11 @@ import '../../features/auth/sign_in_required_dialog.dart';
 import '../../features/subscription/widgets/feature_gate.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/dictionary/dict_speakable_texts.dart';
+import '../../models/pronunciation/pronunciation_clip.dart';
 import '../../providers/dictionary/dictionary_registry.dart';
 import '../../providers/dictionary/lookup_controller.dart';
 import '../../providers/dictionary_provider.dart';
+import '../../providers/pronunciation/pronunciation_providers.dart';
 import '../../providers/saved_word_provider.dart';
 import '../../providers/saved_sense_group_provider.dart';
 import '../../providers/tts/tts_controller_provider.dart';
@@ -32,6 +34,7 @@ import '../animated_bookmark_icon.dart';
 import '../common/text_context_menu.dart';
 import 'dictionary_panel_host.dart';
 import 'dictionary_result_view.dart';
+import 'pronunciation_controls.dart';
 import 'source_switcher.dart';
 
 /// 词典面板内容
@@ -69,6 +72,12 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// `ConsumerState.dispose` 内不可用 `ref`，见 CLAUDE.md §7.14）。
   TtsController? _ttsController;
 
+  /// 本地发音控制器缓存，供 dispose 阶段停止短音频。
+  PronunciationPlaybackController? _pronunciationController;
+
+  /// 当前单词及其离线发音命中状态的预热签名，避免 build 重复调度。
+  String? _headwordPrewarmSignature;
+
   /// 可拉伸源面板的当前高度（像素）。默认 3/5 屏高（真机反馈：1/2 偏低、
   /// 2/3 偏高），
   /// 用户上拉拖拽指示条可放大、下拉可缩小（夹在 [_minSheetHeight] 与
@@ -102,12 +111,6 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   @override
   void initState() {
     super.initState();
-    // 查询文本在面板打开时即已知，立即后台预热，不必等 AI 查询返回。
-    // 标题行 SpeakButton 加载前发的就是 _normalizedWord；AI 流式帧到达后
-    // 增量预热把 headword 与例句共用同一 seen-set，命中即跳过不重复合成。
-    ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental([
-      _normalizedWord,
-    ]);
     _watchEntryAnimation();
   }
 
@@ -137,9 +140,8 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       // 用户调整过的面板高度保留（连续查词不跳动）。
       _ttsController?.cancelTextsPrewarm();
       _ttsController?.stop();
-      ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental([
-        _normalizedWord,
-      ]);
+      _pronunciationController?.stop();
+      _headwordPrewarmSignature = null;
     }
   }
 
@@ -150,6 +152,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     _ttsController?.cancelTextsPrewarm();
     // 面板关闭即停止正在朗读的单词/例句，避免离开后声音继续播到尾。
     _ttsController?.stop();
+    _pronunciationController?.stop();
     // 会话结束：清除粘滞源，下次打开面板恢复默认词典。
     // dispose 处于 widget 树 finalize 流程，禁止同步改 provider（Riverpod
     // 断言），推迟到微任务执行。
@@ -262,18 +265,48 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         preferredSourceId: widget.query.preferredSourceId,
       );
 
+  /// 仅预热没有离线发音的标题单词；例句始终保留 TTS 预热。
+  void _prewarmDictionaryTexts(
+    List<String> texts, {
+    required bool hasLocalClip,
+  }) {
+    // [dictionarySpeakableTexts] 的首项固定为标题单词。词形还原命中时它可能
+    // 是原形（如 running -> run），不能用字符串相等判断，否则仍会重复预热。
+    final filtered = hasLocalClip && texts.isNotEmpty
+        ? texts.skip(1).toList()
+        : texts;
+    if (filtered.isEmpty) return;
+    _ttsController?.prewarmTextsIncremental(filtered);
+  }
+
+  /// 在订阅离线发音命中结果后再调度标题预热，确保已有本地音频不进入 TTS 队列。
+  void _scheduleHeadwordPrewarm(bool hasLocalClip) {
+    final signature = '$_normalizedWord|$hasLocalClip';
+    if (_headwordPrewarmSignature == signature) return;
+    _headwordPrewarmSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (hasLocalClip) return;
+      _ttsController?.prewarmTextsIncremental([_normalizedWord]);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final word = _normalizedWord;
     final lookupQuery = _lookupQuery;
+    final pronunciationClips = ref.watch(pronunciationClipsProvider(word));
     final controllerProvider = _controllerProvider(lookupQuery);
     final state = ref.watch(controllerProvider);
     final notifier = ref.read(controllerProvider.notifier);
 
     // 缓存 TTS 控制器与会话粘滞源供 dispose 使用（dispose 内不可用 ref，§7.14）。
     _ttsController = ref.read(ttsControllerProvider.notifier);
+    _pronunciationController = ref.read(pronunciationPlaybackProvider.notifier);
     _sessionSource = ref.read(dictionarySessionSourceProvider.notifier);
+    final hasLocalClip = pronunciationClips.isNotEmpty;
+    _scheduleHeadwordPrewarm(hasLocalClip);
 
     // 本地词典下载完成后，若当前选中本地源，自动重新查询
     ref.listen(dictionaryProvider, (prev, next) {
@@ -294,8 +327,21 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         _ => null,
       };
       if (result == null) return;
-      _ttsController?.prewarmTextsIncremental(dictionarySpeakableTexts(result));
+      _prewarmDictionaryTexts(
+        dictionarySpeakableTexts(result),
+        hasLocalClip: ref
+            .read(pronunciationClipsProvider(_normalizedWord))
+            .isNotEmpty,
+      );
     });
+
+    // 词典内任一 TTS（标题或例句）开始时停止本地 Opus，避免两套短音频重叠。
+    ref.listen<String?>(
+      ttsControllerProvider.select((ttsState) => ttsState.speakingKey),
+      (previous, next) {
+        if (next != null) _pronunciationController?.stop();
+      },
+    );
 
     final isWeb = _isWebSource(state.selectedSourceId);
     // AI 与网页源内容丰富，默认 3/5 屏高且可上拉放大；本地源内容短，按内容自适应。
@@ -337,6 +383,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
                   word,
                   lookupQuery,
                   isResizable,
+                  pronunciationClips,
                 ),
                 const SizedBox(height: AppSpacing.s),
 
@@ -416,6 +463,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     String savedWord,
     String displayWord,
     bool resizable,
+    List<PronunciationClip> pronunciationClips,
   ) {
     final header = Column(
       mainAxisSize: MainAxisSize.min,
@@ -446,7 +494,14 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         const SizedBox(height: 8),
 
         // 标题行：单词 + 发音 + 收藏 + 关闭（跨源恒定）
-        _buildTitleRow(theme, displayWord, savedWord),
+        _buildTitleRow(theme, displayWord, savedWord, pronunciationClips),
+        if (pronunciationClips.length > 1) ...[
+          const SizedBox(height: 8),
+          PronunciationBadgeGroup(
+            clips: pronunciationClips,
+            fallbackText: displayWord,
+          ),
+        ],
       ],
     );
     if (!resizable) return header;
@@ -502,7 +557,12 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// [displayWord] 为保留大小写的清洗 query，用于标题展示与标题发音；
   /// [savedWord] 为小写归一化词形，用于收藏状态和保存内容。各源的词形还原/
   /// headword 原形仅用于内容展示，不占据标题，也不改变收藏内容。
-  Widget _buildTitleRow(ThemeData theme, String displayWord, String savedWord) {
+  Widget _buildTitleRow(
+    ThemeData theme,
+    String displayWord,
+    String savedWord,
+    List<PronunciationClip> pronunciationClips,
+  ) {
     // 收藏态单一来源：与正文下划线、选区操作条共用同一个收藏词流，避免
     // 面板书签与操作条按钮出现「同一个词两种状态」的瞬时分歧。
     final savedTexts =
@@ -532,7 +592,13 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
             ),
           ),
         ),
-        SpeakButton(text: displayWord),
+        if (pronunciationClips.length == 1)
+          LocalPronunciationIconButton(
+            clip: pronunciationClips.single,
+            fallbackText: displayWord,
+          )
+        else if (pronunciationClips.isEmpty)
+          SpeakButton(text: displayWord),
         AnimatedBookmarkIcon(
           key: const Key('dict_panel_bookmark'),
           isSaved: isSaved,

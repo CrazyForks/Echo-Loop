@@ -23,7 +23,7 @@ class LocalDictResultView extends ConsumerWidget {
   /// 当前源的查询态
   final SourceLookupState? state;
 
-  /// 归一化后的查询词（表面词形），用于判定本地词典是否经词形还原回退命中原形
+  /// 归一化后的查询词（表面词形），用于本地词典的精确结果展示。
   final String word;
 
   const LocalDictResultView({

@@ -5,7 +5,6 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:lemmatizerx/lemmatizerx.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../models/dict_entry.dart';
@@ -34,7 +33,6 @@ class DictionaryService {
   }
 
   Database? _db;
-  final Lemmatizer _lemmatizer = Lemmatizer();
 
   /// 词典数据库是否已就绪
   bool get isAvailable => _db != null;
@@ -61,25 +59,6 @@ class DictionaryService {
       // 建索引失败不致命，仍可查询（退化为全表扫描）
     }
     _db = db;
-  }
-
-  /// 预热词形还原器
-  ///
-  /// 首次 `lemmas()` 调用会同步加载词法数据（~1s CPU）。查词/导出遇到
-  /// 词典未精确收录的词就会触发它——放到启动空闲期预热，避免这 ~1s
-  /// 冷加载落在用户等待的关键路径上。幂等、可安全多次调用。
-  void warmUpLemmatizer() {
-    final sw = Stopwatch()..start();
-    try {
-      final lemmas = _lemmatizer.lemmas('warmup');
-      AppLogger.log(
-        'DictWarmUp',
-        '词形还原器预热 ${sw.elapsedMilliseconds}ms (探测词 warmup → ${lemmas.length} lemma)',
-      );
-    } catch (e) {
-      // 预热失败不致命，首次真实查询时再冷加载
-      AppLogger.log('DictWarmUp', '词形还原器预热失败 ${sw.elapsedMilliseconds}ms: $e');
-    }
   }
 
   /// 预热词典数据库页缓存
@@ -119,37 +98,18 @@ class DictionaryService {
 
   /// 查询单词，返回词典条目；未找到或数据库未就绪时返回 null
   ///
-  /// 精确匹配失败时，自动通过词形还原（lemmatization）尝试查找原形。
+  /// 仅按清洗后的表面词形精确匹配，避免原形条目的音标、释义与发音
+  /// 错配到用户实际查询或收藏的变形词。
   DictEntry? lookup(String word) {
     if (_db == null) return null;
 
     final lower = _normalizeLookupWord(word);
     if (lower.isEmpty) return null;
 
-    // 精确匹配
-    final exact = _queryWord(lower);
-    if (exact != null) return exact;
-
-    // 词组（含空格）不做词形还原：本地库只收单词，还原无意义
-    if (_isPhrase(lower)) return null;
-
-    // 词形还原 fallback：获取所有可能的原形，逐个查询
-    final lemmas = _lemmatizer.lemmas(lower);
-    for (final lemma in lemmas) {
-      for (final form in lemma.lemmas) {
-        if (form == lower) continue; // 跳过与原词相同的形式
-        final result = _queryWord(form);
-        if (result != null) return result;
-      }
-    }
-
-    return null;
+    return _queryWord(lower);
   }
 
   String _normalizeLookupWord(String word) => normalizeWord(word);
-
-  /// 是否为词组（归一化后含空格）。本地库只收单词，词组不做词形还原。
-  bool _isPhrase(String normalized) => normalized.contains(' ');
 
   /// 直接查询数据库
   DictEntry? _queryWord(String word) {
@@ -196,42 +156,6 @@ class DictionaryService {
       }
     }
 
-    // 3. 对未命中的**单词**做词形还原 fallback（逐个查询）。
-    //    词组（含空格）不做词形还原：本地库只收单词，对词组还原无意义
-    //    （如 "going to"），当前仅需高亮，查词等以后有词组库再说。
-    final missed = allNormalized
-        .where((w) => !found.containsKey(w) && !_isPhrase(w))
-        .toList();
-    if (missed.isNotEmpty) {
-      AppLogger.log(
-        'DictLookup',
-        '精确未命中，触发词形还原 fallback: ${missed.join(', ')}',
-      );
-    }
-    for (final lower in missed) {
-      final lemmas = _lemmatizer.lemmas(lower);
-      DictEntry? entry;
-      String? resolvedForm;
-      for (final lemma in lemmas) {
-        for (final form in lemma.lemmas) {
-          if (form == lower) continue;
-          entry = _queryWord(form);
-          if (entry != null) {
-            resolvedForm = form;
-            break;
-          }
-        }
-        if (entry != null) break;
-      }
-      if (entry != null) {
-        AppLogger.log('DictLookup', '  "$lower" → 原形 "$resolvedForm" 命中');
-        for (final original in normalizedToOriginals[lower]!) {
-          result[original] = entry;
-        }
-      } else {
-        AppLogger.log('DictLookup', '  "$lower" 词形还原后仍未命中');
-      }
-    }
     return result;
   }
 

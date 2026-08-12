@@ -4897,4 +4897,57 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get videoRetry => '重试';
+
+  @override
+  String get pronunciationPlay => '播放发音';
+
+  @override
+  String get pronunciationStandard => '标准发音';
+
+  @override
+  String get pronunciationAdjective => '形容词';
+
+  @override
+  String get pronunciationNoun => '名词';
+
+  @override
+  String get pronunciationNounAdjective => '名词 / 形容词';
+
+  @override
+  String get pronunciationVerb => '动词';
+
+  @override
+  String get pronunciationPastTense => '过去式';
+
+  @override
+  String get pronunciationPresentTense => '一般现在时';
+
+  @override
+  String get pronunciationInterjection => '感叹词';
+
+  @override
+  String get pronunciationLibrary => '离线发音库';
+
+  @override
+  String get pronunciationLibraryDescription => '词典下载完成后自动下载，用于离线播放单词发音。';
+
+  @override
+  String get pronunciationLibraryWaiting => '等待词典下载完成';
+
+  @override
+  String get pronunciationLibraryDownloading => '正在下载发音库…';
+
+  @override
+  String get pronunciationLibraryInstalling => '正在安装发音库…';
+
+  @override
+  String pronunciationLibraryReady(String size) {
+    return '已下载 · $size';
+  }
+
+  @override
+  String get pronunciationLibraryFailed => '发音库下载失败';
+
+  @override
+  String get redownload => '重新下载';
 }

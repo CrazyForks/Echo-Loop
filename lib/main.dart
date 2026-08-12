@@ -17,6 +17,7 @@ import 'database/providers.dart';
 import 'database/migration/sp_to_drift_migration.dart';
 import 'providers/package_info_provider.dart';
 import 'providers/dictionary_provider.dart';
+import 'providers/pronunciation/pronunciation_providers.dart';
 import 'providers/settings_provider.dart';
 import 'router/app_router.dart';
 import 'services/bundled_example_installer.dart';
@@ -436,6 +437,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
 
     // 预加载词典（触发下载或打开本地词典）
     ref.read(dictionaryProvider);
+    ref.read(pronunciationLibraryProvider);
 
     // 启动即建订阅控制器：配合其 fireImmediately 监听，在启动阶段就把 RevenueCat
     // 身份绑定到当前登录用户（执行 logIn），不必等用户打开付费墙才触发；

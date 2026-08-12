@@ -385,7 +385,7 @@ class StudyPdfLoader {
 
     // ② 词典缓存两路**各一次性批量查**（只查收藏词本身，不查整句）：
     //    - AI 词典缓存（键 = hashText('词|语言')，与 ai_dictionary_source 契约一致）
-    //    - 本地词典（lookupAll 内部：精确匹配 → 未命中再词形还原兜底）
+    //    - 本地词典（仅按收藏词的表面词形精确匹配）
     final aiHashes = {
       for (final c in candidates) hashText('${c.lookupKey}|$targetLanguage'),
     };
@@ -610,7 +610,7 @@ class StudyPdfLoader {
   /// 从批量读到的缓存构建词条笔记（AI 词典优先，本地词典兜底）
   ///
   /// 查询键即收藏词本身：AI 词典有义项则只用 AI（义项为空则不显示该词条），
-  /// 否则用本地词典（`lookupAll` 已含「精确 → 词形还原」兜底）。
+  /// 否则用按收藏词表面词形精确匹配的本地词典。
   StudyPdfVocabNote? _buildVocabNoteFromCache(
     _VocabCandidate c,
     Map<String, String> aiDictRaw,
