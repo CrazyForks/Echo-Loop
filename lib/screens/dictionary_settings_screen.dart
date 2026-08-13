@@ -13,7 +13,6 @@ import '../providers/dictionary/dictionary_settings_provider.dart';
 import '../providers/dictionary/visible_sources_provider.dart';
 import '../providers/pronunciation/pronunciation_providers.dart';
 import '../services/dictionary/dictionary_source.dart';
-import '../services/download/download_failure.dart';
 import '../theme/app_theme.dart';
 import '../utils/file_size.dart';
 import '../widgets/dictionary/dict_source_presentation.dart';
@@ -82,13 +81,8 @@ class DictionarySettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.m),
-          _SectionHeader(
-            title: l10n.pronunciationLibrary,
-            description: l10n.pronunciationLibraryDescription,
-          ),
           const _PronunciationLibraryTile(),
-          const SizedBox(height: AppSpacing.s),
-          _WebAdsNotice(text: l10n.dictionaryWebAdsNotice),
+          _PronunciationLibraryDescription(),
         ],
       ),
     );
@@ -103,92 +97,69 @@ class _PronunciationLibraryTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(pronunciationLibraryProvider);
     final notifier = ref.read(pronunciationLibraryProvider.notifier);
-    final title = switch (state.status) {
-      PronunciationLibraryStatus.notDownloaded =>
-        l10n.pronunciationLibraryWaiting,
-      PronunciationLibraryStatus.downloading =>
-        l10n.pronunciationLibraryDownloading,
-      PronunciationLibraryStatus.installing =>
-        l10n.pronunciationLibraryInstalling,
-      PronunciationLibraryStatus.ready => l10n.pronunciationLibraryReady(
-        formatBytes(state.localSizeBytes),
-      ),
-      PronunciationLibraryStatus.failed => _failureLabel(l10n, state.failure),
-    };
     final busy =
         state.status == PronunciationLibraryStatus.downloading ||
         state.status == PronunciationLibraryStatus.installing;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.m),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title),
-            if (state.status == PronunciationLibraryStatus.downloading) ...[
-              const SizedBox(height: AppSpacing.s),
-              LinearProgressIndicator(value: state.progress),
-            ],
-            if (!busy) ...[
-              const SizedBox(height: AppSpacing.s),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: state.status == PronunciationLibraryStatus.ready
-                      ? notifier.redownload
-                      : notifier.retryDownload,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(
-                    state.status == PronunciationLibraryStatus.ready
-                        ? l10n.redownload
-                        : l10n.retry,
-                  ),
+      child: ListTile(
+        title: Text(l10n.pronunciationLibrary),
+        trailing: busy
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  value: state.status == PronunciationLibraryStatus.downloading
+                      ? state.progress
+                      : null,
+                  strokeWidth: 2,
                 ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (state.status == PronunciationLibraryStatus.ready)
+                    Text(
+                      formatBytes(state.localSizeBytes),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  TextButton.icon(
+                    onPressed: state.status == PronunciationLibraryStatus.ready
+                        ? notifier.redownload
+                        : notifier.retryDownload,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(
+                      state.status == PronunciationLibraryStatus.ready
+                          ? l10n.redownload
+                          : l10n.retry,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ],
-        ),
       ),
     );
   }
-
-  String _failureLabel(AppLocalizations l10n, DownloadFailureKind? failure) =>
-      switch (failure) {
-        DownloadFailureKind.insufficientStorage => l10n.downloadErrorStorage,
-        DownloadFailureKind.network => l10n.downloadErrorNetwork,
-        DownloadFailureKind.verification => l10n.downloadErrorCorrupted,
-        DownloadFailureKind.unknown || null => l10n.pronunciationLibraryFailed,
-      };
 }
 
-/// 在线词典广告提醒：在线源为第三方网站，可能自带广告，与 Echo Loop 无关。
-class _WebAdsNotice extends StatelessWidget {
-  final String text;
-  const _WebAdsNotice({required this.text});
-
+/// 离线单词发音设置项的外部用途说明，与词典源说明保持相同层级。
+class _PronunciationLibraryDescription extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s,
+        AppSpacing.xs,
+        AppSpacing.s,
+        0,
+      ),
+      child: Text(
+        l10n.pronunciationLibraryDescription,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+        ),
       ),
     );
   }

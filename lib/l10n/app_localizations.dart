@@ -8450,12 +8450,6 @@ abstract class AppLocalizations {
   /// **'Disabled dictionaries won\'t appear in the lookup switcher'**
   String get dictionarySourcesDescription;
 
-  /// No description provided for @dictionaryWebAdsNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'Online dictionary ads are not affiliated with Echo Loop.'**
-  String get dictionaryWebAdsNotice;
-
   /// No description provided for @dictSourceLocal.
   ///
   /// In en, this message translates to:
@@ -9083,44 +9077,14 @@ abstract class AppLocalizations {
   /// No description provided for @pronunciationLibrary.
   ///
   /// In en, this message translates to:
-  /// **'Offline Pronunciation Library'**
+  /// **'Offline Word Pronunciation'**
   String get pronunciationLibrary;
 
   /// No description provided for @pronunciationLibraryDescription.
   ///
   /// In en, this message translates to:
-  /// **'Downloads after the dictionary and provides offline word audio.'**
+  /// **'Pre-recorded word audio for dictionary lookups'**
   String get pronunciationLibraryDescription;
-
-  /// No description provided for @pronunciationLibraryWaiting.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for the dictionary to finish downloading'**
-  String get pronunciationLibraryWaiting;
-
-  /// No description provided for @pronunciationLibraryDownloading.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloading pronunciation library…'**
-  String get pronunciationLibraryDownloading;
-
-  /// No description provided for @pronunciationLibraryInstalling.
-  ///
-  /// In en, this message translates to:
-  /// **'Installing pronunciation library…'**
-  String get pronunciationLibraryInstalling;
-
-  /// No description provided for @pronunciationLibraryReady.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloaded · {size}'**
-  String pronunciationLibraryReady(String size);
-
-  /// No description provided for @pronunciationLibraryFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Pronunciation library download failed'**
-  String get pronunciationLibraryFailed;
 
   /// No description provided for @redownload.
   ///

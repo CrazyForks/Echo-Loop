@@ -4834,10 +4834,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Disabled dictionaries won\'t appear in the lookup switcher';
 
   @override
-  String get dictionaryWebAdsNotice =>
-      'Online dictionary ads are not affiliated with Echo Loop.';
-
-  @override
   String get dictSourceLocal => 'Local Dictionary';
 
   @override
@@ -5163,32 +5159,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pronunciationInterjection => 'Interjection';
 
   @override
-  String get pronunciationLibrary => 'Offline Pronunciation Library';
+  String get pronunciationLibrary => 'Offline Word Pronunciation';
 
   @override
   String get pronunciationLibraryDescription =>
-      'Downloads after the dictionary and provides offline word audio.';
-
-  @override
-  String get pronunciationLibraryWaiting =>
-      'Waiting for the dictionary to finish downloading';
-
-  @override
-  String get pronunciationLibraryDownloading =>
-      'Downloading pronunciation library…';
-
-  @override
-  String get pronunciationLibraryInstalling =>
-      'Installing pronunciation library…';
-
-  @override
-  String pronunciationLibraryReady(String size) {
-    return 'Downloaded · $size';
-  }
-
-  @override
-  String get pronunciationLibraryFailed =>
-      'Pronunciation library download failed';
+      'Pre-recorded word audio for dictionary lookups';
 
   @override
   String get redownload => 'Download again';

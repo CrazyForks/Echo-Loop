@@ -2422,7 +2422,6 @@
   "dictionaryDefaultDescription": "Dictionary shown by default when looking up a word",
   "dictionarySources": "Dictionary Sources",
   "dictionarySourcesDescription": "Disabled dictionaries won't appear in the lookup switcher",
-  "dictionaryWebAdsNotice": "Online dictionary ads are not affiliated with Echo Loop.",
   "dictSourceLocal": "Local Dictionary",
   "dictSourceAi": "AI Dictionary",
   "dictSourceCambridge": "Cambridge",
@@ -2543,13 +2542,7 @@
   "pronunciationPastTense": "Past tense",
   "pronunciationPresentTense": "Present tense",
   "pronunciationInterjection": "Interjection",
-  "pronunciationLibrary": "Offline Pronunciation Library",
-  "pronunciationLibraryDescription": "Downloads after the dictionary and provides offline word audio.",
-  "pronunciationLibraryWaiting": "Waiting for the dictionary to finish downloading",
-  "pronunciationLibraryDownloading": "Downloading pronunciation library…",
-  "pronunciationLibraryInstalling": "Installing pronunciation library…",
-  "pronunciationLibraryReady": "Downloaded · {size}",
-  "@pronunciationLibraryReady": {"placeholders": {"size": {"type": "String"}}},
-  "pronunciationLibraryFailed": "Pronunciation library download failed",
+  "pronunciationLibrary": "Offline Word Pronunciation",
+  "pronunciationLibraryDescription": "Pre-recorded word audio for dictionary lookups",
   "redownload": "Download again"
 }

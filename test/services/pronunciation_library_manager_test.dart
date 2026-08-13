@@ -14,6 +14,7 @@ import 'package:echo_loop/services/reliable_http_downloader.dart';
 class _BytesDownloader implements ReliableHttpDownloader {
   _BytesDownloader(this.bytes);
   final List<int> bytes;
+  final calls = <({bool allowResume, String savePath})>[];
 
   @override
   Future<ReliableDownloadResult> download({
@@ -26,6 +27,11 @@ class _BytesDownloader implements ReliableHttpDownloader {
     cancelToken,
     void Function(int receivedBytes, int? totalBytes)? onProgress,
   }) async {
+    calls.add((allowResume: allowResume, savePath: savePath));
+    final part = File('$savePath.part');
+    if (part.existsSync()) await part.delete();
+    final meta = File('$savePath.part.meta.json');
+    if (meta.existsSync()) await meta.delete();
     await File(savePath).writeAsBytes(bytes);
     onProgress?.call(bytes.length, bytes.length);
     return ReliableDownloadResult(
@@ -68,8 +74,9 @@ void main() {
     () async {
       final zip = _validArchive(source);
       final digest = sha256.convert(zip).toString();
+      final downloader = _BytesDownloader(zip);
       final manager = PronunciationLibraryManager.withDownloader(
-        _BytesDownloader(zip),
+        downloader,
         sha256: digest,
       );
 
@@ -81,9 +88,86 @@ void main() {
         isTrue,
       );
       expect(await manager.installedPaths(), isNotNull);
+      expect(downloader.calls.single.allowResume, isTrue);
       manager.dispose();
     },
   );
+
+  test('interrupted download keeps its transaction and resumes on next install',
+      () async {
+    final zip = _validArchive(source);
+    final digest = sha256.convert(zip).toString();
+    final first = _BytesDownloader(zip);
+    final manager = PronunciationLibraryManager.withDownloader(first, sha256: digest);
+
+    // 模拟上一进程在下载阶段被终止：持久化事务和部分文件仍在。
+    final root = Directory(p.join(support.path, 'pronunciation'))
+      ..createSync(recursive: true);
+    File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
+      '{"version":"v1","phase":"downloading"}',
+    );
+    File(p.join(root.path, '_dl_v1.zip.part')).writeAsBytesSync([1, 2, 3]);
+    File(p.join(root.path, '_dl_v1.zip.part.meta.json')).writeAsStringSync(
+      '{"identityKey":"$digest","downloadedBytes":3}',
+    );
+
+    await manager.recoverInterruptedInstall();
+    expect(await manager.hasPendingInstall(), isTrue);
+    await manager.downloadAndInstall();
+
+    expect(first.calls.single.allowResume, isTrue);
+    expect(await manager.hasPendingInstall(), isFalse);
+    expect(File(p.join(root.path, '_dl_v1.zip.part')).existsSync(), isFalse);
+    manager.dispose();
+  });
+
+  test('completed archive is reused when installation is retried', () async {
+    final zip = _validArchive(source);
+    final digest = sha256.convert(zip).toString();
+    final downloader = _BytesDownloader(zip);
+    final manager = PronunciationLibraryManager.withDownloader(
+      downloader,
+      sha256: digest,
+    );
+    final root = Directory(p.join(support.path, 'pronunciation'))
+      ..createSync(recursive: true);
+    File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
+      '{"version":"v1","phase":"installing"}',
+    );
+    File(p.join(root.path, '_dl_v1.zip')).writeAsBytesSync(zip);
+
+    await manager.recoverInterruptedInstall();
+    await manager.downloadAndInstall();
+
+    expect(downloader.calls, isEmpty);
+    expect(await manager.installedPaths(), isNotNull);
+    manager.dispose();
+  });
+
+  test('replace interruption restores the verified previous library', () async {
+    final zip = _validArchive(source);
+    final digest = sha256.convert(zip).toString();
+    final manager = PronunciationLibraryManager.withDownloader(
+      _BytesDownloader(zip),
+      sha256: digest,
+    );
+    final root = Directory(p.join(support.path, 'pronunciation'))
+      ..createSync(recursive: true);
+    final previous = Directory(p.join(root.path, 'v1.previous'))
+      ..createSync();
+    _writeInstalledLibrary(previous, source, digest);
+    Directory(p.join(root.path, 'v1')).createSync();
+    File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
+      '{"version":"v1","phase":"replacing"}',
+    );
+
+    await manager.recoverInterruptedInstall();
+
+    expect(await manager.installedPaths(), isNotNull);
+    expect(previous.existsSync(), isFalse);
+    expect(await manager.hasPendingInstall(), isTrue);
+    manager.dispose();
+  });
 
   test('install isolate does not capture the installing callback', () async {
     final zip = _validArchive(source);
@@ -146,4 +230,14 @@ List<int> _validArchive(Directory source) {
     ..addFile(ArchiveFile.directory('audio/'))
     ..addFile(ArchiveFile('audio/read_us.opus', 3, [1, 2, 3]));
   return ZipEncoder().encode(archive);
+}
+
+void _writeInstalledLibrary(Directory target, Directory source, String digest) {
+  final db = File(p.join(source.path, 'pronunciation.sqlite'));
+  db.copySync(p.join(target.path, 'pronunciation.sqlite'));
+  final audio = Directory(p.join(target.path, 'audio'))..createSync();
+  File(p.join(audio.path, 'read_us.opus')).writeAsBytesSync([1, 2, 3]);
+  File(p.join(target.path, 'install.json')).writeAsStringSync(
+    '{"version":"v1","sha256":"$digest"}',
+  );
 }

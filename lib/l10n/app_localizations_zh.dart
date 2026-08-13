@@ -4604,9 +4604,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dictionarySourcesDescription => '关闭的词典不会出现在查词切换器中';
 
   @override
-  String get dictionaryWebAdsNotice => '在线词典可能含其自带广告，与 Echo Loop 无关。';
-
-  @override
   String get dictSourceLocal => '本地词典';
 
   @override
@@ -4926,27 +4923,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pronunciationInterjection => '感叹词';
 
   @override
-  String get pronunciationLibrary => '离线发音库';
+  String get pronunciationLibrary => '离线单词发音';
 
   @override
-  String get pronunciationLibraryDescription => '词典下载完成后自动下载，用于离线播放单词发音。';
-
-  @override
-  String get pronunciationLibraryWaiting => '等待词典下载完成';
-
-  @override
-  String get pronunciationLibraryDownloading => '正在下载发音库…';
-
-  @override
-  String get pronunciationLibraryInstalling => '正在安装发音库…';
-
-  @override
-  String pronunciationLibraryReady(String size) {
-    return '已下载 · $size';
-  }
-
-  @override
-  String get pronunciationLibraryFailed => '发音库下载失败';
+  String get pronunciationLibraryDescription => '词典查词时优先播放预录的单词发音';
 
   @override
   String get redownload => '重新下载';

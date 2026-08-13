@@ -101,6 +101,12 @@ class PronunciationLibraryNotifier extends Notifier<PronunciationLibraryState> {
 
   Future<void> _ensureInstalled() async {
     final manager = ref.read(pronunciationLibraryManagerProvider);
+    await manager.recoverInterruptedInstall();
+    // 重新下载在旧库可用时也必须恢复，不能被已安装版本短路。
+    if (await manager.hasPendingInstall()) {
+      await _download();
+      return;
+    }
     final paths = await manager.installedPaths();
     if (paths != null) {
       _open(paths);
