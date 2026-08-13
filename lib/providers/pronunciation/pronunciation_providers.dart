@@ -12,6 +12,7 @@ import '../../services/pronunciation/pronunciation_repository.dart';
 import '../../services/reliable_http_downloader.dart';
 import '../../utils/text_normalize.dart';
 import '../dictionary_provider.dart';
+import '../short_audio_player_provider.dart';
 import '../tts/tts_controller_provider.dart';
 
 enum PronunciationLibraryStatus {
@@ -188,14 +189,6 @@ class PronunciationPlaybackState {
   final String? playingKey;
 }
 
-final localPronunciationPlayerProvider = Provider<LocalPronunciationPlayer>((
-  ref,
-) {
-  final player = LocalPronunciationPlayer();
-  ref.onDispose(() => unawaited(player.dispose()));
-  return player;
-});
-
 final pronunciationPlaybackProvider =
     NotifierProvider<
       PronunciationPlaybackController,
@@ -238,7 +231,7 @@ class PronunciationPlaybackController
     if (currentPlayer != null) {
       player = currentPlayer;
     } else {
-      player = ref.read(localPronunciationPlayerProvider);
+      player = ref.read(shortAudioPlayerProvider);
       _player = player;
     }
     final ok = await player.playFile(clip.absolutePath);

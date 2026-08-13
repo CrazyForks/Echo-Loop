@@ -15,14 +15,14 @@ import 'dart:collection';
 import '../app_logger.dart';
 import 'tts_cache_store.dart';
 import 'tts_engine.dart';
-import 'tts_player.dart';
+import '../pronunciation/local_pronunciation_player.dart';
 
 /// 单次合成的超时上界，**按引擎 + 文本长度成比例**——仅作「native 永不返回」的安全
 /// 上界，不做精确计时，宁可偏松也不误杀长句。计时只覆盖单次合成本身（调度器已串行化，
 /// 排队等待不计入，见 [_synthAndStore]）。下限统一 12s（短词快速兜底）。
 ///
 /// 各引擎速度差异大，系数分别取（含冷启动与慢机余量）：
-/// - **echoLoop（Kokoro）**：CPU 推理 RTF≈3，最慢——基础 10s + 300ms/字符，上限 90s
+/// - **Kokoro**：CPU 推理 RTF≈3，最慢——基础 10s + 300ms/字符，上限 90s
 ///   （A06 上一句长例句合成可达 20–30s，固定小值会误判为挂起）。
 /// - **piper**：RTF≈0.1~0.3，快，含冷启数秒——基础 10s + 60ms/字符，上限 40s。
 /// - **platform（系统 TTS）**：合成近实时、快，主要防其挂起——基础 8s + 80ms/字符，上限 30s。
@@ -81,8 +81,27 @@ class _SynthScheduler {
     (priority == TtsSynthPriority.user ? _userQueue : _backgroundQueue).add(
       task,
     );
+    AppLogger.log(
+      'TtsScheduler',
+      '已排队${priority == TtsSynthPriority.user ? '用户发音' : '文本预热'}：'
+          '用户任务=${_userQueue.length} 文本预热任务=${_backgroundQueue.length} '
+          '正在合成=$_running',
+    );
     _pump();
     return completer.future;
+  }
+
+  /// 丢弃尚未执行的后台任务；正在运行的 native 推理不可可靠中断，必须自然完成。
+  void cancelPendingBackground() {
+    final cancelled = _backgroundQueue.length;
+    while (_backgroundQueue.isNotEmpty) {
+      _backgroundQueue.removeFirst().completer.complete(null);
+    }
+    AppLogger.log(
+      'TtsScheduler',
+      '已取消未开始的文本预热：取消=$cancelled '
+          '保留用户任务=${_userQueue.length} 正在合成=$_running',
+    );
   }
 
   /// 若空闲则取下一条（用户队列优先）执行；完成后递归驱动下一条。
@@ -93,6 +112,11 @@ class _SynthScheduler {
         : (_backgroundQueue.isNotEmpty ? _backgroundQueue.removeFirst() : null);
     if (task == null) return;
     _running = true;
+    AppLogger.log(
+      'TtsScheduler',
+      '开始执行合成：剩余用户任务=${_userQueue.length} '
+          '剩余文本预热任务=${_backgroundQueue.length}',
+    );
     task
         .run()
         .then(task.completer.complete)
@@ -117,14 +141,14 @@ class TtsCoordinator {
   TtsCoordinator({
     required TtsEngineFactory factory,
     required TtsCacheStore cacheStore,
-    required TtsPlayer player,
+    required LocalPronunciationPlayer player,
   }) : _factory = factory,
        _cacheStore = cacheStore,
        _player = player;
 
   final TtsEngineFactory _factory;
   final TtsCacheStore _cacheStore;
-  final TtsPlayer _player;
+  final LocalPronunciationPlayer _player;
 
   TtsEngine? _engine;
 
@@ -138,6 +162,11 @@ class TtsCoordinator {
   /// 触碰平台 TTS/数据库，首次 [speak] 才真正建引擎、连库。
   TtsEngineKind? _desiredKind;
   TtsSpeechConfig? _desiredConfig;
+
+  /// 当前引擎和语音参数是否已由 [configure] 写入。
+  ///
+  /// 这不代表模型或引擎已初始化；它只保证文本预热能够获得正确的缓存键和合成配置。
+  bool get isConfigured => _desiredKind != null && _desiredConfig != null;
 
   /// 抢占代际计数。speak/stop/configure 递增，过期操作据此放弃。
   int _generation = 0;
@@ -155,6 +184,9 @@ class TtsCoordinator {
 
   /// 合成优先级调度器：用户发音优先于后台预热（见 [TtsSynthPriority]）。
   final _SynthScheduler _scheduler = _SynthScheduler();
+
+  /// 后台文本预热代际。取消时仅淘汰尚未执行的合成；初始化或 native 推理保持自然结束。
+  int _backgroundGeneration = 0;
 
   /// 记录目标引擎与发音参数。
   ///
@@ -184,11 +216,19 @@ class TtsCoordinator {
       // 已有在途构建：等它完成后按需热更新配置再返回。
       final inFlight = _ensuring;
       if (inFlight != null) {
+        AppLogger.log(
+          'TtsCoordinator',
+          '模型预热复用进行中的加载：引擎=${kind.diagnosticName}',
+        );
         await inFlight;
         if (_engine == null || _engineKind != kind) {
           return _ensureEngine(kind, config);
         }
       } else {
+        AppLogger.log(
+          'TtsCoordinator',
+          '模型预热开始加载：引擎=${kind.diagnosticName}',
+        );
         final future = _buildEngine(kind, config);
         _ensuring = future;
         try {
@@ -199,6 +239,10 @@ class TtsCoordinator {
         return _engine;
       }
     }
+    AppLogger.log(
+      'TtsCoordinator',
+      '模型已就绪，无需重复加载：引擎=${kind.diagnosticName}',
+    );
     if (_engine != null && _appliedConfig != config) {
       _appliedConfig = config;
       await _engine!.applyConfig(config);
@@ -208,18 +252,35 @@ class TtsCoordinator {
 
   /// 物理新建引擎并初始化（仅由 [_ensureEngine] 经 [_ensuring] 串行调用）。
   Future<void> _buildEngine(TtsEngineKind kind, TtsSpeechConfig config) async {
+    final stopwatch = Stopwatch()..start();
     final old = _engine;
     _engine = null;
     if (old != null) {
       await old.stop();
       await old.dispose();
     }
-    final engine = _factory(kind);
-    await engine.initialize();
-    await engine.applyConfig(config);
-    _engine = engine;
-    _engineKind = kind;
-    _appliedConfig = config;
+    try {
+      final engine = _factory(kind);
+      await engine.initialize();
+      await engine.applyConfig(config);
+      _engine = engine;
+      _engineKind = kind;
+      _appliedConfig = config;
+      stopwatch.stop();
+      AppLogger.log(
+        'TtsCoordinator',
+        '模型预热完成：引擎=${kind.diagnosticName} '
+            '耗时=${stopwatch.elapsedMilliseconds}ms',
+      );
+    } catch (error) {
+      stopwatch.stop();
+      AppLogger.log(
+        'TtsCoordinator',
+        '✗ 模型预热失败：引擎=${kind.diagnosticName} '
+            '耗时=${stopwatch.elapsedMilliseconds}ms 错误=$error',
+      );
+      rethrow;
+    }
   }
 
   /// 发音 [text]（用当前 [configure] 配置）。命中缓存直接播文件；未命中合成产文件并
@@ -249,7 +310,13 @@ class TtsCoordinator {
     TtsEngineKind kind,
     TtsSpeechConfig config,
   ) async {
-    await _render(text, kind, config, priority: TtsSynthPriority.background);
+    await _render(
+      text,
+      kind,
+      config,
+      priority: TtsSynthPriority.background,
+      backgroundGeneration: _backgroundGeneration,
+    );
   }
 
   /// 预热「当前配置」下的文本：用 [configure] 记录的引擎/配置合成入库，**不播放**。
@@ -261,7 +328,34 @@ class TtsCoordinator {
     final kind = _desiredKind;
     final config = _desiredConfig;
     if (kind == null || config == null) return;
-    await _render(text, kind, config, priority: TtsSynthPriority.background);
+    await _render(
+      text,
+      kind,
+      config,
+      priority: TtsSynthPriority.background,
+      backgroundGeneration: _backgroundGeneration,
+    );
+  }
+
+  /// 独立预热当前引擎实例，不读取缓存、不合成、不播放。
+  Future<void> warmUpCurrentEngine() async {
+    final kind = _desiredKind;
+    final config = _desiredConfig;
+    if (kind == null || config == null) {
+      AppLogger.log('TtsCoordinator', '模型预热跳过：TTS 尚未配置');
+      return;
+    }
+    AppLogger.log(
+      'TtsCoordinator',
+      '请求模型预热（不合成文本）：引擎=${kind.diagnosticName}',
+    );
+    await _ensureEngine(kind, config);
+  }
+
+  /// 取消尚未开始的文本预热；运行中的初始化/推理不能被安全打断。
+  void cancelPendingPrewarm() {
+    _backgroundGeneration++;
+    _scheduler.cancelPendingBackground();
   }
 
   /// 渲染主干：把（文本+引擎+配置）渲染为可播放的本地文件路径。
@@ -273,12 +367,9 @@ class TtsCoordinator {
     TtsEngineKind kind,
     TtsSpeechConfig config, {
     required TtsSynthPriority priority,
+    int? backgroundGeneration,
   }) async {
     if (text.trim().isEmpty) return null;
-    final swEnsure = Stopwatch()..start();
-    final engine = await _ensureEngine(kind, config);
-    swEnsure.stop();
-    if (engine == null) return null;
 
     final cacheKey = _cacheStore.deriveKey(
       text: text,
@@ -295,9 +386,16 @@ class TtsCoordinator {
     if (cached != null) {
       AppLogger.log(
         'TtsCoordinator',
-        '缓存命中 (lookup=${swLookup.elapsedMilliseconds}ms) → ${cached.path}',
+        '缓存命中，直接${priority == TtsSynthPriority.background ? '跳过文本预热' : '播放'}：'
+            '查询耗时=${swLookup.elapsedMilliseconds}ms 缓存键=$cacheKey',
       );
       return cached.path;
+    }
+
+    // 取消发生在缓存查询或模型初始化期间时，不再把过期预热送入合成队列。
+    if (priority == TtsSynthPriority.background &&
+        backgroundGeneration != _backgroundGeneration) {
+      return null;
     }
 
     // 2. 同 key 合成已在途 → 复用，不重复入队/重复合成（见 [_inFlightRender]）。
@@ -305,22 +403,21 @@ class TtsCoordinator {
     if (inFlight != null) {
       AppLogger.log(
         'TtsCoordinator',
-        '合成在途复用 key=$cacheKey voice=${config.voiceId}',
+        '复用进行中的${priority == TtsSynthPriority.background ? '文本预热' : '用户发音'}合成：'
+            '音色=${config.voiceId} 缓存键=$cacheKey',
       );
       return inFlight;
     }
-    AppLogger.log(
-      'TtsCoordinator',
-      '缓存未命中 (ensure=${swEnsure.elapsedMilliseconds}ms '
-          'lookup=${swLookup.elapsedMilliseconds}ms) → 合成 engine=${kind.name} '
-          'voice=${config.voiceId}',
-    );
-
-    // 3. 未命中且无在途：提交到优先级调度器并登记在途，完成后移除（去重的真相源）。
-    //    调度器保证「用户发音优先于后台预热、同优先级内 FIFO」，且 worker 一次只跑一条。
-    final future = _scheduler.submit(
-      priority,
-      () => _synthAndStore(engine, text, kind, config, cacheKey),
+    // 3. 在初始化前登记在途：并发 cache miss 会共享模型加载和后续合成，不能让
+    //    两条请求都在 await _ensureEngine 后才发现彼此。
+    final future = _ensureAndSchedule(
+      text,
+      kind,
+      config,
+      cacheKey,
+      priority: priority,
+      backgroundGeneration: backgroundGeneration,
+      lookupElapsed: swLookup.elapsed,
     );
     _inFlightRender[cacheKey] = future;
     try {
@@ -328,6 +425,37 @@ class TtsCoordinator {
     } finally {
       _inFlightRender.remove(cacheKey);
     }
+  }
+
+  Future<String?> _ensureAndSchedule(
+    String text,
+    TtsEngineKind kind,
+    TtsSpeechConfig config,
+    String cacheKey, {
+    required TtsSynthPriority priority,
+    required int? backgroundGeneration,
+    required Duration lookupElapsed,
+  }) async {
+    final swEnsure = Stopwatch()..start();
+    final engine = await _ensureEngine(kind, config);
+    swEnsure.stop();
+    if (engine == null ||
+        (priority == TtsSynthPriority.background &&
+            backgroundGeneration != _backgroundGeneration)) {
+      return null;
+    }
+    AppLogger.log(
+      'TtsCoordinator',
+      '${priority == TtsSynthPriority.background ? '文本预热' : '用户发音'}缓存未命中，准备合成：'
+          '引擎=${kind.diagnosticName} 音色=${config.voiceId} '
+          '模型确认=${swEnsure.elapsedMilliseconds}ms '
+          '缓存查询=${lookupElapsed.inMilliseconds}ms 文本长度=${text.length} '
+          '缓存键=$cacheKey',
+    );
+    return _scheduler.submit(
+      priority,
+      () => _synthAndStore(engine, text, kind, config, cacheKey),
+    );
   }
 
   /// 合成产文件并入库，返回文件路径（失败返回 null）。被 [_render] 经在途表去重调用。
@@ -358,15 +486,16 @@ class TtsCoordinator {
       swSynth.stop();
       AppLogger.log(
         'TtsCoordinator',
-        '⏱ synthesize 超时 ${swSynth.elapsedMilliseconds}ms engine=${kind.name} '
-            'textLen=${text.length} → 判失败降级',
+        '⏱ 文本合成超时：耗时=${swSynth.elapsedMilliseconds}ms '
+            '引擎=${kind.diagnosticName} 文本长度=${text.length}，将降级处理',
       );
       return null;
     }
     swSynth.stop();
     AppLogger.log(
       'TtsCoordinator',
-      '⏱ synthesize=${swSynth.elapsedMilliseconds}ms ok=${result != null}',
+      '文本合成结束：耗时=${swSynth.elapsedMilliseconds}ms '
+          '结果=${result == null ? '失败' : '成功'}',
     );
     if (result == null) return null;
 
@@ -378,6 +507,11 @@ class TtsCoordinator {
       languageCode: config.languageTag,
       speed: config.rate,
       result: result,
+    );
+    AppLogger.log(
+      'TtsCoordinator',
+      '文本预热/合成已写入缓存：引擎=${kind.diagnosticName} 缓存键=$cacheKey '
+          '文本长度=${text.length} 合成耗时=${swSynth.elapsedMilliseconds}ms',
     );
     return result.filePath;
   }
@@ -393,10 +527,6 @@ class TtsCoordinator {
     TtsSynthPriority priority = TtsSynthPriority.user,
   }) async {
     if (text.trim().isEmpty) return false;
-    // 先确保引擎就绪（与渲染共用一次构建），再抢占。
-    final engine = await _ensureEngine(kind, config);
-    if (engine == null) return false;
-
     // 抢占语义只作用于**播放**：递增代际，并立即停止上一段播放（player.stop 只动
     // 播放器，不影响在途合成，可安全前置）。
     //
@@ -417,7 +547,7 @@ class TtsCoordinator {
     // 的预热）使其 Future 挂起、后续复用方卡死。有在途合成时跳过——抢占已由 generation
     // 守卫 +（降级分支）speakLive 自带的 stop 保证。
     if (_inFlightRender.isEmpty) {
-      await engine.stop();
+      await _engine?.stop();
       if (myGen != _generation) return false;
     }
 
@@ -426,12 +556,14 @@ class TtsCoordinator {
     if (myGen != _generation) return false;
 
     if (path != null) {
-      AppLogger.log('TtsCoordinator', '播放 $path');
-      return _player.playFileToEnd(path);
+      AppLogger.log('TtsCoordinator', '开始播放已生成的语音文件');
+      return _player.playFile(path);
     }
 
     // 合成失败：降级实时朗读（不缓存）
-    AppLogger.log('TtsCoordinator', '渲染返回 null → 降级 speakLive');
+    AppLogger.log('TtsCoordinator', '文本合成未产出文件，降级为实时朗读');
+    final engine = await _ensureEngine(kind, config);
+    if (engine == null || myGen != _generation) return false;
     return engine.speakLive(text);
   }
 
@@ -461,7 +593,6 @@ class TtsCoordinator {
 
   Future<void> dispose() async {
     _generation++;
-    await _player.dispose();
     await _engine?.dispose();
     _engine = null;
   }

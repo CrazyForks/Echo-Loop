@@ -12,9 +12,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/database/app_database.dart' show TtsCacheData;
 import 'package:echo_loop/database/daos/tts_cache_dao.dart';
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/providers/tts/kokoro_model_provider.dart';
 import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
+import 'package:echo_loop/providers/short_audio_player_provider.dart';
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
+import 'package:echo_loop/services/pronunciation/local_pronunciation_player.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart'
     show AsrModelDownloadStatus;
 import 'package:echo_loop/services/tts/tts_engine.dart';
@@ -86,6 +89,19 @@ class _FakePathProvider extends PathProviderPlatform
   Future<String?> getApplicationCachePath() async => rootPath;
 }
 
+class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+  @override
+  Stream<String> get errors => const Stream<String>.empty();
+  @override
+  Future<void> dispose() async {}
+  @override
+  Future<void> open(String filePath) async {}
+  @override
+  Future<void> stop() async {}
+}
+
 KokoroModelsState _ready() => const KokoroModelsState({
   KokoroModelVariant.fp32: KokoroModelState(
     downloadStatus: AsrModelDownloadStatus.downloaded,
@@ -106,6 +122,9 @@ void main() {
         kokoroModelProvider.overrideWith(() => _FixedKokoroNotifier(_ready())),
         ttsEngineFactoryProvider.overrideWithValue((_) => engine),
         ttsCacheDaoProvider.overrideWithValue(dao),
+        shortAudioPlayerProvider.overrideWithValue(
+          LocalPronunciationPlayer(backend: _NoopShortAudioBackend()),
+        ),
       ],
     );
   }
@@ -126,6 +145,7 @@ void main() {
   }
 
   setUp(() {
+    AppLogger.instance.clear();
     SharedPreferences.setMockInitialValues({});
     engine = _RecordingEngine();
     dao = _FakeTtsCacheDao();
@@ -210,6 +230,28 @@ void main() {
   });
 
   group('prewarmTextsIncremental（流式逐帧预热）', () {
+    test('初始配置前跳过且不占用 seen，配置完成后同文本可预热', () async {
+      final c = makeContainer(
+        const TtsSettings(engine: TtsEngineKind.echoLoop),
+      );
+      addTearDown(c.dispose);
+      final notifier = c.read(ttsControllerProvider.notifier);
+
+      // build 将首次 configure 延到 microtask；模拟 Words tile 比它更早的 post-frame
+      // 提交。此时不应建引擎、合成或占用后续增量去重集合。
+      await notifier.prewarmTextsIncremental(['tomorrow']);
+      expect(engine.synthTexts, isEmpty);
+      expect(
+        AppLogger.instance.entries.map((entry) => entry.message),
+        contains(contains('增量文本预热跳过：TTS 尚未配置')),
+      );
+
+      await Future<void>(() {});
+      await notifier.prewarmTextsIncremental(['tomorrow']);
+
+      expect(engine.synthTexts, ['tomorrow']);
+    });
+
     test('同一文本多帧重复 → 只合成一次', () async {
       final c = makeContainer(
         const TtsSettings(engine: TtsEngineKind.echoLoop),
@@ -240,6 +282,13 @@ void main() {
       await notifier.prewarmTextsIncremental(['run', 'I run.', 'She runs.']);
 
       expect(engine.synthTexts, ['run', 'I run.', 'She runs.']);
+      final logs = AppLogger.instance.entries.map((entry) => entry.message);
+      expect(
+        logs,
+        contains(
+          '增量文本预热处理完成：批次=0 请求数=3 新提交=1 跳过=2 当前已提交=3',
+        ),
+      );
     });
 
     test('cancelTextsPrewarm 清空 seen-set → 切词后同一文本可再次预热', () async {

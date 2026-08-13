@@ -23,6 +23,18 @@ enum TtsEngineKind {
   piper,
 }
 
+/// 供诊断日志显示的实际 TTS 后端名。
+///
+/// [TtsEngineKind.echoLoop] 是历史设置/缓存兼容值和用户可见的「Echo Loop AI」产品名；
+/// 运行时实际使用的是 Kokoro，日志必须输出实现名以便排障。
+extension TtsEngineKindDiagnostics on TtsEngineKind {
+  String get diagnosticName => switch (this) {
+    TtsEngineKind.platform => 'platform',
+    TtsEngineKind.echoLoop => 'kokoro',
+    TtsEngineKind.piper => 'piper',
+  };
+}
+
 /// 发音口音。
 enum TtsAccent {
   /// 美音。

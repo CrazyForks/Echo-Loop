@@ -1,6 +1,6 @@
 // 收藏词汇页 TTS 预热接线测试
 //
-// 验证进入收藏页后 _WordsView 自动预热「单词 + 意群」发音文本，离开时取消。
+// 验证收藏词汇 tile 创建时增量预热发音文本，离开时取消。
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -73,14 +73,23 @@ class _RecordingTtsController extends TtsController {
   final List<List<String>> prewarmCalls = [];
   final List<String> spokenTexts = [];
   int cancelCount = 0;
+  int engineWarmupCount = 0;
 
   @override
   TtsControllerState build() => const TtsControllerState();
 
+  /// 模拟异步初始配置落定，触发可见 tile 重新提交预热。
+  void markConfigured() {
+    state = const TtsControllerState(configurationVersion: 1);
+  }
+
   @override
-  Future<void> prewarmTexts(List<String> texts) async {
+  Future<void> prewarmTextsIncremental(List<String> texts) async {
     prewarmCalls.add(List.of(texts));
   }
+
+  @override
+  Future<void> warmUpCurrentEngine() async => engineWarmupCount++;
 
   @override
   Future<void> speak(String text, {String? key}) async {
@@ -271,7 +280,7 @@ void main() {
     expect(rec.prewarmCalls, isEmpty);
   });
 
-  testWidgets('切到词汇 tab 后预热「单词 + 意群」全部发音文本', (tester) async {
+  testWidgets('切到词汇 tab 后为已创建的 tile 增量预热', (tester) async {
     await tester.pumpWidget(createWidget());
     bookmarkC.add([]);
     wordC.add([_word(1, 'tomorrow'), _word(2, 'finished')]);
@@ -282,9 +291,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rec.prewarmCalls, isNotEmpty);
-    final texts = rec.prewarmCalls.last;
-    // 单词用 word，意群用 displayText（原始大小写）。
-    expect(texts, containsAll(['tomorrow', 'finished', 'can I book a table']));
+    expect(
+      rec.prewarmCalls.expand((texts) => texts),
+      containsAll(['tomorrow', 'finished', 'can I book a table']),
+    );
+    expect(rec.engineWarmupCount, 1);
+  });
+
+  testWidgets('配置完成后仅重新提交当前可见 tile', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'tomorrow'), _word(2, 'finished')]);
+    phraseC.add([_phrase(1, 'can I book a table')]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    final callsBeforeConfiguration = rec.prewarmCalls.length;
+
+    rec.markConfigured();
+    await tester.pumpAndSettle();
+
+    expect(rec.prewarmCalls.length, greaterThan(callsBeforeConfiguration));
+    expect(
+      rec.prewarmCalls.skip(callsBeforeConfiguration).expand((texts) => texts),
+      containsAll(['tomorrow', 'finished', 'can I book a table']),
+    );
   });
 
   testWidgets('已有离线发音的收藏单词跳过 TTS 预热，意群保留', (tester) async {
@@ -297,7 +329,7 @@ void main() {
     await tester.tap(find.textContaining('Vocabulary'));
     await tester.pumpAndSettle();
 
-    final texts = rec.prewarmCalls.last;
+    final texts = rec.prewarmCalls.expand((texts) => texts);
     expect(texts, isNot(contains('tomorrow')));
     expect(texts, containsAll(['finished', 'can I book a table']));
   });
@@ -403,7 +435,7 @@ void main() {
     expect(rec.cancelCount, greaterThan(cancelsBefore));
   });
 
-  testWidgets('数据流重发相同列表不重复重启预热（签名去重）', (tester) async {
+  testWidgets('数据流重发相同列表不重复提交已创建 tile', (tester) async {
     await tester.pumpWidget(createWidget());
     bookmarkC.add([]);
     wordC.add([_word(1, 'tomorrow')]);
@@ -415,12 +447,58 @@ void main() {
     final before = rec.prewarmCalls.length;
     expect(before, greaterThanOrEqualTo(1));
 
-    // drift 流可能重发内容相同的新实例列表 → 触发 _WordsView 重建，但发音文本不变。
+    // drift 流可能重发内容相同的新实例列表，既有 tile 不应重复提交。
     wordC.add([_word(1, 'tomorrow')]);
     phraseC.add([]);
     await tester.pumpAndSettle();
 
     expect(rec.prewarmCalls.length, before, reason: '文本未变不应重启预热');
+  });
+
+  testWidgets('滚动后才预热后续由 ListView 创建的 tile', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([for (var i = 1; i <= 100; i++) _word(i, 'word_$i')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+
+    final initialTexts = rec.prewarmCalls.expand((texts) => texts).toSet();
+    expect(initialTexts, isNot(contains('word_1')));
+
+    await tester.scrollUntilVisible(
+      find.text('word_1'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(rec.prewarmCalls.length, greaterThan(initialTexts.length));
+  });
+
+  testWidgets('滚动开始取消未执行预热，停止后恢复可见 tile', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([for (var i = 1; i <= 100; i++) _word(i, 'word_$i')]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    final cancelsBefore = rec.cancelCount;
+    final callsBeforeScroll = rec.prewarmCalls.length;
+
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -500));
+    await tester.pumpAndSettle();
+
+    expect(rec.cancelCount, greaterThan(cancelsBefore));
+    expect(
+      rec.prewarmCalls.length,
+      greaterThan(callsBeforeScroll),
+      reason: '停止滚动后应重新提交当前可见 tile 的预热',
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('离开收藏页取消在途预热', (tester) async {

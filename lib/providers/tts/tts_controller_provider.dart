@@ -24,7 +24,7 @@ import '../../services/tts/platform_tts_engine.dart';
 import '../../services/tts/tts_cache_store.dart';
 import '../../services/tts/tts_coordinator.dart';
 import '../../services/tts/tts_engine.dart';
-import '../../services/tts/tts_player.dart';
+import '../short_audio_player_provider.dart';
 import 'kokoro_model_provider.dart';
 import 'piper_model_provider.dart';
 import 'tts_settings_provider.dart';
@@ -113,21 +113,31 @@ class TtsControllerState {
   /// 当前正在朗读项的标识（供发音按钮显激活态）；空闲为 null。
   final String? speakingKey;
 
-  const TtsControllerState({this.speakingKey});
+  /// 已完成的协调器配置版本；供预热调用方在首次异步配置完成后重新提交可见文本。
+  final int configurationVersion;
+
+  const TtsControllerState({this.speakingKey, this.configurationVersion = 0});
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TtsControllerState &&
           runtimeType == other.runtimeType &&
-          speakingKey == other.speakingKey;
+          speakingKey == other.speakingKey &&
+          configurationVersion == other.configurationVersion;
 
   @override
-  int get hashCode => speakingKey.hashCode;
+  int get hashCode => Object.hash(speakingKey, configurationVersion);
 }
 
 class TtsController extends Notifier<TtsControllerState> {
   late final TtsCoordinator _coordinator;
+
+  /// 直接读取 notifier 时也先触发 provider build，保证协调器已构造。
+  TtsCoordinator get _readyCoordinator {
+    state;
+    return _coordinator;
+  }
 
   /// 上次重配时的 Kokoro 变体，用于检测变体切换以作废重建引擎。
   KokoroModelVariant? _lastVariant;
@@ -140,7 +150,7 @@ class TtsController extends Notifier<TtsControllerState> {
   /// （离开页面、切换变体时不再继续预热旧批次）。
   int _prewarmToken = 0;
 
-  /// 当前在跑预热批次的签名（如 `echoLoop|fp32` / `platform`）。用于幂等防抖：
+  /// 当前在跑预热批次的签名（如 `kokoro|fp32` / `platform`）。用于幂等防抖：
   /// 多个触发点（进页 postFrame + 就绪监听 + 变体监听）几乎同时调用时，同签名
   /// 批次只跑一次，避免后一次 [_prewarmToken] 自增把前一个健康批次掐断、反复重启
   /// 导致谁也跑不完。批次结束（正常/异常/取消）置回 null。
@@ -149,6 +159,15 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 发音 UI 状态代际。仅比较 speakingKey 无法区分「同一音色连续重播」的新旧调用，
   /// 旧调用完成时会误清掉新调用的小喇叭；每次发音/停止递增以精确归属复位权。
   int _speakingToken = 0;
+
+  /// 每次协调器拿到有效配置递增；不能从 [state] 反推，发音状态会在期间变化。
+  int _configurationVersion = 0;
+
+  TtsControllerState _stateWithSpeaking(String? speakingKey) =>
+      TtsControllerState(
+        speakingKey: speakingKey,
+        configurationVersion: _configurationVersion,
+      );
 
   @override
   TtsControllerState build() {
@@ -160,7 +179,7 @@ class TtsController extends Notifier<TtsControllerState> {
     _coordinator = TtsCoordinator(
       factory: ref.read(ttsEngineFactoryProvider),
       cacheStore: cacheStore,
-      player: TtsPlayer(),
+      player: ref.read(shortAudioPlayerProvider),
     );
 
     // 设置（引擎/口音/音色）或本地引擎就绪态变化 → 重算有效引擎并热重配。
@@ -208,14 +227,14 @@ class TtsController extends Notifier<TtsControllerState> {
     if (effective == TtsEngineKind.echoLoop &&
         _lastVariant != null &&
         _lastVariant != settings.kokoroVariant) {
-      unawaited(_coordinator.invalidateEngine());
+      unawaited(_readyCoordinator.invalidateEngine());
     }
     _lastVariant = settings.kokoroVariant;
     // Piper 音色切换（引擎种类不变）时同理作废重建——Piper 换音色 = 换独立模型。
     if (effective == TtsEngineKind.piper &&
         _lastPiperVoice != null &&
         _lastPiperVoice != settings.activePiperVoice) {
-      unawaited(_coordinator.invalidateEngine());
+      unawaited(_readyCoordinator.invalidateEngine());
     }
     _lastPiperVoice = settings.activePiperVoice;
     // 配置须匹配用户选中的有效引擎；本地引擎即使模型未就绪也保留 voiceName/modelTag，
@@ -231,7 +250,11 @@ class TtsController extends Notifier<TtsControllerState> {
           ? settings.kokoroVariant.name
           : null,
     );
-    _coordinator.configure(effective, config);
+    _readyCoordinator.configure(effective, config);
+    // configure 在第一个 await 前同步记录目标参数；此版本变更通知已创建的可见 tile
+    // 再次提交预热，避免首次 post-frame 早于异步初始配置时遗漏。
+    _configurationVersion++;
+    state = _stateWithSpeaking(state.speakingKey);
   }
 
   /// 发音 [text]。[key] 标识发音项（默认用文本本身），供按钮激活态匹配。
@@ -240,17 +263,17 @@ class TtsController extends Notifier<TtsControllerState> {
   Future<void> speak(String text, {String? key}) async {
     final k = key ?? text;
     final token = ++_speakingToken;
-    state = TtsControllerState(speakingKey: k);
+    state = _stateWithSpeaking(k);
     try {
-      final ok = await _coordinator.speak(text);
-      AppLogger.log('TtsController', 'speak 返回 $ok key=$k');
+      final ok = await _readyCoordinator.speak(text);
+      AppLogger.log('TtsController', '用户发音结束：${ok ? '成功' : '未完成或失败'} 缓存键=$k');
     } catch (e, st) {
       // fire-and-forget 调用方不会捕获，必须在此落日志，避免静默吞异常。
-      AppLogger.log('TtsController', '✗ speak 异常: $e\n$st');
+      AppLogger.log('TtsController', '✗ 用户发音异常：$e\n$st');
     }
     // 仅当未被新发音抢占时才复位（被抢占时 speakingKey 已变）。
     if (token == _speakingToken && state.speakingKey == k) {
-      state = const TtsControllerState();
+      state = _stateWithSpeaking(null);
     }
   }
 
@@ -263,9 +286,9 @@ class TtsController extends Notifier<TtsControllerState> {
     final config = ttsVoicePreviewConfig(voice, variant);
     final key = ttsVoicePreviewKey(voice.id);
     final token = ++_speakingToken;
-    state = TtsControllerState(speakingKey: key);
+    state = _stateWithSpeaking(key);
     try {
-      await _coordinator.speakWith(
+      await _readyCoordinator.speakWith(
         kTtsPreviewText,
         TtsEngineKind.echoLoop,
         config,
@@ -275,7 +298,7 @@ class TtsController extends Notifier<TtsControllerState> {
     }
     // 仅当未被新发音抢占时才复位（被抢占时 speakingKey 已变）。
     if (token == _speakingToken && state.speakingKey == key) {
-      state = const TtsControllerState();
+      state = _stateWithSpeaking(null);
     }
   }
 
@@ -288,9 +311,9 @@ class TtsController extends Notifier<TtsControllerState> {
     final config = ttsPiperVoicePreviewConfig(voice);
     final key = ttsVoicePreviewKey(voice.id);
     final token = ++_speakingToken;
-    state = TtsControllerState(speakingKey: key);
+    state = _stateWithSpeaking(key);
     try {
-      await _coordinator.speakWith(
+      await _readyCoordinator.speakWith(
         kTtsPreviewText,
         TtsEngineKind.piper,
         config,
@@ -299,7 +322,7 @@ class TtsController extends Notifier<TtsControllerState> {
       AppLogger.log('TtsController', '✗ previewPiperVoice 异常: $e\n$st');
     }
     if (token == _speakingToken && state.speakingKey == key) {
-      state = const TtsControllerState();
+      state = _stateWithSpeaking(null);
     }
   }
 
@@ -314,9 +337,9 @@ class TtsController extends Notifier<TtsControllerState> {
     );
     final key = ttsAccentPreviewKey(accent);
     final token = ++_speakingToken;
-    state = TtsControllerState(speakingKey: key);
+    state = _stateWithSpeaking(key);
     try {
-      await _coordinator.speakWith(
+      await _readyCoordinator.speakWith(
         kTtsPreviewText,
         TtsEngineKind.platform,
         config,
@@ -326,7 +349,7 @@ class TtsController extends Notifier<TtsControllerState> {
     }
     // 仅当未被新发音抢占时才复位（被抢占时 speakingKey 已变）。
     if (token == _speakingToken && state.speakingKey == key) {
-      state = const TtsControllerState();
+      state = _stateWithSpeaking(null);
     }
   }
 
@@ -371,7 +394,7 @@ class TtsController extends Notifier<TtsControllerState> {
           '预热[${i + 1}/${TtsAccent.values.length}] accent=${accent.name}',
         );
         try {
-          await _coordinator.prewarm(
+          await _readyCoordinator.prewarm(
             kTtsPreviewText,
             TtsEngineKind.platform,
             config,
@@ -401,7 +424,7 @@ class TtsController extends Notifier<TtsControllerState> {
     final ready = ref.read(kokoroReadyProvider);
     final variant = settings.kokoroVariant;
     if (settings.engine != TtsEngineKind.echoLoop) {
-      AppLogger.log('TtsController', '预热跳过：engine!=echoLoop');
+      AppLogger.log('TtsController', '预热跳过：engine!=kokoro');
       return;
     }
     if (!ready) {
@@ -410,7 +433,7 @@ class TtsController extends Notifier<TtsControllerState> {
     }
 
     // 幂等：同签名（引擎+变体）批次已在跑则不重启，避免触发点竞相 bump token 掐断。
-    final signature = 'echoLoop|${variant.name}';
+    final signature = 'kokoro|${variant.name}';
     if (_prewarmSignature == signature) {
       AppLogger.log('TtsController', '预热跳过：同批次已在跑 $signature');
       return;
@@ -419,7 +442,7 @@ class TtsController extends Notifier<TtsControllerState> {
     _prewarmSignature = signature;
     AppLogger.log(
       'TtsController',
-      '预热开始 engine=echoLoop variant=${variant.name} token=$token '
+      '预热开始 engine=kokoro variant=${variant.name} token=$token '
           'voices=${kokoroVoices.length}',
     );
     var done = 0;
@@ -436,7 +459,7 @@ class TtsController extends Notifier<TtsControllerState> {
           '预热[${i + 1}/${kokoroVoices.length}] voice=${voice.id}',
         );
         try {
-          await _coordinator.prewarm(
+          await _readyCoordinator.prewarm(
             kTtsPreviewText,
             TtsEngineKind.echoLoop,
             config,
@@ -497,7 +520,7 @@ class TtsController extends Notifier<TtsControllerState> {
       if (token != _prewarmToken) return; // 已被取消/重发
       final config = ttsPiperVoicePreviewConfig(voice);
       try {
-        await _coordinator.prewarm(
+        await _readyCoordinator.prewarm(
           kTtsPreviewText,
           TtsEngineKind.piper,
           config,
@@ -544,9 +567,9 @@ class TtsController extends Notifier<TtsControllerState> {
       if (token != _textsPrewarmToken) return; // 已取消/被新批次接管：停止旧批次
       if (text.trim().isEmpty) continue;
       try {
-        await _coordinator.prewarmCurrent(text);
+        await _readyCoordinator.prewarmCurrent(text);
       } catch (e, st) {
-        AppLogger.log('TtsController', '✗ texts prewarm 异常: $e\n$st');
+        AppLogger.log('TtsController', '✗ 批量文本预热异常：$e\n$st');
       }
     }
   }
@@ -560,24 +583,75 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 重复提交；worker 串行由协调器内部排队。取消经 [cancelTextsPrewarm] 统一处理。
   Future<void> prewarmTextsIncremental(List<String> texts) async {
     final token = _textsPrewarmToken; // 沿用当前，不 ++
+    var accepted = 0;
+    var skipped = 0;
     for (final text in texts) {
-      if (text.trim().isEmpty) continue;
-      if (!_incrementalPrewarmed.add(text)) continue; // 同步段去重：每条只提交一次
+      if (text.trim().isEmpty) {
+        skipped++;
+        continue;
+      }
+      // 初始配置在 build 后的 microtask 中落定。未配置时不能占用 seen，否则
+      // 收藏 tile 即使在配置完成后重提，也会被误判为已提交。
+      if (!_readyCoordinator.isConfigured) {
+        AppLogger.log(
+          'TtsController',
+          '增量文本预热跳过：TTS 尚未配置 '
+              '批次=$token 请求数=${texts.length} 已提交=${_incrementalPrewarmed.length}',
+        );
+        return;
+      }
+      if (!_incrementalPrewarmed.add(text)) {
+        skipped++;
+        continue;
+      }
+      accepted++;
       try {
-        await _coordinator.prewarmCurrent(text);
+        await _readyCoordinator.prewarmCurrent(text);
       } catch (e, st) {
         AppLogger.log('TtsController', '✗ 增量预热异常: $e\n$st');
       }
-      if (token != _textsPrewarmToken) return; // 切词/关闭后停止推进
+      if (token != _textsPrewarmToken) {
+        AppLogger.log(
+          'TtsController',
+          '增量文本预热已取消：旧批次=$token 本次已提交=$accepted '
+              '当前已提交=${_incrementalPrewarmed.length}',
+        );
+        return;
+      }
     }
+    AppLogger.log(
+      'TtsController',
+      '增量文本预热处理完成：批次=$token 请求数=${texts.length} '
+          '新提交=$accepted 跳过=$skipped 当前已提交=${_incrementalPrewarmed.length}',
+    );
   }
 
   /// 取消在途批量文本预热（页面离开时调用），使预热循环下轮即停。
   ///
   /// 同时清空增量预热去重集合，使切词/关闭后新一轮从头预热。
   void cancelTextsPrewarm() {
+    final previousToken = _textsPrewarmToken;
+    final seen = _incrementalPrewarmed.length;
     _textsPrewarmToken++;
     _incrementalPrewarmed.clear();
+    AppLogger.log(
+      'TtsController',
+      '取消文本预热：批次=$previousToken→$_textsPrewarmToken 已清除提交记录=$seen',
+    );
+    _readyCoordinator.cancelPendingPrewarm();
+  }
+
+  /// 后台加载当前模型实例，不合成文本；供收藏词汇 Tab 降低首次未命中延迟。
+  Future<void> warmUpCurrentEngine() async {
+    AppLogger.log(
+      'TtsController',
+      '请求预热当前 TTS 模型（不合成文本）',
+    );
+    try {
+      await _readyCoordinator.warmUpCurrentEngine();
+    } catch (e, st) {
+      AppLogger.log('TtsController', '✗ 模型预热异常：$e\n$st');
+    }
   }
 
   /// 停止当前发音。
@@ -586,8 +660,8 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 的 provider 约束），也已确保音频被停掉，不会让试听例子继续播到尾。
   Future<void> stop() async {
     _speakingToken++;
-    await _coordinator.stop();
-    state = const TtsControllerState();
+    await _readyCoordinator.stop();
+    state = _stateWithSpeaking(null);
   }
 
   /// 指定 [key] 是否正在朗读（供发音按钮）。

@@ -1,0 +1,17 @@
+/// 应用内短音频播放器依赖。
+///
+/// TTS 缓存 WAV 与离线发音库 Opus 共用此播放器；它不接入系统媒体会话，
+/// 仅负责短片段的播放、完成回调与抢占。
+library;
+
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../services/pronunciation/local_pronunciation_player.dart';
+
+final shortAudioPlayerProvider = Provider<LocalPronunciationPlayer>((ref) {
+  final player = LocalPronunciationPlayer();
+  ref.onDispose(() => unawaited(player.dispose()));
+  return player;
+});

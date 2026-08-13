@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -30,12 +31,29 @@ import '../providers/new_user_guide_provider.dart';
 import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
 import '../services/dictionary_service.dart';
+import '../services/app_logger.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/speech_permission_dialog.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
 import '../widgets/favorites/vocabulary_recycle_bin_sheet.dart';
 import '../widgets/guide_flow.dart';
+
+/// 判断 tile 是否真实位于最近滚动视口内；`cacheExtent` 保留的离屏 widget 不预热。
+bool _isInScrollableViewport(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  if (renderObject is! RenderBox || !renderObject.attached) return false;
+  final viewport = RenderAbstractViewport.maybeOf(renderObject);
+  if (viewport is! RenderBox) return true;
+  // RenderAbstractViewport 的公开工厂返回抽象类型；实际滚动视口同时是 RenderBox。
+  final viewportBox = viewport as RenderBox;
+  if (!viewportBox.hasSize) return true;
+  final rect = MatrixUtils.transformRect(
+    renderObject.getTransformTo(viewportBox),
+    Offset.zero & renderObject.size,
+  );
+  return (Offset.zero & viewportBox.size).overlaps(rect);
+}
 
 /// 收藏页面视图模式
 enum _FavoritesView { sentences, words }
@@ -819,9 +837,73 @@ class _WordsViewState extends ConsumerState<_WordsView> {
 
   /// 统一 TTS 控制器（build 时缓存，供 dispose 取消预热——dispose 内不可用 ref，§7.14）。
   TtsController? _ttsController;
+  bool _isScrolling = false;
+  int _scrollSession = 0;
+  bool _hasWarmedCurrentEngine = false;
 
-  /// 上次预热的发音文本签名：仅当列表发音文本变化才重启预热批次（避免 rebuild 反复重启）。
-  String? _prewarmSignature;
+  void _scheduleEngineWarmup() {
+    if (!widget.isActive || _hasWarmedCurrentEngine) return;
+    _hasWarmedCurrentEngine = true;
+    final controller = _ttsController;
+    if (controller == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.isActive) {
+        controller.warmUpCurrentEngine();
+      }
+    });
+  }
+
+  bool _handleScroll(ScrollNotification notification) {
+    if (!widget.isActive) return false;
+    if (notification is ScrollStartNotification && !_isScrolling) {
+      _isScrolling = true;
+      final startedSession = ++_scrollSession;
+      AppLogger.log(
+        'FavoritesTts',
+        'scroll start session=$startedSession: cancel prewarm',
+      );
+      _ttsController?.cancelTextsPrewarm();
+      // 让已创建的 tile 收到 isScrolling=true 并清除提交标记；滚动停止后
+      // 才能对当前视口重新提交预热。通知在布局期派发，延后重建避免 frame 异常。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            widget.isActive &&
+            _isScrolling &&
+            _scrollSession == startedSession) {
+          setState(() {});
+        }
+      });
+    } else if (notification is ScrollEndNotification && _isScrolling) {
+      _isScrolling = false;
+      final completedSession = ++_scrollSession;
+      AppLogger.log(
+        'FavoritesTts',
+        'scroll end session=$completedSession: schedule visible tile prewarm',
+      );
+      // ScrollEndNotification 可能由 Viewport 布局期间派发，延后重建以避免在布局期
+      // 调度 build；会话号确保下一次滚动已开始时不恢复旧视口的预热。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            widget.isActive &&
+            !_isScrolling &&
+            _scrollSession == completedSession) {
+          AppLogger.log(
+            'FavoritesTts',
+            'scroll restore session=$completedSession: rebuild visible tiles',
+          );
+          setState(() {});
+        } else {
+          AppLogger.log(
+            'FavoritesTts',
+            'scroll restore discarded session=$completedSession '
+                'active=${widget.isActive} scrolling=$_isScrolling '
+                'current=$_scrollSession',
+          );
+        }
+      });
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -846,7 +928,7 @@ class _WordsViewState extends ConsumerState<_WordsView> {
     // 激活时可再次触发（届时已缓存的命中即跳过，未完成的续上）。
     if (oldWidget.isActive && !widget.isActive) {
       _ttsController?.cancelTextsPrewarm();
-      _prewarmSignature = null;
+      _hasWarmedCurrentEngine = false;
     }
   }
 
@@ -855,32 +937,6 @@ class _WordsViewState extends ConsumerState<_WordsView> {
     // 离开收藏页即停在途预热，避免继续占用 CPU 合成用不到的发音。
     _ttsController?.cancelTextsPrewarm();
     super.dispose();
-  }
-
-  /// 后台预热全部收藏单词 + 意群发音，进入页面即合成入缓存（列表点击/复习秒播）。
-  ///
-  /// 仅当发音文本集合变化时重启批次（签名去重，避免每次 rebuild 都重启）；用
-  /// postFrame 触发，避免在 build 期改 provider 态。空串由 [prewarmTexts] 内部跳过。
-  void _schedulePrewarm(List<SavedWord> words, List<SavedSenseGroup> phrases) {
-    // 仅词汇 tab 激活时预热：停在句子 tab 不为词汇起引擎合成（IndexedStack 仍会
-    // 构建本视图，故必须显式门控）。切到词汇 tab 时本视图重建、isActive=true 再触发。
-    if (!widget.isActive) return;
-    _ttsController = ref.read(ttsControllerProvider.notifier);
-    final speakTexts = <String>[
-      // 已命中离线发音库的单词由本地 Opus 播放，不再重复生成 TTS；意群没有
-      // 对应的离线单词音频，仍照常预热。
-      for (final w in words)
-        if (ref.watch(pronunciationClipsProvider(w.word)).isEmpty) w.word,
-      for (final p in phrases) p.displayText,
-    ];
-    final sig = speakTexts.join('');
-    if (sig == _prewarmSignature) return;
-    _prewarmSignature = sig;
-    final controller = _ttsController!;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      controller.prewarmTexts(speakTexts);
-    });
   }
 
   /// 当单词列表变化时，批量查询字典释义
@@ -926,45 +982,56 @@ class _WordsViewState extends ConsumerState<_WordsView> {
     // 触发批量字典查询
     _loadDictEntries(words);
 
-    // 后台预热全部单词 + 意群发音（进入收藏词汇页即合成入缓存）。
-    _schedulePrewarm(words, phrases);
-
     // 合并并按 createdAt 倒序排列
     final items = <_VocabularyItem>[
       for (final w in words) _VocabularyWord(w),
       for (final p in phrases) _VocabularyPhrase(p),
     ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        AppSpacing.s,
-        AppSpacing.m,
-        80,
+    // Tile 负责提交自己的预热；父视图保留同一控制器，以便切 tab 或离页时
+    // 取消尚未完成的增量预热队列。
+    if (widget.isActive) {
+      _ttsController = ref.read(ttsControllerProvider.notifier);
+      _scheduleEngineWarmup();
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.m,
+          AppSpacing.s,
+          AppSpacing.m,
+          80,
+        ),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final isFirst = index == 0;
+          final controller = isFirst ? _firstItemController : null;
+          final tile = switch (item) {
+            _VocabularyWord(word: final w) => _SavedWordTile(
+              key: ValueKey('w_${w.id}'),
+              savedWord: w,
+              dictEntry: _dictMap[w.word],
+              expansionController: controller,
+              isActive: widget.isActive,
+              isScrolling: _isScrolling,
+            ),
+            _VocabularyPhrase(phrase: final p) => _SavedPhraseTile(
+              key: ValueKey('p_${p.id}'),
+              savedPhrase: p,
+              expansionController: controller,
+              isActive: widget.isActive,
+              isScrolling: _isScrolling,
+            ),
+          };
+          if (isFirst && widget.firstItemStep != null) {
+            return GuideTarget(step: widget.firstItemStep!, child: tile);
+          }
+          return tile;
+        },
       ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final isFirst = index == 0;
-        final controller = isFirst ? _firstItemController : null;
-        final tile = switch (item) {
-          _VocabularyWord(word: final w) => _SavedWordTile(
-            key: ValueKey('w_${w.id}'),
-            savedWord: w,
-            dictEntry: _dictMap[w.word],
-            expansionController: controller,
-          ),
-          _VocabularyPhrase(phrase: final p) => _SavedPhraseTile(
-            key: ValueKey('p_${p.id}'),
-            savedPhrase: p,
-            expansionController: controller,
-          ),
-        };
-        if (isFirst && widget.firstItemStep != null) {
-          return GuideTarget(step: widget.firstItemStep!, child: tile);
-        }
-        return tile;
-      },
     );
   }
 }
@@ -992,6 +1059,10 @@ class _VocabularyPhrase extends _VocabularyItem {
 class _SavedPhraseTile extends ConsumerStatefulWidget {
   final SavedSenseGroup savedPhrase;
 
+  /// 仅词汇 tab 激活时预热，避免 IndexedStack 预建子树造成后台合成。
+  final bool isActive;
+  final bool isScrolling;
+
   /// 展开控制器（可选）：用于新手引导时由外部主动展开
   final ExpansibleController? expansionController;
 
@@ -999,6 +1070,8 @@ class _SavedPhraseTile extends ConsumerStatefulWidget {
     super.key,
     required this.savedPhrase,
     this.expansionController,
+    required this.isActive,
+    required this.isScrolling,
   });
 
   @override
@@ -1009,11 +1082,50 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   bool _isPlaying = false;
   bool _isExpanded = false;
   String? _audioName;
+  bool _hasSubmittedPrewarm = false;
+  int _lastPrewarmConfigurationVersion = -1;
 
   @override
   void initState() {
     super.initState();
     _loadAudioName();
+    _schedulePrewarm();
+  }
+
+  @override
+  void didUpdateWidget(_SavedPhraseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.isActive && !widget.isActive) ||
+        (!oldWidget.isScrolling && widget.isScrolling)) {
+      _hasSubmittedPrewarm = false;
+    }
+    if ((!oldWidget.isActive && widget.isActive) ||
+        (oldWidget.isScrolling && !widget.isScrolling)) {
+      _schedulePrewarm();
+    }
+  }
+
+  /// Tile 被列表创建后才提交意群预热；增量接口负责跨 tile 去重与后台排队。
+  void _schedulePrewarm() {
+    final configurationVersion = ref.read(
+      ttsControllerProvider.select((state) => state.configurationVersion),
+    );
+    if (!widget.isActive ||
+        widget.isScrolling ||
+        (_hasSubmittedPrewarm &&
+            _lastPrewarmConfigurationVersion == configurationVersion)) {
+      return;
+    }
+    _hasSubmittedPrewarm = true;
+    _lastPrewarmConfigurationVersion = configurationVersion;
+    final text = widget.savedPhrase.displayText;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isInScrollableViewport(context)) {
+        ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental([
+          text,
+        ]);
+      }
+    });
   }
 
   Future<void> _loadAudioName() async {
@@ -1093,6 +1205,10 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(
+      ttsControllerProvider.select((state) => state.configurationVersion),
+    );
+    _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final phrase = widget.savedPhrase;
@@ -1247,6 +1363,10 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
 class _SavedWordTile extends ConsumerStatefulWidget {
   final SavedWord savedWord;
 
+  /// 仅词汇 tab 激活时预热，避免 IndexedStack 预建子树造成后台合成。
+  final bool isActive;
+  final bool isScrolling;
+
   /// 由父组件批量预加载的字典条目，避免每个 tile 独立异步查询
   final DictEntry? dictEntry;
 
@@ -1258,6 +1378,8 @@ class _SavedWordTile extends ConsumerStatefulWidget {
     required this.savedWord,
     this.dictEntry,
     this.expansionController,
+    required this.isActive,
+    required this.isScrolling,
   });
 
   @override
@@ -1270,11 +1392,51 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
   /// 源音频名称（异步加载）
   String? _audioName;
+  bool _hasSubmittedPrewarm = false;
+  int _lastPrewarmConfigurationVersion = -1;
 
   @override
   void initState() {
     super.initState();
     _loadAudioName();
+    _schedulePrewarm();
+  }
+
+  @override
+  void didUpdateWidget(_SavedWordTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.isActive && !widget.isActive) ||
+        (!oldWidget.isScrolling && widget.isScrolling)) {
+      _hasSubmittedPrewarm = false;
+    }
+    if ((!oldWidget.isActive && widget.isActive) ||
+        (oldWidget.isScrolling && !widget.isScrolling)) {
+      _schedulePrewarm();
+    }
+  }
+
+  /// Tile 被列表创建后才预热；离线 Opus 命中时无需再生成同词的 TTS 缓存。
+  void _schedulePrewarm() {
+    final configurationVersion = ref.read(
+      ttsControllerProvider.select((state) => state.configurationVersion),
+    );
+    if (!widget.isActive ||
+        widget.isScrolling ||
+        (_hasSubmittedPrewarm &&
+            _lastPrewarmConfigurationVersion == configurationVersion)) {
+      return;
+    }
+    _hasSubmittedPrewarm = true;
+    _lastPrewarmConfigurationVersion = configurationVersion;
+    final word = widget.savedWord.word;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_isInScrollableViewport(context) ||
+          ref.read(pronunciationClipsProvider(word)).isNotEmpty) {
+        return;
+      }
+      ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental([word]);
+    });
   }
 
   /// 加载源音频名称
@@ -1409,6 +1571,10 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(
+      ttsControllerProvider.select((state) => state.configurationVersion),
+    );
+    _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final word = widget.savedWord;
