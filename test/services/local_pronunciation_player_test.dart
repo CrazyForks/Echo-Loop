@@ -5,9 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/services/pronunciation/local_pronunciation_player.dart';
 
 class _FakeBackend implements PronunciationPlayerBackend {
+  bool completeOnOpen = false;
+  String? errorOnOpen;
   final completedController = StreamController<void>.broadcast();
   final errorController = StreamController<String>.broadcast();
+  final positionController = StreamController<Duration>.broadcast();
   final opened = <String>[];
+  final openedStarts = <Duration>[];
+  Duration currentPosition = Duration.zero;
   int stops = 0;
 
   @override
@@ -15,13 +20,25 @@ class _FakeBackend implements PronunciationPlayerBackend {
   @override
   Stream<String> get errors => errorController.stream;
   @override
-  Future<void> open(String filePath) async => opened.add(filePath);
+  Stream<Duration> get positions => positionController.stream;
+  @override
+  Duration get position => currentPosition;
+  @override
+  Future<void> open(String filePath, {Duration start = Duration.zero}) async {
+    opened.add(filePath);
+    openedStarts.add(start);
+    currentPosition = start;
+    if (completeOnOpen) completedController.add(null);
+    if (errorOnOpen case final message?) errorController.add(message);
+  }
+
   @override
   Future<void> stop() async => stops++;
   @override
   Future<void> dispose() async {
     await completedController.close();
     await errorController.close();
+    await positionController.close();
   }
 }
 
@@ -46,5 +63,113 @@ void main() {
     backend.errorController.add('decode failed');
     expect(await result, isFalse);
     await player.dispose();
+  });
+
+  test('captures completion emitted immediately by open', () async {
+    final backend = _FakeBackend()..completeOnOpen = true;
+    final player = LocalPronunciationPlayer(backend: backend);
+
+    expect(await player.playFile('/audio/short.opus'), isTrue);
+    await player.dispose();
+  });
+
+  test('captures error emitted immediately by open', () async {
+    final backend = _FakeBackend()..errorOnOpen = 'decode failed';
+    final player = LocalPronunciationPlayer(backend: backend);
+
+    expect(await player.playFile('/audio/broken.opus'), isFalse);
+    await player.dispose();
+  });
+
+  test('playRangeFile starts at range start and stops at range end', () async {
+    final backend = _FakeBackend();
+    final player = LocalPronunciationPlayer(backend: backend);
+    final result = player.playRangeFile(
+      '/audio/source.m4a',
+      start: const Duration(seconds: 3),
+      end: const Duration(seconds: 5),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.openedStarts, [const Duration(seconds: 3)]);
+    backend.currentPosition = const Duration(seconds: 5);
+    backend.positionController.add(backend.currentPosition);
+    expect(await result, isTrue);
+    expect(backend.stops, 2);
+    await player.dispose();
+  });
+
+  test('new playback immediately cancels an active range', () async {
+    final backend = _FakeBackend();
+    final player = LocalPronunciationPlayer(backend: backend);
+    final range = player.playRangeFile(
+      '/audio/source.m4a',
+      start: Duration.zero,
+      end: const Duration(seconds: 5),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final file = player.playFile('/audio/word.opus');
+    expect(await range, isFalse);
+    await Future<void>.delayed(Duration.zero);
+    backend.completedController.add(null);
+    expect(await file, isTrue);
+    await player.dispose();
+  });
+
+  test(
+    'range captures immediate completion and rejects invalid bounds',
+    () async {
+      final backend = _FakeBackend()..completeOnOpen = true;
+      final player = LocalPronunciationPlayer(backend: backend);
+
+      expect(
+        await player.playRangeFile(
+          '/audio/short.opus',
+          start: const Duration(seconds: 1),
+          end: const Duration(seconds: 2),
+        ),
+        isTrue,
+      );
+      expect(
+        await player.playRangeFile(
+          '/audio/short.opus',
+          start: const Duration(seconds: -1),
+          end: const Duration(seconds: 2),
+        ),
+        isFalse,
+      );
+      expect(
+        await player.playRangeFile(
+          '/audio/short.opus',
+          start: const Duration(seconds: 2),
+          end: const Duration(seconds: 2),
+        ),
+        isFalse,
+      );
+      expect(backend.opened, hasLength(1));
+      await player.dispose();
+    },
+  );
+
+  test('stop immediately cancels an active playback', () async {
+    final backend = _FakeBackend();
+    final player = LocalPronunciationPlayer(backend: backend);
+    final playback = player.playFile('/audio/read.opus');
+    await Future<void>.delayed(Duration.zero);
+
+    await player.stop();
+
+    expect(await playback, isFalse);
+    await player.dispose();
+  });
+
+  test('dispose immediately cancels an active playback', () async {
+    final backend = _FakeBackend();
+    final player = LocalPronunciationPlayer(backend: backend);
+    final playback = player.playFile('/audio/read.opus');
+    await Future<void>.delayed(Duration.zero);
+
+    await player.dispose();
+
+    expect(await playback, isFalse);
   });
 }
