@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:echo_loop/services/pronunciation/local_pronunciation_player.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 
 class _FakeBackend implements PronunciationPlayerBackend {
   bool completeOnOpen = false;
@@ -45,7 +45,7 @@ class _FakeBackend implements PronunciationPlayerBackend {
 void main() {
   test('playFile waits for completion and reuses one backend', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final result = player.playFile('/audio/read.opus');
     await Future<void>.delayed(Duration.zero);
     expect(backend.opened, ['/audio/read.opus']);
@@ -57,7 +57,7 @@ void main() {
 
   test('backend error returns false for TTS fallback', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final result = player.playFile('/audio/broken.opus');
     await Future<void>.delayed(Duration.zero);
     backend.errorController.add('decode failed');
@@ -67,7 +67,7 @@ void main() {
 
   test('captures completion emitted immediately by open', () async {
     final backend = _FakeBackend()..completeOnOpen = true;
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
 
     expect(await player.playFile('/audio/short.opus'), isTrue);
     await player.dispose();
@@ -75,7 +75,7 @@ void main() {
 
   test('captures error emitted immediately by open', () async {
     final backend = _FakeBackend()..errorOnOpen = 'decode failed';
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
 
     expect(await player.playFile('/audio/broken.opus'), isFalse);
     await player.dispose();
@@ -83,7 +83,7 @@ void main() {
 
   test('playRangeFile starts at range start and stops at range end', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final result = player.playRangeFile(
       '/audio/source.m4a',
       start: const Duration(seconds: 3),
@@ -100,7 +100,7 @@ void main() {
 
   test('new playback immediately cancels an active range', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final range = player.playRangeFile(
       '/audio/source.m4a',
       start: Duration.zero,
@@ -119,7 +119,7 @@ void main() {
     'range captures immediate completion and rejects invalid bounds',
     () async {
       final backend = _FakeBackend()..completeOnOpen = true;
-      final player = LocalPronunciationPlayer(backend: backend);
+      final player = LocalAudioClipPlayer(backend: backend);
 
       expect(
         await player.playRangeFile(
@@ -152,7 +152,7 @@ void main() {
 
   test('stop immediately cancels an active playback', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final playback = player.playFile('/audio/read.opus');
     await Future<void>.delayed(Duration.zero);
 
@@ -164,7 +164,7 @@ void main() {
 
   test('dispose immediately cancels an active playback', () async {
     final backend = _FakeBackend();
-    final player = LocalPronunciationPlayer(backend: backend);
+    final player = LocalAudioClipPlayer(backend: backend);
     final playback = player.playFile('/audio/read.opus');
     await Future<void>.delayed(Duration.zero);
 

@@ -21,6 +21,7 @@ import '../models/audio_item.dart' as model;
 import '../models/dict_entry.dart';
 import '../screens/sentence_detail_screen.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
+import '../providers/short_audio_player_provider.dart';
 import '../providers/pronunciation/pronunciation_providers.dart';
 import '../providers/tts/tts_controller_provider.dart';
 import '../widgets/tts/speak_button.dart';
@@ -673,7 +674,7 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
   /// 播放该句子的原声片段
   Future<void> _playSentence() async {
     if (_isPlaying) {
-      ref.read(audioEngineProvider.notifier).stop();
+      ref.read(shortAudioPlayerProvider).stop();
       setState(() => _isPlaying = false);
       return;
     }
@@ -681,49 +682,37 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
     setState(() => _isPlaying = true);
 
     try {
-      final engine = ref.read(audioEngineProvider.notifier);
-      final engineState = ref.read(audioEngineProvider);
-
-      // 如果当前加载的不是同一音频，重新加载
-      if (engineState.currentAudioId != widget.audioId) {
-        final dao = ref.read(audioItemDaoProvider);
-        final row = await dao.getById(widget.audioId);
-        if (row == null || !mounted) {
-          setState(() => _isPlaying = false);
-          return;
-        }
-
-        final audioItem = model.AudioItem(
-          id: row.id,
-          name: row.name,
-          audioPath: row.audioPath,
-          transcriptPath: row.transcriptPath,
-          addedDate: row.addedDate,
-          totalDuration: row.totalDuration,
-          sentenceCount: row.sentenceCount,
-          wordCount: row.wordCount,
-          isPinned: row.isPinned,
-          transcriptSource: model.TranscriptSource.fromIndex(
-            row.transcriptSource,
-          ),
-          audioSha256: row.audioSha256,
-          originalAudioSha256: row.originalAudioSha256,
-          transcriptLanguage: row.transcriptLanguage,
-        );
-
-        await engine.loadAudio(audioItem, 1.0);
-      }
-
-      if (!mounted) return;
-
-      final sessionId = engine.newSession();
+      final dao = ref.read(audioItemDaoProvider);
+      final row = await dao.getById(widget.audioId);
+      if (row == null || !mounted) return;
+      final audioItem = model.AudioItem(
+        id: row.id,
+        name: row.name,
+        audioPath: row.audioPath,
+        transcriptPath: row.transcriptPath,
+        addedDate: row.addedDate,
+        totalDuration: row.totalDuration,
+        sentenceCount: row.sentenceCount,
+        wordCount: row.wordCount,
+        isPinned: row.isPinned,
+        transcriptSource: model.TranscriptSource.fromIndex(
+          row.transcriptSource,
+        ),
+        audioSha256: row.audioSha256,
+        originalAudioSha256: row.originalAudioSha256,
+        transcriptLanguage: row.transcriptLanguage,
+      );
+      final filePath = await audioItem.getFullAudioPath();
+      if (filePath == null || !mounted) return;
       final start = Duration(
         milliseconds: (widget.bookmark.startTime * 1000).round(),
       );
       final end = Duration(
         milliseconds: (widget.bookmark.endTime * 1000).round(),
       );
-      await engine.playRangeOnce(start, end, sessionId);
+      await ref
+          .read(shortAudioPlayerProvider)
+          .playRangeFile(filePath, start: start, end: end);
     } catch (_) {
       // 忽略播放错误（音频文件不存在等）
     } finally {

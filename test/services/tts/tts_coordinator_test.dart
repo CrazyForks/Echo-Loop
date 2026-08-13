@@ -9,13 +9,13 @@ import 'package:echo_loop/services/tts/tts_cache_store.dart';
 import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/tts/tts_coordinator.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
-import 'package:echo_loop/services/pronunciation/local_pronunciation_player.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 
 class MockTtsEngine extends Mock implements TtsEngine {}
 
 class MockTtsCacheStore extends Mock implements TtsCacheStore {}
 
-class MockShortAudioPlayer extends Mock implements LocalPronunciationPlayer {}
+class MockShortAudioPlayer extends Mock implements LocalAudioClipPlayer {}
 
 const _config = TtsSpeechConfig(languageTag: 'en-US');
 

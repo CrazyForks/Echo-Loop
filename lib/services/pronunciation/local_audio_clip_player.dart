@@ -47,8 +47,8 @@ class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
 }
 
 /// 调用方无状态的本地发音播放服务。
-class LocalPronunciationPlayer {
-  LocalPronunciationPlayer({PronunciationPlayerBackend? backend})
+class LocalAudioClipPlayer {
+  LocalAudioClipPlayer({PronunciationPlayerBackend? backend})
     : _backend = backend ?? MediaKitPronunciationPlayerBackend();
 
   final PronunciationPlayerBackend _backend;

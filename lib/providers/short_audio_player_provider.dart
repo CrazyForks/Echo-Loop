@@ -8,10 +8,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../services/pronunciation/local_pronunciation_player.dart';
+import '../services/pronunciation/local_audio_clip_player.dart';
 
-final shortAudioPlayerProvider = Provider<LocalPronunciationPlayer>((ref) {
-  final player = LocalPronunciationPlayer();
+final shortAudioPlayerProvider = Provider<LocalAudioClipPlayer>((ref) {
+  final player = LocalAudioClipPlayer();
   ref.onDispose(() => unawaited(player.dispose()));
   return player;
 });

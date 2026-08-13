@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/pronunciation/pronunciation_clip.dart';
 import '../../services/app_logger.dart';
 import '../../services/download/download_failure.dart';
-import '../../services/pronunciation/local_pronunciation_player.dart';
+import '../../services/pronunciation/local_audio_clip_player.dart';
 import '../../services/pronunciation/pronunciation_library_manager.dart';
 import '../../services/pronunciation/pronunciation_repository.dart';
 import '../../services/reliable_http_downloader.dart';
@@ -204,7 +204,7 @@ final pronunciationPlaybackProvider =
 class PronunciationPlaybackController
     extends Notifier<PronunciationPlaybackState> {
   int _sessionId = 0;
-  LocalPronunciationPlayer? _player;
+  LocalAudioClipPlayer? _player;
 
   @override
   PronunciationPlaybackState build() {
@@ -232,7 +232,7 @@ class PronunciationPlaybackController
     final sessionId = ++_sessionId;
     state = PronunciationPlaybackState(playingKey: clip.playbackKey);
     await ref.read(ttsControllerProvider.notifier).stop();
-    final LocalPronunciationPlayer player;
+    final LocalAudioClipPlayer player;
     final currentPlayer = _player;
     if (currentPlayer != null) {
       player = currentPlayer;

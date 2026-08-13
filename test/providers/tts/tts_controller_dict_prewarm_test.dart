@@ -17,7 +17,7 @@ import 'package:echo_loop/providers/tts/kokoro_model_provider.dart';
 import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
 import 'package:echo_loop/providers/short_audio_player_provider.dart';
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
-import 'package:echo_loop/services/pronunciation/local_pronunciation_player.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart'
     show AsrModelDownloadStatus;
 import 'package:echo_loop/services/tts/tts_engine.dart';
@@ -95,9 +95,13 @@ class _NoopShortAudioBackend implements PronunciationPlayerBackend {
   @override
   Stream<String> get errors => const Stream<String>.empty();
   @override
+  Stream<Duration> get positions => const Stream<Duration>.empty();
+  @override
+  Duration get position => Duration.zero;
+  @override
   Future<void> dispose() async {}
   @override
-  Future<void> open(String filePath) async {}
+  Future<void> open(String filePath, {Duration start = Duration.zero}) async {}
   @override
   Future<void> stop() async {}
 }
@@ -123,7 +127,7 @@ void main() {
         ttsEngineFactoryProvider.overrideWithValue((_) => engine),
         ttsCacheDaoProvider.overrideWithValue(dao),
         shortAudioPlayerProvider.overrideWithValue(
-          LocalPronunciationPlayer(backend: _NoopShortAudioBackend()),
+          LocalAudioClipPlayer(backend: _NoopShortAudioBackend()),
         ),
       ],
     );

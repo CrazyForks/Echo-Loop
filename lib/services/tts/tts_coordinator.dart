@@ -15,7 +15,7 @@ import 'dart:collection';
 import '../app_logger.dart';
 import 'tts_cache_store.dart';
 import 'tts_engine.dart';
-import '../pronunciation/local_pronunciation_player.dart';
+import '../pronunciation/local_audio_clip_player.dart';
 
 /// 单次合成的超时上界，**按引擎 + 文本长度成比例**——仅作「native 永不返回」的安全
 /// 上界，不做精确计时，宁可偏松也不误杀长句。计时只覆盖单次合成本身（调度器已串行化，
@@ -141,14 +141,14 @@ class TtsCoordinator {
   TtsCoordinator({
     required TtsEngineFactory factory,
     required TtsCacheStore cacheStore,
-    required LocalPronunciationPlayer player,
+    required LocalAudioClipPlayer player,
   }) : _factory = factory,
        _cacheStore = cacheStore,
        _player = player;
 
   final TtsEngineFactory _factory;
   final TtsCacheStore _cacheStore;
-  final LocalPronunciationPlayer _player;
+  final LocalAudioClipPlayer _player;
 
   TtsEngine? _engine;
 
