@@ -2,6 +2,7 @@
 //
 // 验证收藏词汇 tile 创建时增量预热发音文本，离开时取消。
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -19,6 +20,7 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/providers/short_audio_player_provider.dart';
 import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
@@ -26,7 +28,9 @@ import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
 import 'package:echo_loop/screens/favorites_screen.dart';
 import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../helpers/mock_providers.dart';
@@ -36,8 +40,20 @@ class _MockCacheDao extends Mock implements SentenceAiCacheDao {}
 class _MockApiClient extends Mock implements SentenceAiApiClient {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {
+  final Map<String, AudioItem> items = {};
+  final Map<String, String?> transcripts = {};
+
   _MockAudioItemDao() {
-    when(() => getById(any())).thenAnswer((_) async => null);
+    when(() => getById(any())).thenAnswer((invocation) async {
+      final arguments = invocation.positionalArguments;
+      final id = arguments.length == 1 ? arguments.first : null;
+      return id is String ? items[id] : null;
+    });
+    when(() => getTranscriptSrt(any())).thenAnswer((invocation) async {
+      final arguments = invocation.positionalArguments;
+      final id = arguments.length == 1 ? arguments.first : null;
+      return id is String ? transcripts[id] : null;
+    });
   }
 }
 
@@ -117,6 +133,48 @@ class _RecordingPronunciationPlayback extends PronunciationPlaybackController {
   }
 }
 
+/// 记录页面交给共享播放器的区间参数；播放器自身区间实现另有独立单测。
+class _RecordingShortAudioPlayer extends LocalAudioClipPlayer {
+  _RecordingShortAudioPlayer() : super(backend: _NoopShortAudioBackend());
+
+  final List<String> openedPaths = [];
+  final List<Duration> openedStarts = [];
+
+  @override
+  Future<bool> playRangeFile(
+    String filePath, {
+    required Duration start,
+    required Duration end,
+  }) async {
+    openedPaths.add(filePath);
+    openedStarts.add(start);
+    return true;
+  }
+}
+
+class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get errors => const Stream<String>.empty();
+
+  @override
+  Stream<Duration> get positions => const Stream<Duration>.empty();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  Future<void> open(String filePath, {Duration start = Duration.zero}) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 Database _createDictionaryDatabase() {
   final database = sqlite3.openInMemory();
   database.execute('''
@@ -139,14 +197,22 @@ Database _createDictionaryDatabase() {
   return database;
 }
 
-SavedWord _word(int id, String word) => SavedWord(
+SavedWord _word(
+  int id,
+  String word, {
+  String? audioItemId,
+  int? sentenceIndex,
+  String? sentenceText,
+  int? sentenceStartMs,
+  int? sentenceEndMs,
+}) => SavedWord(
   id: id,
   word: word,
-  audioItemId: null,
-  sentenceIndex: null,
-  sentenceText: null,
-  sentenceStartMs: null,
-  sentenceEndMs: null,
+  audioItemId: audioItemId,
+  sentenceIndex: sentenceIndex,
+  sentenceText: sentenceText,
+  sentenceStartMs: sentenceStartMs,
+  sentenceEndMs: sentenceEndMs,
   practiceCount: 0,
   totalStudyMs: 0,
   viewedBack: false,
@@ -157,15 +223,22 @@ SavedWord _word(int id, String word) => SavedWord(
   syncStatus: 0,
 );
 
-SavedSenseGroup _phrase(int id, String display) => SavedSenseGroup(
+SavedSenseGroup _phrase(
+  int id,
+  String display, {
+  String? audioItemId,
+  String? sentenceText,
+  int? sentenceStartMs,
+  int? sentenceEndMs,
+}) => SavedSenseGroup(
   id: id,
   phraseText: display.toLowerCase(),
   displayText: display,
-  audioItemId: null,
+  audioItemId: audioItemId,
   sentenceIndex: null,
-  sentenceText: null,
-  sentenceStartMs: null,
-  sentenceEndMs: null,
+  sentenceText: sentenceText,
+  sentenceStartMs: sentenceStartMs,
+  sentenceEndMs: sentenceEndMs,
   groupStartMs: null,
   groupEndMs: null,
   practiceCount: 0,
@@ -178,6 +251,21 @@ SavedSenseGroup _phrase(int id, String display) => SavedSenseGroup(
   syncStatus: 0,
 );
 
+AudioItem _audioItem(String id) => AudioItem(
+  id: id,
+  name: 'Source audio',
+  audioPath: 'audios/$id.m4a',
+  transcriptPath: null,
+  addedDate: DateTime(2026),
+  totalDuration: 30,
+  sentenceCount: 1,
+  wordCount: 3,
+  isPinned: false,
+  transcriptSource: 0,
+  updatedAt: DateTime(2026),
+  syncStatus: 0,
+);
+
 void main() {
   late StreamController<List<BookmarkWithAudio>> bookmarkC;
   late StreamController<List<SavedWord>> wordC;
@@ -186,6 +274,9 @@ void main() {
   late _RecordingPronunciationPlayback pronunciationPlayback;
   late Database dictionaryDatabase;
   late DictionaryService oldDictionaryService;
+  late Directory appDataDir;
+  late _RecordingShortAudioPlayer shortAudioPlayer;
+  late _MockAudioItemDao audioItemDao;
 
   setUp(() {
     bookmarkC = StreamController<List<BookmarkWithAudio>>.broadcast();
@@ -197,6 +288,10 @@ void main() {
     oldDictionaryService = DictionaryService.replaceInstance(
       DictionaryService.withDatabase(dictionaryDatabase),
     );
+    appDataDir = Directory.systemTemp.createTempSync('favorites_audio_test_');
+    appDataDirectoryOverride = appDataDir;
+    shortAudioPlayer = _RecordingShortAudioPlayer();
+    audioItemDao = _MockAudioItemDao();
   });
 
   tearDown(() {
@@ -205,6 +300,8 @@ void main() {
     phraseC.close();
     DictionaryService.replaceInstance(oldDictionaryService);
     dictionaryDatabase.dispose();
+    appDataDirectoryOverride = null;
+    if (appDataDir.existsSync()) appDataDir.deleteSync(recursive: true);
   });
 
   Widget createWidget({Set<String> locallyPronouncedWords = const {}}) {
@@ -243,8 +340,9 @@ void main() {
         savedSenseGroupDaoProvider.overrideWithValue(
           _TestSavedSenseGroupDao(phraseC),
         ),
-        audioItemDaoProvider.overrideWithValue(_MockAudioItemDao()),
+        audioItemDaoProvider.overrideWithValue(audioItemDao),
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
+        shortAudioPlayerProvider.overrideWithValue(shortAudioPlayer),
         sentenceAiNotifierProvider.overrideWithValue(
           SentenceAiNotifier(
             cacheDao: _MockCacheDao(),
@@ -516,5 +614,67 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rec.cancelCount, greaterThanOrEqualTo(1));
+  });
+
+  testWidgets('收藏单词来源句使用共享短音频播放器播放冗余时间区间', (tester) async {
+    audioItemDao.items['audio-1'] = _audioItem('audio-1');
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([
+      _word(
+        1,
+        'score',
+        audioItemId: 'audio-1',
+        sentenceText: 'Our team scores a try.',
+        sentenceStartMs: 1200,
+        sentenceEndMs: 3800,
+      ),
+    ]);
+    phraseC.add([]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('score'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Our team scores a try.'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(shortAudioPlayer.openedPaths, [
+      '${appDataDir.path}/audios/audio-1.m4a',
+    ]);
+    expect(shortAudioPlayer.openedStarts, [const Duration(milliseconds: 1200)]);
+  });
+
+  testWidgets('收藏意群来源句使用共享短音频播放器播放句子区间', (tester) async {
+    audioItemDao.items['audio-2'] = _audioItem('audio-2');
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([]);
+    phraseC.add([
+      _phrase(
+        1,
+        'scores a try',
+        audioItemId: 'audio-2',
+        sentenceText: 'When our team scores a try.',
+        sentenceStartMs: 4000,
+        sentenceEndMs: 6200,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('scores a try'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('When our team scores a try.').last);
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(shortAudioPlayer.openedPaths, [
+      '${appDataDir.path}/audios/audio-2.m4a',
+    ]);
+    expect(shortAudioPlayer.openedStarts, [const Duration(milliseconds: 4000)]);
   });
 }

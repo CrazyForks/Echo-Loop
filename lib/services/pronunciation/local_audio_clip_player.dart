@@ -4,7 +4,9 @@ import 'package:media_kit/media_kit.dart';
 
 import '../app_logger.dart';
 
-/// 短音频播放器后端，测试可注入 fake。
+/// 无画面短音频播放器后端，测试可注入 fake。
+///
+/// 视频文件也仅选择并播放其音轨，不创建视频纹理或提供视频 UI。
 abstract interface class PronunciationPlayerBackend {
   Stream<void> get completed;
   Stream<String> get errors;
@@ -15,6 +17,10 @@ abstract interface class PronunciationPlayerBackend {
   Future<void> dispose();
 }
 
+/// 基于 media_kit 的无画面音轨播放后端。
+///
+/// 未附加 [VideoController] 时，media_kit 原生播放器会禁用视频轨解码；
+/// 因此此后端可试听视频文件中的音轨，但不能用于需要画面的视频片段。
 class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
   MediaKitPronunciationPlayerBackend() : _player = Player();
   final Player _player;
@@ -46,7 +52,11 @@ class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
   Future<void> dispose() => _player.dispose();
 }
 
-/// 调用方无状态的本地发音播放服务。
+/// 调用方无状态的本地短音频试听服务。
+///
+/// 适用于单词发音、TTS 缓存及来源句等无画面的音轨播放。传入视频文件时
+/// 只播放其音轨，且可在后台继续播放；需要视频画面、全屏或字幕 UI 时，应使用
+/// 前台 [MediaKitPlayerBackend] 和媒体呈现宿主，而不是此服务。
 class LocalAudioClipPlayer {
   LocalAudioClipPlayer({PronunciationPlayerBackend? backend})
     : _backend = backend ?? MediaKitPronunciationPlayerBackend();

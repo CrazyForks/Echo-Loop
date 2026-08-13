@@ -20,7 +20,6 @@ import '../l10n/app_localizations.dart';
 import '../models/audio_item.dart' as model;
 import '../models/dict_entry.dart';
 import '../screens/sentence_detail_screen.dart';
-import '../providers/audio_engine/audio_engine_provider.dart';
 import '../providers/short_audio_player_provider.dart';
 import '../providers/pronunciation/pronunciation_providers.dart';
 import '../providers/tts/tts_controller_provider.dart';
@@ -33,6 +32,7 @@ import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
 import '../services/dictionary_service.dart';
 import '../services/app_logger.dart';
+import '../services/subtitle_parser.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/speech_permission_dialog.dart';
@@ -1137,7 +1137,7 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     if (startMs == null || endMs == null) return;
 
     if (_isPlaying) {
-      ref.read(audioEngineProvider.notifier).stop();
+      await ref.read(shortAudioPlayerProvider).stop();
       setState(() => _isPlaying = false);
       return;
     }
@@ -1145,15 +1145,9 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     setState(() => _isPlaying = true);
 
     try {
-      final engine = ref.read(audioEngineProvider.notifier);
-      final engineState = ref.read(audioEngineProvider);
-
       final dao = ref.read(audioItemDaoProvider);
       final row = await dao.getById(phrase.audioItemId!);
-      if (row == null || !mounted) {
-        setState(() => _isPlaying = false);
-        return;
-      }
+      if (row == null || !mounted) return;
 
       final audioItem = model.AudioItem(
         id: row.id,
@@ -1173,17 +1167,16 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
         transcriptLanguage: row.transcriptLanguage,
       );
 
-      if (engineState.currentAudioId != phrase.audioItemId) {
-        await engine.loadAudio(audioItem, 1.0);
-      }
+      final filePath = await audioItem.getFullAudioPath();
       if (!mounted) return;
-
-      final sessionId = engine.newSession();
-      await engine.playRangeOnce(
-        Duration(milliseconds: startMs),
-        Duration(milliseconds: endMs),
-        sessionId,
-      );
+      if (filePath == null) return;
+      await ref
+          .read(shortAudioPlayerProvider)
+          .playRangeFile(
+            filePath,
+            start: Duration(milliseconds: startMs),
+            end: Duration(milliseconds: endMs),
+          );
     } catch (_) {
       // 忽略播放错误
     } finally {
@@ -1429,7 +1422,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     if (!hasStoredTiming && word.sentenceIndex == null) return;
 
     if (_isPlaying) {
-      ref.read(audioEngineProvider.notifier).stop();
+      await ref.read(shortAudioPlayerProvider).stop();
       setState(() => _isPlaying = false);
       return;
     }
@@ -1437,16 +1430,10 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     setState(() => _isPlaying = true);
 
     try {
-      final engine = ref.read(audioEngineProvider.notifier);
-      final engineState = ref.read(audioEngineProvider);
-
       // 从数据库获取音频项
       final dao = ref.read(audioItemDaoProvider);
       final row = await dao.getById(word.audioItemId!);
-      if (row == null || !mounted) {
-        setState(() => _isPlaying = false);
-        return;
-      }
+      if (row == null || !mounted) return;
 
       final audioItem = model.AudioItem(
         id: row.id,
@@ -1466,11 +1453,9 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         transcriptLanguage: row.transcriptLanguage,
       );
 
-      // 如果当前加载的不是同一音频，重新加载
-      if (engineState.currentAudioId != word.audioItemId) {
-        await engine.loadAudio(audioItem, 1.0);
-      }
+      final filePath = await audioItem.getFullAudioPath();
       if (!mounted) return;
+      if (filePath == null) return;
 
       Duration startTime;
       Duration endTime;
@@ -1487,13 +1472,11 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         endTime = Duration(milliseconds: word.sentenceEndMs!);
       } else {
         // 回退：加载字幕获取句子时间信息
-        if (word.sentenceIndex == null || row.transcriptPath == null) {
-          setState(() => _isPlaying = false);
-          return;
-        }
-        final sentences = await engine.loadTranscript(audioItem);
+        if (word.sentenceIndex == null) return;
+        final srt = await dao.getTranscriptSrt(word.audioItemId!);
+        if (srt == null || srt.isEmpty) return;
+        final sentences = await SubtitleParser.parseSubtitleString(srt);
         if (!mounted || sentences.isEmpty) {
-          setState(() => _isPlaying = false);
           return;
         }
 
@@ -1516,15 +1499,15 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         }
 
         if (sentence == null) {
-          if (mounted) setState(() => _isPlaying = false);
           return;
         }
         startTime = sentence.startTime;
         endTime = sentence.endTime;
       }
 
-      final sessionId = engine.newSession();
-      await engine.playRangeOnce(startTime, endTime, sessionId);
+      await ref
+          .read(shortAudioPlayerProvider)
+          .playRangeFile(filePath, start: startTime, end: endTime);
     } catch (_) {
       // 忽略播放错误（音频文件不存在等）
     } finally {
@@ -1665,14 +1648,18 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                       InkWell(
                         onTap:
                             word.audioItemId != null &&
-                                word.sentenceIndex != null
+                                (word.sentenceIndex != null ||
+                                    (word.sentenceStartMs != null &&
+                                        word.sentenceEndMs != null))
                             ? _playSentence
                             : null,
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           children: [
                             if (word.audioItemId != null &&
-                                word.sentenceIndex != null)
+                                (word.sentenceIndex != null ||
+                                    (word.sentenceStartMs != null &&
+                                        word.sentenceEndMs != null)))
                               Icon(
                                 _isPlaying
                                     ? Icons.stop_circle_outlined
@@ -1681,7 +1668,9 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                                 color: theme.colorScheme.primary,
                               ),
                             if (word.audioItemId != null &&
-                                word.sentenceIndex != null)
+                                (word.sentenceIndex != null ||
+                                    (word.sentenceStartMs != null &&
+                                        word.sentenceEndMs != null)))
                               const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
