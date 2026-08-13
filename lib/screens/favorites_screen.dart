@@ -1080,7 +1080,6 @@ class _SavedPhraseTile extends ConsumerStatefulWidget {
 
 class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   bool _isPlaying = false;
-  bool _isExpanded = false;
   String? _audioName;
   bool _hasSubmittedPrewarm = false;
   int _lastPrewarmConfigurationVersion = -1;
@@ -1229,17 +1228,17 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ExpansionTile(
           controller: widget.expansionController,
+          childrenPadding: EdgeInsets.zero,
           iconColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           collapsedIconColor: theme.colorScheme.onSurfaceVariant.withValues(
             alpha: 0.4,
           ),
           tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
-          onExpansionChanged: (expanded) {
-            setState(() => _isExpanded = expanded);
-          },
-          // 收起状态：意群文本 + 来源句子预览
+          // 收起态仅预览一行来源句子，超长内容省略以保持列表紧凑。
           title: Text(
             phrase.displayText,
             style: theme.textTheme.titleSmall?.copyWith(
@@ -1247,16 +1246,16 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
               letterSpacing: -0.2,
             ),
           ),
-          subtitle: !_isExpanded && phrase.sentenceText != null
-              ? Text(
+          subtitle: phrase.sentenceText == null
+              ? null
+              : Text(
                   phrase.sentenceText!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                )
-              : null,
+                ),
           // 展开状态：来源句子 + 来源音频
           children: [
             SizedBox(
@@ -1264,15 +1263,14 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.m,
-                  0,
+                  AppSpacing.xs,
                   AppSpacing.m,
                   AppSpacing.m,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 意群同样属于收藏词汇：喇叭朗读收藏文本；下方圆形按钮
-                    // 保留用于回放原始素材中的对应片段。
+                    // 意群同样属于收藏词汇：喇叭朗读收藏文本。
                     SpeakButton(
                       key: const Key('favorite_phrase_speak'),
                       text: phrase.displayText,
@@ -1281,7 +1279,7 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: AppSpacing.s),
                     // 来源句子（可播放）
                     if (phrase.sentenceText != null) ...[
                       InkWell(
@@ -1314,37 +1312,15 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
 
                     // 来源音频
                     if (_audioName != null && phrase.audioItemId != null) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () {
-                            context.push(
-                              AppRoutes.audioLearningPlan(phrase.audioItemId!),
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.headphones,
-                                size: 12,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.5),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  l10n.bookmarkReviewFromAudio(_audioName!),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                      const SizedBox(height: AppSpacing.s),
+                      GestureDetector(
+                        onTap: () {
+                          context.push(
+                            AppRoutes.audioLearningPlan(phrase.audioItemId!),
+                          );
+                        },
+                        child: _SourceAudioReference(
+                          label: l10n.bookmarkReviewFromAudio(_audioName!),
                         ),
                       ),
                     ],
@@ -1578,6 +1554,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final word = widget.savedWord;
+    final previewText = _collapsedPreviewText(word, widget.dictEntry);
     return Dismissible(
       key: ValueKey('word_${word.id}'),
       direction: DismissDirection.endToStart,
@@ -1592,8 +1569,11 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ExpansionTile(
           controller: widget.expansionController,
+          childrenPadding: EdgeInsets.zero,
           iconColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           collapsedIconColor: theme.colorScheme.onSurfaceVariant.withValues(
             alpha: 0.4,
@@ -1610,9 +1590,9 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
               letterSpacing: -0.2,
             ),
           ),
-          subtitle: !_isExpanded && widget.dictEntry != null
+          subtitle: !_isExpanded && previewText != null
               ? Text(
-                  _buildSubtitle(widget.dictEntry!),
+                  previewText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -1627,40 +1607,44 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.m,
-                  0,
+                  AppSpacing.xs,
                   AppSpacing.m,
                   AppSpacing.m,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 播放入口不依赖本地词典命中：多词和变形词均可回退 TTS。
+                    // 播放入口不依赖本地词典命中，固定跟随音标左侧排列。
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
-                          Text(
-                            '/${widget.dictEntry!.phonetic}/',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          Flexible(
+                            child: Text(
+                              '/${widget.dictEntry!.phonetic}/',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: AppSpacing.xs),
-                          child: SpeakButton(
-                            key: const Key('favorite_speak'),
-                            text: word.word,
-                            size: 18,
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints(),
-                          ),
+                        if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
+                          const SizedBox(width: AppSpacing.xs),
+                        SpeakButton(
+                          key: const Key('favorite_speak'),
+                          text: word.word,
+                          size: 18,
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(),
                         ),
                       ],
                     ),
                     // 完整释义仅在本地词典精确命中时展示。
                     if (widget.dictEntry != null) ...[
                       if (widget.dictEntry!.translation != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: AppSpacing.s),
                         Text(
                           widget.dictEntry!.translation!,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -1681,8 +1665,13 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
                     // 来源句子
                     if (word.sentenceText != null) ...[
-                      const SizedBox(height: AppSpacing.s),
-                      const Divider(height: 1),
+                      const SizedBox(height: AppSpacing.m),
+                      Divider(
+                        height: 1,
+                        color: theme.colorScheme.outlineVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.s),
                       InkWell(
                         onTap:
@@ -1720,40 +1709,15 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
                     // 源音频引用
                     if (_audioName != null && word.audioItemId != null) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () {
-                            context.push(
-                              AppRoutes.audioLearningPlan(word.audioItemId!),
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.headphones,
-                                size: 12,
-                                color: theme.colorScheme.outline.withValues(
-                                  alpha: 0.6,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  l10n.bookmarkReviewFromAudio(_audioName!),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontSize: 11,
-                                    color: theme.colorScheme.outline.withValues(
-                                      alpha: 0.6,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                      const SizedBox(height: AppSpacing.s),
+                      GestureDetector(
+                        onTap: () {
+                          context.push(
+                            AppRoutes.audioLearningPlan(word.audioItemId!),
+                          );
+                        },
+                        child: _SourceAudioReference(
+                          label: l10n.bookmarkReviewFromAudio(_audioName!),
                         ),
                       ),
                     ],
@@ -1778,6 +1742,16 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
       parts.add(firstLine);
     }
     return parts.join(' ');
+  }
+
+  /// 多词收藏优先预览来源句子，单词继续展示词典摘要。
+  String? _collapsedPreviewText(SavedWord word, DictEntry? dictEntry) {
+    final hasMultipleWords = word.word.trim().contains(RegExp(r'\s'));
+    if (hasMultipleWords && (word.sentenceText?.isNotEmpty ?? false)) {
+      return word.sentenceText;
+    }
+    if (dictEntry == null) return null;
+    return _buildSubtitle(dictEntry);
   }
 
   /// 柯林斯星级 + 考试标签 Wrap
@@ -1816,6 +1790,33 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// 来源音频固定为单行左对齐，保证窄屏和超长标题下仍保留跳转入口。
+class _SourceAudioReference extends StatelessWidget {
+  final String label;
+
+  const _SourceAudioReference({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.outline.withValues(alpha: 0.7);
+    return Row(
+      children: [
+        Icon(Icons.headphones, size: 14, color: color),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
+        ),
       ],
     );
   }
