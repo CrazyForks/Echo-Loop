@@ -27,17 +27,15 @@ final class IncrementingFlashcardOperationIdGenerator
 }
 
 /// 调度 Flashcard 的 IO 编排层。
-final class ScheduledFlashcardController<T, F> {
+final class ScheduledFlashcardController<T> {
   ScheduledFlashcardController({
     required FlashcardDeckSource<T> deckSource,
     required FlashcardRatingPort ratingPort,
-    required FlashcardFollowUpPolicy<T, F> followUpPolicy,
     Clock? clock,
     FlashcardOperationIdGenerator? operationIdGenerator,
     void Function(String message)? logger,
   }) : _deckSource = deckSource,
        _ratingPort = ratingPort,
-       _followUpPolicy = followUpPolicy,
        _clock = clock ?? const Clock(),
        _operationIdGenerator =
            operationIdGenerator ?? IncrementingFlashcardOperationIdGenerator(),
@@ -45,19 +43,17 @@ final class ScheduledFlashcardController<T, F> {
 
   final FlashcardDeckSource<T> _deckSource;
   final FlashcardRatingPort _ratingPort;
-  final FlashcardFollowUpPolicy<T, F> _followUpPolicy;
   final Clock _clock;
   final FlashcardOperationIdGenerator _operationIdGenerator;
   final void Function(String message) _logger;
-  final ScheduledFlashcardEngine<T, F> _engine =
-      ScheduledFlashcardEngine<T, F>();
+  final ScheduledFlashcardEngine<T> _engine = ScheduledFlashcardEngine<T>();
   final List<void Function()> _listeners = <void Function()>[];
   int _generation = 0;
   DateTime? _promptedAt;
   String? _pendingOperationId;
   bool _disposed = false;
 
-  ScheduledFlashcardSessionState<T, F> get state => _engine.state;
+  ScheduledFlashcardSessionState<T> get state => _engine.state;
   void addListener(void Function() listener) => _listeners.add(listener);
   void removeListener(void Function() listener) => _listeners.remove(listener);
 
@@ -150,10 +146,8 @@ final class ScheduledFlashcardController<T, F> {
         return;
       }
       _pendingOperationId = null;
-      _engine.beginFollowUp(_followUpPolicy.followUpFor(card.content, rating));
-      _log(
-        'submit.success card=${card.subject.subjectId} followUp=${state.followUp != null}',
-      );
+      _engine.advance();
+      _log('submit.success card=${card.subject.subjectId}');
       _notify();
     } catch (error) {
       if (!_valid(generation)) return;
@@ -170,16 +164,12 @@ final class ScheduledFlashcardController<T, F> {
     }
   }
 
-  void completeFollowUp() {
-    _log('follow_up.complete card=${state.current?.subject.subjectId}');
-    _engine.finishFollowUp(FollowUpOutcome.completed);
-    _promptedAt = _clock.now().toUtc();
-    _notify();
-  }
-
-  void skipFollowUp() {
-    _log('follow_up.skip card=${state.current?.subject.subjectId}');
-    _engine.finishFollowUp(FollowUpOutcome.skipped);
+  /// 跳过当前卡片但不提交评分，用于"取消收藏"等业务动作完成后推进队列。
+  void removeCurrent() {
+    _generation++;
+    _pendingOperationId = null;
+    _log('remove_current card=${state.current?.subject.subjectId}');
+    _engine.removeCurrent();
     _promptedAt = _clock.now().toUtc();
     _notify();
   }

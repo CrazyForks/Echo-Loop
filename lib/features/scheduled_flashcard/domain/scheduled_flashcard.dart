@@ -20,24 +20,7 @@ final class ScheduledFlashcard<T> {
 }
 
 /// 卡片会话的阶段。
-enum ScheduledFlashcardPhase {
-  loadingDeck,
-  prompt,
-  answer,
-  submittingRating,
-  followUp,
-  advancing,
-  completed,
-}
-
-/// 补练策略的结果。
-abstract interface class FlashcardFollowUpPolicy<T, F> {
-  /// 为评分结果创建补练内容；无需补练时返回 null。
-  F? followUpFor(T content, MemoryRating rating);
-}
-
-/// 补练的结束原因。
-enum FollowUpOutcome { completed, skipped, failed }
+enum ScheduledFlashcardPhase { loadingDeck, prompt, answer, submittingRating, completed }
 
 /// 通用卡片队列来源。
 abstract interface class FlashcardDeckSource<T> {

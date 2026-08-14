@@ -6,7 +6,7 @@ import '../../memory_scheduler/domain/memory_scheduler_results.dart';
 import '../domain/scheduled_flashcard.dart';
 
 /// 状态机快照。
-final class ScheduledFlashcardSessionState<T, F> {
+final class ScheduledFlashcardSessionState<T> {
   /// 创建状态。
   const ScheduledFlashcardSessionState({
     required this.deck,
@@ -15,8 +15,6 @@ final class ScheduledFlashcardSessionState<T, F> {
     required this.answerRevealed,
     required this.preview,
     required this.rating,
-    required this.followUp,
-    required this.followUpOutcome,
     required this.reviewedCount,
     this.error,
   });
@@ -27,8 +25,6 @@ final class ScheduledFlashcardSessionState<T, F> {
   final bool answerRevealed;
   final MemoryRatingPreviewSet? preview;
   final MemoryRating? rating;
-  final F? followUp;
-  final FollowUpOutcome? followUpOutcome;
   final int reviewedCount;
   final Object? error;
 
@@ -39,27 +35,25 @@ final class ScheduledFlashcardSessionState<T, F> {
 }
 
 /// 不执行 IO 的卡片状态机。
-final class ScheduledFlashcardEngine<T, F> {
+final class ScheduledFlashcardEngine<T> {
   /// 创建空会话。
   ScheduledFlashcardEngine()
-    : _state = ScheduledFlashcardSessionState<T, F>(
+    : _state = ScheduledFlashcardSessionState<T>(
         deck: <ScheduledFlashcard<T>>[],
         currentIndex: 0,
         phase: ScheduledFlashcardPhase.loadingDeck,
         answerRevealed: false,
         preview: null,
         rating: null,
-        followUp: null,
-        followUpOutcome: null,
         reviewedCount: 0,
       );
 
-  late ScheduledFlashcardSessionState<T, F> _state;
-  ScheduledFlashcardSessionState<T, F> get state => _state;
+  late ScheduledFlashcardSessionState<T> _state;
+  ScheduledFlashcardSessionState<T> get state => _state;
 
   void setDeck(List<ScheduledFlashcard<T>> deck) {
     final snapshot = List<ScheduledFlashcard<T>>.unmodifiable(deck);
-    _state = ScheduledFlashcardSessionState<T, F>(
+    _state = ScheduledFlashcardSessionState<T>(
       deck: snapshot,
       currentIndex: 0,
       phase: snapshot.isEmpty
@@ -68,9 +62,33 @@ final class ScheduledFlashcardEngine<T, F> {
       answerRevealed: false,
       preview: null,
       rating: null,
-      followUp: null,
-      followUpOutcome: null,
       reviewedCount: 0,
+    );
+  }
+
+  /// 从队列中移除当前卡片，不提交评分、不计入 reviewedCount。
+  ///
+  /// 用于"取消收藏"这类需要跳过当前卡但不产生评分事件的场景；移除后
+  /// currentIndex 保持不变（自动指向原来的下一张），若移除的是最后一张则回退。
+  void removeCurrent() {
+    if (_state.currentIndex < 0 || _state.currentIndex >= _state.deck.length) {
+      return;
+    }
+    final deck = List<ScheduledFlashcard<T>>.of(_state.deck)
+      ..removeAt(_state.currentIndex);
+    final nextIndex = deck.isEmpty
+        ? 0
+        : _state.currentIndex.clamp(0, deck.length - 1);
+    _state = ScheduledFlashcardSessionState<T>(
+      deck: List<ScheduledFlashcard<T>>.unmodifiable(deck),
+      currentIndex: nextIndex,
+      phase: deck.isEmpty
+          ? ScheduledFlashcardPhase.completed
+          : ScheduledFlashcardPhase.prompt,
+      answerRevealed: false,
+      preview: null,
+      rating: null,
+      reviewedCount: _state.reviewedCount,
     );
   }
 
@@ -96,15 +114,13 @@ final class ScheduledFlashcardEngine<T, F> {
       content: current.content,
       scheduleRevision: revision,
     );
-    _state = ScheduledFlashcardSessionState<T, F>(
+    _state = ScheduledFlashcardSessionState<T>(
       deck: List<ScheduledFlashcard<T>>.unmodifiable(deck),
       currentIndex: _state.currentIndex,
       phase: _state.phase,
       answerRevealed: _state.answerRevealed,
       preview: _state.preview,
       rating: _state.rating,
-      followUp: _state.followUp,
-      followUpOutcome: _state.followUpOutcome,
       reviewedCount: _state.reviewedCount,
       error: _state.error,
     );
@@ -131,30 +147,11 @@ final class ScheduledFlashcardEngine<T, F> {
     );
   }
 
-  void beginFollowUp(F? followUp) {
-    if (followUp == null) {
-      advance();
-      return;
-    }
-    _state = _copy(
-      phase: ScheduledFlashcardPhase.followUp,
-      followUp: followUp,
-      setFollowUp: true,
-      followUpOutcome: null,
-      setFollowUpOutcome: true,
-    );
-  }
-
-  void finishFollowUp(FollowUpOutcome outcome) {
-    if (_state.phase != ScheduledFlashcardPhase.followUp) return;
-    _state = _copy(followUpOutcome: outcome, setFollowUpOutcome: true);
-    advance();
-  }
-
+  /// 评分提交成功后前进到下一张；已无跟读补练环节，评分即推进队列。
   void advance() {
     if (_state.current == null) return;
     final nextIndex = _state.currentIndex + 1;
-    _state = ScheduledFlashcardSessionState<T, F>(
+    _state = ScheduledFlashcardSessionState<T>(
       deck: _state.deck,
       currentIndex: nextIndex,
       phase: nextIndex >= _state.deck.length
@@ -163,36 +160,26 @@ final class ScheduledFlashcardEngine<T, F> {
       answerRevealed: false,
       preview: null,
       rating: null,
-      followUp: null,
-      followUpOutcome: null,
       reviewedCount: _state.reviewedCount + 1,
     );
   }
 
-  ScheduledFlashcardSessionState<T, F> _copy({
+  ScheduledFlashcardSessionState<T> _copy({
     ScheduledFlashcardPhase? phase,
     bool? answerRevealed,
     MemoryRatingPreviewSet? preview,
     bool clearPreview = false,
     MemoryRating? rating,
-    F? followUp,
-    bool setFollowUp = false,
-    FollowUpOutcome? followUpOutcome,
-    bool setFollowUpOutcome = false,
     Object? error,
     bool clearError = false,
   }) {
-    return ScheduledFlashcardSessionState<T, F>(
+    return ScheduledFlashcardSessionState<T>(
       deck: _state.deck,
       currentIndex: _state.currentIndex,
       phase: phase ?? _state.phase,
       answerRevealed: answerRevealed ?? _state.answerRevealed,
       preview: clearPreview ? null : preview ?? _state.preview,
       rating: rating ?? _state.rating,
-      followUp: setFollowUp ? followUp : _state.followUp,
-      followUpOutcome: setFollowUpOutcome
-          ? followUpOutcome
-          : _state.followUpOutcome,
       reviewedCount: _state.reviewedCount,
       error: clearError ? null : error ?? _state.error,
     );
