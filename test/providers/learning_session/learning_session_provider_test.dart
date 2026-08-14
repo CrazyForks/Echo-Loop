@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/audio_item.dart' as model;
+import 'package:echo_loop/models/blind_listen_settings.dart';
 import 'package:echo_loop/models/media_engine_state.dart';
 import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
@@ -140,6 +141,39 @@ class _BlockingMediaEngine extends MediaEngine {
   }) {
     loadStarted.complete();
     return loadResult.future;
+  }
+
+  @override
+  Future<void> releaseFromScreen() async {
+    releaseCalls += 1;
+  }
+}
+
+/// 控制两次交叠媒体加载，验证旧请求不会释放新请求取得的会话。
+class _OverlappingMediaEngine extends MediaEngine {
+  final List<Completer<void>> loadStarted = [
+    Completer<void>(),
+    Completer<void>(),
+  ];
+  final List<Completer<Duration?>> loadResults = [
+    Completer<Duration?>(),
+    Completer<Duration?>(),
+  ];
+  int loadCalls = 0;
+  int releaseCalls = 0;
+
+  @override
+  MediaEngineState build() => const MediaEngineState();
+
+  @override
+  Future<Duration?> loadMedia(
+    model.AudioItem item,
+    double speed, {
+    Duration initialPosition = Duration.zero,
+  }) {
+    final callIndex = loadCalls++;
+    loadStarted[callIndex].complete();
+    return loadResults[callIndex].future;
   }
 
   @override
@@ -354,6 +388,7 @@ void main() {
     ProviderContainer createContainer(
       LearningProgressNotifier progressNotifier, {
       MediaEngine? mediaEngine,
+      BookmarkDao? bookmarkDao,
     }) {
       return ProviderContainer(
         overrides: [
@@ -367,6 +402,8 @@ void main() {
           blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
           dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
           analyticsOverride(),
+          if (bookmarkDao != null)
+            bookmarkDaoProvider.overrideWithValue(bookmarkDao),
           if (mediaEngine != null)
             mediaEngineProvider.overrideWith(() => mediaEngine),
         ],
@@ -442,6 +479,117 @@ void main() {
       expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
     });
 
+    test('视频精听用收藏快照初始化，不修改共享字幕句子', () async {
+      final mediaEngine = _SuccessfulMediaEngine();
+      final player = TestIntensiveListenPlayer();
+      final videoSentences = List.generate(
+        6,
+        (index) => Sentence(
+          index: index,
+          text: 'Sentence $index',
+          startTime: Duration(seconds: index * 2),
+          endTime: Duration(seconds: index * 2 + 1),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(_createTestDb()),
+          audioEngineProvider.overrideWith(() => TestAudioEngine()),
+          listeningPracticeProvider.overrideWith(() => TestListeningPractice()),
+          learningProgressNotifierProvider.overrideWith(
+            () => TestLearningProgressNotifier(),
+          ),
+          intensiveListenPlayerProvider.overrideWith(() => player),
+          blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
+          dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
+          bookmarkDaoProvider.overrideWithValue(
+            _TestBookmarkDao({0, 1, 2, 3, 4}),
+          ),
+          mediaEngineProvider.overrideWith(() => mediaEngine),
+          analyticsOverride(),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaIntensiveListenMode(
+            model.AudioItem(
+              id: 'video-intense-bookmarks',
+              name: 'Video',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 8, 14),
+            ),
+            videoSentences,
+          );
+
+      expect(result, MediaLoadResult.ready);
+      expect(player.sentences.map((sentence) => sentence.isBookmarked), [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+      ]);
+      expect(
+        videoSentences.map((sentence) => sentence.isBookmarked),
+        everyElement(isFalse),
+      );
+    });
+
+    test('视频盲听用收藏快照初始化段落状态', () async {
+      final player = TestBlindListenPlayer();
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(_createTestDb()),
+          audioEngineProvider.overrideWith(() => TestAudioEngine()),
+          listeningPracticeProvider.overrideWith(() => TestListeningPractice()),
+          learningProgressNotifierProvider.overrideWith(
+            () => TestLearningProgressNotifier(),
+          ),
+          blindListenPlayerProvider.overrideWith(() => player),
+          dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
+          bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao({0, 2, 4})),
+          mediaEngineProvider.overrideWith(() => _SuccessfulMediaEngine()),
+          analyticsOverride(),
+        ],
+      );
+      addTearDown(container.dispose);
+      final videoSentences = List.generate(
+        5,
+        (index) => Sentence(
+          index: index,
+          text: 'Sentence $index',
+          startTime: Duration(seconds: index * 2),
+          endTime: Duration(seconds: index * 2 + 1),
+        ),
+      );
+
+      final result = await container
+          .read(learningSessionProvider.notifier)
+          .enterMediaBlindListenMode(
+            model.AudioItem(
+              id: 'video-blind-bookmarks',
+              name: 'Video',
+              audioPath: 'video.mp4',
+              addedDate: DateTime(2026, 8, 14),
+            ),
+            paragraphs: [
+              videoSentences.sublist(0, 3),
+              videoSentences.sublist(3),
+            ],
+            settings: const BlindListenSettings(),
+          );
+
+      expect(result, MediaLoadResult.ready);
+      expect(player.state.bookmarkedSentenceIndices, {0, 2, 4});
+      expect(
+        videoSentences.map((sentence) => sentence.isBookmarked),
+        everyElement(isFalse),
+      );
+    });
+
     test('视频加载中取消后迟到成功被丢弃并释放媒体链路', () async {
       final mediaEngine = _BlockingMediaEngine();
       final container = createContainer(
@@ -469,6 +617,53 @@ void main() {
       expect(mediaEngine.releaseCalls, 1);
       expect(container.read(learningSessionProvider).isInLearningMode, isFalse);
       expect(session.isStudyTimerRunning, isFalse);
+    });
+
+    test('视频盲听旧加载不能释放后一次进入的媒体会话', () async {
+      final mediaEngine = _OverlappingMediaEngine();
+      final container = createContainer(
+        TestLearningProgressNotifier(),
+        mediaEngine: mediaEngine,
+      );
+      addTearDown(container.dispose);
+      final session = container.read(learningSessionProvider.notifier);
+      final firstItem = model.AudioItem(
+        id: 'video-blind-first',
+        name: 'First video',
+        audioPath: 'first.mp4',
+        addedDate: DateTime(2026, 8, 14),
+      );
+      final secondItem = model.AudioItem(
+        id: 'video-blind-second',
+        name: 'Second video',
+        audioPath: 'second.mp4',
+        addedDate: DateTime(2026, 8, 14),
+      );
+
+      final firstEntry = session.enterMediaBlindListenMode(
+        firstItem,
+        paragraphs: [sentences],
+        settings: const BlindListenSettings(),
+      );
+      await mediaEngine.loadStarted[0].future;
+
+      final secondEntry = session.enterMediaBlindListenMode(
+        secondItem,
+        paragraphs: [sentences],
+        settings: const BlindListenSettings(),
+      );
+      await mediaEngine.loadStarted[1].future;
+      mediaEngine.loadResults[1].complete(const Duration(minutes: 1));
+
+      expect(await secondEntry, MediaLoadResult.ready);
+      mediaEngine.loadResults[0].complete(const Duration(minutes: 1));
+
+      expect(await firstEntry, MediaLoadResult.cancelled);
+      expect(mediaEngine.releaseCalls, 0);
+      expect(
+        container.read(learningSessionProvider).audioItemId,
+        secondItem.id,
+      );
     });
 
     test('自由练习精听恢复已保存断点', () async {
@@ -986,6 +1181,7 @@ void main() {
           retellPlayerProvider.overrideWith(() => player),
           blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
           dailyStudyTimeProvider.overrideWith(() => TestDailyStudyTime()),
+          bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao({0, 2})),
           mediaEngineProvider.overrideWith(() => mediaEngine),
           analyticsOverride(),
         ],
@@ -1015,6 +1211,16 @@ void main() {
         LearningPlaybackChain.media,
       );
       expect(container.read(retellPlayerProvider).currentParagraphIndex, 1);
+      expect(
+        player.testParagraphs
+            .expand((paragraph) => paragraph)
+            .map((sentence) => sentence.isBookmarked),
+        [true, false, true, false],
+      );
+      expect(
+        sentences.map((sentence) => sentence.isBookmarked),
+        everyElement(isFalse),
+      );
       expect(player.lastPlaybackDriver, isA<MediaParagraphPlaybackDriver>());
       expect(mediaEngine.subtitleClearCalls, 1);
     });

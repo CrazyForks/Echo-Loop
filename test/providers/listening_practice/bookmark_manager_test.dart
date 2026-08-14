@@ -40,6 +40,55 @@ void main() {
       });
     });
 
+    group('createSentenceBookmarkSnapshot', () {
+      test('创建收藏状态副本且不修改共享字幕对象', () {
+        final source = [
+          createSentence(0, 'A'),
+          createSentence(1, 'B')..isBookmarked = true,
+          createSentence(2, 'C'),
+        ];
+
+        final snapshot = BookmarkManager.createSentenceBookmarkSnapshot(
+          source,
+          {0, 2},
+        );
+
+        expect(snapshot.map((sentence) => sentence.isBookmarked), [
+          true,
+          false,
+          true,
+        ]);
+        expect(snapshot.map((sentence) => sentence.index), [0, 1, 2]);
+        expect(identical(snapshot[0], source[0]), isFalse);
+        expect(source.map((sentence) => sentence.isBookmarked), [
+          false,
+          true,
+          false,
+        ]);
+      });
+
+      test('保留段落结构并为每句创建独立副本', () {
+        final source = [
+          [createSentence(0, 'A'), createSentence(1, 'B')],
+          [createSentence(2, 'C')],
+        ];
+
+        final snapshot = BookmarkManager.createParagraphBookmarkSnapshot(
+          source,
+          {1, 2},
+        );
+
+        expect(snapshot.map((paragraph) => paragraph.length), [2, 1]);
+        expect(
+          snapshot
+              .expand((paragraph) => paragraph)
+              .map((sentence) => sentence.isBookmarked),
+          [false, true, true],
+        );
+        expect(identical(snapshot[0][0], source[0][0]), isFalse);
+      });
+    });
+
     group('toggleBookmark', () {
       test('添加新书签（isRemoving=false）', () {
         final sentences = [createSentence(0, 'A'), createSentence(1, 'B')];

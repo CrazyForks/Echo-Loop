@@ -154,9 +154,12 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     );
     // 难句列表来自数据库索引，而 [allSentences] 只承载字幕正文；进入跟读会话前
     // 必须同步收藏态，否则首句会被误判为“未收藏”，点击后还会走新增分支。
-    final difficultSentences = allSentences
+    final sessionSentences = BookmarkManager.createSentenceBookmarkSnapshot(
+      allSentences,
+      bookmarkedIndices,
+    );
+    final difficultSentences = sessionSentences
         .where((s) => bookmarkedIndices.contains(s.index))
-        .map((s) => s.copyWith(isBookmarked: true))
         .toList();
 
     // 从 DB 读断点

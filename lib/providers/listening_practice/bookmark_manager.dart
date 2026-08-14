@@ -83,6 +83,34 @@ class BookmarkManager {
     }
   }
 
+  /// 基于收藏索引创建会话专用的句子快照。
+  ///
+  /// 字幕缓存是跨页面共享的只读投影，不能在进入某个学习会话时原地写入
+  /// [Sentence.isBookmarked]。调用方应使用本方法得到独立副本，避免一个会话
+  /// 的收藏状态污染其他页面或后续会话。
+  static List<Sentence> createSentenceBookmarkSnapshot(
+    Iterable<Sentence> sentences,
+    Set<int> bookmarkedIndices,
+  ) {
+    return [
+      for (final sentence in sentences)
+        sentence.copyWith(
+          isBookmarked: bookmarkedIndices.contains(sentence.index),
+        ),
+    ];
+  }
+
+  /// 基于收藏索引创建保留段落结构的会话句子快照。
+  static List<List<Sentence>> createParagraphBookmarkSnapshot(
+    Iterable<List<Sentence>> paragraphs,
+    Set<int> bookmarkedIndices,
+  ) {
+    return [
+      for (final paragraph in paragraphs)
+        createSentenceBookmarkSnapshot(paragraph, bookmarkedIndices),
+    ];
+  }
+
   /// 切换书签状态
   /// 返回: (isRemoving, indicesToRemove, replacementIndex)
   ///

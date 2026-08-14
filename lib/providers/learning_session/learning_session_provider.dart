@@ -40,6 +40,7 @@ import '../../utils/playback_speed_default.dart';
 import '../speech/speech_recording_controller.dart';
 import '../retell_recording_controller_provider.dart';
 import '../listening_practice/listening_practice_provider.dart';
+import '../listening_practice/bookmark_manager.dart';
 import '../media_engine/media_engine_provider.dart';
 import '../media_engine/media_sense_group_range_playback.dart';
 import 'blind_listen_player_provider.dart';
@@ -198,6 +199,9 @@ class LearningSessionState {
 @Riverpod(keepAlive: true)
 class LearningSession extends _$LearningSession {
   StreamSubscription<ja.PlayerState>? _playerStateSub;
+
+  /// 视频盲听进入流程 generation；取消、重试或退出会使旧结果失效。
+  int _mediaBlindListenEntryGeneration = 0;
 
   /// 视频精听进入流程 generation；退出或重试会使旧异步结果失效。
   int _mediaIntensiveEntryGeneration = 0;
@@ -507,20 +511,45 @@ class LearningSession extends _$LearningSession {
     LearningStage? stage,
     bool isFreePlay = false,
   }) async {
+    final generation = ++_mediaBlindListenEntryGeneration;
+    bool isCurrentGeneration() =>
+        generation == _mediaBlindListenEntryGeneration;
     final progress = await ref
         .read(learningProgressNotifierProvider.notifier)
         .getLatestOrEnsureProgress(mediaItem.id);
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final bookmarkedIndices = await BookmarkManager.loadBookmarks(
+      mediaItem.id,
+      dao: ref.read(bookmarkDaoProvider),
+    );
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final sessionParagraphs = BookmarkManager.createParagraphBookmarkSnapshot(
+      paragraphs,
+      bookmarkedIndices,
+    );
     await ref.read(audioEngineProvider.notifier).pause();
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
     final mediaEngine = ref.read(mediaEngineProvider.notifier);
+    // MediaEngine 是跨学习入口共享的。每次进入先取得独立会话所有权，旧请求
+    // 迟到时只能释放仍归自己所有的链路，不能关闭后一次进入已加载的媒体。
+    final mediaSessionId = mediaEngine.newSession();
+    bool ownsMediaSession() =>
+        isCurrentGeneration() && mediaEngine.isActiveSession(mediaSessionId);
     final duration = await mediaEngine.loadMedia(
       mediaItem,
       settings.playbackSpeed,
     );
+    if (!ownsMediaSession()) {
+      return MediaLoadResult.cancelled;
+    }
     if (duration == null) {
       await mediaEngine.releaseFromScreen();
       return MediaLoadResult.failure;
     }
     await mediaEngine.setSubtitleTrackData(null);
+    if (!ownsMediaSession()) {
+      return MediaLoadResult.cancelled;
+    }
 
     int? startSentenceIndex;
     if (isFreePlay && _isBreakpointValid(progress.freePlayBreakpointSavedAt)) {
@@ -534,10 +563,10 @@ class LearningSession extends _$LearningSession {
     if (startSentenceIndex != null) {
       for (
         var paragraphIndex = 0;
-        paragraphIndex < paragraphs.length;
+        paragraphIndex < sessionParagraphs.length;
         paragraphIndex++
       ) {
-        final localIndex = paragraphs[paragraphIndex].indexWhere(
+        final localIndex = sessionParagraphs[paragraphIndex].indexWhere(
           (sentence) => sentence.index == startSentenceIndex,
         );
         if (localIndex >= 0) {
@@ -560,7 +589,7 @@ class LearningSession extends _$LearningSession {
     ref
         .read(blindListenPlayerProvider.notifier)
         .initializeParagraphs(
-          paragraphs,
+          sessionParagraphs,
           settings,
           startParagraphIndex: startParagraphIndex,
           startSentenceLocalIndex: startSentenceLocalIndex,
@@ -574,6 +603,7 @@ class LearningSession extends _$LearningSession {
 
   /// 取消视频盲听进入或结束已准备好的媒体会话。
   Future<void> cancelMediaBlindListenEntry() async {
+    _mediaBlindListenEntryGeneration += 1;
     if (state.learningMode == LearningMode.blindListen &&
         state.playbackChain == LearningPlaybackChain.media) {
       await exitLearningMode();
@@ -675,6 +705,15 @@ class LearningSession extends _$LearningSession {
       mediaItem.id,
     );
     if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final bookmarkedIndices = await BookmarkManager.loadBookmarks(
+      mediaItem.id,
+      dao: ref.read(bookmarkDaoProvider),
+    );
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final sessionSentences = BookmarkManager.createSentenceBookmarkSnapshot(
+      sentences,
+      bookmarkedIndices,
+    );
 
     var startIndex = 0;
     if (isFreePlay && _isBreakpointValid(progress.freePlayBreakpointSavedAt)) {
@@ -725,7 +764,7 @@ class LearningSession extends _$LearningSession {
 
     final intensivePlayer = ref.read(intensiveListenPlayerProvider.notifier);
     await intensivePlayer.initialize(
-      sentences,
+      sessionSentences,
       startIndex: startIndex,
       settings: settings,
       settingsSlot: settingsSlot,
@@ -924,6 +963,15 @@ class LearningSession extends _$LearningSession {
         .read(learningProgressNotifierProvider.notifier)
         .getLatestOrEnsureProgress(mediaItem.id);
     if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final bookmarkedIndices = await BookmarkManager.loadBookmarks(
+      mediaItem.id,
+      dao: ref.read(bookmarkDaoProvider),
+    );
+    if (!isCurrentGeneration()) return MediaLoadResult.cancelled;
+    final sessionParagraphs = BookmarkManager.createParagraphBookmarkSnapshot(
+      paragraphs,
+      bookmarkedIndices,
+    );
 
     final effectiveStage = catchUpStage ?? progress.currentStage;
     final settings = _resolveRetellSettings(progress, effectiveStage).settings;
@@ -966,7 +1014,7 @@ class LearningSession extends _$LearningSession {
       clearSavedSettings: true,
     );
 
-    final retellSentences = paragraphs
+    final retellSentences = sessionParagraphs
         .expand((paragraph) => paragraph)
         .toList();
     _logEnterMode(
@@ -978,7 +1026,7 @@ class LearningSession extends _$LearningSession {
           : null,
     );
     _initializeRetellPlayer(
-      paragraphs,
+      sessionParagraphs,
       progress: progress,
       startSentenceIndex: _retellStartSentenceIndex(progress, isFreePlay),
       effectiveStage: effectiveStage,
@@ -1261,6 +1309,9 @@ class LearningSession extends _$LearningSession {
     final usesMediaChain = state.playbackChain == LearningPlaybackChain.media;
     if (mode == LearningMode.retell && usesMediaChain) {
       _mediaRetellEntryGeneration += 1;
+    }
+    if (mode == LearningMode.blindListen && usesMediaChain) {
+      _mediaBlindListenEntryGeneration += 1;
     }
     if (mode == LearningMode.reviewDifficultPractice && usesMediaChain) {
       _mediaReviewDifficultEntryGeneration += 1;
