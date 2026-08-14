@@ -21,8 +21,8 @@ void main() {
     scheduleRevision: 3,
   );
 
-  test('engine enforces prompt, answer, follow-up and completion order', () {
-    final engine = ScheduledFlashcardEngine<String, String>();
+  test('engine enforces prompt, answer, submitting and completion order', () {
+    final engine = ScheduledFlashcardEngine<String>();
     engine.setDeck(<ScheduledFlashcard<String>>[card]);
     expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
 
@@ -31,49 +31,98 @@ void main() {
     engine.revealAnswer();
     engine.beginSubmitting(MemoryRating.again);
     expect(engine.state.phase, ScheduledFlashcardPhase.submittingRating);
-    engine.beginFollowUp('repeat');
-    expect(engine.state.phase, ScheduledFlashcardPhase.followUp);
-    engine.finishFollowUp(FollowUpOutcome.skipped);
+    engine.advance();
     expect(engine.state.phase, ScheduledFlashcardPhase.completed);
     expect(engine.state.reviewedCount, 1);
   });
 
   test('empty deck completes immediately', () {
-    final engine = ScheduledFlashcardEngine<String, String>();
+    final engine = ScheduledFlashcardEngine<String>();
     engine.setDeck(const <ScheduledFlashcard<String>>[]);
     expect(engine.state.phase, ScheduledFlashcardPhase.completed);
   });
 
-  test(
-    'controller submits with stable revision and follows up Again',
-    () async {
-      final port = _FakeRatingPort();
-      final controller = ScheduledFlashcardController<String, String>(
-        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
-        ratingPort: port,
-        followUpPolicy: _FakeFollowUpPolicy(),
-        operationIdGenerator: _FixedIds(),
+  group('removeCurrent', () {
+    final second = ScheduledFlashcard<String>(
+      subject: MemorySubjectRef(namespace: 'test', subjectId: 'two'),
+      content: 'world',
+      scheduleRevision: 1,
+    );
+    final third = ScheduledFlashcard<String>(
+      subject: MemorySubjectRef(namespace: 'test', subjectId: 'three'),
+      content: 'again',
+      scheduleRevision: 1,
+    );
+
+    test('removing the middle card keeps index pointing at the next one', () {
+      final engine = ScheduledFlashcardEngine<String>();
+      engine.setDeck(<ScheduledFlashcard<String>>[card, second, third]);
+      engine.removeCurrent();
+      expect(engine.state.deck, <ScheduledFlashcard<String>>[second, third]);
+      expect(engine.state.currentIndex, 0);
+      expect(engine.state.current, second);
+      expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
+      expect(engine.state.reviewedCount, 0);
+    });
+
+    test('removing the last card clamps the index', () {
+      final engine = ScheduledFlashcardEngine<String>();
+      engine.setDeck(<ScheduledFlashcard<String>>[card, second]);
+      engine.advance();
+      expect(engine.state.current, second);
+      engine.removeCurrent();
+      expect(engine.state.deck, <ScheduledFlashcard<String>>[card]);
+      expect(engine.state.currentIndex, 0);
+      expect(engine.state.current, card);
+    });
+
+    test('removing the only remaining card completes the session', () {
+      final engine = ScheduledFlashcardEngine<String>();
+      engine.setDeck(<ScheduledFlashcard<String>>[card]);
+      engine.removeCurrent();
+      expect(engine.state.deck, isEmpty);
+      expect(engine.state.current, isNull);
+      expect(engine.state.phase, ScheduledFlashcardPhase.completed);
+    });
+
+    test('controller bumps generation so stale preview is discarded', () async {
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card, second]),
+        ratingPort: _FakeRatingPort(),
       );
       await controller.load();
       controller.revealAnswer();
-      await controller.preview();
-      await controller.submitRating(MemoryRating.again);
+      final stalePreview = controller.preview();
+      controller.removeCurrent();
+      await stalePreview;
+      expect(controller.state.current, second);
+      expect(controller.state.preview, isNull);
+    });
+  });
 
-      expect(port.lastRevision, 3);
-      expect(port.lastOperationId, 'op-1');
-      expect(controller.state.phase, ScheduledFlashcardPhase.followUp);
-      controller.completeFollowUp();
-      expect(controller.state.phase, ScheduledFlashcardPhase.completed);
-      controller.dispose();
-    },
-  );
+  test('controller submits rating with stable idempotent revision', () async {
+    final port = _FakeRatingPort();
+    final controller = ScheduledFlashcardController<String>(
+      deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+      ratingPort: port,
+      operationIdGenerator: _FixedIds(),
+    );
+    await controller.load();
+    controller.revealAnswer();
+    await controller.preview();
+    await controller.submitRating(MemoryRating.again);
+
+    expect(port.lastRevision, 3);
+    expect(port.lastOperationId, 'op-1');
+    expect(controller.state.phase, ScheduledFlashcardPhase.completed);
+    controller.dispose();
+  });
 
   test('late deck result is discarded after dispose', () async {
     final source = _CompletingDeckSource();
-    final controller = ScheduledFlashcardController<String, String>(
+    final controller = ScheduledFlashcardController<String>(
       deckSource: source,
       ratingPort: _FakeRatingPort(),
-      followUpPolicy: _FakeFollowUpPolicy(),
     );
     final load = controller.load();
     controller.dispose();
@@ -96,13 +145,6 @@ final class _CompletingDeckSource implements FlashcardDeckSource<String> {
   Future<List<ScheduledFlashcard<String>>> load() => _completer.future;
   void complete(List<ScheduledFlashcard<String>> cards) =>
       _completer.complete(cards);
-}
-
-final class _FakeFollowUpPolicy
-    implements FlashcardFollowUpPolicy<String, String> {
-  @override
-  String? followUpFor(String content, MemoryRating rating) =>
-      rating == MemoryRating.again ? 'repeat $content' : null;
 }
 
 final class _FixedIds implements FlashcardOperationIdGenerator {
