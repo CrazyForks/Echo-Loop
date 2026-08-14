@@ -1378,6 +1378,30 @@
   "@bookmarkReviewFromAudio": {
     "placeholders": { "name": { "type": "String" } }
   },
+  "bookmarkReviewUnsave": "Unsave",
+  "bookmarkReviewTapReplay": "Listen and recall",
+  "bookmarkReviewLoadingAudio": "Loading audio…",
+  "bookmarkReviewPlaying": "Playing",
+  "bookmarkReviewPlayOriginal": "Play original sentence",
+  "bookmarkReviewTapRetry": "Tap to retry",
+  "bookmarkReviewListenPrompt": "Tap to replay from the beginning",
+  "bookmarkReviewReadyTitle": "Flip when ready",
+  "bookmarkReviewRevealHint": "Tap to reveal the answer",
+  "bookmarkReviewEmpty": "No saved sentences left in this review.",
+  "bookmarkReviewUnsaveFailed": "Couldn't unsave this sentence. Please try again.",
+  "bookmarkReviewSettingsPlaceholderTitle": "Review settings",
+  "bookmarkReviewSettingsPlaceholderBody": "More review controls will be available in a future update.",
+  "bookmarkReviewSettingsTitle": "Review settings",
+  "bookmarkReviewShowNextReviewTime": "Show next review time",
+  "bookmarkReviewDailyGoal": "Daily review goal",
+  "bookmarkReviewUnlimited": "Unlimited",
+  "bookmarkReviewOrder": "Review order",
+  "bookmarkReviewOrderSmart": "Auto",
+  "bookmarkReviewOrderDueAt": "Earliest due first",
+  "bookmarkReviewOrderRandom": "Random",
+  "bookmarkReviewRatingAgain": "Missed",
+  "bookmarkReviewRatingGood": "Got it",
+  "bookmarkReviewRatingEasy": "Easy",
   "difficultPracticeSettings": "Practice Settings",
   "difficultPracticeSettingsHint": "Settings apply to this session only",
   "difficultPracticeBlindListenRepeat": "Times to Listen without subtitles",
@@ -1648,6 +1672,12 @@
   "@timeAgoHours": {
     "placeholders": {
       "hours": { "type": "int" }
+    }
+  },
+  "timeFromNowSeconds": "in {seconds} seconds",
+  "@timeFromNowSeconds": {
+    "placeholders": {
+      "seconds": { "type": "int" }
     }
   },
 

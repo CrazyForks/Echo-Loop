@@ -45,7 +45,7 @@ void main() {
     expect(state.values['due'], originalDue);
   });
 
-  test('固定事件序列产生固定 transition', () {
+  test('默认 Profile 开启 fuzzing，并产生合法 transition', () {
     var state = adapter.createInitialState(
       profile: kFsrsDefaultProfile,
       createdAt: createdAt,
@@ -67,10 +67,10 @@ void main() {
     }
 
     expect(state.values['state'], 2);
-    expect(
-      state.values['due'],
-      DateTime.utc(2026, 8, 13, 12, 10).toIso8601String(),
-    );
+    expect(kFsrsDefaultProfile.enableFuzzing, isTrue);
+    final due = state.values['due'];
+    if (due is! String) fail('FSRS state due 必须是 ISO-8601 字符串。');
+    expect(DateTime.parse(due), reviewedAt);
   });
 
   test('状态 codec 往返保持语义，未知版本显式失败', () {

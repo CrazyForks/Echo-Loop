@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/difficult_practice_settings.dart';
 import '../../models/intensive_listen_settings.dart';
-import '../../providers/learning_session/bookmark_review_provider.dart';
 import '../../providers/learning_session/review_difficult_practice_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
@@ -31,23 +30,6 @@ void showDifficultPracticeSettingsSheet({required BuildContext context}) {
       onUpdate: (ref, settings) => ref
           .read(reviewDifficultPracticeProvider.notifier)
           .updateSettings(settings),
-    ),
-  );
-}
-
-/// 显示收藏复习设置底部弹窗
-void showBookmarkReviewSettingsSheet({required BuildContext context}) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) => _DifficultPracticeSettingsSheet(
-      settingsSelector: (ref) =>
-          ref.watch(bookmarkReviewProvider.select((s) => s.settings)),
-      onUpdate: (ref, settings) =>
-          ref.read(bookmarkReviewProvider.notifier).updateSettings(settings),
     ),
   );
 }

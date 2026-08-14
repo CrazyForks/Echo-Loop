@@ -3,8 +3,9 @@ import 'dart:io';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../database/providers.dart';
+import '../../database/app_database.dart' as db;
 import '../../models/audio_engine_state.dart';
-import '../../models/audio_item.dart';
+import '../../models/audio_item.dart' as model;
 import '../../models/sentence.dart';
 import '../../services/app_logger.dart';
 import '../../services/study_event_recorder.dart';
@@ -37,6 +38,9 @@ class ForegroundAudioEngine extends _$ForegroundAudioEngine {
 
   /// 裸播放器——独立实例，从不注册到 `audio_service`。
   final ja.AudioPlayer _player = ja.AudioPlayer();
+
+  /// 同一材料并发请求只执行一次文件加载，避免重复 setFilePath 打断前一个请求。
+  final Map<String, Future<void>> _loadingAudioById = <String, Future<void>>{};
 
   @override
   AudioEngineState build() {
@@ -71,7 +75,7 @@ class ForegroundAudioEngine extends _$ForegroundAudioEngine {
   /// 与 [AudioEngine.loadAudio] 等价，但不经 handler、不设 MediaItem/封面
   /// （前台引擎不上锁屏）。[subtitle] 参数保留以对齐调用签名，本引擎忽略。
   Future<Duration?> loadAudio(
-    AudioItem item,
+    model.AudioItem item,
     double speed, {
     String? subtitle,
   }) async {
@@ -112,10 +116,65 @@ class ForegroundAudioEngine extends _$ForegroundAudioEngine {
     }
   }
 
+  /// 确保 [audioItemId] 已装载到此前台播放器，再播放指定区间。
+  ///
+  /// 播放入口不应依赖调用方预加载：正面自动播放、意群试听等都可安全直接调用。
+  /// 同一材料的并发加载会合并；加载完成后新建 session，旧播放自然失效。
+  Future<void> playRangeForAudio(
+    String audioItemId,
+    Duration start,
+    Duration end, {
+    required double speed,
+  }) async {
+    if (state.currentAudioId != audioItemId) {
+      await _ensureAudioLoaded(audioItemId, speed);
+    }
+    if (state.currentAudioId != audioItemId) {
+      throw StateError('audio_not_loaded:$audioItemId');
+    }
+    await setSpeed(speed);
+    final sessionId = newSession();
+    await playRangeOnce(start, end, sessionId);
+  }
+
+  Future<void> _ensureAudioLoaded(String audioItemId, double speed) async {
+    final existing = _loadingAudioById[audioItemId];
+    if (existing != null) return existing;
+
+    late final Future<void> loading;
+    loading = () async {
+      try {
+        final row = await ref.read(audioItemDaoProvider).getById(audioItemId);
+        if (row == null) throw StateError('audio_not_found:$audioItemId');
+        await loadAudio(_toAudioItem(row), speed);
+      } finally {
+        _loadingAudioById.remove(audioItemId);
+      }
+    }();
+    _loadingAudioById[audioItemId] = loading;
+    return loading;
+  }
+
+  model.AudioItem _toAudioItem(db.AudioItem row) => model.AudioItem(
+    id: row.id,
+    name: row.name,
+    audioPath: row.audioPath,
+    transcriptPath: row.transcriptPath,
+    addedDate: row.addedDate,
+    totalDuration: row.totalDuration,
+    sentenceCount: row.sentenceCount,
+    wordCount: row.wordCount,
+    isPinned: row.isPinned,
+    transcriptSource: model.TranscriptSource.fromIndex(row.transcriptSource),
+    audioSha256: row.audioSha256,
+    originalAudioSha256: row.originalAudioSha256,
+    transcriptLanguage: row.transcriptLanguage,
+  );
+
   // --- 字幕加载 ---
   /// 字幕内容唯一真相源是 DB 的 transcript_srt 列；列空时读遗留文件并回填。
   /// 与 [AudioEngine.loadTranscript] 一致（纯 DB + 解析，与 player 无关）。
-  Future<List<Sentence>> loadTranscript(AudioItem audioItem) async {
+  Future<List<Sentence>> loadTranscript(model.AudioItem audioItem) async {
     if (!audioItem.hasTranscript) {
       return [];
     }

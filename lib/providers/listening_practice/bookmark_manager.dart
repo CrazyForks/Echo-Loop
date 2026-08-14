@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../database/app_database.dart';
 import '../../services/app_logger.dart';
@@ -47,6 +48,7 @@ class BookmarkManager {
       await dao.addBookmark(
         BookmarksCompanion(
           audioItemId: Value(audioId),
+          memorySubjectId: Value(const Uuid().v4()),
           sentenceIndex: Value(sentence.index),
           sentenceText: Value(sentence.text),
           startTime: Value(sentence.startTime.inMilliseconds / 1000.0),

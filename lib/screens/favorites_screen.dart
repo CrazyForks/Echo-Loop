@@ -14,7 +14,6 @@ import '../features/usage/usage_event.dart';
 import '../features/usage/usage_providers.dart';
 import '../database/app_database.dart';
 import '../database/daos/bookmark_dao.dart';
-import '../database/enums.dart';
 import '../database/providers.dart';
 import '../l10n/app_localizations.dart';
 import '../models/audio_item.dart' as model;
@@ -35,7 +34,6 @@ import '../services/app_logger.dart';
 import '../services/subtitle_parser.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
-import '../widgets/speech_permission_dialog.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
 import '../widgets/favorites/vocabulary_recycle_bin_sheet.dart';
 import '../widgets/guide_flow.dart';
@@ -239,7 +237,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 children: [
                   // 列表（IndexedStack 保留两个 tab 的状态，切换不重建）
                   IndexedStack(
-                    index: _currentView == _FavoritesView.sentences ? 0 : 1,
+                    index: _currentView.index,
                     children: [
                       _SentencesView(firstItemStep: stepSentencesList),
                       _WordsView(
@@ -256,7 +254,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     _FloatingSentenceReviewButton(
                       guideStep: stepSentencesReviewBtn,
                     )
-                  else
+                  else if (_currentView == _FavoritesView.words)
                     _FloatingFlashcardButton(guideStep: stepFlashcardBtn),
                 ],
               ),
@@ -387,26 +385,16 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
                 EventParams.totalSentencesCount: validBookmarks.length,
               },
             );
-        final allowed = await ensureSpeechReadyForSubStage(
-          context,
-          ref,
-          SubStageType.reviewDifficultPractice,
-        );
-        if (!allowed || !context.mounted) return;
-
         final sw = Stopwatch()..start();
         final provider = ref.read(bookmarkReviewProvider.notifier);
-        final audioItemDao = ref.read(audioItemDaoProvider);
         debugPrint(
           '[PERF] bookmark review read providers: ${sw.elapsedMilliseconds}ms',
         );
-        provider.initialize(
-          allBookmarks,
-          getAudioItemById: (id) => audioItemDao.getById(id),
-        );
+        await provider.initialize(allBookmarks);
         debugPrint(
           '[PERF] bookmark review initialize: ${sw.elapsedMilliseconds}ms',
         );
+        if (!context.mounted) return;
         context.push(AppRoutes.bookmarkReview);
         debugPrint(
           '[PERF] context.push bookmarkReview: ${sw.elapsedMilliseconds}ms',
@@ -610,19 +598,9 @@ class _AudioBookmarkGroup extends ConsumerWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 onPressed: () async {
-                  final allowed = await ensureSpeechReadyForSubStage(
-                    context,
-                    ref,
-                    SubStageType.reviewDifficultPractice,
-                  );
-                  if (!allowed || !context.mounted) return;
-
                   final provider = ref.read(bookmarkReviewProvider.notifier);
-                  final audioItemDao = ref.read(audioItemDaoProvider);
-                  provider.initialize(
-                    bookmarks,
-                    getAudioItemById: (id) => audioItemDao.getById(id),
-                  );
+                  await provider.initialize(bookmarks);
+                  if (!context.mounted) return;
                   context.push(AppRoutes.bookmarkReview);
                 },
               ),

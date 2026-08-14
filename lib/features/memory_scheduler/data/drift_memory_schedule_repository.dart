@@ -164,12 +164,6 @@ final class DriftMemoryScheduleRepository implements MemoryScheduleRepository {
   }
 
   @override
-  Future<MemorySchedule> replaceAfterReplay(
-    MemorySchedule before,
-    MemorySchedule after,
-  ) => _replaceActive(before, after);
-
-  @override
   Future<MemorySchedule> replaceLifecycle(
     MemorySchedule before,
     MemorySchedule after,
@@ -202,24 +196,6 @@ final class DriftMemoryScheduleRepository implements MemoryScheduleRepository {
       if (affected != 1) {
         throw const MemoryScheduleConflictException('永久清除 revision 已过期。');
       }
-    });
-  }
-
-  Future<MemorySchedule> _replaceActive(
-    MemorySchedule before,
-    MemorySchedule after,
-  ) async {
-    _validateReplacement(before, after);
-    return _database.transaction(() async {
-      final affected = await _dao.replaceActiveSchedule(
-        id: before.id,
-        expectedRevision: before.revision,
-        schedule: _mapper.scheduleToCompanion(after),
-      );
-      if (affected != 1) {
-        throw const MemoryScheduleConflictException('重放 CAS 写入失败。');
-      }
-      return after;
     });
   }
 

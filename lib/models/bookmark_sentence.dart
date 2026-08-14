@@ -16,11 +16,15 @@ class BookmarkSentence {
   /// 书签数据中的原始句子索引
   final int originalSentenceIndex;
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID。
+  final String memorySubjectId;
+
   const BookmarkSentence({
     required this.sentence,
     required this.audioItemId,
     required this.audioName,
     required this.originalSentenceIndex,
+    required this.memorySubjectId,
   });
 
   /// 创建一份 isBookmarked 状态不同的副本
@@ -29,5 +33,6 @@ class BookmarkSentence {
     audioItemId: audioItemId,
     audioName: audioName,
     originalSentenceIndex: originalSentenceIndex,
+    memorySubjectId: memorySubjectId,
   );
 }

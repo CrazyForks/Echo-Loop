@@ -1,25 +1,36 @@
 /// 记忆调度应用服务的输出模型。
 library;
 
-import 'memory_profile.dart';
 import 'memory_rating.dart';
 import 'memory_review_event.dart';
+import 'memory_model_adapter.dart';
 import 'memory_schedule.dart';
 
 /// 一种评分对应的下一次调度预览。
 final class MemoryRatingPreview {
   /// 创建评分预览。
   MemoryRatingPreview({
+    required this.scheduleId,
+    required this.revision,
     required this.rating,
+    required DateTime reviewedAt,
     required DateTime dueAt,
     required this.interval,
     required this.phase,
-  }) : dueAt = dueAt.toUtc();
+    required this.transition,
+  }) : reviewedAt = reviewedAt.toUtc(),
+       dueAt = dueAt.toUtc();
 
+  final String scheduleId;
+  final int revision;
   final MemoryRating rating;
+  final DateTime reviewedAt;
   final DateTime dueAt;
   final Duration interval;
   final MemorySchedulePhase phase;
+
+  /// 生成本次预览的完整模型状态转换，提交时直接复用以保持随机结果一致。
+  final MemoryModelTransition transition;
 }
 
 /// 四种评分的完整预览，避免上层自行处理不完整 Map。
@@ -56,18 +67,4 @@ final class MemoryReviewResult {
   final MemorySchedule schedule;
   final MemoryReviewEvent event;
   final bool wasIdempotentReplay;
-}
-
-/// 一次 Profile 重放迁移的结果。
-final class MemoryProfileMigrationResult {
-  /// 创建迁移结果。
-  const MemoryProfileMigrationResult({
-    required this.schedule,
-    required this.previousProfile,
-    required this.replayedEventCount,
-  });
-
-  final MemorySchedule schedule;
-  final MemoryProfileRef previousProfile;
-  final int replayedEventCount;
 }

@@ -2507,6 +2507,80 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get bookmarkReviewUnsave => 'Unsave';
+
+  @override
+  String get bookmarkReviewTapReplay => 'Listen and recall';
+
+  @override
+  String get bookmarkReviewLoadingAudio => 'Loading audio…';
+
+  @override
+  String get bookmarkReviewPlaying => 'Playing';
+
+  @override
+  String get bookmarkReviewPlayOriginal => 'Play original sentence';
+
+  @override
+  String get bookmarkReviewTapRetry => 'Tap to retry';
+
+  @override
+  String get bookmarkReviewListenPrompt => 'Tap to replay from the beginning';
+
+  @override
+  String get bookmarkReviewReadyTitle => 'Flip when ready';
+
+  @override
+  String get bookmarkReviewRevealHint => 'Tap to reveal the answer';
+
+  @override
+  String get bookmarkReviewEmpty => 'No saved sentences left in this review.';
+
+  @override
+  String get bookmarkReviewUnsaveFailed =>
+      'Couldn\'t unsave this sentence. Please try again.';
+
+  @override
+  String get bookmarkReviewSettingsPlaceholderTitle => 'Review settings';
+
+  @override
+  String get bookmarkReviewSettingsPlaceholderBody =>
+      'More review controls will be available in a future update.';
+
+  @override
+  String get bookmarkReviewSettingsTitle => 'Review settings';
+
+  @override
+  String get bookmarkReviewShowNextReviewTime => 'Show next review time';
+
+  @override
+  String get bookmarkReviewDailyGoal => 'Daily review goal';
+
+  @override
+  String get bookmarkReviewUnlimited => 'Unlimited';
+
+  @override
+  String get bookmarkReviewOrder => 'Review order';
+
+  @override
+  String get bookmarkReviewOrderSmart => 'Auto';
+
+  @override
+  String get bookmarkReviewOrderDueAt => 'Earliest due first';
+
+  @override
+  String get bookmarkReviewOrderRandom => 'Random';
+
+  @override
+  String get bookmarkReviewRatingAgain => 'Missed';
+
+  @override
+  String get bookmarkReviewRatingGood => 'Got it';
+
+  @override
+  String get bookmarkReviewRatingEasy => 'Easy';
+
+  @override
   String get difficultPracticeSettings => 'Practice Settings';
 
   @override
@@ -3051,6 +3125,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String timeAgoHours(int hours) {
     return '${hours}h ago';
+  }
+
+  @override
+  String timeFromNowSeconds(int seconds) {
+    return 'in $seconds seconds';
   }
 
   @override

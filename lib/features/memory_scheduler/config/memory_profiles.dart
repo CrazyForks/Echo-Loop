@@ -43,7 +43,8 @@ final MemoryProfile kFsrsDefaultProfile = MemoryProfile(
     'relearningStepsSeconds': <int>[600],
     'maximumIntervalDays': 36500,
   },
-  enableFuzzing: false,
+  // FSRS 官方默认开启随机间隔扰动；Profile 版本冻结该策略。
+  enableFuzzing: true,
 );
 
 /// 内置 Profile 注册表；所有 namespace 的新项默认使用该版本。

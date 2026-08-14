@@ -10,7 +10,6 @@ import 'memory_scheduler.dart';
 import '../domain/memory_model_adapter.dart';
 import '../domain/memory_profile.dart';
 import '../domain/memory_rating.dart';
-import '../domain/memory_review_event.dart';
 import '../domain/memory_schedule.dart';
 import '../domain/memory_scheduler_commands.dart';
 import '../domain/memory_scheduler_exceptions.dart';
@@ -97,6 +96,17 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
       _repository.watchDueCount(query);
 
   @override
+  double retrievability(MemorySchedule schedule, DateTime at) {
+    final profile = _profileRegistry.get(schedule.profile);
+    final adapter = _adapterFor(profile);
+    return adapter.retrievability(
+      profile: profile,
+      current: _stateFor(schedule, adapter),
+      at: at.toUtc(),
+    );
+  }
+
+  @override
   Future<MemoryRatingPreviewSet> previewRatings(
     PreviewMemoryRatingsQuery query,
   ) async {
@@ -114,24 +124,48 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
       scheduleId: schedule.id,
       revision: schedule.revision,
       reviewedAt: query.reviewedAt,
-      again: _toPreview(MemoryRating.again, previews.again, query.reviewedAt),
-      hard: _toPreview(MemoryRating.hard, previews.hard, query.reviewedAt),
-      good: _toPreview(MemoryRating.good, previews.good, query.reviewedAt),
-      easy: _toPreview(MemoryRating.easy, previews.easy, query.reviewedAt),
+      again: _toPreview(
+        schedule,
+        MemoryRating.again,
+        previews.again,
+        query.reviewedAt,
+      ),
+      hard: _toPreview(
+        schedule,
+        MemoryRating.hard,
+        previews.hard,
+        query.reviewedAt,
+      ),
+      good: _toPreview(
+        schedule,
+        MemoryRating.good,
+        previews.good,
+        query.reviewedAt,
+      ),
+      easy: _toPreview(
+        schedule,
+        MemoryRating.easy,
+        previews.easy,
+        query.reviewedAt,
+      ),
     );
   }
 
   @override
   Future<MemoryReviewResult> review(ReviewMemoryCommand command) async {
     final before = await _activeSchedule(command.subject);
-    final profile = _profileRegistry.get(before.profile);
-    final adapter = _adapterFor(profile);
-    final transition = adapter.review(
-      profile: profile,
-      current: _stateFor(before, adapter),
-      rating: command.rating,
-      reviewedAt: command.reviewedAt,
-    );
+    final preview = command.preview;
+    if (preview != null) {
+      _checkExpectedRevision(before, command.expectedRevision);
+      if (preview.rating != command.rating ||
+          preview.scheduleId != before.id ||
+          preview.revision != before.revision ||
+          preview.reviewedAt != command.reviewedAt) {
+        throw const MemoryScheduleConflictException('评分预览已过期。');
+      }
+      _checkReviewTime(before, command.reviewedAt);
+    }
+    final transition = preview?.transition ?? _transitionFor(before, command);
     final isLapse =
         before.phase == MemorySchedulePhase.review &&
         command.rating == MemoryRating.again;
@@ -210,65 +244,24 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
     await _repository.purge(schedule);
   }
 
-  @override
-  Future<MemoryProfileMigrationResult> migrateProfile(
-    MigrateMemoryProfileCommand command,
-  ) async {
-    final before = await _activeSchedule(command.subject);
-    _checkExpectedRevision(before, command.expectedRevision);
-    final target = _profileRegistry.get(command.targetProfile);
-    final adapter = _adapterFor(target);
-    final events = await _repository.getEvents(before.id);
-    _validateReplay(before, events);
-    var state = adapter.createInitialState(
-      profile: target,
-      createdAt: before.createdAt,
-    );
-    var phase = MemorySchedulePhase.newItem;
-    var dueAt = before.createdAt;
-    DateTime? lastReviewedAt;
-    for (final event in events) {
-      final transition = adapter.review(
-        profile: target,
-        current: state,
-        rating: event.rating,
-        reviewedAt: event.reviewedAt,
-      );
-      state = transition.state;
-      phase = transition.phase;
-      dueAt = transition.dueAt;
-      lastReviewedAt = transition.lastReviewedAt;
-    }
-    final after = MemorySchedule(
-      id: before.id,
-      subject: before.subject,
-      profile: target.ref,
-      modelId: target.modelId,
-      modelStateVersion: state.version,
-      phase: phase,
-      status: MemoryScheduleStatus.active,
-      createdAt: before.createdAt,
-      updatedAt: command.migratedAt,
-      lastReviewedAt: lastReviewedAt,
-      dueAt: dueAt,
-      reviewCount: events.length,
-      lapseCount: events.where((event) => event.isLapse).length,
-      revision: before.revision + 1,
-      modelState: state.values,
-      archivedAt: null,
-    );
-    final schedule = await _repository.replaceAfterReplay(before, after);
-    return MemoryProfileMigrationResult(
-      schedule: schedule,
-      previousProfile: before.profile,
-      replayedEventCount: events.length,
-    );
-  }
-
   MemoryModelAdapter _adapterFor(MemoryProfile profile) {
     final adapter = _modelRegistry.get(profile.modelId);
     adapter.validateProfile(profile);
     return adapter;
+  }
+
+  MemoryModelTransition _transitionFor(
+    MemorySchedule before,
+    ReviewMemoryCommand command,
+  ) {
+    final profile = _profileRegistry.get(before.profile);
+    final adapter = _adapterFor(profile);
+    return adapter.review(
+      profile: profile,
+      current: _stateFor(before, adapter),
+      rating: command.rating,
+      reviewedAt: command.reviewedAt,
+    );
   }
 
   MemoryModelState _stateFor(
@@ -316,14 +309,24 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
   }
 
   MemoryRatingPreview _toPreview(
+    MemorySchedule schedule,
     MemoryRating rating,
     MemoryModelPreview preview,
     DateTime reviewedAt,
   ) => MemoryRatingPreview(
+    scheduleId: schedule.id,
+    revision: schedule.revision,
     rating: rating,
+    reviewedAt: reviewedAt,
     dueAt: preview.dueAt,
     interval: preview.dueAt.difference(reviewedAt.toUtc()),
     phase: preview.phase,
+    transition: MemoryModelTransition(
+      state: preview.state,
+      phase: preview.phase,
+      dueAt: preview.dueAt,
+      lastReviewedAt: preview.lastReviewedAt,
+    ),
   );
 
   MemorySchedule _lifecycleCopy(
@@ -348,22 +351,4 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
     modelState: before.modelState,
     archivedAt: status == MemoryScheduleStatus.archived ? at : null,
   );
-
-  void _validateReplay(
-    MemorySchedule schedule,
-    List<MemoryReviewEvent> events,
-  ) {
-    if (events.length != schedule.reviewCount) {
-      throw const MemoryReplayException('审计事件数量与快照评分次数不一致。');
-    }
-    DateTime? previous;
-    for (var index = 0; index < events.length; index++) {
-      final event = events[index];
-      if (event.sequence != index + 1 ||
-          (previous != null && event.reviewedAt.isBefore(previous))) {
-        throw const MemoryReplayException('审计事件顺序或时间不合法。');
-      }
-      previous = event.reviewedAt;
-    }
-  }
 }

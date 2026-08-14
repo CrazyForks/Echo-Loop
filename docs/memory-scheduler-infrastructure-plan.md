@@ -58,7 +58,7 @@
 - 默认支持 FSRS Profile，并把 `fsrs` 包严格封装在 adapter 内部。
 - 每个记忆项固定绑定 `profileId + profileVersion`。
 - 支持创建调度、查询到期项、预览四种评分、提交复习、归档、恢复和永久删除。
-- 保存模型无关的复习事件，支持通过完整历史重放迁移模型/Profile。
+- 保存模型无关的复习事件，支持审计、诊断和未来独立导出能力。
 - 提供明确的事务、一致性、并发和错误处理规则。
 - 通过纯 Dart 单元测试和 Drift DAO/迁移测试覆盖核心行为。
 - 为未来接入收藏句子、收藏词汇、收藏意群和音频学习计划留下稳定接口。
@@ -92,7 +92,7 @@ Profile 是“算法类型 + 算法配置 + 行为开关”的不可变版本。
 
 `fsrs.default@1` 和未来的 `fsrs.vocabulary@2` 并不是两套业务代码，而是两个明确版本的配置快照。名称只表达用途，真正差异由 Profile 中的模型类型、参数和配置决定。
 
-领域或全局默认值仅用于创建新记忆项。默认值改变后，已有项继续使用其原 Profile；只有显式迁移才会改变存量项。这样可以灰度升级、回滚和比较结果，避免一次配置切换重排全部用户内容。
+领域或全局默认值仅用于创建新记忆项。默认值改变后，已有项继续使用其原 Profile；本基础设施不提供存量项的 Profile 重算或改绑能力，避免一次配置切换重排全部用户内容。
 
 ### 4.2 独立调度表，不向业务表加算法字段
 
@@ -122,7 +122,7 @@ Profile 是“算法类型 + 算法配置 + 行为开关”的不可变版本。
 - `memory_schedules` 保存高频查询需要的当前状态和 `dueAt`。
 - `memory_review_events` 保存模型无关的评分事实以及应用前后的必要审计信息。
 - 日常查询不需要每次重放全部历史。
-- Profile/模型迁移时可从初始状态按事件顺序完整重放。
+- 评分事件保留为审计记录，不参与日常查询或存量 Profile 切换。
 
 不采用纯事件溯源，因为移动端每次列表查询都重放历史成本过高；也不采用只有当前快照，因为将失去可迁移和可审计能力。
 
@@ -164,7 +164,7 @@ MemoryScheduleRepository   MemoryModelRegistry
 职责划分：
 
 - `domain/`：稳定值对象、实体、枚举、异常和算法端口；不依赖 Flutter、Riverpod、Drift、FSRS。
-- `application/`：编排用例、事务边界、Profile 选择、历史重放和并发校验。
+- `application/`：编排用例、事务边界、Profile 选择和并发校验。
 - `data/`：Drift 行与领域对象映射、查询和原子写入。
 - `adapters/fsrs/`：唯一允许导入 `package:fsrs` 的位置。
 - `providers/`：只负责依赖装配，不承载调度业务流程。
@@ -212,7 +212,7 @@ final class MemoryProfile {
 - Profile 一经发布不可原地修改；参数变化必须新增版本。
 - `parameters` 在注册时做不可变拷贝并由 adapter 严格校验。
 - 默认 Profile 固定为 `fsrs.default@1`。
-- 默认关闭 FSRS fuzzing，确保同一历史重放得到确定性结果。未来如启用随机扰动，必须显式设计并持久化随机种子或最终结果。
+- FSRS fuzzing 是 Profile 的版本化策略，默认 Profile 开启（`enableFuzzing: true`）。新增 Profile 版本可选择关闭；Profile 变化只影响新建调度，既有调度保留原 Profile、状态和已落库 `dueAt`。
 - `modelStateVersion` 是 adapter 状态序列化格式的属性，不属于 Profile；实际版本由 adapter 创建的 state/transition 携带并持久化到 schedule/event。
 
 ### 6.2 评分
@@ -320,10 +320,6 @@ abstract interface class MemoryScheduler {
   Future<MemorySchedule> restore(RestoreMemoryScheduleCommand command);
 
   Future<void> purge(PurgeMemoryScheduleCommand command);
-
-  Future<MemoryProfileMigrationResult> migrateProfile(
-    MigrateMemoryProfileCommand command,
-  );
 }
 ```
 
@@ -387,12 +383,6 @@ final class PurgeMemoryScheduleCommand {
   final int expectedRevision;
 }
 
-final class MigrateMemoryProfileCommand {
-  final MemorySubjectRef subject;
-  final MemoryProfileRef targetProfile;
-  final DateTime migratedAt;
-  final int expectedRevision;
-}
 ```
 
 输入规则：
@@ -401,7 +391,7 @@ final class MigrateMemoryProfileCommand {
 - `reviewedAt` 不得早于上一条事件时间；默认拒绝乱序写入，避免静默改变历史。
 - `responseTime` 为可选遥测事实，必须大于等于零，并设置合理上限校验。
 - `operationId` 由调用方为一次用户评分生成，用于幂等重试。
-- review、archive、restore、purge 和 migrateProfile 的 `expectedRevision` 必填；preview 中该字段可选。旧页面或重复点击不能覆盖更新后的调度。
+- review、archive、restore 和 purge 的 `expectedRevision` 必填；preview 中该字段可选。旧页面或重复点击不能覆盖更新后的调度。
 - `responseTime` 必须位于 0 到 24 小时之间。
 - `namespaces` 必须非空；`phases = null` 表示不过滤，非 null 时集合必须非空。
 - `limit` 固定为 `1..500`。
@@ -435,11 +425,6 @@ final class MemoryReviewResult {
   final bool wasIdempotentReplay;
 }
 
-final class MemoryProfileMigrationResult {
-  final MemorySchedule schedule;
-  final MemoryProfileRef previousProfile;
-  final int replayedEventCount;
-}
 ```
 
 评分预览必须一次返回四个具名评分，UI 不应连续调用四次调度器，也不需要对 Map 结果使用空判断或非空断言。预览是只读操作，不写数据库；真正提交时仍需用 `expectedRevision` 校验，不能假设预览后状态未变化。
@@ -522,7 +507,7 @@ abstract interface class MemoryModelRegistry {
 Profile: fsrs.default@1
 modelId: fsrs
 parameters: 完整配置按 §11.2 从 fsrs 2.0.1 源码显式复制并固定
-enableFuzzing: false
+enableFuzzing: true
 ```
 
 `MemoryProfile.parameters` 中使用固定键 `weights`、`desiredRetention`、`learningStepsSeconds`、`relearningStepsSeconds`、`maximumIntervalDays`；时长分别保存为 `[60, 600]` 和 `[600]`，避免 adapter 再猜单位。`enableFuzzing` 使用 Profile 的独立字段，不在 parameters 中重复保存。注册时拒绝缺键、额外键、错误类型、越界值或非有限数值。
@@ -626,9 +611,6 @@ abstract interface class MemoryScheduleRepository {
     MemoryReviewCommit commit,
   );
 
-  Future<MemorySchedule> replaceAfterReplay(
-    MemoryReplayCommit commit,
-  );
 }
 ```
 
@@ -669,23 +651,9 @@ abstract interface class MemoryScheduleRepository {
 - `purge`：携带 expected revision 并用条件删除物理清除 schedule，通过 FK cascade 删除事件。它不设计幂等 operationId，因为只允许由用户确认的永久删除/清空回收站流程调用；该差异是有意设计。
 - 基础设施不监听业务表删除；未来每个接入方必须显式把业务生命周期映射到这三个动作。
 
-## 10. Profile/模型迁移与历史重放
+## 10. Profile 升级
 
-迁移不是修改两列，而是完整重放：
-
-1. 读取目标 schedule 和全部事件，按 `sequence` 升序排序。
-2. 校验 sequence 从 1 连续递增、时间非递减、事件数等于 snapshot.reviewCount。
-3. 从目标 Profile adapter 的 `createInitialState(createdAt)` 开始。
-4. 对每个历史事件仅使用其 `rating` 和 `reviewedAt` 调用目标 adapter。
-5. 得到目标模型的最终快照；reviewCount 取事件数，lapseCount 取历史事件中 `isLapse = true` 的数量，不按目标模型重新解释。
-6. 在事务内通过 `expectedRevision` 条件替换 schedule 的 Profile、model state、phase、dueAt 和统计，并将 revision 加 1。
-7. 历史事件不改写；它们记录的是当时实际发生的审计信息。
-
-由于事件不改写，迁移后的再次重放仍以评分事实为准，而不是以旧事件中的 `dueAfter` 为准。
-
-失败策略：任一事件不能重放、Profile 缺失、状态不支持或 revision 冲突时，整个迁移失败，原快照保持不变。记录 schedule id、源/目标 Profile、失败 sequence 和异常，但日志不得包含用户学习内容正文。
-
-本阶段只实现单项迁移接口和测试。批量灰度任务、进度 UI、后台队列和回滚控制留给后续需求；批量迁移未来应逐项事务，不能把全部用户数据放在一个大事务中。
+Profile 升级只注册新版本并切换新建调度的默认引用。既有调度永久保留创建时绑定的 Profile、模型状态和已落库 `dueAt`；基础设施不提供重放事件并改写存量调度的接口。评分事件继续作为审计事实保存，不是 Profile 升级的输入。
 
 ## 11. FSRS Adapter 设计
 
@@ -701,7 +669,7 @@ dependencies:
 不使用 caret，避免同一 Profile 在未审查情况下因依赖解析改变行为。升级 FSRS 时必须：
 
 1. 阅读包 changelog 和状态/默认参数变化。
-2. 保留旧 Profile 和旧 state decoder，或提供显式状态升级/历史重放路径。
+2. 保留旧 Profile 和旧 state decoder，确保既有调度可继续读取和评分。
 3. 增加 golden transition 测试。
 4. 仅在验证后创建新 Profile 版本，不修改 `fsrs.default@1`。
 
@@ -719,7 +687,7 @@ desiredRetention: 0.9
 learningSteps: [1 minute, 10 minutes]
 relearningSteps: [10 minutes]
 maximumInterval: 36500 days
-enableFuzzing: false
+enableFuzzing: true
 ```
 
 创建初始状态时禁止调用 `Card.create()`：该 API 是 async，并使用 `DateTime.now()` 和延迟生成 cardId，会破坏同步 adapter 契约与重放确定性。必须使用普通构造函数并显式传入全部初始值：
@@ -754,7 +722,7 @@ FSRS 库 API 以 `2.0.1` 的实际源码为准。实现者应在编码时核对�
 
 ### 11.3 确定性
 
-- `fsrs.default@1` 关闭 fuzzing。
+- `fsrs.default@1` 开启 fuzzing，与 FSRS 默认策略一致；需要可重复断言精确间隔的测试应使用关闭 fuzzing 的专用 Profile。
 - 所有计算显式传入 `reviewedAt`。
 - 测试使用固定 UTC 时间。
 - 同一初始时间、Profile 和事件序列必须得到相同状态及 `dueAt`。
@@ -868,7 +836,6 @@ abstract interface class MemoryIdGenerator {
 - `MemoryModelStateUnsupportedException`
 - `MemoryModelStateCorruptedException`
 - `MemoryReviewTimeOrderException`
-- `MemoryReplayException`
 - `MemoryValidationException`
 
 规则：
@@ -919,13 +886,11 @@ abstract interface class MemoryIdGenerator {
 - preview 不产生数据库写入。
 - 乱序 reviewedAt 被拒绝。
 
-### 16.4 历史重放
+### 16.4 Profile 升级
 
-- 相同 Profile 重放结果与当前快照一致。
-- 重放后 reviewCount 等于事件数，lapseCount 等于历史 `isLapse` 数量，不随目标 Profile 改变。
-- 迁移到另一测试 Profile 后 Profile ref 和状态按目标算法重建。
-- 迁移不修改历史事件。
-- 中途失败不修改原 schedule。
+- 注册新 Profile 并切换默认值后，新建调度绑定新 Profile。
+- 既有调度的 Profile ref、模型状态和 `dueAt` 不变。
+- 不存在将存量调度改绑到新 Profile 的公开接口。
 - sequence 缺失/重复、Profile 缺失和 revision 冲突均失败。
 
 ### 16.5 DAO 与迁移
@@ -957,7 +922,7 @@ abstract interface class MemoryIdGenerator {
 5. 新增 Drift 两张表、DAO、mapper、schema v48 迁移和迁移测试。
 6. 实现 Repository，包括批量/due 查询、watch、事务写入、幂等和乐观锁。
 7. 实现 `DefaultMemoryScheduler` 的 ensure、preview、review、archive、restore、purge。
-8. 实现单项 Profile 历史重放迁移及失败回滚测试。
+8. 验证默认 Profile 更新只影响新建调度，存量调度不自动重排。
 9. 添加 Riverpod 装配 provider。
 10. 运行生成器、格式化、相关 analyze/test，并检查 `package:fsrs` 导入边界。
 11. 按子任务逐项更新 `TASKS.md`；只有里程碑状态变化时才更新 `PLAN.md` 里程碑。
@@ -986,7 +951,7 @@ git diff --check
 
 - 上层存在稳定的 `MemoryScheduler` 接口，接口中无 FSRS 类型。
 - `fsrs` 导入被限制在 adapter 和 adapter 测试内。
-- 默认 Profile 为不可变的 `fsrs.default@1`，参数显式固定，fuzzing 默认关闭。
+- 默认 Profile 为不可变的 `fsrs.default@1`，参数显式固定，fuzzing 默认开启；Profile 变更只影响新建调度，存量调度不自动重排。
 - 每个 schedule 持久化 `profileId + profileVersion`，默认值变化不影响存量项。
 - 能独立创建一个虚拟 namespace/subject 的调度，而无需任何收藏或音频实体。
 - 能查询到期项和到期数量，并稳定分页。
@@ -996,7 +961,7 @@ git diff --check
 - operationId 幂等和 revision 乐观锁都有测试。
 - reviewCount/lapseCount 由 application 维护，事件固化 `isLapse`，sequence 不依赖统计字段。
 - 能归档、恢复、永久清除调度。
-- 能把单项完整历史重放到目标 Profile，失败时不破坏原状态。
+- 新 Profile 只影响新建调度，既有调度不会被自动重排或改绑。
 - v47 到 v48 迁移不改动、不回填现有收藏和学习数据。
 - 现有收藏句子、词汇/意群 Flashcard 和音频学习计划行为完全不变。
 - 相关 analyze、unit、DAO、migration 测试通过，最终整合检查通过。

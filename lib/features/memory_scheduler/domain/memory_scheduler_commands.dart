@@ -1,9 +1,10 @@
 /// 记忆调度应用服务的输入命令。
 library;
 
-import 'memory_profile.dart';
 import 'memory_rating.dart';
+import 'memory_profile.dart';
 import 'memory_schedule.dart';
+import 'memory_scheduler_results.dart';
 import 'memory_subject_ref.dart';
 
 /// 请求确保某个业务主体拥有调度。
@@ -99,6 +100,7 @@ final class ReviewMemoryCommand {
     required this.subject,
     required this.rating,
     required DateTime reviewedAt,
+    this.preview,
     required this.responseTime,
     required String operationId,
     required this.expectedRevision,
@@ -120,6 +122,9 @@ final class ReviewMemoryCommand {
 
   final MemorySubjectRef subject;
   final MemoryRating rating;
+
+  /// 用户看到并选择的评分预览；UI 提交时必须传入以复用随机结果。
+  final MemoryRatingPreview? preview;
   final DateTime reviewedAt;
   final Duration? responseTime;
   final String operationId;
@@ -169,24 +174,6 @@ final class PurgeMemoryScheduleCommand {
   }
 
   final MemorySubjectRef subject;
-  final int expectedRevision;
-}
-
-/// 请求将一个调度通过历史重放迁移至目标 Profile。
-final class MigrateMemoryProfileCommand {
-  /// 创建 Profile 迁移命令。
-  MigrateMemoryProfileCommand({
-    required this.subject,
-    required this.targetProfile,
-    required DateTime migratedAt,
-    required this.expectedRevision,
-  }) : migratedAt = migratedAt.toUtc() {
-    _revision(expectedRevision);
-  }
-
-  final MemorySubjectRef subject;
-  final MemoryProfileRef targetProfile;
-  final DateTime migratedAt;
   final int expectedRevision;
 }
 

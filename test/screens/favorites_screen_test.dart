@@ -18,6 +18,7 @@ import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -68,6 +69,17 @@ class _TestSavedWordDao implements SavedWordDao {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
+class _DeferredBookmarkReview extends BookmarkReview {
+  final initialized = Completer<void>();
+
+  @override
+  BookmarkReviewState build() => const BookmarkReviewState();
+
+  @override
+  Future<void> initialize(List<BookmarkWithAudio> bookmarks) =>
+      initialized.future;
 }
 
 /// 创建测试用 Bookmark 数据
@@ -134,7 +146,10 @@ void main() {
     wordController.close();
   });
 
-  Widget createTestWidget({Locale locale = const Locale('en')}) {
+  Widget createTestWidget({
+    Locale locale = const Locale('en'),
+    _DeferredBookmarkReview? bookmarkReview,
+  }) {
     final router = GoRouter(
       initialLocation: '/favorites',
       routes: [
@@ -162,6 +177,8 @@ void main() {
         ),
         audioItemDaoProvider.overrideWithValue(_MockAudioItemDao()),
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
+        if (bookmarkReview != null)
+          bookmarkReviewProvider.overrideWith(() => bookmarkReview),
         sentenceAiNotifierProvider.overrideWithValue(
           SentenceAiNotifier(
             cacheDao: _MockCacheDao(),
@@ -294,6 +311,32 @@ void main() {
       expect(find.byType(FilledButton), findsAtLeast(1));
       // 哑铃图标（练习按钮）
       expect(find.byIcon(Icons.fitness_center), findsAtLeast(1));
+    });
+
+    testWidgets('开始复习等待异步初始化完成后才导航', (tester) async {
+      final bookmarkReview = _DeferredBookmarkReview();
+      await tester.pumpWidget(createTestWidget(bookmarkReview: bookmarkReview));
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3.0,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FilledButton).last);
+      await tester.pump();
+      expect(find.text('Bookmark Review'), findsNothing);
+
+      bookmarkReview.initialized.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Bookmark Review'), findsOneWidget);
     });
 
     testWidgets('展开音频组后显示句子', (tester) async {

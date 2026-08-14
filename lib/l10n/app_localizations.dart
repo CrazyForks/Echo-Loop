@@ -4370,6 +4370,150 @@ abstract class AppLocalizations {
   /// **'From: {name}'**
   String bookmarkReviewFromAudio(String name);
 
+  /// No description provided for @bookmarkReviewUnsave.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsave'**
+  String get bookmarkReviewUnsave;
+
+  /// No description provided for @bookmarkReviewTapReplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen and recall'**
+  String get bookmarkReviewTapReplay;
+
+  /// No description provided for @bookmarkReviewLoadingAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading audio…'**
+  String get bookmarkReviewLoadingAudio;
+
+  /// No description provided for @bookmarkReviewPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing'**
+  String get bookmarkReviewPlaying;
+
+  /// No description provided for @bookmarkReviewPlayOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Play original sentence'**
+  String get bookmarkReviewPlayOriginal;
+
+  /// No description provided for @bookmarkReviewTapRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to retry'**
+  String get bookmarkReviewTapRetry;
+
+  /// No description provided for @bookmarkReviewListenPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to replay from the beginning'**
+  String get bookmarkReviewListenPrompt;
+
+  /// No description provided for @bookmarkReviewReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Flip when ready'**
+  String get bookmarkReviewReadyTitle;
+
+  /// No description provided for @bookmarkReviewRevealHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reveal the answer'**
+  String get bookmarkReviewRevealHint;
+
+  /// No description provided for @bookmarkReviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved sentences left in this review.'**
+  String get bookmarkReviewEmpty;
+
+  /// No description provided for @bookmarkReviewUnsaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t unsave this sentence. Please try again.'**
+  String get bookmarkReviewUnsaveFailed;
+
+  /// No description provided for @bookmarkReviewSettingsPlaceholderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review settings'**
+  String get bookmarkReviewSettingsPlaceholderTitle;
+
+  /// No description provided for @bookmarkReviewSettingsPlaceholderBody.
+  ///
+  /// In en, this message translates to:
+  /// **'More review controls will be available in a future update.'**
+  String get bookmarkReviewSettingsPlaceholderBody;
+
+  /// No description provided for @bookmarkReviewSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review settings'**
+  String get bookmarkReviewSettingsTitle;
+
+  /// No description provided for @bookmarkReviewShowNextReviewTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Show next review time'**
+  String get bookmarkReviewShowNextReviewTime;
+
+  /// No description provided for @bookmarkReviewDailyGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily review goal'**
+  String get bookmarkReviewDailyGoal;
+
+  /// No description provided for @bookmarkReviewUnlimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited'**
+  String get bookmarkReviewUnlimited;
+
+  /// No description provided for @bookmarkReviewOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Review order'**
+  String get bookmarkReviewOrder;
+
+  /// No description provided for @bookmarkReviewOrderSmart.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get bookmarkReviewOrderSmart;
+
+  /// No description provided for @bookmarkReviewOrderDueAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Earliest due first'**
+  String get bookmarkReviewOrderDueAt;
+
+  /// No description provided for @bookmarkReviewOrderRandom.
+  ///
+  /// In en, this message translates to:
+  /// **'Random'**
+  String get bookmarkReviewOrderRandom;
+
+  /// No description provided for @bookmarkReviewRatingAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Missed'**
+  String get bookmarkReviewRatingAgain;
+
+  /// No description provided for @bookmarkReviewRatingGood.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get bookmarkReviewRatingGood;
+
+  /// No description provided for @bookmarkReviewRatingEasy.
+  ///
+  /// In en, this message translates to:
+  /// **'Easy'**
+  String get bookmarkReviewRatingEasy;
+
   /// No description provided for @difficultPracticeSettings.
   ///
   /// In en, this message translates to:
@@ -5353,6 +5497,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{hours}h ago'**
   String timeAgoHours(int hours);
+
+  /// No description provided for @timeFromNowSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'in {seconds} seconds'**
+  String timeFromNowSeconds(int seconds);
 
   /// No description provided for @exportAudio.
   ///

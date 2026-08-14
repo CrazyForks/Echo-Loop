@@ -3187,6 +3187,17 @@ class $BookmarksTable extends Bookmarks
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _memorySubjectIdMeta = const VerificationMeta(
+    'memorySubjectId',
+  );
+  @override
+  late final GeneratedColumn<String> memorySubjectId = GeneratedColumn<String>(
+    'memory_subject_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _audioItemIdMeta = const VerificationMeta(
     'audioItemId',
   );
@@ -3293,6 +3304,7 @@ class $BookmarksTable extends Bookmarks
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    memorySubjectId,
     audioItemId,
     sentenceIndex,
     sentenceText,
@@ -3317,6 +3329,15 @@ class $BookmarksTable extends Bookmarks
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('memory_subject_id')) {
+      context.handle(
+        _memorySubjectIdMeta,
+        memorySubjectId.isAcceptableOrUnknown(
+          data['memory_subject_id']!,
+          _memorySubjectIdMeta,
+        ),
+      );
     }
     if (data.containsKey('audio_item_id')) {
       context.handle(
@@ -3412,6 +3433,10 @@ class $BookmarksTable extends Bookmarks
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      memorySubjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}memory_subject_id'],
+      ),
       audioItemId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}audio_item_id'],
@@ -3461,6 +3486,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   /// 自增主键
   final int id;
 
+  /// 跨数据库迁移和字幕重解析仍保持稳定的记忆主体 ID。
+  final String? memorySubjectId;
+
   /// 音频 ID，外键关联 audio_items.id
   final String audioItemId;
 
@@ -3489,6 +3517,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   final int syncStatus;
   const Bookmark({
     required this.id,
+    this.memorySubjectId,
     required this.audioItemId,
     required this.sentenceIndex,
     required this.sentenceText,
@@ -3503,6 +3532,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    if (!nullToAbsent || memorySubjectId != null) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId);
+    }
     map['audio_item_id'] = Variable<String>(audioItemId);
     map['sentence_index'] = Variable<int>(sentenceIndex);
     map['sentence_text'] = Variable<String>(sentenceText);
@@ -3520,6 +3552,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   BookmarksCompanion toCompanion(bool nullToAbsent) {
     return BookmarksCompanion(
       id: Value(id),
+      memorySubjectId: memorySubjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memorySubjectId),
       audioItemId: Value(audioItemId),
       sentenceIndex: Value(sentenceIndex),
       sentenceText: Value(sentenceText),
@@ -3541,6 +3576,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Bookmark(
       id: serializer.fromJson<int>(json['id']),
+      memorySubjectId: serializer.fromJson<String?>(json['memorySubjectId']),
       audioItemId: serializer.fromJson<String>(json['audioItemId']),
       sentenceIndex: serializer.fromJson<int>(json['sentenceIndex']),
       sentenceText: serializer.fromJson<String>(json['sentenceText']),
@@ -3557,6 +3593,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'memorySubjectId': serializer.toJson<String?>(memorySubjectId),
       'audioItemId': serializer.toJson<String>(audioItemId),
       'sentenceIndex': serializer.toJson<int>(sentenceIndex),
       'sentenceText': serializer.toJson<String>(sentenceText),
@@ -3571,6 +3608,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
 
   Bookmark copyWith({
     int? id,
+    Value<String?> memorySubjectId = const Value.absent(),
     String? audioItemId,
     int? sentenceIndex,
     String? sentenceText,
@@ -3582,6 +3620,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     int? syncStatus,
   }) => Bookmark(
     id: id ?? this.id,
+    memorySubjectId: memorySubjectId.present
+        ? memorySubjectId.value
+        : this.memorySubjectId,
     audioItemId: audioItemId ?? this.audioItemId,
     sentenceIndex: sentenceIndex ?? this.sentenceIndex,
     sentenceText: sentenceText ?? this.sentenceText,
@@ -3595,6 +3636,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   Bookmark copyWithCompanion(BookmarksCompanion data) {
     return Bookmark(
       id: data.id.present ? data.id.value : this.id,
+      memorySubjectId: data.memorySubjectId.present
+          ? data.memorySubjectId.value
+          : this.memorySubjectId,
       audioItemId: data.audioItemId.present
           ? data.audioItemId.value
           : this.audioItemId,
@@ -3619,6 +3663,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   String toString() {
     return (StringBuffer('Bookmark(')
           ..write('id: $id, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
           ..write('sentenceText: $sentenceText, ')
@@ -3635,6 +3680,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   @override
   int get hashCode => Object.hash(
     id,
+    memorySubjectId,
     audioItemId,
     sentenceIndex,
     sentenceText,
@@ -3650,6 +3696,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       identical(this, other) ||
       (other is Bookmark &&
           other.id == this.id &&
+          other.memorySubjectId == this.memorySubjectId &&
           other.audioItemId == this.audioItemId &&
           other.sentenceIndex == this.sentenceIndex &&
           other.sentenceText == this.sentenceText &&
@@ -3663,6 +3710,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
 
 class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   final Value<int> id;
+  final Value<String?> memorySubjectId;
   final Value<String> audioItemId;
   final Value<int> sentenceIndex;
   final Value<String> sentenceText;
@@ -3674,6 +3722,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   final Value<int> syncStatus;
   const BookmarksCompanion({
     this.id = const Value.absent(),
+    this.memorySubjectId = const Value.absent(),
     this.audioItemId = const Value.absent(),
     this.sentenceIndex = const Value.absent(),
     this.sentenceText = const Value.absent(),
@@ -3686,6 +3735,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   });
   BookmarksCompanion.insert({
     this.id = const Value.absent(),
+    this.memorySubjectId = const Value.absent(),
     required String audioItemId,
     required int sentenceIndex,
     required String sentenceText,
@@ -3704,6 +3754,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
        updatedAt = Value(updatedAt);
   static Insertable<Bookmark> custom({
     Expression<int>? id,
+    Expression<String>? memorySubjectId,
     Expression<String>? audioItemId,
     Expression<int>? sentenceIndex,
     Expression<String>? sentenceText,
@@ -3716,6 +3767,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (memorySubjectId != null) 'memory_subject_id': memorySubjectId,
       if (audioItemId != null) 'audio_item_id': audioItemId,
       if (sentenceIndex != null) 'sentence_index': sentenceIndex,
       if (sentenceText != null) 'sentence_text': sentenceText,
@@ -3730,6 +3782,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
 
   BookmarksCompanion copyWith({
     Value<int>? id,
+    Value<String?>? memorySubjectId,
     Value<String>? audioItemId,
     Value<int>? sentenceIndex,
     Value<String>? sentenceText,
@@ -3742,6 +3795,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   }) {
     return BookmarksCompanion(
       id: id ?? this.id,
+      memorySubjectId: memorySubjectId ?? this.memorySubjectId,
       audioItemId: audioItemId ?? this.audioItemId,
       sentenceIndex: sentenceIndex ?? this.sentenceIndex,
       sentenceText: sentenceText ?? this.sentenceText,
@@ -3759,6 +3813,9 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (memorySubjectId.present) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId.value);
     }
     if (audioItemId.present) {
       map['audio_item_id'] = Variable<String>(audioItemId.value);
@@ -3794,6 +3851,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   String toString() {
     return (StringBuffer('BookmarksCompanion(')
           ..write('id: $id, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
           ..write('sentenceText: $sentenceText, ')
@@ -13875,6 +13933,319 @@ class MemoryReviewEventsCompanion extends UpdateCompanion<MemoryReviewEvent> {
   }
 }
 
+class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
+    with TableInfo<$BookmarkReviewQueueEntriesTable, BookmarkReviewQueueEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookmarkReviewQueueEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _localDateMeta = const VerificationMeta(
+    'localDate',
+  );
+  @override
+  late final GeneratedColumn<String> localDate = GeneratedColumn<String>(
+    'local_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enqueuedAtMeta = const VerificationMeta(
+    'enqueuedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> enqueuedAt = GeneratedColumn<DateTime>(
+    'enqueued_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, subjectId, localDate, enqueuedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bookmark_review_queue_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BookmarkReviewQueueEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('local_date')) {
+      context.handle(
+        _localDateMeta,
+        localDate.isAcceptableOrUnknown(data['local_date']!, _localDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localDateMeta);
+    }
+    if (data.containsKey('enqueued_at')) {
+      context.handle(
+        _enqueuedAtMeta,
+        enqueuedAt.isAcceptableOrUnknown(data['enqueued_at']!, _enqueuedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_enqueuedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {subjectId, localDate},
+  ];
+  @override
+  BookmarkReviewQueueEntry map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookmarkReviewQueueEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      localDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_date'],
+      )!,
+      enqueuedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}enqueued_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BookmarkReviewQueueEntriesTable createAlias(String alias) {
+    return $BookmarkReviewQueueEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class BookmarkReviewQueueEntry extends DataClass
+    implements Insertable<BookmarkReviewQueueEntry> {
+  final int id;
+  final String subjectId;
+  final String localDate;
+  final DateTime enqueuedAt;
+  const BookmarkReviewQueueEntry({
+    required this.id,
+    required this.subjectId,
+    required this.localDate,
+    required this.enqueuedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    map['local_date'] = Variable<String>(localDate);
+    map['enqueued_at'] = Variable<DateTime>(enqueuedAt);
+    return map;
+  }
+
+  BookmarkReviewQueueEntriesCompanion toCompanion(bool nullToAbsent) {
+    return BookmarkReviewQueueEntriesCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      localDate: Value(localDate),
+      enqueuedAt: Value(enqueuedAt),
+    );
+  }
+
+  factory BookmarkReviewQueueEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookmarkReviewQueueEntry(
+      id: serializer.fromJson<int>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+      localDate: serializer.fromJson<String>(json['localDate']),
+      enqueuedAt: serializer.fromJson<DateTime>(json['enqueuedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+      'localDate': serializer.toJson<String>(localDate),
+      'enqueuedAt': serializer.toJson<DateTime>(enqueuedAt),
+    };
+  }
+
+  BookmarkReviewQueueEntry copyWith({
+    int? id,
+    String? subjectId,
+    String? localDate,
+    DateTime? enqueuedAt,
+  }) => BookmarkReviewQueueEntry(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    localDate: localDate ?? this.localDate,
+    enqueuedAt: enqueuedAt ?? this.enqueuedAt,
+  );
+  BookmarkReviewQueueEntry copyWithCompanion(
+    BookmarkReviewQueueEntriesCompanion data,
+  ) {
+    return BookmarkReviewQueueEntry(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      localDate: data.localDate.present ? data.localDate.value : this.localDate,
+      enqueuedAt: data.enqueuedAt.present
+          ? data.enqueuedAt.value
+          : this.enqueuedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarkReviewQueueEntry(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('localDate: $localDate, ')
+          ..write('enqueuedAt: $enqueuedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, subjectId, localDate, enqueuedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookmarkReviewQueueEntry &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.localDate == this.localDate &&
+          other.enqueuedAt == this.enqueuedAt);
+}
+
+class BookmarkReviewQueueEntriesCompanion
+    extends UpdateCompanion<BookmarkReviewQueueEntry> {
+  final Value<int> id;
+  final Value<String> subjectId;
+  final Value<String> localDate;
+  final Value<DateTime> enqueuedAt;
+  const BookmarkReviewQueueEntriesCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.localDate = const Value.absent(),
+    this.enqueuedAt = const Value.absent(),
+  });
+  BookmarkReviewQueueEntriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String subjectId,
+    required String localDate,
+    required DateTime enqueuedAt,
+  }) : subjectId = Value(subjectId),
+       localDate = Value(localDate),
+       enqueuedAt = Value(enqueuedAt);
+  static Insertable<BookmarkReviewQueueEntry> custom({
+    Expression<int>? id,
+    Expression<String>? subjectId,
+    Expression<String>? localDate,
+    Expression<DateTime>? enqueuedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (localDate != null) 'local_date': localDate,
+      if (enqueuedAt != null) 'enqueued_at': enqueuedAt,
+    });
+  }
+
+  BookmarkReviewQueueEntriesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? subjectId,
+    Value<String>? localDate,
+    Value<DateTime>? enqueuedAt,
+  }) {
+    return BookmarkReviewQueueEntriesCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      localDate: localDate ?? this.localDate,
+      enqueuedAt: enqueuedAt ?? this.enqueuedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (localDate.present) {
+      map['local_date'] = Variable<String>(localDate.value);
+    }
+    if (enqueuedAt.present) {
+      map['enqueued_at'] = Variable<DateTime>(enqueuedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarkReviewQueueEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('localDate: $localDate, ')
+          ..write('enqueuedAt: $enqueuedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -13911,6 +14282,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $MemoryReviewEventsTable memoryReviewEvents =
       $MemoryReviewEventsTable(this);
+  late final $BookmarkReviewQueueEntriesTable bookmarkReviewQueueEntries =
+      $BookmarkReviewQueueEntriesTable(this);
   late final AudioItemDao audioItemDao = AudioItemDao(this as AppDatabase);
   late final CollectionDao collectionDao = CollectionDao(this as AppDatabase);
   late final BookmarkDao bookmarkDao = BookmarkDao(this as AppDatabase);
@@ -13966,6 +14339,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ttsCache,
     memorySchedules,
     memoryReviewEvents,
+    bookmarkReviewQueueEntries,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -16530,6 +16904,7 @@ typedef $$CollectionAudioItemsTableProcessedTableManager =
 typedef $$BookmarksTableCreateCompanionBuilder =
     BookmarksCompanion Function({
       Value<int> id,
+      Value<String?> memorySubjectId,
       required String audioItemId,
       required int sentenceIndex,
       required String sentenceText,
@@ -16543,6 +16918,7 @@ typedef $$BookmarksTableCreateCompanionBuilder =
 typedef $$BookmarksTableUpdateCompanionBuilder =
     BookmarksCompanion Function({
       Value<int> id,
+      Value<String?> memorySubjectId,
       Value<String> audioItemId,
       Value<int> sentenceIndex,
       Value<String> sentenceText,
@@ -16589,6 +16965,11 @@ class $$BookmarksTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16670,6 +17051,11 @@ class $$BookmarksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get sentenceIndex => $composableBuilder(
     column: $table.sentenceIndex,
     builder: (column) => ColumnOrderings(column),
@@ -16745,6 +17131,11 @@ class $$BookmarksTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get sentenceIndex => $composableBuilder(
     column: $table.sentenceIndex,
@@ -16829,6 +17220,7 @@ class $$BookmarksTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String?> memorySubjectId = const Value.absent(),
                 Value<String> audioItemId = const Value.absent(),
                 Value<int> sentenceIndex = const Value.absent(),
                 Value<String> sentenceText = const Value.absent(),
@@ -16840,6 +17232,7 @@ class $$BookmarksTableTableManager
                 Value<int> syncStatus = const Value.absent(),
               }) => BookmarksCompanion(
                 id: id,
+                memorySubjectId: memorySubjectId,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
                 sentenceText: sentenceText,
@@ -16853,6 +17246,7 @@ class $$BookmarksTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String?> memorySubjectId = const Value.absent(),
                 required String audioItemId,
                 required int sentenceIndex,
                 required String sentenceText,
@@ -16864,6 +17258,7 @@ class $$BookmarksTableTableManager
                 Value<int> syncStatus = const Value.absent(),
               }) => BookmarksCompanion.insert(
                 id: id,
+                memorySubjectId: memorySubjectId,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
                 sentenceText: sentenceText,
@@ -22731,6 +23126,202 @@ typedef $$MemoryReviewEventsTableProcessedTableManager =
       MemoryReviewEvent,
       PrefetchHooks Function({bool scheduleId})
     >;
+typedef $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder =
+    BookmarkReviewQueueEntriesCompanion Function({
+      Value<int> id,
+      required String subjectId,
+      required String localDate,
+      required DateTime enqueuedAt,
+    });
+typedef $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder =
+    BookmarkReviewQueueEntriesCompanion Function({
+      Value<int> id,
+      Value<String> subjectId,
+      Value<String> localDate,
+      Value<DateTime> enqueuedAt,
+    });
+
+class $$BookmarkReviewQueueEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
+  $$BookmarkReviewQueueEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get enqueuedAt => $composableBuilder(
+    column: $table.enqueuedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BookmarkReviewQueueEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
+  $$BookmarkReviewQueueEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get enqueuedAt => $composableBuilder(
+    column: $table.enqueuedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BookmarkReviewQueueEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
+  $$BookmarkReviewQueueEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+
+  GeneratedColumn<String> get localDate =>
+      $composableBuilder(column: $table.localDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get enqueuedAt => $composableBuilder(
+    column: $table.enqueuedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$BookmarkReviewQueueEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BookmarkReviewQueueEntriesTable,
+          BookmarkReviewQueueEntry,
+          $$BookmarkReviewQueueEntriesTableFilterComposer,
+          $$BookmarkReviewQueueEntriesTableOrderingComposer,
+          $$BookmarkReviewQueueEntriesTableAnnotationComposer,
+          $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder,
+          $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder,
+          (
+            BookmarkReviewQueueEntry,
+            BaseReferences<
+              _$AppDatabase,
+              $BookmarkReviewQueueEntriesTable,
+              BookmarkReviewQueueEntry
+            >,
+          ),
+          BookmarkReviewQueueEntry,
+          PrefetchHooks Function()
+        > {
+  $$BookmarkReviewQueueEntriesTableTableManager(
+    _$AppDatabase db,
+    $BookmarkReviewQueueEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookmarkReviewQueueEntriesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$BookmarkReviewQueueEntriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BookmarkReviewQueueEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<String> localDate = const Value.absent(),
+                Value<DateTime> enqueuedAt = const Value.absent(),
+              }) => BookmarkReviewQueueEntriesCompanion(
+                id: id,
+                subjectId: subjectId,
+                localDate: localDate,
+                enqueuedAt: enqueuedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String subjectId,
+                required String localDate,
+                required DateTime enqueuedAt,
+              }) => BookmarkReviewQueueEntriesCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                localDate: localDate,
+                enqueuedAt: enqueuedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BookmarkReviewQueueEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BookmarkReviewQueueEntriesTable,
+      BookmarkReviewQueueEntry,
+      $$BookmarkReviewQueueEntriesTableFilterComposer,
+      $$BookmarkReviewQueueEntriesTableOrderingComposer,
+      $$BookmarkReviewQueueEntriesTableAnnotationComposer,
+      $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder,
+      $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder,
+      (
+        BookmarkReviewQueueEntry,
+        BaseReferences<
+          _$AppDatabase,
+          $BookmarkReviewQueueEntriesTable,
+          BookmarkReviewQueueEntry
+        >,
+      ),
+      BookmarkReviewQueueEntry,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -22773,4 +23364,10 @@ class $AppDatabaseManager {
       $$MemorySchedulesTableTableManager(_db, _db.memorySchedules);
   $$MemoryReviewEventsTableTableManager get memoryReviewEvents =>
       $$MemoryReviewEventsTableTableManager(_db, _db.memoryReviewEvents);
+  $$BookmarkReviewQueueEntriesTableTableManager
+  get bookmarkReviewQueueEntries =>
+      $$BookmarkReviewQueueEntriesTableTableManager(
+        _db,
+        _db.bookmarkReviewQueueEntries,
+      );
 }

@@ -1,1006 +1,711 @@
-// 收藏句子复习页面 Widget 测试
-//
-// 验证盲听/跟读模式 UI、进度显示、音频来源标签、偷看字幕、完成弹窗等。
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:go_router/go_router.dart';
-import 'package:echo_loop/l10n/app_localizations.dart';
-import 'package:echo_loop/screens/bookmark_review_screen.dart';
-import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
-import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
-import 'package:echo_loop/providers/repeat_flow/repeat_flow_engine.dart';
-import 'package:echo_loop/providers/repeat_flow/repeat_flow_phase.dart' as flow;
-import 'package:echo_loop/providers/repeat_flow/repeat_flow_state.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:echo_loop/database/daos/audio_item_dao.dart';
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
-
-import 'package:echo_loop/database/app_database.dart' show Bookmark;
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_model_adapter.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_results.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
+import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/bookmark_sentence.dart';
+import 'package:echo_loop/models/bookmark_review_settings.dart';
+import 'package:echo_loop/models/dict_entry.dart';
+import 'package:echo_loop/models/dictionary/dictionary_lookup_result.dart';
 import 'package:echo_loop/models/sentence.dart';
-import 'package:echo_loop/models/sentence_playback_result.dart';
-import 'package:echo_loop/models/speech_practice_models.dart';
+import 'package:echo_loop/providers/dictionary/dictionary_registry.dart';
+import 'package:echo_loop/providers/dictionary/lookup_controller.dart';
+import 'package:echo_loop/providers/dictionary/visible_sources_provider.dart';
+import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
+import 'package:echo_loop/providers/bookmark_review_settings_provider.dart';
+import 'package:echo_loop/providers/audio_engine/foreground_sense_group_range_playback.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
-import 'package:echo_loop/providers/speech/speech_recording_controller.dart';
+import 'package:echo_loop/providers/sense_group_range_playback_provider.dart';
+import 'package:echo_loop/providers/short_audio_player_provider.dart';
+import 'package:echo_loop/screens/bookmark_review_screen.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
-import 'package:echo_loop/services/speech_permission_service.dart';
-import 'package:echo_loop/services/transcription_api_client.dart';
+import 'package:echo_loop/services/dictionary/dictionary_source.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
+import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
+import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
+import 'package:dio/dio.dart';
 import 'package:echo_loop/theme/app_theme.dart';
-import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
-import 'package:echo_loop/widgets/common/playback_controls.dart';
-import 'package:echo_loop/widgets/practice/practice_progress_section.dart';
-import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
-import 'package:echo_loop/widgets/common/recording_button.dart';
+import 'package:echo_loop/utils/time_format.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/mock_providers.dart';
 
-class _MockApiClient extends Mock implements SentenceAiApiClient {}
-
-class _MockAudioItemDao extends Mock implements AudioItemDao {}
-
-class _ReadySpeechPermissionService implements SpeechPermissionService {
-  const _ReadySpeechPermissionService();
-
-  @override
-  bool get isSupported => true;
-
-  @override
-  Future<SpeechPracticePermissionState> getStatus() async =>
-      const SpeechPracticePermissionState(
-        microphone: SpeechPracticePermissionStatus.granted,
-        speech: SpeechPracticePermissionStatus.granted,
-      );
-
-  @override
-  Future<SpeechPracticePermissionState> request({required bool onlyMic}) =>
-      getStatus();
-
-  @override
-  Future<void> openAppSettings() async {}
+class _NoopSentenceAiApiClient extends SentenceAiApiClient {
+  _NoopSentenceAiApiClient() : super.withDio(Dio());
 }
 
-class _WaitingSpyRepeatEngine extends RepeatFlowEngine {
-  bool enteredWaitingForUser = false;
+/// 页面测试不加载原生 media_kit，发音按钮使用无副作用的短音频后端。
+class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
 
-  _WaitingSpyRepeatEngine()
-    : super(
-        onStateChanged: (_) {},
-        callbacks: RepeatFlowCallbacks(
-          pauseAudio: () {},
-          playSentence: (_, _) async => SentencePlaybackResult.completed,
-          startRecording:
-              ({
-                required String promptId,
-                required String referenceText,
-                required Duration maxDuration,
-                Duration? referenceDuration,
-              }) {},
-          cancelRecording: () async {},
-          stopAndEvaluate: ({required String referenceText}) async {},
-          clearRecording: () {},
-          setMaxRecordingDuration: (_) {},
-          hasDetectedSpeech: () => false,
+  @override
+  Stream<String> get errors => const Stream<String>.empty();
+
+  @override
+  Stream<Duration> get positions => const Stream<Duration>.empty();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> open(String filePath, {Duration start = Duration.zero}) async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
+/// 测试词典源：让收藏背面的点词测试完整构建面板，而不触达真实词典服务。
+class _EchoDictionarySource implements DictionarySource {
+  @override
+  String get id => 'local';
+
+  @override
+  IconData get icon => Icons.abc;
+
+  @override
+  bool get canBeDisabled => false;
+
+  @override
+  bool get requiresNetwork => false;
+
+  @override
+  Future<DictionaryLookupResult?> lookup(
+    DictionaryLookupRequest request, {
+    CancelToken? cancelToken,
+  }) async => LocalDictResult(
+    DictEntry(word: request.word, phonetic: 'x', translation: 'definition'),
+  );
+}
+
+class _TestBookmarkReview extends BookmarkReview {
+  @override
+  BookmarkReviewState build() {
+    final now = DateTime.now().toUtc();
+    final preview = MemoryRatingPreviewSet(
+      scheduleId: 'test-schedule',
+      revision: 1,
+      reviewedAt: now,
+      again: _preview(MemoryRating.again, now.add(const Duration(minutes: 9))),
+      hard: _preview(MemoryRating.hard, now.add(const Duration(hours: 1))),
+      good: _preview(MemoryRating.good, now.add(const Duration(hours: 3))),
+      easy: _preview(MemoryRating.easy, now.add(const Duration(days: 16))),
+    );
+    return BookmarkReviewState(
+      cards: [
+        BookmarkSentence(
+          sentence: Sentence(
+            index: 2,
+            text: 'Hidden sentence',
+            startTime: Duration(seconds: 1),
+            endTime: Duration(milliseconds: 3500),
+            isBookmarked: true,
+          ),
+          audioItemId: 'audio-1',
+          memorySubjectId: 'test-subject-2',
+          audioName: 'Daily Listening',
+          originalSentenceIndex: 2,
+        ),
+      ],
+      preview: preview,
+    );
+  }
+
+  /// 构建固定的评分预览，供评分栏展示回归测试使用。
+  MemoryRatingPreview _preview(MemoryRating rating, DateTime dueAt) =>
+      MemoryRatingPreview(
+        scheduleId: 'test-schedule',
+        revision: 0,
+        rating: rating,
+        reviewedAt: DateTime.now().toUtc(),
+        dueAt: dueAt,
+        interval: dueAt.difference(DateTime.now().toUtc()),
+        phase: MemorySchedulePhase.review,
+        transition: MemoryModelTransition(
+          state: MemoryModelState(
+            version: 1,
+            values: const <String, Object?>{},
+          ),
+          phase: MemorySchedulePhase.review,
+          dueAt: dueAt,
+          lastReviewedAt: DateTime.now().toUtc(),
         ),
       );
 
   @override
-  void enterWaitingForUser({bool afterCurrentPrompt = false}) {
-    enteredWaitingForUser = true;
+  Future<void> startCurrentCard() async {}
+  @override
+  Future<void> replayCurrent() async {
+    state = state.copyWith(playbackState: BookmarkReviewPlaybackState.playing);
+  }
+
+  @override
+  Future<void> interruptPlayback() async {
+    state = state.copyWith(playbackState: BookmarkReviewPlaybackState.idle);
+  }
+
+  @override
+  Future<void> toggleCurrentPlayback() async {
+    if (state.playbackState == BookmarkReviewPlaybackState.playing) {
+      await interruptPlayback();
+    } else {
+      await replayCurrent();
+    }
+  }
+
+  @override
+  Future<void> disposeSession() async {}
+  @override
+  Future<void> revealBack() async {
+    state = state.copyWith(face: BookmarkReviewFace.back);
+  }
+
+  @override
+  Future<void> removeCurrentBookmark() async {
+    state = const BookmarkReviewState();
   }
 }
 
-// ========== 测试用 BookmarkDao ==========
-
-class _TestBookmarkDao implements BookmarkDao {
-  @override
-  Future<List<Bookmark>> getByAudioId(String audioItemId) async => [];
-
-  @override
-  Stream<List<Bookmark>> watchByAudioId(String audioItemId) =>
-      const Stream.empty();
-
+class _TestDao implements BookmarkDao {
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-// ========== 测试用 BookmarkReview Provider ==========
+late final SharedPreferences _sharedPreferences;
+final _dictionarySource = _EchoDictionarySource();
 
-/// 带预设句子的测试用 BookmarkReview
-class _TestBookmarkReview extends BookmarkReview {
-  final ReviewDifficultPracticeState _initialState;
-  final List<BookmarkSentence> _testSentences;
-
-  _TestBookmarkReview(this._initialState, this._testSentences);
-
-  @override
-  ReviewDifficultPracticeState build() {
-    return _initialState;
-  }
-
-  @override
-  BookmarkSentence? get currentBookmarkSentence =>
-      _testSentences.isNotEmpty &&
-          state.currentSentenceIndex < _testSentences.length
-      ? _testSentences[state.currentSentenceIndex]
-      : null;
-
-  @override
-  Sentence? get currentSentence => currentBookmarkSentence?.sentence;
-
-  @override
-  int get currentIndex => state.currentSentenceIndex;
-
-  @override
-  RepeatFlowEngine? get repeatEngine {
-    if (!state.isAnnotationMode) return null;
-    final sentence = currentSentence;
-    if (sentence == null) return null;
-
-    final engine = RepeatFlowEngine(
-      onStateChanged: (_) {},
-      callbacks: RepeatFlowCallbacks(
-        pauseAudio: () {},
-        playSentence: (_, _) async => SentencePlaybackResult.completed,
-        startRecording:
-            ({
-              required String promptId,
-              required String referenceText,
-              required Duration maxDuration,
-              Duration? referenceDuration,
-            }) {},
-        cancelRecording: () async {},
-        stopAndEvaluate: ({required String referenceText}) async {},
-        clearRecording: () {},
-        setMaxRecordingDuration: (_) {},
-        hasDetectedSpeech: () => false,
+Widget _app({Locale locale = const Locale('zh')}) => ProviderScope(
+  overrides: [
+    bookmarkReviewProvider.overrideWith(_TestBookmarkReview.new),
+    bookmarkDaoProvider.overrideWithValue(_TestDao()),
+    audioItemDaoProvider.overrideWithValue(FakeAudioItemDao()),
+    sentenceAiNotifierProvider.overrideWithValue(
+      SentenceAiNotifier(
+        cacheDao: createStubbedMockCacheDao(),
+        apiClient: _NoopSentenceAiApiClient(),
       ),
-    );
-    engine.prepare(
-      sentences: [sentence],
-      config: RepeatFlowConfig(
-        audioItemId: 'bookmark-audio',
-        getRepeatCount: (_) => 3,
-        getIntervalDuration: (_) => const Duration(seconds: 3),
-        isManualMode: () => state.isManualMode,
-      ),
-    );
-    return engine;
-  }
-
-  @override
-  Future<void> startPlaying() async {
-    state = state.copyWith(isPlaying: true);
-  }
-
-  @override
-  void pause() {
-    state = state.copyWith(
-      isPlaying: false,
-      isPauseBetweenPlays: false,
-      isCountdownPaused: false,
-      isCountdownFastForward: false,
-    );
-  }
-
-  @override
-  Future<void> resume() async {
-    if (state.isAnnotationMode) {
-      state = state.copyWith(isPlaying: true, currentPlayCount: 1);
-      return;
-    }
-    state = state.copyWith(isPlaying: true);
-  }
-
-  @override
-  void enterAnnotationMode() {
-    if (state.isAnnotationMode) return;
-    state = state.copyWith(
-      isAnnotationMode: true,
-      isPlaying: true,
-      currentPlayCount: 1,
-      isPauseBetweenPlays: false,
-      isTextRevealed: false,
-    );
-  }
-
-  @override
-  void setTextRevealed(bool revealed) {
-    state = state.copyWith(isTextRevealed: revealed);
-  }
-
-  @override
-  void enterWaitingForUserInBlindMode() {
-    state = state.copyWith(
-      isPlaying: false,
-      isPauseBetweenPlays: false,
-      isPauseBetweenSentences: false,
-    );
-  }
-
-  @override
-  Future<void> goToNext() async {
-    if (state.currentSentenceIndex < state.totalSentences - 1) {
-      state = state.copyWith(
-        currentSentenceIndex: state.currentSentenceIndex + 1,
-        currentPlayCount: 1,
-        isAnnotationMode: false,
-        isTextRevealed: false,
-        isPauseBetweenPlays: false,
-      );
-    }
-  }
-
-  @override
-  Future<void> goToPrevious() async {
-    if (state.currentSentenceIndex > 0) {
-      state = state.copyWith(
-        currentSentenceIndex: state.currentSentenceIndex - 1,
-        currentPlayCount: 1,
-        isAnnotationMode: false,
-        isTextRevealed: false,
-        isPauseBetweenPlays: false,
-      );
-    }
-  }
-
-  @override
-  BookmarkSentence? removeBookmark() {
-    if (_testSentences.isEmpty) return null;
-    return _testSentences[state.currentSentenceIndex];
-  }
-
-  @override
-  Future<void> toggleCurrentBookmark() async {
-    if (_testSentences.isEmpty) return;
-    final current = _testSentences[state.currentSentenceIndex];
-    _testSentences[state.currentSentenceIndex] = current.copyWithBookmark(
-      !current.sentence.isBookmarked,
-    );
-    state = state.copyWith(bookmarkVersion: state.bookmarkVersion + 1);
-  }
-
-  @override
-  Future<void> replayDuringCountdown() async {
-    state = state.copyWith(isPauseBetweenPlays: false, isPlaying: true);
-  }
-
-  @override
-  void pauseCountdown() {
-    state = state.copyWith(isCountdownPaused: true);
-  }
-
-  @override
-  void resumeCountdown() {
-    state = state.copyWith(isCountdownPaused: false);
-  }
-
-  @override
-  void disposePlayer() {
-    state = const ReviewDifficultPracticeState();
-  }
-
-  @override
-  Future<void> resetToStart() async {
-    state = ReviewDifficultPracticeState(
-      currentSentenceIndex: 0,
-      totalSentences: _testSentences.length,
-    );
-  }
-
-  void completeSession() {
-    state = state.copyWith(stepFinished: true);
-  }
-}
-
-class _SettingsSpyBookmarkReview extends _TestBookmarkReview {
-  final _WaitingSpyRepeatEngine spyEngine;
-
-  _SettingsSpyBookmarkReview(
-    super.initialState,
-    super.testSentences,
-    this.spyEngine,
-  );
-
-  @override
-  RepeatFlowEngine? get repeatEngine {
-    if (!state.isAnnotationMode) return null;
-    final sentence = currentSentence;
-    if (sentence == null) return null;
-    spyEngine.prepare(
-      sentences: [sentence],
-      config: RepeatFlowConfig(
-        audioItemId: 'bookmark-audio',
-        getRepeatCount: (_) => 3,
-        getIntervalDuration: (_) => const Duration(seconds: 3),
-        isManualMode: () => state.isManualMode,
-      ),
-    );
-    return spyEngine;
-  }
-}
-
-class _BlindWaitingSpyBookmarkReview extends _TestBookmarkReview {
-  bool enteredBlindWaitingForUser = false;
-
-  _BlindWaitingSpyBookmarkReview(super.initialState, super.testSentences);
-
-  @override
-  void enterWaitingForUserInBlindMode() {
-    enteredBlindWaitingForUser = true;
-    super.enterWaitingForUserInBlindMode();
-  }
-}
+    ),
+    ...learningSettingsOverrides(),
+    analyticsOverride(),
+    dictionaryOverride(),
+    sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
+    dictionarySourcesProvider.overrideWithValue([_dictionarySource]),
+    dictionarySourcesByIdProvider.overrideWithValue({
+      _dictionarySource.id: _dictionarySource,
+    }),
+    resolvedDefaultSourceIdProvider.overrideWithValue(_dictionarySource.id),
+    shortAudioPlayerProvider.overrideWithValue(
+      LocalAudioClipPlayer(backend: _NoopShortAudioBackend()),
+    ),
+    dictionaryLookupContextProvider.overrideWithValue(
+      const DictionaryLookupContext(targetLanguage: 'zh-CN'),
+    ),
+  ],
+  child: MaterialApp(
+    locale: locale,
+    theme: AppTheme.light(),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: const BookmarkReviewScreen(),
+  ),
+);
 
 void main() {
-  /// 创建测试用的收藏句子列表
-  List<BookmarkSentence> createBookmarkSentences({int count = 5}) {
-    return List.generate(count, (i) {
-      return BookmarkSentence(
-        sentence: Sentence(
-          index: i,
-          text: 'Bookmark sentence number ${i + 1}.',
-          startTime: Duration(seconds: i * 5),
-          endTime: Duration(seconds: (i + 1) * 5),
-          isBookmarked: true,
-        ),
-        audioItemId: i < 3 ? 'audio-1' : 'audio-2',
-        audioName: i < 3 ? 'Audio One' : 'Audio Two',
-        originalSentenceIndex: i,
+  setUpAll(() async {
+    initTimeago();
+    SharedPreferences.setMockInitialValues({});
+    _sharedPreferences = await SharedPreferences.getInstance();
+  });
+
+  testWidgets('front is minimal and shows source duration and unsave', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    expect(find.text('收藏复习'), findsOneWidget);
+    expect(find.text('来自：Daily Listening'), findsOneWidget);
+    expect(find.text('2.5秒'), findsOneWidget);
+    expect(find.text('取消收藏'), findsOneWidget);
+    expect(find.text('偷看字幕'), findsNothing);
+    expect(find.text('听不太懂'), findsNothing);
+    expect(find.text('Hidden sentence'), findsNothing);
+    expect(find.byKey(const Key('bookmark-review-progress')), findsOneWidget);
+  });
+
+  testWidgets('front uses an equal listening and reveal split', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    final listen = tester.getSize(
+      find.byKey(const Key('bookmark-review-listen-zone')),
+    );
+    final reveal = tester.getSize(
+      find.byKey(const Key('bookmark-review-reveal-zone')),
+    );
+    expect(reveal.height / listen.height, closeTo(1, 0.02));
+  });
+
+  testWidgets('upper zone replays and lower zone reveals explanation back', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-listen-zone')));
+    await tester.pump();
+    expect(find.text('正在播放'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+    expect(find.byKey(const Key('bookmark-review-answer')), findsOneWidget);
+    expect(find.text('听不懂'), findsOneWidget);
+    expect(find.text('听懂了'), findsOneWidget);
+    expect(find.text('轻松听懂'), findsOneWidget);
+    expect(find.text('😕'), findsOneWidget);
+    expect(find.text('🙂'), findsOneWidget);
+    expect(find.text('😎'), findsOneWidget);
+    expect(find.byType(AnimatedSwitcher), findsNothing);
+  });
+
+  testWidgets(
+    'back explanation resolves sense-group playback to foreground domain',
+    (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+      await tester.pump();
+
+      final annotation = find.byType(AnnotationContentView);
+      expect(annotation, findsOneWidget);
+      final container = ProviderScope.containerOf(tester.element(annotation));
+      expect(
+        container.read(senseGroupRangePlaybackProvider),
+        isA<ForegroundSenseGroupRangePlayback>(),
       );
-    });
-  }
+    },
+  );
 
-  /// 创建测试用状态
-  ReviewDifficultPracticeState createPlayerState({
-    int currentSentenceIndex = 0,
-    int totalSentences = 5,
-    int currentPlayCount = 1,
-    bool isPlaying = true,
-    bool isAnnotationMode = false,
-    bool isTextRevealed = false,
-    bool isPauseBetweenPlays = false,
-    bool isPauseBetweenSentences = false,
-    Duration pauseRemaining = Duration.zero,
-    Duration pauseDuration = Duration.zero,
-    bool isCountdownPaused = false,
-    bool isCountdownFastForward = false,
-  }) {
-    final repeatFlowState = isAnnotationMode
-        ? RepeatFlowState(
-            phase: isPauseBetweenPlays
-                ? flow.WaitingInterval(
-                    remaining: pauseRemaining == Duration.zero
-                        ? const Duration(seconds: 3)
-                        : pauseRemaining,
-                    total: pauseDuration == Duration.zero
-                        ? const Duration(seconds: 3)
-                        : pauseDuration,
-                    isPaused: isCountdownPaused,
-                  )
-                : (isPlaying
-                      ? const flow.PlayingPrompt()
-                      : const flow.WaitingForUser(
-                          flow.WaitingReason.userInteraction,
-                        )),
-            sentenceIndex: currentSentenceIndex,
-            totalSentences: totalSentences,
-            repeatIndex: currentPlayCount - 1,
-            totalRepeats: 3,
-            intervalDuration: pauseDuration,
+  testWidgets('page owns the back explanation dictionary panel host', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    expect(find.byType(DictionaryPanelHost), findsOneWidget);
+  });
+
+  testWidgets('back explanation opens dictionary when a word is tapped', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final selectable = tester.state<AppSelectableTextState>(
+      find.byType(AppSelectableText),
+    );
+    final paragraph = selectable.contentParagraph!;
+    final box = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 6),
+        )
+        .first
+        .toRect();
+    await tester.tapAt(paragraph.localToGlobal(box.center));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
+    final panel = tester.getRect(find.byKey(const Key('dict_panel_surface')));
+    final host = tester.getRect(find.byType(DictionaryPanelHost));
+    final footer = tester.getRect(
+      find.byKey(const Key('flashcard-rating-action-bar')),
+    );
+    // 页面级宿主让面板从复习页底边滑出，并覆盖固定评分栏。
+    expect(panel.bottom, host.bottom);
+    expect(panel.bottom, greaterThan(footer.top));
+  });
+
+  testWidgets('back closes the open dictionary before leaving review', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final selectable = tester.state<AppSelectableTextState>(
+      find.byType(AppSelectableText),
+    );
+    final paragraph = selectable.contentParagraph!;
+    final box = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 6),
+        )
+        .first
+        .toRect();
+    await tester.tapAt(paragraph.localToGlobal(box.center));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dict_panel_surface')), findsNothing);
+    expect(find.byKey(const Key('bookmark-review-answer')), findsOneWidget);
+  });
+
+  testWidgets('back explanation looks up multiple selected words', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final selectable = tester.state<AppSelectableTextState>(
+      find.byType(AppSelectableText),
+    );
+    final paragraph = selectable.contentParagraph!;
+    Offset pointForRange(int start, int end) => paragraph.localToGlobal(
+      paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: start, extentOffset: end),
           )
-        : null;
-
-    return ReviewDifficultPracticeState(
-      currentSentenceIndex: currentSentenceIndex,
-      totalSentences: totalSentences,
-      currentPlayCount: currentPlayCount,
-      isPlaying: isPlaying,
-      isAnnotationMode: isAnnotationMode,
-      isTextRevealed: isTextRevealed,
-      isPauseBetweenPlays: isPauseBetweenPlays,
-      isPauseBetweenSentences: isPauseBetweenSentences,
-      pauseRemaining: pauseRemaining,
-      pauseDuration: pauseDuration,
-      isCountdownPaused: isCountdownPaused,
-      isCountdownFastForward: isCountdownFastForward,
-      repeatFlowState: repeatFlowState,
+          .first
+          .toRect()
+          .center,
     );
-  }
+    final gesture = await tester.startGesture(pointForRange(0, 1));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.moveTo(pointForRange(7, 14));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
 
-  Widget createTestWidget({
-    Locale locale = const Locale('en'),
-    ReviewDifficultPracticeState? playerState,
-    List<BookmarkSentence>? sentences,
-    SpeechRecordingPhase turnPhase = SpeechRecordingPhase.idle,
-    SpeechPracticeAttempt? currentAttempt,
-    bool startAtHome = false,
-    bool listenAndRepeatRatingEnabled = true,
-    BookmarkReview Function(
-      ReviewDifficultPracticeState initialState,
-      List<BookmarkSentence> sentences,
-    )?
-    playerFactory,
-  }) {
-    final testSentences = sentences ?? createBookmarkSentences();
-    final initialPlayerState = playerState ?? createPlayerState();
-    final audioItemDao = _MockAudioItemDao();
-    when(() => audioItemDao.getById(any())).thenAnswer((_) async => null);
-    when(
-      () => audioItemDao.getWordTimestamps(any()),
-    ).thenAnswer((_) async => null);
-    when(
-      () => audioItemDao.getTranscriptSrt(any()),
-    ).thenAnswer((_) async => null);
+    expect(selectable.selectedText.trim().split(' '), hasLength(2));
+    expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
+  });
 
-    final router = GoRouter(
-      initialLocation: startAtHome ? '/' : '/bookmark-review',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => Scaffold(
-            body: Center(
-              child: FilledButton(
-                onPressed: () => context.push('/bookmark-review'),
-                child: const Text('Open player'),
-              ),
+  testWidgets('rating footer remains outside the explanation scroll view', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final footer = tester.getRect(
+      find.byKey(const Key('flashcard-rating-action-bar')),
+    );
+    final scroll = find.descendant(
+      of: find.byKey(const Key('bookmark-review-answer')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scroll, findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('flashcard-rating-action-bar')),
+        matching: scroll,
+      ),
+      findsNothing,
+    );
+    await tester.drag(scroll, const Offset(0, -120));
+    await tester.pump();
+    expect(
+      tester.getRect(find.byKey(const Key('flashcard-rating-action-bar'))),
+      footer,
+    );
+  });
+
+  testWidgets('back places a compact playback control above rating actions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final playback = tester.getRect(
+      find.byKey(const Key('bookmark-review-sentence-playback')),
+    );
+    final ratings = tester.getRect(
+      find.byKey(const Key('flashcard-rating-action-bar')),
+    );
+    expect(playback.height, 44);
+    expect(playback.width, ratings.width);
+    expect(playback.bottom, lessThan(ratings.top));
+    expect(find.text('播放原句'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+  });
+
+  testWidgets('back playback control switches between play and stop', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    final toggle = find.byKey(
+      const Key('bookmark-review-sentence-playback-toggle'),
+    );
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.text('停止播放'), findsOneWidget);
+    expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.text('播放原句'), findsOneWidget);
+  });
+
+  testWidgets('settings opens FSRS review controls', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('显示下次复习时间'), findsOneWidget);
+    expect(find.text('每日复习目标'), findsOneWidget);
+    expect(find.text('不限制'), findsOneWidget);
+    expect(find.text('复习顺序'), findsOneWidget);
+    expect(find.text('自动显示 AI 讲解'), findsOneWidget);
+    expect(find.text('进入句子讲解时自动显示选中的 AI 辅助内容'), findsNothing);
+    expect(find.text('AI 解析'), findsOneWidget);
+    expect(find.text('AI 翻译'), findsOneWidget);
+    expect(find.text('AI 意群分割'), findsOneWidget);
+
+    final dailyGoalTitle = tester.getRect(find.text('每日复习目标'));
+    final dailyGoalValue = tester.getRect(find.text('不限制'));
+    final dailyGoalSlider = tester.getRect(find.byType(Slider));
+    expect(dailyGoalValue.left, greaterThanOrEqualTo(dailyGoalTitle.right));
+    expect(dailyGoalSlider.center.dy, greaterThan(dailyGoalTitle.bottom));
+
+    // AI 设置组不使用图标、说明或分隔线，子项以缩进表示从属关系。
+    expect(find.byIcon(Icons.auto_awesome), findsNothing);
+    expect(find.byIcon(Icons.psychology_alt_outlined), findsNothing);
+    expect(find.byIcon(Icons.translate), findsNothing);
+    expect(find.byIcon(Icons.account_tree_outlined), findsNothing);
+    expect(find.byType(Divider), findsNothing);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.ancestor(
+              of: find.text('自动显示 AI 讲解'),
+              matching: find.byType(SwitchListTile),
             ),
-          ),
-        ),
-        GoRoute(
-          path: '/bookmark-review',
-          builder: (context, state) => const BookmarkReviewScreen(),
-        ),
-      ],
+          )
+          .contentPadding,
+      EdgeInsets.zero,
     );
+    for (final title in ['AI 解析', 'AI 翻译', 'AI 意群分割']) {
+      expect(
+        tester
+            .widget<SwitchListTile>(
+              find.ancestor(
+                of: find.text(title),
+                matching: find.byType(SwitchListTile),
+              ),
+            )
+            .contentPadding,
+        const EdgeInsets.only(left: AppSpacing.l),
+      );
+    }
+  });
 
-    return ProviderScope(
-      overrides: [
-        analyticsOverride(),
-        ...studyTimeOverrides(),
-        ...learningSettingsOverrides(
-          listenAndRepeatRatingEnabled: listenAndRepeatRatingEnabled,
+  testWidgets('review order uses localized content-width segments', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(locale: const Locale('en')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-settings')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto'), findsOneWidget);
+    expect(find.text('Smart'), findsNothing);
+    final earliestDueText = tester.getRect(find.text('Earliest due first'));
+    final autoSegment = tester.getRect(
+      find.byKey(const Key('bookmark-review-order-smart')),
+    );
+    final earliestDueSegment = tester.getRect(
+      find.byKey(const Key('bookmark-review-order-dueAt')),
+    );
+    final randomSegment = tester.getRect(
+      find.byKey(const Key('bookmark-review-order-random')),
+    );
+    expect(earliestDueText.height, lessThanOrEqualTo(24));
+    expect(earliestDueSegment.width, greaterThan(autoSegment.width));
+    expect(earliestDueSegment.width, greaterThan(randomSegment.width));
+    expect(autoSegment.height, 40);
+  });
+
+  testWidgets(
+    'settings controls update immediately while the sheet stays open',
+    (tester) async {
+      await _sharedPreferences.clear();
+      addTearDown(_sharedPreferences.clear);
+      await tester.pumpWidget(_app());
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bookmark-review-settings')));
+      await tester.pumpAndSettle();
+
+      final initialGoalSlider = tester.widget<Slider>(find.byType(Slider));
+      expect(initialGoalSlider.min, 0);
+      expect(initialGoalSlider.max, 20);
+      expect(initialGoalSlider.divisions, 20);
+      expect(find.text('不限制'), findsOneWidget);
+
+      final nextReviewTimeSwitch = find.descendant(
+        of: find.ancestor(
+          of: find.text('显示下次复习时间'),
+          matching: find.byType(SwitchListTile),
         ),
-        audioEngineProvider.overrideWith(() => TestAudioEngine()),
-        bookmarkReviewProvider.overrideWith(
-          () =>
-              playerFactory?.call(initialPlayerState, testSentences) ??
-              _TestBookmarkReview(initialPlayerState, testSentences),
-        ),
-        bookmarkDaoProvider.overrideWithValue(_TestBookmarkDao()),
-        speechRecordingControllerProvider.overrideWith(
-          () => TestSpeechRecordingController(
-            initialPhase: turnPhase,
-            initialAttempt: currentAttempt,
-          ),
-        ),
-        speechPermissionServiceProvider.overrideWithValue(
-          const _ReadySpeechPermissionService(),
-        ),
-        audioItemDaoProvider.overrideWithValue(audioItemDao),
-        transcriptionApiClientProvider.overrideWithValue(
-          createTestTranscriptionApiClient(),
-        ),
-        sentenceAiNotifierProvider.overrideWithValue(
-          SentenceAiNotifier(
-            cacheDao: createStubbedMockCacheDao(),
-            apiClient: _MockApiClient(),
-          ),
-        ),
-      ],
-      child: MaterialApp.router(
-        locale: locale,
-        supportedLocales: const [Locale('en'), Locale('zh')],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light(),
-        routerConfig: router,
+        matching: find.byType(Switch),
+      );
+      final switchControl = tester.widget<Switch>(nextReviewTimeSwitch);
+      switchControl.onChanged!(true);
+      await tester.pump();
+      expect(tester.widget<Switch>(nextReviewTimeSwitch).value, isTrue);
+
+      final goalSlider = tester.widget<Slider>(find.byType(Slider));
+      goalSlider.onChanged!(11);
+      await tester.pump();
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 11);
+
+      await tester.tap(find.byKey(const Key('bookmark-review-order-random')));
+      await tester.pump();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.text('复习顺序')),
+      );
+      final settings = container.read(bookmarkReviewSettingsProvider);
+      expect(settings.showNextReviewTime, isTrue);
+      expect(settings.dailyReviewGoal, 60);
+      expect(settings.order, BookmarkReviewOrder.random);
+
+      tester.widget<Slider>(find.byType(Slider)).onChanged!(20);
+      await tester.pump();
+      expect(
+        container.read(bookmarkReviewSettingsProvider).dailyReviewGoal,
+        isNull,
+      );
+      expect(find.text('不限制'), findsOneWidget);
+
+      final aiSwitches = tester.widgetList<Switch>(find.byType(Switch));
+      expect(aiSwitches.elementAt(1).value, isTrue);
+      expect(aiSwitches.elementAt(2).value, isFalse);
+      expect(aiSwitches.elementAt(3).value, isTrue);
+      expect(aiSwitches.elementAt(4).value, isFalse);
+
+      aiSwitches.elementAt(1).onChanged!(false);
+      await tester.pump();
+      expect(find.text('AI 解析'), findsNothing);
+      expect(find.text('AI 翻译'), findsNothing);
+      expect(find.text('AI 意群分割'), findsNothing);
+      expect(
+        container.read(bookmarkReviewSettingsProvider).autoShowAiExplanation,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('rating previews show relative future times when enabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('bookmark-review-settings')));
+    await tester.pumpAndSettle();
+    final nextReviewTimeSwitch = find.descendant(
+      of: find.ancestor(
+        of: find.text('显示下次复习时间'),
+        matching: find.byType(SwitchListTile),
+      ),
+      matching: find.byType(Switch),
+    );
+    await tester.tap(nextReviewTimeSwitch);
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+
+    expect(find.text('9分钟后'), findsOneWidget);
+    expect(find.text('3小时后'), findsOneWidget);
+    expect(find.text('16天后'), findsOneWidget);
+    expect(find.textContaining('/'), findsNothing);
+  });
+
+  testWidgets('narrow screen and large text do not overflow', (tester) async {
+    tester.view.physicalSize = const Size(640, 1280);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: _app(),
       ),
     );
-  }
-
-  group('BookmarkReviewScreen — 基本渲染', () {
-    testWidgets('显示 AppBar 标题', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.text('Review Saved Items'), findsOneWidget);
-    });
-
-    testWidgets('显示关闭按钮', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.close), findsOneWidget);
-    });
-
-    testWidgets('显示设置按钮', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.tune), findsOneWidget);
-    });
-
-    testWidgets('显示进度文本', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            currentSentenceIndex: 2,
-            totalSentences: 10,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sentence 3/10'), findsOneWidget);
-    });
-
-    testWidgets('显示音频来源名称', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      // 第一句来自 Audio One
-      expect(find.textContaining('Audio One'), findsOneWidget);
-    });
-
-    testWidgets('显示进度条', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.byType(PracticeProgressBar), findsOneWidget);
-    });
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
-  group('BookmarkReviewScreen — 盲听模式', () {
-    testWidgets('显示偷看和听不懂按钮', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Peek at subtitles'), findsOneWidget);
-      expect(find.text("Unclear"), findsOneWidget);
-    });
-
-    testWidgets('盲听模式只显示一套底部播放控制', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    });
-
-    testWidgets('播放中不显示盲听标签（共享 widget 简化）', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      // 共享 PracticeNormalModeView 不再显示盲听标签
-      expect(find.byIcon(Icons.headphones), findsNothing);
-      expect(find.text('Listening closely...'), findsNothing);
-    });
-
-    testWidgets('偷看切换显示句子文本', skip: true, (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(isPlaying: true, isTextRevealed: true),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // 统一可点词组件：整句渲染为单个 RichText
-      expect(
-        find.text('Bookmark sentence number 1.', findRichText: true),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('偷看切换隐藏句子文本', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isPlaying: true,
-            isTextRevealed: false,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // 非 revealed 时显示隐藏占位
-      expect(find.byIcon(Icons.hearing), findsOneWidget);
-      expect(
-        find.text('Bookmark sentence number 1.', findRichText: true),
-        findsNothing,
-      );
-    });
-
-    testWidgets('点击偷看切换文本可见性', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isPlaying: true,
-            isTextRevealed: false,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // 点击偷看
-      await tester.tap(find.text('Peek at subtitles'));
-      await tester.pumpAndSettle();
-
-      // 统一可点词组件：整句渲染为单个 RichText
-      expect(
-        find.text('Bookmark sentence number 1.', findRichText: true),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('盲听模式打开设置会进入 WaitingForUser', (tester) async {
-      final player = _BlindWaitingSpyBookmarkReview(
-        createPlayerState(isPlaying: true),
-        createBookmarkSentences(),
-      );
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(isPlaying: true),
-          playerFactory: (_, __) => player,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.tune));
-      await tester.pumpAndSettle();
-
-      expect(player.enteredBlindWaitingForUser, isTrue);
-    });
-
-    testWidgets('盲听模式收藏按钮与进度信息同行并右对齐', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      final progressFinder = find.text('Sentence 1/5');
-      final bookmarkFinder = find.byType(BookmarkToggleRow);
-      expect(bookmarkFinder, findsOneWidget);
-      expect(
-        tester.getCenter(bookmarkFinder).dy,
-        closeTo(tester.getCenter(progressFinder).dy, 3),
-      );
-      expect(
-        tester.getTopRight(bookmarkFinder).dx,
-        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
-      );
-    });
-
-    testWidgets('句间停顿显示倒计时', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isPauseBetweenPlays: true,
-            isPlaying: false,
-            pauseRemaining: const Duration(seconds: 3),
-            pauseDuration: const Duration(seconds: 3),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.text('3'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    });
+  testWidgets('unsave is the trailing action below the progress bar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    final progress = tester.getRect(
+      find.byKey(const Key('bookmark-review-progress')),
+    );
+    final source = tester.getRect(
+      find.byKey(const Key('bookmark-review-source')),
+    );
+    final unsave = tester.getRect(
+      find.byKey(const Key('bookmark-review-unsave')),
+    );
+    expect(source.top, greaterThan(progress.bottom));
+    expect((source.center.dy - unsave.center.dy).abs(), lessThan(2));
+    expect(unsave.right, greaterThan(source.right));
   });
 
-  group('BookmarkReviewScreen — 跟读模式', () {
-    testWidgets('跟读模式收藏按钮与进度信息同行并右对齐', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+  testWidgets('unsave uses a plain label and filled bookmark icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
 
-      final progressFinder = find.text('Sentence 1/5');
-      final bookmarkFinder = find.byType(BookmarkToggleRow);
-      expect(bookmarkFinder, findsOneWidget);
-      expect(
-        tester.getCenter(bookmarkFinder).dy,
-        closeTo(tester.getCenter(progressFinder).dy, 3),
-      );
-      expect(
-        tester.getTopRight(bookmarkFinder).dx,
-        closeTo(tester.getSize(find.byType(Scaffold)).width - AppSpacing.m, 1),
-      );
-    });
-
-    testWidgets('跟读模式显示 SentenceAnnotationCard', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-    });
-
-    testWidgets('跟读模式不显示偷看和听不懂按钮', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Peek at subtitles'), findsNothing);
-      expect(find.text("Unclear"), findsNothing);
-    });
-
-    testWidgets('关闭评级后仍显示录音回放 badge', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          listenAndRepeatRatingEnabled: false,
-          currentAttempt: const SpeechPracticeAttempt(
-            promptId: 'bookmark:a1:0',
-            filePath: '/tmp/bookmark.m4a',
-            status: SpeechPracticeAttemptStatus.passed,
-            score: 0.8,
-          ),
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: false,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Recording'), findsOneWidget);
-    });
-
-    testWidgets('跟读模式显示遍数标签', skip: true, (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-            currentPlayCount: 2,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Play 2/3'), findsOneWidget);
-    });
-
-    testWidgets('跟读留白期显示录音面板', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: ReviewDifficultPracticeState(
-            currentSentenceIndex: 0,
-            totalSentences: 5,
-            currentPlayCount: 1,
-            isAnnotationMode: true,
-            isPlaying: false,
-            isPauseBetweenPlays: true,
-            repeatFlowState: const RepeatFlowState(
-              phase: flow.Recording(promptId: 'bookmark:audio-1:0'),
-              sentenceIndex: 0,
-              totalSentences: 5,
-              repeatIndex: 0,
-              totalRepeats: 3,
-              intervalDuration: Duration(seconds: 8),
-            ),
-          ),
-          turnPhase: SpeechRecordingPhase.awaitingSpeech,
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-
-      // 跟读留白期显示录音面板（含录音按钮）
-      expect(find.byType(RecordingButton), findsOneWidget);
-    });
-
-    testWidgets('跟读模式只显示一套底部播放控制', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    });
-
-    testWidgets('打开设置弹窗后进入 WaitingForUser', (tester) async {
-      final spyEngine = _WaitingSpyRepeatEngine();
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            isAnnotationMode: true,
-            isPlaying: true,
-          ),
-          playerFactory: (initialState, sentences) =>
-              _SettingsSpyBookmarkReview(initialState, sentences, spyEngine),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.tune));
-      await tester.pumpAndSettle();
-
-      expect(spyEngine.enteredWaitingForUser, isTrue);
-    });
-  });
-
-  group('BookmarkReviewScreen — 播放控制', () {
-    testWidgets('显示播放控制按钮', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-      // 播放中显示暂停图标
-      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    });
-
-    testWidgets('播放中点击暂停', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.pause_rounded));
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-    });
-
-    testWidgets('暂停后点击恢复', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      // 暂停
-      await tester.tap(find.byIcon(Icons.pause_rounded));
-      await tester.pumpAndSettle();
-
-      // 恢复
-      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    });
-
-    testWidgets('第一句时上一句按钮禁用', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(currentSentenceIndex: 0),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final prevIcon = find.byIcon(Icons.skip_previous_rounded);
-      final opacity = tester.widget<AnimatedOpacity>(
-        find
-            .ancestor(of: prevIcon, matching: find.byType(AnimatedOpacity))
-            .first,
-      );
-      expect(opacity.opacity, 0.15);
-    });
-
-    testWidgets('最后一句时显示完成图标且始终可用', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          playerState: createPlayerState(
-            currentSentenceIndex: 4,
-            totalSentences: 5,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // 最后一句显示 check_circle_rounded 而非 skip_next_rounded
-      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
-
-      // 完成按钮复用当前共享导航控件，并保持启用。
-      final nextButton = tester.widget<PlaybackNavButton>(
-        find.ancestor(
-          of: find.byIcon(Icons.check_circle_rounded),
-          matching: find.byType(PlaybackNavButton),
-        ),
-      );
-      expect(nextButton.enabled, isTrue);
-    });
-
-    testWidgets('点击听不懂进入跟读模式', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(playerState: createPlayerState(isPlaying: true)),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text("Unclear"));
-      await tester.pumpAndSettle();
-
-      // 进入跟读模式后显示 SentenceAnnotationCard
-      expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      expect(find.text('Peek at subtitles'), findsNothing);
-    });
-  });
-
-  group('BookmarkReviewScreen — 中文本地化', () {
-    testWidgets('中文标题和操作文案', (tester) async {
-      await tester.pumpWidget(createTestWidget(locale: const Locale('zh')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('收藏复习'), findsOneWidget);
-      expect(find.text('偷看字幕'), findsOneWidget);
-      expect(find.text('听不太懂'), findsOneWidget);
-    });
-  });
-
-  group('BookmarkReviewScreen — 完成弹窗', () {
-    testWidgets('点完成返回后主界面仍可点击', (tester) async {
-      late _TestBookmarkReview player;
-
-      await tester.pumpWidget(
-        createTestWidget(
-          startAtHome: true,
-          listenAndRepeatRatingEnabled: false,
-          playerFactory: (state, sentences) {
-            player = _TestBookmarkReview(state, sentences);
-            return player;
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Open player'));
-      await tester.pumpAndSettle();
-
-      player.completeSession();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-
-      expect(find.text('Review Complete'), findsOneWidget);
-
-      await tester.tap(find.text('Done'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Open player'), findsOneWidget);
-
-      await tester.tap(find.text('Open player'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(BookmarkReviewScreen), findsOneWidget);
-    });
+    final action = find.byKey(const Key('bookmark-review-unsave'));
+    final bookmark = find.descendant(
+      of: action,
+      matching: find.byIcon(Icons.bookmark),
+    );
+    expect(bookmark, findsOneWidget);
+    expect(
+      find.descendant(of: action, matching: find.byType(TextButton)),
+      findsNothing,
+    );
+    final label = tester.widget<Text>(find.text('取消收藏'));
+    expect(label.style?.fontWeight, FontWeight.normal);
+    expect(label.style?.fontSize, 14);
+    expect(tester.widget<Icon>(bookmark).color, AppTheme.bookmarkColor);
   });
 }

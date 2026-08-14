@@ -172,6 +172,7 @@ void main() {
     );
 
     final playing = playback.play(
+      'media-test',
       const Duration(seconds: 2),
       const Duration(seconds: 4),
     );

@@ -8,6 +8,9 @@ class Bookmarks extends Table {
   /// 自增主键
   IntColumn get id => integer().autoIncrement()();
 
+  /// 跨数据库迁移和字幕重解析仍保持稳定的记忆主体 ID。
+  TextColumn get memorySubjectId => text().nullable()();
+
   /// 音频 ID，外键关联 audio_items.id
   TextColumn get audioItemId =>
       text().references(AudioItems, #id, onDelete: KeyAction.cascade)();

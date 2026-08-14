@@ -764,8 +764,6 @@ class _IntensiveListenPlayerScreenState
                                               sentenceEndMs: sentence
                                                   .endTime
                                                   .inMilliseconds,
-                                              senseGroupRangePlayback: player
-                                                  .senseGroupRangePlayback,
                                               onStopMainPlayer: () {
                                                 player
                                                     .onAnnotationUserInteraction();

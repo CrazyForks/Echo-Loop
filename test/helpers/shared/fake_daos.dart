@@ -95,6 +95,7 @@ class FakeBookmarkDao implements BookmarkDao {
         .map(
           (i) => Bookmark(
             id: i,
+            memorySubjectId: 'fake-subject-$audioItemId-$i',
             audioItemId: audioItemId,
             sentenceIndex: i,
             sentenceText: 'test sentence $i',
@@ -161,6 +162,7 @@ class FakeBookmarkDao implements BookmarkDao {
           BookmarkWithAudio(
             bookmark: Bookmark(
               id: index,
+              memorySubjectId: 'fake-subject-${entry.key}-$index',
               audioItemId: entry.key,
               sentenceIndex: index,
               sentenceText: 'test sentence $index',

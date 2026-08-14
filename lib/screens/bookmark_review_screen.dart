@@ -1,18 +1,4 @@
-/// 收藏句子复习页面
-///
-/// 从 Favorites Tab 进入，加载所有收藏句子，按音频分组乱序后逐句复习。
-/// 交互模式与难句补练页面（ReviewDifficultPracticeScreen）完全一致：
-/// 盲听 N 遍 → 句间停顿 → 自动推进；偷看字幕、听不懂进入跟读模式。
-/// 支持手动/自动控制模式切换、跟读自动录音。
-///
-/// 录音通过 [SpeechRecordingController] 驱动（跟读专用控制器）。
-/// 录音回放通过 [AudioPlaybackService] 播放本地 .m4a 文件。
-///
-/// 额外功能：
-/// - 显示当前句子来源音频名称
-/// - 跨音频自动切换（loadAudio）
-/// - 取消收藏当前句子
-/// - 完成后支持"再来一遍"（重新乱序）
+/// 收藏句极简闪卡复习页面。
 library;
 
 import 'dart:async';
@@ -21,37 +7,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../database/enums.dart';
 import '../features/chatbot/widgets/sentence_chat_button.dart';
+import '../features/memory_scheduler/domain/memory_rating.dart';
+import '../features/memory_scheduler/domain/memory_scheduler_results.dart';
+import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart';
 import '../l10n/app_localizations.dart';
-import '../models/speech_practice_models.dart';
-import '../utils/playback_speed.dart';
-import '../providers/learning_settings_provider.dart';
+import '../models/bookmark_sentence.dart';
+import '../providers/audio_engine/foreground_audio_engine_provider.dart';
+import '../providers/bookmark_review_settings_provider.dart';
+import '../providers/audio_engine/foreground_sense_group_range_playback.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
-import '../providers/learning_session/review_difficult_practice_provider.dart';
-import '../providers/repeat_flow/repeat_flow_state.dart';
-import '../providers/speech/speech_recording_controller.dart';
 import '../providers/sentence_ai_provider.dart';
-import '../utils/wakelock_mixin.dart';
-import '../widgets/dialogs/free_play_complete_dialog.dart';
-import '../widgets/speech_permission_dialog.dart';
-import '../widgets/difficult_practice/difficult_practice_settings_sheet.dart';
-import '../widgets/player_hotkey_scope.dart';
-import '../widgets/practice/selectable_sentence_text.dart';
+import '../providers/sense_group_range_playback_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/common/countdown_chip.dart';
-import '../widgets/practice/practice_normal_mode_view.dart';
-import '../widgets/practice/practice_progress_section.dart';
+import '../utils/time_format.dart';
+import '../utils/wakelock_mixin.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/sentence_explanation_view.dart';
-import '../widgets/common/bookmark_toggle_row.dart';
-import '../widgets/common/practice_playback_footer.dart';
-import '../widgets/common/recording_button.dart' show RecordingButtonMode;
-import '../widgets/common/repeat_practice_panel.dart';
-import '../providers/repeat_flow/repeat_flow_phase.dart';
-import '../widgets/practice/practice_play_count_label.dart';
+import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 
-/// 收藏句子复习页面
 class BookmarkReviewScreen extends ConsumerStatefulWidget {
   const BookmarkReviewScreen({super.key});
 
@@ -62,597 +36,564 @@ class BookmarkReviewScreen extends ConsumerStatefulWidget {
 
 class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
     with WakelockMixin {
-  bool _isShowingDialog = false;
-
-  /// 是否正在退出页面，防止退出过程中 listener 触发弹窗
   bool _isExiting = false;
-
-  /// 词典面板宿主（返回/退出时先关面板的 guard 用）
-  final GlobalKey<DictionaryPanelHostState> _dictPanelHostKey =
+  final GlobalKey<DictionaryPanelHostState> _dictionaryHostKey =
       GlobalKey<DictionaryPanelHostState>();
-
-  ProviderSubscription<ReviewDifficultPracticeState>? _playerSubscription;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final ok = await ensureSpeechReadyForSubStage(
-        context,
-        ref,
-        SubStageType.reviewDifficultPractice,
-      );
-      if (!mounted) return;
-      if (!ok) {
-        if (context.canPop()) context.pop();
-        return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(ref.read(bookmarkReviewProvider.notifier).startCurrentCard());
       }
-      ref.read(bookmarkReviewProvider.notifier).syncRecordingMode();
-      ref.read(bookmarkReviewProvider.notifier).startPlaying();
     });
-    _playerSubscription = ref.listenManual<ReviewDifficultPracticeState>(
-      bookmarkReviewProvider,
-      _handlePlayerStateChanged,
-    );
   }
 
-  @override
-  void dispose() {
-    _playerSubscription?.close();
-    super.dispose();
-  }
-
-  /// 取消录音和回放
-  Future<void> _cancelRecordingAndPlayback() async {
-    final controller = ref.read(speechRecordingControllerProvider.notifier);
-    await controller.cancelActiveRecording();
-  }
-
-  /// 处理退出
-  Future<void> _handleExit() async {
-    // 词典面板开着时本次返回只关面板，不退出页面
-    if (_dictPanelHostKey.currentState?.closeIfOpen() ?? false) return;
+  Future<void> _exit() async {
+    if (_isExiting) return;
     _isExiting = true;
-    await _cancelRecordingAndPlayback();
-    final player = ref.read(bookmarkReviewProvider.notifier);
-    player.pause();
+    await ref.read(bookmarkReviewProvider.notifier).disposeSession();
+    if (mounted && context.canPop()) context.pop();
+  }
+
+  Future<void> _openSettings() async {
+    await ref.read(bookmarkReviewProvider.notifier).interruptPlayback();
     if (!mounted) return;
-
-    // 释放录音
-    await ref.read(speechRecordingControllerProvider.notifier).fullReset();
-
-    // 收藏复习无需保存断点，直接退出
-    player.disposePlayer();
-    if (mounted) context.pop();
-  }
-
-  /// 取消当前句子的收藏
-  /// 切换当前句子的收藏标记
-  Future<void> _handleToggleBookmark() async {
-    await ref.read(bookmarkReviewProvider.notifier).toggleCurrentBookmark();
-  }
-
-  void _handlePlayerStateChanged(
-    ReviewDifficultPracticeState? prev,
-    ReviewDifficultPracticeState next,
-  ) {
-    if (prev != null &&
-        prev.currentSentenceIndex != next.currentSentenceIndex) {
-      ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-    }
-
-    if (prev != null && !_isExiting) {
-      if (!prev.stepFinished && next.stepFinished) {
-        shortenIdleTimeout(5);
-        unawaited(_handleCompleted());
-      }
-    }
-
-    if (prev?.isManualMode != next.isManualMode) {
-      ref.read(bookmarkReviewProvider.notifier).syncRecordingMode();
-    }
-
-    if (next.isPauseBetweenPlays &&
-        next.isManualMode &&
-        !next.isCountdownPaused) {
-      ref.read(bookmarkReviewProvider.notifier).pauseCountdown();
-    }
-  }
-
-  /// 处理完成
-  Future<void> _handleCompleted() async {
-    if (_isShowingDialog || _isExiting || !mounted) return;
-    _isShowingDialog = true;
-
-    // 完成时释放录音
-    await ref.read(speechRecordingControllerProvider.notifier).fullReset();
-
-    if (!mounted) return;
-    final playerState = ref.read(bookmarkReviewProvider);
-    final l10n = AppLocalizations.of(context)!;
-
-    await handleFreePlayComplete(
+    await showModalBottomSheet<void>(
       context: context,
-      title: l10n.bookmarkReviewComplete,
-      stats: [
-        (value: '${playerState.totalSentences}', label: l10n.statSentences),
-      ],
-      replayLabel: l10n.bookmarkReviewAgain,
-      onStudyAgain: () async {
-        await ref.read(bookmarkReviewProvider.notifier).resetToStart();
-      },
-      onExit: () async {
-        _isExiting = true;
-        ref.read(bookmarkReviewProvider.notifier).disposePlayer();
-        if (mounted) context.pop();
-      },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => const BookmarkReviewSettingsSheet(),
     );
-    _isShowingDialog = false;
+  }
+
+  Future<void> _removeCurrent() async {
+    await ref.read(bookmarkReviewProvider.notifier).removeCurrentBookmark();
+    if (!mounted) return;
+    final error = ref.read(bookmarkReviewProvider).removeError;
+    if (error != null) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.bookmarkReviewUnsaveFailed,
+            ),
+          ),
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(bookmarkReviewProvider);
+    final card = state.currentCard;
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
+    final player = ref.read(bookmarkReviewProvider.notifier);
 
-    // select 过滤倒计时 tick（100ms 一次的 remaining 变化），避免整页频繁 rebuild
-    // 导致 TapGestureRecognizer 被反复 dispose/重建，点击单词无法触发词典弹窗。
-    ref.watch(
-      bookmarkReviewProvider.select(
-        (s) => (
-          s.currentSentenceIndex,
-          s.totalSentences,
-          s.currentPlayCount,
-          s.isPlaying,
-          s.isPauseBetweenPlays,
-          s.isAnnotationMode,
-          s.isTextRevealed,
-          s.isCountdownPaused,
-          s.stepFinished,
-          s.bookmarkVersion,
-          s.isManualMode,
-          s.settings,
-          s.repeatFlowState?.phase.runtimeType,
-          // 倒计时暂停状态独立监听，否则点暂停时 phase.runtimeType 不变，
-          // 页面不 rebuild，快进按钮等依赖 isPaused 的渲染会停留在旧值。
-          s.repeatFlowState?.phase is WaitingInterval
-              ? (s.repeatFlowState!.phase as WaitingInterval).isPaused
-              : false,
-          s.repeatFlowState?.repeatIndex,
-          s.repeatFlowState?.isReviewPlaybackActive,
-          s.repeatFlowState?.recordingScore,
-          s.blindFlowState?.phase.runtimeType,
+    return wakelockBody(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop ||
+              _dictionaryHostKey.currentState?.closeIfOpen() == true) {
+            return;
+          }
+          unawaited(_exit());
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              key: const Key('bookmark-review-close'),
+              onPressed: _exit,
+              icon: const Icon(Icons.close),
+            ),
+            title: Text(l10n.bookmarkReviewTitle),
+            centerTitle: true,
+            actions: [
+              SentenceChatButton(
+                sentenceText: card?.sentence.text ?? '',
+                onBeforeOpen: () => unawaited(player.interruptPlayback()),
+              ),
+              IconButton(
+                key: const Key('bookmark-review-settings'),
+                onPressed: _openSettings,
+                icon: const Icon(Icons.tune),
+              ),
+            ],
+          ),
+          body: card == null
+              ? _EmptyReview(message: l10n.bookmarkReviewEmpty)
+              : DictionaryPanelHost(
+                  key: _dictionaryHostKey,
+                  child: Column(
+                    children: [
+                      _ReviewProgress(
+                        progress: state.total == 0
+                            ? 0
+                            : state.position / state.total,
+                        source: l10n.bookmarkReviewFromAudio(card.audioName),
+                        duration: l10n.sentenceDuration(
+                          (card.sentence.duration.inMilliseconds / 1000)
+                              .toStringAsFixed(1),
+                        ),
+                        isRemoving: state.isRemoving,
+                        onRemove: _removeCurrent,
+                      ),
+                      Expanded(
+                        child: state.face == BookmarkReviewFace.front
+                            ? _ListeningFront(
+                                playbackState: state.playbackState,
+                                hasError: state.mediaError != null,
+                                onReplay: () =>
+                                    unawaited(player.replayCurrent()),
+                                onReveal: () => unawaited(player.revealBack()),
+                              )
+                            : ProviderScope(
+                                overrides: [
+                                  senseGroupRangePlaybackProvider.overrideWith(
+                                    (ref) => ForegroundSenseGroupRangePlayback(
+                                      engine: ref.read(
+                                        foregroundAudioEngineProvider.notifier,
+                                      ),
+                                      playbackSpeed: () => 1.0,
+                                    ),
+                                  ),
+                                ],
+                                child: _ReviewAnswer(
+                                  card: card,
+                                  preview: state.preview,
+                                  showNextReviewTime: ref.watch(
+                                    bookmarkReviewSettingsProvider.select(
+                                      (settings) => settings.showNextReviewTime,
+                                    ),
+                                  ),
+                                  isSubmitting: state.isSubmittingRating,
+                                  playbackState: state.playbackState,
+                                  onTogglePlayback: () =>
+                                      unawaited(player.toggleCurrentPlayback()),
+                                  onRating: (rating) =>
+                                      unawaited(player.selectRating(rating)),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
         ),
       ),
     );
-    final playerState = ref.read(bookmarkReviewProvider);
-    final player = ref.read(bookmarkReviewProvider.notifier);
+  }
+}
 
-    // watch 录音相关状态（仅监听 build 中实际使用的字段，避免转录更新触发重建）
-    ref.watch(
-      speechRecordingControllerProvider.select(
-        (s) => (s.phase, s.currentAttempt, s.promptId),
+class _ReviewProgress extends StatelessWidget {
+  const _ReviewProgress({
+    required this.progress,
+    required this.source,
+    required this.duration,
+    required this.isRemoving,
+    required this.onRemove,
+  });
+
+  final double progress;
+  final String source;
+  final String duration;
+  final bool isRemoving;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.m,
+        AppSpacing.s,
+        AppSpacing.m,
+        AppSpacing.s,
+      ),
+      child: Column(
+        children: [
+          LinearProgressIndicator(
+            key: const Key('bookmark-review-progress'),
+            value: progress,
+            minHeight: 3,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final details = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      source,
+                      key: const Key('bookmark-review-source'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: muted,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s),
+                  Text('·', style: muted),
+                  const SizedBox(width: AppSpacing.s),
+                  Text(duration, style: muted),
+                ],
+              );
+              // 取消收藏沿用复习页的轻量文字操作，不使用强调色按钮。
+              final action = Semantics(
+                key: const Key('bookmark-review-unsave'),
+                button: true,
+                enabled: !isRemoving,
+                label: AppLocalizations.of(context)!.bookmarkReviewUnsave,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: isRemoving ? null : onRemove,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: EdgeInsets.zero,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppLocalizations.of(context)!.bookmarkReviewUnsave,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 14,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          if (isRemoving)
+                            const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          else
+                            const Icon(
+                              Icons.bookmark,
+                              size: 22,
+                              color: AppTheme.bookmarkColor,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              return Row(
+                children: [
+                  Expanded(child: details),
+                  const SizedBox(width: AppSpacing.xs),
+                  action,
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
-    final turnState = ref.read(speechRecordingControllerProvider);
+  }
+}
 
-    final currentBookmark = player.currentBookmarkSentence;
-    final currentSentence = currentBookmark?.sentence;
-    final currentPromptId = player.repeatEngine?.currentPromptId ?? '';
-    final currentAttempt = turnState.currentAttempt;
+class _ListeningFront extends StatelessWidget {
+  const _ListeningFront({
+    required this.playbackState,
+    required this.hasError,
+    required this.onReplay,
+    required this.onReveal,
+  });
 
-    // 句子时长和时间戳
-    final hasDuration =
-        currentSentence != null && currentSentence.duration > Duration.zero;
-    final durationText = hasDuration
-        ? l10n.sentenceDuration(
-            (currentSentence.duration.inMilliseconds / 1000.0).toStringAsFixed(
-              1,
-            ),
-          )
-        : null;
-    return wakelockBody(
-      child: LearningHotkeyScope(
-        onPlayPause: () {
-          unawaited(_cancelRecordingAndPlayback());
-          if (playerState.isPauseBetweenPlays) {
-            ref
-                .read(speechRecordingControllerProvider.notifier)
-                .clearRecording();
-            player.replayDuringCountdown();
-          } else if (playerState.isPlaying) {
-            player.pause();
-          } else {
-            player.resume();
-          }
-        },
-        onPrevious: () {
-          unawaited(_cancelRecordingAndPlayback());
-          ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-          player.goToPrevious();
-        },
-        onNext: () {
-          unawaited(_cancelRecordingAndPlayback());
-          ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-          player.goToNext();
-        },
-        child: PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) return;
-            _handleExit();
-          },
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(l10n.bookmarkReviewTitle),
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _handleExit,
-              ),
-              actions: [
-                // AI 助手入口：打开前暂停自动推进（同设置按钮的处理）。
-                SentenceChatButton(
-                  sentenceText: currentSentence?.text ?? '',
-                  onBeforeOpen: () {
-                    if (playerState.isAnnotationMode) {
-                      player.repeatEngine?.onUserInteraction();
-                    } else {
-                      player.enterWaitingForUserInBlindMode();
-                    }
-                  },
+  final BookmarkReviewPlaybackState playbackState;
+  final bool hasError;
+  final VoidCallback onReplay;
+  final VoidCallback onReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final status = switch (playbackState) {
+      BookmarkReviewPlaybackState.loading => l10n.bookmarkReviewLoadingAudio,
+      BookmarkReviewPlaybackState.playing => l10n.bookmarkReviewPlaying,
+      BookmarkReviewPlaybackState.failed => l10n.bookmarkReviewTapRetry,
+      BookmarkReviewPlaybackState.idle => l10n.bookmarkReviewTapReplay,
+    };
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.m,
+            AppSpacing.s,
+            AppSpacing.m,
+            AppSpacing.l,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: Column(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Material(
+                    key: const Key('bookmark-review-listen-zone'),
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.2 : 0.42,
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onReplay,
+                      child: SizedBox.expand(
+                        child: _CenteredPrompt(
+                          icon: hasError
+                              ? Icons.refresh_rounded
+                              : Icons.headphones_rounded,
+                          title: status,
+                          body: hasError
+                              ? l10n.bookmarkReviewAudioSkipped
+                              : l10n.bookmarkReviewListenPrompt,
+                          accent: hasError
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.tune),
-                  onPressed: () {
-                    final player = ref.read(bookmarkReviewProvider.notifier);
-                    if (playerState.isAnnotationMode) {
-                      player.repeatEngine?.onUserInteraction();
-                    } else {
-                      player.enterWaitingForUserInBlindMode();
-                    }
-                    showBookmarkReviewSettingsSheet(context: context);
-                  },
+                const SizedBox(height: AppSpacing.s),
+                Expanded(
+                  flex: 1,
+                  child: Material(
+                    key: const Key('bookmark-review-reveal-zone'),
+                    color: theme.colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(28),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onReveal,
+                      child: SizedBox.expand(
+                        child: _CenteredPrompt(
+                          icon: Icons.visibility_outlined,
+                          title: l10n.bookmarkReviewReadyTitle,
+                          body: l10n.bookmarkReviewRevealHint,
+                          accent: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
-            ),
-            // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）
-            body: DictionaryPanelHost(
-              key: _dictPanelHostKey,
-              child: Column(
-                children: [
-                  // 进度区域（含音频来源名称）
-                  PracticeProgressBar(
-                    current: playerState.currentSentenceIndex + 1,
-                    total: playerState.totalSentences,
-                    elapsed: currentSentence?.startTime,
-                    remaining:
-                        player.bookmarkSentences.isEmpty ||
-                            currentSentence == null
-                        ? null
-                        : player.bookmarkSentences.last.sentence.endTime -
-                              currentSentence.startTime,
-                  ),
-                  PracticeSentenceInfoRow(
-                    progressText: l10n.bookmarkReviewProgress(
-                      playerState.currentSentenceIndex + 1,
-                      playerState.totalSentences,
-                    ),
-                    durationText: durationText,
-                    audioName: currentBookmark?.audioName,
-                    showAudioSource: true,
-                    l10n: l10n,
-                    // 收藏操作与进度信息同行，避免随正文模式切换而发生垂直偏移。
-                    trailing: BookmarkToggleRow(
-                      isDifficult: currentSentence?.isBookmarked ?? true,
-                      onTap: _handleToggleBookmark,
-                    ),
-                  ),
-
-                  // 主体内容：盲听/跟读 双态切换
-                  Expanded(
-                    child: playerState.isAnnotationMode
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.m,
-                            ),
-                            child: currentSentence == null
-                                ? const SizedBox.shrink()
-                                : Column(
-                                    children: [
-                                      Expanded(
-                                        child: SentenceExplanationView(
-                                          text: currentSentence.text,
-                                          aiNotifier: ref.read(
-                                            sentenceAiNotifierProvider,
-                                          ),
-                                          audioItemId:
-                                              currentBookmark?.audioItemId,
-                                          sentenceIndex:
-                                              currentBookmark
-                                                  ?.originalSentenceIndex ??
-                                              currentSentence.index,
-                                          sentenceStartMs: currentSentence
-                                              .startTime
-                                              .inMilliseconds,
-                                          sentenceEndMs: currentSentence
-                                              .endTime
-                                              .inMilliseconds,
-                                          highlightedSegments:
-                                              currentAttempt?.referenceSegments,
-                                          onStopMainPlayer: () {
-                                            player.repeatEngine
-                                                ?.enterWaitingForUser();
-                                          },
-                                          onToolbarButtonTapped: () {
-                                            player.repeatEngine
-                                                ?.onUserInteraction();
-                                          },
-                                        ),
-                                      ),
-                                      _buildAnnotationMiddlePanel(
-                                        playerState: playerState,
-                                        turnState: turnState,
-                                        currentAttempt: currentAttempt,
-                                        currentPromptId: currentPromptId,
-                                        l10n: l10n,
-                                        theme: theme,
-                                      ),
-                                    ],
-                                  ),
-                          )
-                        : PracticeNormalModeView(
-                            l10n: l10n,
-                            theme: theme,
-                            isTextRevealed: playerState.isTextRevealed,
-                            countdown: Consumer(
-                              builder: (context, ref, _) {
-                                final s = ref.watch(
-                                  bookmarkReviewProvider.select(
-                                    (s) => (
-                                      show:
-                                          s.isPauseBetweenPlays &&
-                                          !s.isManualMode,
-                                      total: s.pauseDuration,
-                                      paused: s.isCountdownPaused,
-                                      fastForward: s.isCountdownFastForward,
-                                    ),
-                                  ),
-                                );
-                                if (!s.show) return const SizedBox.shrink();
-                                return CountdownChip(
-                                  total: s.total,
-                                  isPaused: s.paused,
-                                  isFastForward: s.fastForward,
-                                  onTap: player.enterWaitingForUserInBlindMode,
-                                  onPause: () => player.pauseCountdown(),
-                                  onResume: () => player.resumeCountdown(),
-                                );
-                              },
-                            ),
-                            onPeekToggle: () {
-                              player.enterWaitingForUserInBlindMode();
-                              player.setTextRevealed(
-                                !playerState.isTextRevealed,
-                              );
-                            },
-                            onCantUnderstand: () =>
-                                player.enterAnnotationMode(),
-                            onToggleMark: _handleToggleBookmark,
-                            isDifficult: currentSentence?.isBookmarked ?? true,
-                            showBookmarkRow: false,
-                            sentenceText: currentSentence?.text,
-                            lookupOrigin: currentSentence != null
-                                ? DictionaryLookupOrigin(
-                                    audioItemId: currentBookmark?.audioItemId,
-                                    sentenceIndex: currentSentence.index,
-                                    sentenceText: currentSentence.text,
-                                    sentenceStartMs: currentSentence
-                                        .startTime
-                                        .inMilliseconds,
-                                    sentenceEndMs:
-                                        currentSentence.endTime.inMilliseconds,
-                                  )
-                                : null,
-                            onBeforeLookup: () =>
-                                player.enterWaitingForUserInBlindMode(),
-                          ),
-                  ),
-
-                  PracticePlaybackFooter(
-                    canGoPrev: playerState.currentSentenceIndex > 0,
-                    isLast:
-                        playerState.currentSentenceIndex >=
-                        playerState.totalSentences - 1,
-                    centerIcon: _buildFooterCenterIcon(playerState),
-                    onPrevious: _handlePrevious,
-                    onNext: _handleNext,
-                    onCenter: _handleCenter,
-                    isManualMode: playerState.isManualMode,
-                    playCountText: _buildPlayCountText(playerState, l10n),
-                    statusSuffixText: _formatSpeed(
-                      playerState.settings.playbackSpeed,
-                    ),
-                    l10n: l10n,
-                    theme: theme,
-                  ),
-                ],
-              ),
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildAnnotationMiddlePanel({
-    required ReviewDifficultPracticeState playerState,
-    required SpeechRecordingState turnState,
-    required SpeechPracticeAttempt? currentAttempt,
-    required String currentPromptId,
-    required AppLocalizations l10n,
-    required ThemeData theme,
-  }) {
-    final flowState = playerState.repeatFlowState;
-    if (flowState == null) return const SizedBox.shrink();
-    final engine = ref.read(bookmarkReviewProvider.notifier).repeatEngine;
-    void noop() {}
+class _CenteredPrompt extends StatelessWidget {
+  const _CenteredPrompt({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.accent,
+  });
+  final IconData icon;
+  final String title;
+  final String body;
+  final Color accent;
 
-    final isPlaying = flowState.phase is PlayingPrompt;
-    final isInPause = flowState.isInPause;
-    final showCountdown = flowState.isCountingDown;
-
-    final isRecording = turnState.isRecordingPrompt(currentPromptId);
-    final recordingMode = isRecording
-        ? RecordingButtonMode.recording
-        : RecordingButtonMode.idle;
-    final isProcessingState =
-        turnState.promptId == currentPromptId &&
-        turnState.phase == SpeechRecordingPhase.processing;
-
-    return RepeatPracticePanel(
-      l10n: l10n,
-      theme: theme,
-      recordingMode: recordingMode,
-      isProcessing: isProcessingState,
-      currentAttempt: currentAttempt,
-      hintText: isPlaying ? l10n.listenAndRepeatListenHint : null,
-      // 关闭评级时由面板降级为录音回放 badge。
-      showRatingBadge: ref.watch(
-        learningSettingsProvider.select((s) => s.listenAndRepeatRatingEnabled),
-      ),
-      showCountdown: showCountdown,
-      isInPause: isInPause,
-      countdownWidget: showCountdown
-          ? Center(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final phase = ref.watch(
-                    bookmarkReviewProvider.select(
-                      (s) => s.repeatFlowState?.phase,
-                    ),
-                  );
-                  if (phase is! WaitingInterval) {
-                    return const SizedBox.shrink();
-                  }
-                  return CountdownChip(
-                    total: phase.total,
-                    isPaused: phase.isPaused,
-                    isFastForward: phase.speed > 1.0,
-                    onTap: engine?.enterWaitingForUser,
-                    onPause: engine?.pauseInterval ?? noop,
-                    onResume: engine?.resumeInterval ?? noop,
-                  );
-                },
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(AppSpacing.m),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: (constraints.maxHeight - AppSpacing.m * 2).clamp(
+            0,
+            double.infinity,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-            )
-          : null,
-      onRecordTap: () {
-        if (engine == null) return;
-        unawaited(engine.onRecordButtonTapped());
-      },
-      onBeforePlayback: engine != null
-          ? () => engine.prepareForPlayback()
-          : null,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Icon(icon, size: 28, color: accent),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.m),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppSpacing.s),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ReviewAnswer extends ConsumerWidget {
+  const _ReviewAnswer({
+    required this.card,
+    required this.preview,
+    required this.showNextReviewTime,
+    required this.isSubmitting,
+    required this.playbackState,
+    required this.onTogglePlayback,
+    required this.onRating,
+  });
+
+  final BookmarkSentence card;
+  final MemoryRatingPreviewSet? preview;
+  final bool showNextReviewTime;
+  final bool isSubmitting;
+  final BookmarkReviewPlaybackState playbackState;
+  final VoidCallback onTogglePlayback;
+  final ValueChanged<MemoryRating> onRating;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final settings = ref.watch(bookmarkReviewSettingsProvider);
+    final actions = [
+      FlashcardRatingAction(
+        rating: MemoryRating.again,
+        emoji: '😕',
+        label: l10n.bookmarkReviewRatingAgain,
+        detail: _detail(context, preview?.again.dueAt),
+      ),
+      FlashcardRatingAction(
+        rating: MemoryRating.good,
+        emoji: '🙂',
+        label: l10n.bookmarkReviewRatingGood,
+        detail: _detail(context, preview?.good.dueAt),
+      ),
+      FlashcardRatingAction(
+        rating: MemoryRating.easy,
+        emoji: '😎',
+        label: l10n.bookmarkReviewRatingEasy,
+        detail: _detail(context, preview?.easy.dueAt),
+      ),
+    ];
+    final isPlaying =
+        playbackState == BookmarkReviewPlaybackState.loading ||
+        playbackState == BookmarkReviewPlaybackState.playing;
+    return Column(
+      key: const Key('bookmark-review-answer'),
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: AnnotationContentView(
+              text: card.sentence.text,
+              aiNotifier: ref.read(sentenceAiNotifierProvider),
+              audioItemId: card.audioItemId,
+              sentenceIndex: card.originalSentenceIndex,
+              sentenceStartMs: card.sentence.startTime.inMilliseconds,
+              sentenceEndMs: card.sentence.endTime.inMilliseconds,
+              autoLoadSentenceAi: true,
+              autoShowOptions: AnnotationAutoShowOptions(
+                enabled: settings.autoShowAiExplanation,
+                analysis: settings.autoShowAiAnalysis,
+                translation: settings.autoShowAiTranslation,
+                senseGroups: settings.autoShowAiSenseGroups,
+              ),
+              enableGuide: false,
+            ),
+          ),
+        ),
+        SafeArea(
+          top: false,
+          maintainBottomViewPadding: true,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.m),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  key: const Key('bookmark-review-sentence-playback'),
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.tonalIcon(
+                    key: const Key('bookmark-review-sentence-playback-toggle'),
+                    onPressed: onTogglePlayback,
+                    icon: Icon(
+                      isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(
+                      isPlaying
+                          ? l10n.stopPlayback
+                          : l10n.bookmarkReviewPlayOriginal,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s),
+                FlashcardRatingActionBar(
+                  actions: actions,
+                  enabled: preview != null && !isSubmitting,
+                  onSelected: (action) => onRating(action.rating),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  IconData _buildFooterCenterIcon(ReviewDifficultPracticeState playerState) {
-    final flowState = playerState.repeatFlowState;
-    if (playerState.isAnnotationMode && flowState != null) {
-      return _isRepeatPromptPlaybackActive(flowState)
-          ? Icons.pause_rounded
-          : Icons.play_arrow_rounded;
-    }
-    return _isBlindSentencePlaybackActive(playerState)
-        ? Icons.pause_rounded
-        : Icons.play_arrow_rounded;
-  }
-
-  bool _isRepeatPromptPlaybackActive(RepeatFlowState flowState) {
-    return flowState.phase is PlayingPrompt &&
-        !flowState.isWaitingForUser &&
-        !flowState.isCountingDown;
-  }
-
-  bool _isBlindSentencePlaybackActive(ReviewDifficultPracticeState state) {
-    return state.isPlaying &&
-        !state.isPauseBetweenPlays &&
-        !state.isPauseBetweenSentences &&
-        !state.isCountdownPaused;
-  }
-
-  String _buildPlayCountText(
-    ReviewDifficultPracticeState playerState,
-    AppLocalizations l10n,
-  ) {
-    if (playerState.isAnnotationMode && playerState.repeatFlowState != null) {
-      final flowState = playerState.repeatFlowState!;
-      return formatPracticePlayCount(
-        l10n,
-        currentCount: flowState.repeatIndex + 1,
-        totalCount: playerState.targetRepeatCount,
-      );
-    }
-    return formatPracticePlayCount(
-      l10n,
-      currentCount: playerState.currentPlayCount,
-      totalCount: playerState.isManualMode
-          ? 1
-          : playerState.settings.blindListenRepeatCount,
-    );
-  }
-
-  void _handlePrevious() {
-    final player = ref.read(bookmarkReviewProvider.notifier);
-    unawaited(_cancelRecordingAndPlayback());
-    ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-    unawaited(player.goToPrevious());
-  }
-
-  void _handleNext() {
-    final playerState = ref.read(bookmarkReviewProvider);
-    final player = ref.read(bookmarkReviewProvider.notifier);
-    unawaited(_cancelRecordingAndPlayback());
-    ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-    final isLast =
-        playerState.currentSentenceIndex >= playerState.totalSentences - 1;
-    if (isLast) {
-      player.forceComplete();
-      unawaited(_handleCompleted());
-      return;
-    }
-    unawaited(player.goToNext());
-  }
-
-  void _handleCenter() {
-    final playerState = ref.read(bookmarkReviewProvider);
-    final player = ref.read(bookmarkReviewProvider.notifier);
-    final engine = player.repeatEngine;
-    unawaited(_cancelRecordingAndPlayback());
-    if (playerState.isAnnotationMode && engine != null) {
-      final flowState = playerState.repeatFlowState;
-      if (flowState?.isInPause ?? false) {
-        ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-        unawaited(engine.replayCurrentSentence());
-      } else if (flowState?.phase is PlayingPrompt) {
-        engine.enterWaitingForUser();
-      } else {
-        unawaited(engine.replayCurrentSentence());
-      }
-      return;
-    }
-    if (playerState.isPauseBetweenPlays) {
-      ref.read(speechRecordingControllerProvider.notifier).clearRecording();
-      unawaited(player.replayDuringCountdown());
-    } else if (playerState.isPlaying) {
-      player.pause();
-    } else {
-      unawaited(player.resume());
-    }
+  String? _detail(BuildContext context, DateTime? dueAt) {
+    if (!showNextReviewTime || dueAt == null) return null;
+    return formatTimeFromNow(context, dueAt);
   }
 }
 
-/// 统一显示速度标签：始终保留一位小数。
-String _formatSpeed(double speed) => formatPlaybackSpeedLabel(speed);
+class _EmptyReview extends StatelessWidget {
+  const _EmptyReview({required this.message});
+  final String message;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            size: 48,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: AppSpacing.m),
+          Text(message, style: Theme.of(context).textTheme.titleMedium),
+        ],
+      ),
+    ),
+  );
+}

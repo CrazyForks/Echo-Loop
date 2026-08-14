@@ -2400,6 +2400,78 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get bookmarkReviewUnsave => '取消收藏';
+
+  @override
+  String get bookmarkReviewTapReplay => '听一遍，想一想';
+
+  @override
+  String get bookmarkReviewLoadingAudio => '正在加载音频…';
+
+  @override
+  String get bookmarkReviewPlaying => '正在播放';
+
+  @override
+  String get bookmarkReviewPlayOriginal => '播放原句';
+
+  @override
+  String get bookmarkReviewTapRetry => '点按重试';
+
+  @override
+  String get bookmarkReviewListenPrompt => '点按可从头重播';
+
+  @override
+  String get bookmarkReviewReadyTitle => '想好后翻面';
+
+  @override
+  String get bookmarkReviewRevealHint => '点按查看答案';
+
+  @override
+  String get bookmarkReviewEmpty => '本次复习已没有收藏句。';
+
+  @override
+  String get bookmarkReviewUnsaveFailed => '取消收藏失败，请重试。';
+
+  @override
+  String get bookmarkReviewSettingsPlaceholderTitle => '复习设置';
+
+  @override
+  String get bookmarkReviewSettingsPlaceholderBody => '更多复习控制将在后续版本中开放。';
+
+  @override
+  String get bookmarkReviewSettingsTitle => '复习设置';
+
+  @override
+  String get bookmarkReviewShowNextReviewTime => '显示下次复习时间';
+
+  @override
+  String get bookmarkReviewDailyGoal => '每日复习目标';
+
+  @override
+  String get bookmarkReviewUnlimited => '不限制';
+
+  @override
+  String get bookmarkReviewOrder => '复习顺序';
+
+  @override
+  String get bookmarkReviewOrderSmart => '自动';
+
+  @override
+  String get bookmarkReviewOrderDueAt => '最早到期优先';
+
+  @override
+  String get bookmarkReviewOrderRandom => '随机';
+
+  @override
+  String get bookmarkReviewRatingAgain => '听不懂';
+
+  @override
+  String get bookmarkReviewRatingGood => '听懂了';
+
+  @override
+  String get bookmarkReviewRatingEasy => '轻松听懂';
+
+  @override
   String get difficultPracticeSettings => '练习设置';
 
   @override
@@ -2925,6 +2997,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String timeAgoHours(int hours) {
     return '$hours小时前';
+  }
+
+  @override
+  String timeFromNowSeconds(int seconds) {
+    return '$seconds秒后';
   }
 
   @override

@@ -1,0 +1,69 @@
+/// 通用调度 Flashcard 的领域类型。
+library;
+
+import '../../memory_scheduler/domain/memory_rating.dart';
+import '../../memory_scheduler/domain/memory_scheduler_results.dart';
+import '../../memory_scheduler/domain/memory_subject_ref.dart';
+
+/// 一张带调度 revision 的内容卡片。
+final class ScheduledFlashcard<T> {
+  /// 创建卡片。
+  const ScheduledFlashcard({
+    required this.subject,
+    required this.content,
+    required this.scheduleRevision,
+  });
+
+  final MemorySubjectRef subject;
+  final T content;
+  final int scheduleRevision;
+}
+
+/// 卡片会话的阶段。
+enum ScheduledFlashcardPhase {
+  loadingDeck,
+  prompt,
+  answer,
+  submittingRating,
+  followUp,
+  advancing,
+  completed,
+}
+
+/// 补练策略的结果。
+abstract interface class FlashcardFollowUpPolicy<T, F> {
+  /// 为评分结果创建补练内容；无需补练时返回 null。
+  F? followUpFor(T content, MemoryRating rating);
+}
+
+/// 补练的结束原因。
+enum FollowUpOutcome { completed, skipped, failed }
+
+/// 通用卡片队列来源。
+abstract interface class FlashcardDeckSource<T> {
+  /// 读取本次会话快照。
+  Future<List<ScheduledFlashcard<T>>> load();
+}
+
+/// 调度评分边界，避免通用层依赖具体 scheduler 实现。
+abstract interface class FlashcardRatingPort {
+  /// 预览四档评分。
+  Future<MemoryRatingPreviewSet> preview({
+    required MemorySubjectRef subject,
+    required int expectedRevision,
+    required DateTime reviewedAt,
+  });
+
+  /// 提交一档评分。
+  Future<MemoryReviewResult> submit({
+    required MemorySubjectRef subject,
+    required MemoryRating rating,
+    required MemoryRatingPreview preview,
+    required int expectedRevision,
+    required Duration responseTime,
+    required String operationId,
+  });
+
+  /// 在乐观锁冲突后读取当前 revision。
+  Future<int> reloadRevision(MemorySubjectRef subject);
+}

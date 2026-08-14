@@ -424,7 +424,6 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
           onStopMainPlayer: () => unawaited(controller.pause()),
           onToolbarButtonTapped: () =>
               unawaited(controller.pauseAfterCurrentSentence()),
-          senseGroupRangePlayback: controller.senseGroupRangePlayback,
         ),
       );
     }

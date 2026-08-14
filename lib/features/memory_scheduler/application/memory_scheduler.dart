@@ -32,6 +32,9 @@ abstract interface class MemoryScheduler {
   /// 监听到期调度数量。
   Stream<int> watchDueCount(DueMemoryCountQuery query);
 
+  /// 计算一个调度快照在给定时间的算法可回忆率。
+  double retrievability(MemorySchedule schedule, DateTime at);
+
   /// 无副作用地预览四种评分结果。
   Future<MemoryRatingPreviewSet> previewRatings(
     PreviewMemoryRatingsQuery query,
@@ -48,9 +51,4 @@ abstract interface class MemoryScheduler {
 
   /// 永久清除快照及审计历史。
   Future<void> purge(PurgeMemoryScheduleCommand command);
-
-  /// 通过完整评分历史重放到目标 Profile。
-  Future<MemoryProfileMigrationResult> migrateProfile(
-    MigrateMemoryProfileCommand command,
-  );
 }

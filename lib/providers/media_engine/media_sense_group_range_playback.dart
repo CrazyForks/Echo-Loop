@@ -18,7 +18,7 @@ class MediaSenseGroupRangePlayback implements SenseGroupRangePlayback {
   bool _isPlaying = false;
 
   @override
-  Future<void> play(Duration start, Duration end) async {
+  Future<void> play(String audioItemId, Duration start, Duration end) async {
     final generation = ++_generation;
     _isPlaying = true;
     try {

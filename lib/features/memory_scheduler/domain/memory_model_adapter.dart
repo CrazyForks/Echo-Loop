@@ -104,4 +104,11 @@ abstract interface class MemoryModelAdapter {
     required MemoryRating rating,
     required DateTime reviewedAt,
   });
+
+  /// 计算当前记忆可回忆率，供业务排序使用。
+  double retrievability({
+    required MemoryProfile profile,
+    required MemoryModelState current,
+    required DateTime at,
+  });
 }

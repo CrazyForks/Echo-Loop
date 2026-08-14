@@ -64,7 +64,7 @@ void main() {
       );
       expect(
         kMemoryProfileRegistry.get(kFsrsDefaultProfileRef).enableFuzzing,
-        isFalse,
+        isTrue,
       );
     });
 

@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import '../utils/app_data_dir.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import 'enums.dart' show LearningStage;
 import '../services/app_logger.dart';
@@ -28,6 +29,7 @@ import 'tables/daily_stage_study_records.dart';
 import 'tables/tts_cache.dart';
 import 'tables/memory_schedules.dart';
 import 'tables/memory_review_events.dart';
+import 'tables/bookmark_review_queue_entries.dart';
 import '../models/study_stage.dart';
 import 'daos/audio_item_dao.dart';
 import 'daos/collection_dao.dart';
@@ -72,6 +74,7 @@ part 'app_database.g.dart';
     TtsCache,
     MemorySchedules,
     MemoryReviewEvents,
+    BookmarkReviewQueueEntries,
   ],
   daos: [
     AudioItemDao,
@@ -95,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   /// 当前 schema 版本（静态访问，用于导入前版本检查）
-  static const currentSchemaVersion = 48;
+  static const currentSchemaVersion = 49;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -114,6 +117,24 @@ class AppDatabase extends _$AppDatabase {
         await _ensurePodcastColumns();
       },
       onUpgrade: (Migrator m, int from, int to) async {
+        // v48→v49：为收藏句补稳定的记忆主体 ID，并建立每日入队去重表。
+        if (from < 49) {
+          await _addColumnIfNotExists('bookmarks', 'memory_subject_id', 'TEXT');
+          final rows = await customSelect(
+            'SELECT id FROM bookmarks WHERE memory_subject_id IS NULL OR trim(memory_subject_id) = \'\'',
+          ).get();
+          for (final row in rows) {
+            await customStatement(
+              'UPDATE bookmarks SET memory_subject_id = ? WHERE id = ?',
+              [const Uuid().v4(), row.data['id']],
+            );
+          }
+          await m.createTable(bookmarkReviewQueueEntries);
+          await customStatement('''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmark_review_queue_subject_day
+            ON bookmark_review_queue_entries(subject_id, local_date)
+          ''');
+        }
         // v47→v48：新增通用记忆调度快照与只追加评分事件；不回填既有业务数据。
         if (from < 48) {
           await m.createTable(memorySchedules);

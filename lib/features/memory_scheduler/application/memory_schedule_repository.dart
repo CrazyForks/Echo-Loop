@@ -69,7 +69,7 @@ abstract interface class MemoryScheduleRepository {
   /// 监听活动且已到期的数量。
   Stream<int> watchDueCount(DueMemoryCountQuery query);
 
-  /// 读取完整评分审计历史。
+  /// 读取完整评分审计历史，供诊断和未来独立导出能力使用。
   Future<List<MemoryReviewEvent>> getEvents(String scheduleId);
 
   /// 幂等创建初始快照；已有项不改变其固定 Profile。
@@ -77,12 +77,6 @@ abstract interface class MemoryScheduleRepository {
 
   /// 以 revision CAS 提交当前快照和只追加评分事件。
   Future<MemoryReviewResult> commitReview(MemoryReviewCommit commit);
-
-  /// 以 revision CAS 替换历史重放后的快照。
-  Future<MemorySchedule> replaceAfterReplay(
-    MemorySchedule before,
-    MemorySchedule after,
-  );
 
   /// 以 revision CAS 更新归档或恢复后的快照。
   Future<MemorySchedule> replaceLifecycle(

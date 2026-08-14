@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../database/providers.dart';
+import '../../database/app_database.dart' as db;
 import '../../models/audio_engine_state.dart';
 import '../../models/audio_item.dart';
 import '../../models/sentence.dart';
@@ -17,6 +18,9 @@ part 'audio_engine_provider.g.dart';
 class AudioEngine extends _$AudioEngine {
   /// 学习事件记录器（由 StudyTaskControllerMixin 注入）
   StudyEventRecorder? _recorder;
+
+  /// 同一材料并发请求只执行一次文件加载，避免重复 setFilePath 打断前一个请求。
+  final Map<String, Future<void>> _loadingAudioById = <String, Future<void>>{};
 
   /// 设置学习事件记录器（进入学习模式时注入，退出时传 null）
   void setRecorder(StudyEventRecorder? recorder) {
@@ -147,6 +151,58 @@ class AudioEngine extends _$AudioEngine {
       rethrow;
     }
   }
+
+  /// 确保 [audioItemId] 已装载到媒体播放器，再播放指定区间。
+  Future<void> playRangeForAudio(
+    String audioItemId,
+    Duration start,
+    Duration end, {
+    required double speed,
+  }) async {
+    if (state.currentAudioId != audioItemId) {
+      await _ensureAudioLoaded(audioItemId, speed);
+    }
+    if (state.currentAudioId != audioItemId) {
+      throw StateError('audio_not_loaded:$audioItemId');
+    }
+    await setSpeed(speed);
+    final sessionId = newSession();
+    await playRangeOnce(start, end, sessionId);
+  }
+
+  Future<void> _ensureAudioLoaded(String audioItemId, double speed) async {
+    final existing = _loadingAudioById[audioItemId];
+    if (existing != null) return existing;
+
+    late final Future<void> loading;
+    loading = () async {
+      try {
+        final row = await ref.read(audioItemDaoProvider).getById(audioItemId);
+        if (row == null) throw StateError('audio_not_found:$audioItemId');
+        await loadAudio(_toAudioItem(row), speed);
+      } finally {
+        _loadingAudioById.remove(audioItemId);
+      }
+    }();
+    _loadingAudioById[audioItemId] = loading;
+    return loading;
+  }
+
+  AudioItem _toAudioItem(db.AudioItem row) => AudioItem(
+    id: row.id,
+    name: row.name,
+    audioPath: row.audioPath,
+    transcriptPath: row.transcriptPath,
+    addedDate: row.addedDate,
+    totalDuration: row.totalDuration,
+    sentenceCount: row.sentenceCount,
+    wordCount: row.wordCount,
+    isPinned: row.isPinned,
+    transcriptSource: TranscriptSource.fromIndex(row.transcriptSource),
+    audioSha256: row.audioSha256,
+    originalAudioSha256: row.originalAudioSha256,
+    transcriptLanguage: row.transcriptLanguage,
+  );
 
   // --- 字幕加载 ---
   ///

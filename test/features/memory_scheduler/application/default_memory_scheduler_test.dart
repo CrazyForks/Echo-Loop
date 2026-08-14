@@ -154,7 +154,7 @@ void main() {
     );
   });
 
-  test('归档、恢复、历史重放和永久清除均受 revision 保护', () async {
+  test('归档、恢复和永久清除均受 revision 保护', () async {
     final initial = await _ensure(scheduler, subject, createdAt);
     final archived = await scheduler.archive(
       ArchiveMemoryScheduleCommand(
@@ -171,52 +171,13 @@ void main() {
         expectedRevision: archived.revision,
       ),
     );
-    final migrated = await scheduler.migrateProfile(
-      MigrateMemoryProfileCommand(
-        subject: subject,
-        targetProfile: kFsrsDefaultProfileRef,
-        migratedAt: createdAt.add(const Duration(minutes: 3)),
-        expectedRevision: restored.revision,
-      ),
-    );
-    expect(migrated.replayedEventCount, 0);
     await scheduler.purge(
       PurgeMemoryScheduleCommand(
         subject: subject,
-        expectedRevision: migrated.schedule.revision,
+        expectedRevision: restored.revision,
       ),
     );
     expect(await scheduler.getSchedule(subject), isNull);
-  });
-
-  test('迁移通过完整评分历史重建目标 Profile 快照', () async {
-    final initial = await _ensure(scheduler, subject, createdAt);
-    final reviewed = await scheduler.review(
-      ReviewMemoryCommand(
-        subject: subject,
-        rating: MemoryRating.good,
-        reviewedAt: createdAt.add(const Duration(minutes: 1)),
-        responseTime: null,
-        operationId: 'operation-1',
-        expectedRevision: initial.revision,
-      ),
-    );
-    final migrated = await scheduler.migrateProfile(
-      MigrateMemoryProfileCommand(
-        subject: subject,
-        targetProfile: kFsrsDefaultProfileRef,
-        migratedAt: createdAt.add(const Duration(minutes: 2)),
-        expectedRevision: reviewed.schedule.revision,
-      ),
-    );
-
-    expect(migrated.replayedEventCount, 1);
-    expect(migrated.schedule.reviewCount, 1);
-    expect(migrated.schedule.revision, 2);
-    expect(migrated.schedule.phase, reviewed.schedule.phase);
-    expect(migrated.schedule.dueAt, reviewed.schedule.dueAt);
-    expect(migrated.schedule.lastReviewedAt, reviewed.schedule.lastReviewedAt);
-    expect(migrated.schedule.modelState, reviewed.schedule.modelState);
   });
 }
 

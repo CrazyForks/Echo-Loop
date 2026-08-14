@@ -61,10 +61,6 @@ final class MemoryReviewTimeOrderException extends MemorySchedulerException {
   const MemoryReviewTimeOrderException(super.message);
 }
 
-final class MemoryReplayException extends MemorySchedulerException {
-  const MemoryReplayException(super.message);
-}
-
 final class MemoryValidationException extends MemorySchedulerException {
   const MemoryValidationException(super.message);
 }

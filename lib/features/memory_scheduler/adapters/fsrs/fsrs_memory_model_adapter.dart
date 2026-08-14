@@ -84,6 +84,16 @@ final class FsrsMemoryModelAdapter implements MemoryModelAdapter {
     return _transition(result.card);
   }
 
+  @override
+  double retrievability({
+    required MemoryProfile profile,
+    required MemoryModelState current,
+    required DateTime at,
+  }) => _schedulerFor(profile).getCardRetrievability(
+    _stateCodec.decode(current),
+    currentDateTime: at.toUtc(),
+  );
+
   MemoryModelPreview _preview(
     fsrs.Scheduler scheduler,
     fsrs.Card card,

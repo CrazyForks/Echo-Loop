@@ -6,17 +6,12 @@ part of 'bookmark_review_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$bookmarkReviewHash() => r'b900255b7aab9cb8d353c50cb2a4abea6759cb83';
+String _$bookmarkReviewHash() => r'5d308eacf7a741d0cb4e64b2c5215f311f5d987a';
 
-/// 收藏复习 Provider
-///
-/// 复用 [ReviewDifficultPracticeState] 作为状态类。
-/// 内部维护 [List<BookmarkSentence>] 用于跨音频播放。
-///
-/// Copied from [BookmarkReview].
+/// See also [BookmarkReview].
 @ProviderFor(BookmarkReview)
 final bookmarkReviewProvider =
-    NotifierProvider<BookmarkReview, ReviewDifficultPracticeState>.internal(
+    NotifierProvider<BookmarkReview, BookmarkReviewState>.internal(
       BookmarkReview.new,
       name: r'bookmarkReviewProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -26,6 +21,6 @@ final bookmarkReviewProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$BookmarkReview = Notifier<ReviewDifficultPracticeState>;
+typedef _$BookmarkReview = Notifier<BookmarkReviewState>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

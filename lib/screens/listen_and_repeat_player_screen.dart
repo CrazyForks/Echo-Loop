@@ -690,8 +690,6 @@ class _ListenAndRepeatPlayerScreenState
                                                 .inMilliseconds,
                                             sentenceEndMs:
                                                 sentence.endTime.inMilliseconds,
-                                            senseGroupRangePlayback:
-                                                ctrl.senseGroupRangePlayback,
                                             highlightedSegments: isActive
                                                 ? currentAttempt
                                                       ?.referenceSegments
