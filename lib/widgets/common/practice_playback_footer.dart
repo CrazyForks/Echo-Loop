@@ -44,6 +44,9 @@ class PracticePlaybackFooter extends StatelessWidget {
   /// 可选状态后缀（如盲听播放速度）
   final String? statusSuffixText;
 
+  /// 可选的右侧自定义控件；未提供时显示下一句/完成图标。
+  final Widget? nextControl;
+
   /// 本地化
   final AppLocalizations l10n;
 
@@ -64,6 +67,7 @@ class PracticePlaybackFooter extends StatelessWidget {
     required this.isManualMode,
     required this.playCountText,
     this.statusSuffixText,
+    this.nextControl,
     required this.l10n,
     required this.theme,
     this.centerGuideStep,
@@ -92,6 +96,7 @@ class PracticePlaybackFooter extends StatelessWidget {
               onPrevious: onPrevious,
               onNext: onNext,
               onCenter: onCenter,
+              nextControl: nextControl,
               centerGuideStep: centerGuideStep,
             ),
             const SizedBox(height: AppSpacing.s),

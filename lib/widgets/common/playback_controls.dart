@@ -32,6 +32,9 @@ class PlaybackControls extends StatelessWidget {
   /// 下一个回调
   final VoidCallback? onNext;
 
+  /// 可选的右侧自定义控件；未提供时显示下一句/完成图标。
+  final Widget? nextControl;
+
   /// 可选：中间按钮的新手引导步骤，提供时会用 [GuideTarget] 包裹中间按钮
   final GuideStep? centerGuideStep;
 
@@ -43,6 +46,7 @@ class PlaybackControls extends StatelessWidget {
     this.onCenter,
     this.onPrevious,
     this.onNext,
+    this.nextControl,
     this.centerGuideStep,
   });
 
@@ -77,28 +81,46 @@ class PlaybackControls extends StatelessWidget {
         ? GuideTarget(step: centerStep, child: centerButton)
         : centerButton;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          PlaybackNavButton(
-            icon: Icons.skip_previous_rounded,
-            enabled: canGoPrev,
-            onTap: canGoPrev ? onPrevious : null,
-          ),
-          const SizedBox(width: 48),
-
-          centerWidget,
-          const SizedBox(width: 48),
-
-          PlaybackNavButton(
+    final previousWidget = PlaybackNavButton(
+      icon: Icons.skip_previous_rounded,
+      enabled: canGoPrev,
+      onTap: canGoPrev ? onPrevious : null,
+    );
+    final nextWidget = nextControl != null
+        ? IntrinsicWidth(child: nextControl!)
+        : PlaybackNavButton(
             icon: isLast ? Icons.check_circle_rounded : Icons.skip_next_rounded,
             enabled: true,
             onTap: onNext,
-          ),
-        ],
-      ),
+          );
+
+    // 自定义右侧控件使用叠层定位，保持播放按钮始终位于控制区中心。
+    final controls = nextControl != null
+        ? SizedBox(
+            height: PlaybackControls.controlButtonSize,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: previousWidget),
+                centerWidget,
+                Align(alignment: Alignment.centerRight, child: nextWidget),
+              ],
+            ),
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              previousWidget,
+              const SizedBox(width: 48),
+              centerWidget,
+              const SizedBox(width: 48),
+              nextWidget,
+            ],
+          );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+      child: controls,
     );
   }
 }

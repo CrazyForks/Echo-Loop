@@ -869,29 +869,7 @@ class _IntensiveListenPlayerScreenState
                                         '${showAnnotationContent ? 'annotation' : 'blind'}',
                                       ),
                                       child: Column(
-                                        children: [
-                                          Expanded(child: content),
-                                          // “继续”是讲解态操作，不属于正在滑入的盲听目标页。
-                                          if (showAnnotationContent &&
-                                              _showContinueButton(playerState))
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: AppSpacing.l,
-                                                right: AppSpacing.l,
-                                                bottom: AppSpacing.m,
-                                              ),
-                                              child: SizedBox(
-                                                width: double.infinity,
-                                                child: FilledButton(
-                                                  onPressed: () => player
-                                                      .exitAnnotationMode(),
-                                                  child: Text(
-                                                    l10n.intensiveListenContinue,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
+                                        children: [Expanded(child: content)],
                                       ),
                                     );
                                   },
@@ -980,6 +958,26 @@ class _IntensiveListenPlayerScreenState
                                       onPrevious: _handlePrevious,
                                       onNext: _handleNext,
                                       onCenter: _handleCenter,
+                                      nextControl:
+                                          _showContinueButton(playerState)
+                                          ? IconButton.filled(
+                                              tooltip:
+                                                  l10n.intensiveListenContinue,
+                                              onPressed: () =>
+                                                  player.exitAnnotationMode(),
+                                              icon: Icon(
+                                                Icons.arrow_forward_rounded,
+                                                color:
+                                                    theme.colorScheme.onPrimary,
+                                              ),
+                                              style: IconButton.styleFrom(
+                                                fixedSize: const Size.square(
+                                                  48,
+                                                ),
+                                                shape: const CircleBorder(),
+                                              ),
+                                            )
+                                          : null,
                                       isManualMode:
                                           playerState.settings.isManualMode,
                                       playCountText: formatPracticePlayCount(

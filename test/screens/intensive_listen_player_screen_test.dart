@@ -476,7 +476,7 @@ void main() {
       expect(find.text('Auto · Round 2/3 · 1.0x'), findsOneWidget);
     });
 
-    testWidgets('详情模式显示继续按钮', (tester) async {
+    testWidgets('详情模式显示带提示的圆形继续图标按钮', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
           playerState: createPlayerState(
@@ -487,7 +487,28 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Continue'), findsOneWidget);
+      expect(find.text('Continue'), findsNothing);
+      expect(find.byTooltip('Continue'), findsOneWidget);
+      final continueIcon = tester.widget<Icon>(
+        find.byIcon(Icons.arrow_forward_rounded),
+      );
+      expect(
+        continueIcon.color,
+        Theme.of(
+          tester.element(find.byTooltip('Continue')),
+        ).colorScheme.onPrimary,
+      );
+      final continueButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.arrow_forward_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(
+        continueButton.style?.fixedSize?.resolve({}),
+        const Size.square(48),
+      );
+      expect(continueButton.style?.shape?.resolve({}), isA<CircleBorder>());
     });
 
     testWidgets('从普通倒计时点击听不懂进入详情页时只显示继续按钮', (tester) async {
@@ -508,7 +529,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      expect(find.text('Continue'), findsOneWidget);
+      expect(find.byTooltip('Continue'), findsOneWidget);
       expect(find.text('3s'), findsNothing);
       expect(find.text('Replaying with subtitles...'), findsNothing);
     });
@@ -1239,7 +1260,7 @@ void main() {
       expect(player.state.isAnnotationMode, isTrue);
     });
 
-    testWidgets('讲解状态底部切句会在横滑结束后才提交', (tester) async {
+    testWidgets('讲解状态底部右侧继续按钮退出当前句讲解', (tester) async {
       late _RecordingIntensiveListenPlayer player;
       await tester.pumpWidget(
         createTestWidget(
@@ -1256,17 +1277,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.skip_next_rounded));
-      await tester.pump(const Duration(milliseconds: 160));
+      await tester.tap(find.byTooltip('Continue'));
+      await tester.pumpAndSettle();
 
-      expect(player.goToSentenceCalls, 0);
+      expect(player.goToNextCalls, 0);
       expect(player.currentIndex, 2);
       expect(player.state.isAnnotationMode, isTrue);
-
-      await tester.pumpAndSettle();
-      expect(player.goToNextCalls, 1);
-      expect(player.currentIndex, 3);
-      expect(player.state.isAnnotationMode, isFalse);
+      expect(player.state.isAnnotationReplay, isTrue);
     });
 
     testWidgets('标注模式下导航按钮可用（非重播状态）', (tester) async {
@@ -1282,21 +1299,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 标注模式下（非 annotationReplay），导航按钮仍可用
-      // _NavButton 使用 AnimatedOpacity，可用态 opacity=0.6
+      // 标注模式下（非 annotationReplay）右侧位置由继续按钮接管。
       final prevIcon = find.byIcon(Icons.skip_previous_rounded);
-      final nextIcon = find.byIcon(Icons.skip_next_rounded);
       expect(prevIcon, findsOneWidget);
-      expect(nextIcon, findsOneWidget);
+      expect(find.byTooltip('Continue'), findsOneWidget);
 
       final prevOpacity = tester.widget<Opacity>(
         find.ancestor(of: prevIcon, matching: find.byType(Opacity)).first,
       );
-      final nextOpacity = tester.widget<Opacity>(
-        find.ancestor(of: nextIcon, matching: find.byType(Opacity)).first,
-      );
       expect(prevOpacity.opacity, 0.6);
-      expect(nextOpacity.opacity, 0.6);
     });
 
     testWidgets('详情页重播中导航按钮仍可用', (tester) async {

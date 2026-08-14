@@ -60,4 +60,30 @@ void main() {
     // footer 的播放按钮和 label 统一避让底部系统区域，不再只给 label 留半个 inset。
     expect(screenBottom - labelBottom, closeTo(34, 0.1));
   });
+
+  testWidgets('支持替换右侧下一句控件', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => PracticePlaybackFooter(
+            canGoPrev: true,
+            isLast: false,
+            centerIcon: Icons.play_arrow_rounded,
+            onPrevious: () {},
+            onNext: () {},
+            onCenter: () {},
+            nextControl: const Text('继续'),
+            isManualMode: false,
+            playCountText: '1/1',
+            l10n: AppLocalizations.of(context)!,
+            theme: Theme.of(context),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('继续'), findsOneWidget);
+    expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+  });
 }
