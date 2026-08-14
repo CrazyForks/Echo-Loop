@@ -20,8 +20,8 @@ import '../models/audio_item.dart' as model;
 import '../models/dict_entry.dart';
 import '../screens/sentence_detail_screen.dart';
 import '../providers/short_audio_player_provider.dart';
-import '../providers/pronunciation/pronunciation_providers.dart';
 import '../providers/tts/tts_controller_provider.dart';
+import '../providers/pronunciation/pronunciation_providers.dart';
 import '../widgets/tts/speak_button.dart';
 import '../providers/flashcard/flashcard_provider.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
@@ -31,7 +31,7 @@ import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
 import '../services/dictionary_service.dart';
 import '../services/app_logger.dart';
-import '../services/subtitle_parser.dart';
+import '../services/pronunciation/source_sentence_player.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
@@ -56,6 +56,27 @@ bool _isInScrollableViewport(BuildContext context) {
 
 /// 收藏页面视图模式
 enum _FavoritesView { sentences, words }
+
+Future<bool> _playSourceSentence(
+  WidgetRef ref, {
+  required String? audioItemId,
+  required int? sentenceIndex,
+  required String? sentenceText,
+  required int? sentenceStartMs,
+  required int? sentenceEndMs,
+}) {
+  return SourceSentencePlayer(
+    audioItemDao: ref.read(audioItemDaoProvider),
+    audioClipPlayer: ref.read(shortAudioPlayerProvider),
+    speak: (text) => ref.read(ttsControllerProvider.notifier).speak(text),
+  ).play(
+    audioItemId: audioItemId,
+    sentenceIndex: sentenceIndex,
+    sentenceText: sentenceText,
+    sentenceStartMs: sentenceStartMs,
+    sentenceEndMs: sentenceEndMs,
+  );
+}
 
 /// 收藏页面
 class FavoritesScreen extends ConsumerStatefulWidget {
@@ -1047,6 +1068,7 @@ class _SavedPhraseTile extends ConsumerStatefulWidget {
 
 class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   bool _isPlaying = false;
+  bool _isExpanded = false;
   String? _audioName;
   bool _hasSubmittedPrewarm = false;
   int _lastPrewarmConfigurationVersion = -1;
@@ -1105,61 +1127,136 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   }
 
   /// 播放意群片段（优先意群时间，回退句子时间）
-  Future<void> _playPhrase() async {
+  Future<void> _playSentence() async {
     final phrase = widget.savedPhrase;
-    if (phrase.audioItemId == null) return;
 
     // 播放来源句子（非意群片段）
-    final startMs = phrase.sentenceStartMs;
-    final endMs = phrase.sentenceEndMs;
-    if (startMs == null || endMs == null) return;
-
     if (_isPlaying) {
       await ref.read(shortAudioPlayerProvider).stop();
+      await ref.read(ttsControllerProvider.notifier).stop();
       setState(() => _isPlaying = false);
       return;
     }
 
     setState(() => _isPlaying = true);
 
+    await _playSourceSentence(
+      ref,
+      audioItemId: phrase.audioItemId,
+      sentenceIndex: phrase.sentenceIndex,
+      sentenceText: phrase.sentenceText,
+      sentenceStartMs: phrase.sentenceStartMs,
+      sentenceEndMs: phrase.sentenceEndMs,
+    );
+    if (mounted) setState(() => _isPlaying = false);
+    return;
+
+    /* Legacy inline implementation retained temporarily during migration.
     try {
       final dao = ref.read(audioItemDaoProvider);
-      final row = await dao.getById(phrase.audioItemId!);
-      if (row == null || !mounted) return;
+      final startMs = phrase.sentenceStartMs;
+      final endMs = phrase.sentenceEndMs;
+      final row = phrase.audioItemId == null
+          ? null
+          : await dao.getById(phrase.audioItemId!);
+      final start = startMs;
+      final end = endMs;
 
-      final audioItem = model.AudioItem(
-        id: row.id,
-        name: row.name,
-        audioPath: row.audioPath,
-        transcriptPath: row.transcriptPath,
-        addedDate: row.addedDate,
-        totalDuration: row.totalDuration,
-        sentenceCount: row.sentenceCount,
-        wordCount: row.wordCount,
-        isPinned: row.isPinned,
-        transcriptSource: model.TranscriptSource.fromIndex(
-          row.transcriptSource,
-        ),
-        audioSha256: row.audioSha256,
-        originalAudioSha256: row.originalAudioSha256,
-        transcriptLanguage: row.transcriptLanguage,
-      );
+      if (row != null && start != null && end != null && mounted) {
+        final audioItem = model.AudioItem(
+          id: row.id,
+          name: row.name,
+          audioPath: row.audioPath,
+          transcriptPath: row.transcriptPath,
+          addedDate: row.addedDate,
+          totalDuration: row.totalDuration,
+          sentenceCount: row.sentenceCount,
+          wordCount: row.wordCount,
+          isPinned: row.isPinned,
+          transcriptSource: model.TranscriptSource.fromIndex(
+            row.transcriptSource,
+          ),
+          audioSha256: row.audioSha256,
+          originalAudioSha256: row.originalAudioSha256,
+          transcriptLanguage: row.transcriptLanguage,
+        );
 
-      final filePath = await audioItem.getFullAudioPath();
-      if (!mounted) return;
-      if (filePath == null) return;
-      await ref
-          .read(shortAudioPlayerProvider)
-          .playRangeFile(
-            filePath,
-            start: Duration(milliseconds: startMs),
-            end: Duration(milliseconds: endMs),
-          );
+        final filePath = await audioItem.getFullAudioPath();
+        if (mounted && filePath != null) {
+          final played = await ref
+              .read(shortAudioPlayerProvider)
+              .playRangeFile(
+                filePath,
+                start: Duration(milliseconds: start),
+                end: Duration(milliseconds: end),
+              );
+          if (played) return;
+        }
+      }
+
+      if (row != null && phrase.sentenceText?.trim().isNotEmpty == true) {
+        final srt = await dao.getTranscriptSrt(row.id);
+        if (srt != null && srt.isNotEmpty) {
+          final sentences = await SubtitleParser.parseSubtitleString(srt);
+          var sentence =
+              phrase.sentenceIndex != null &&
+                  phrase.sentenceIndex! < sentences.length
+              ? sentences[phrase.sentenceIndex!]
+              : null;
+          final storedText = phrase.sentenceText?.trim();
+          if (storedText != null &&
+              (sentence == null || sentence.text.trim() != storedText)) {
+            sentence = null;
+            for (final candidate in sentences) {
+              if (candidate.text.trim() == storedText) {
+                sentence = candidate;
+                break;
+              }
+            }
+          }
+          if (sentence != null && mounted) {
+            final audioItem = model.AudioItem(
+              id: row.id,
+              name: row.name,
+              audioPath: row.audioPath,
+              transcriptPath: row.transcriptPath,
+              addedDate: row.addedDate,
+              totalDuration: row.totalDuration,
+              sentenceCount: row.sentenceCount,
+              wordCount: row.wordCount,
+              isPinned: row.isPinned,
+              transcriptSource: model.TranscriptSource.fromIndex(
+                row.transcriptSource,
+              ),
+              audioSha256: row.audioSha256,
+              originalAudioSha256: row.originalAudioSha256,
+              transcriptLanguage: row.transcriptLanguage,
+            );
+            final filePath = await audioItem.getFullAudioPath();
+            if (filePath != null) {
+              final played = await ref
+                  .read(shortAudioPlayerProvider)
+                  .playRangeFile(
+                    filePath,
+                    start: sentence.startTime,
+                    end: sentence.endTime,
+                  );
+              if (played) return;
+            }
+          }
+        }
+      }
+
+      final text = phrase.sentenceText;
+      if (text != null && text.trim().isNotEmpty) {
+        await ref.read(ttsControllerProvider.notifier).speak(text);
+      }
     } catch (_) {
       // 忽略播放错误
     } finally {
       if (mounted) setState(() => _isPlaying = false);
     }
+    */
   }
 
   @override
@@ -1198,6 +1295,9 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
             alpha: 0.4,
           ),
           tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+          onExpansionChanged: (expanded) {
+            setState(() => _isExpanded = expanded);
+          },
           // 收起态仅预览一行来源句子，超长内容省略以保持列表紧凑。
           title: Text(
             phrase.displayText,
@@ -1206,16 +1306,16 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
               letterSpacing: -0.2,
             ),
           ),
-          subtitle: phrase.sentenceText == null
-              ? null
-              : Text(
+          subtitle: !_isExpanded && phrase.sentenceText != null
+              ? Text(
                   phrase.sentenceText!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ),
+                )
+              : null,
           // 展开状态：来源句子 + 来源音频
           children: [
             SizedBox(
@@ -1243,11 +1343,11 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                     // 来源句子（可播放）
                     if (phrase.sentenceText != null) ...[
                       InkWell(
-                        onTap: phrase.audioItemId != null ? _playPhrase : null,
+                        onTap: _playSentence,
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           children: [
-                            if (phrase.audioItemId != null)
+                            if (phrase.sentenceText != null)
                               Icon(
                                 _isPlaying
                                     ? Icons.stop_circle_outlined
@@ -1255,7 +1355,7 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                                 size: 18,
                                 color: theme.colorScheme.primary,
                               ),
-                            if (phrase.audioItemId != null)
+                            if (phrase.sentenceText != null)
                               const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
@@ -1392,26 +1492,48 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
   /// 仅在无时间信息时回退到加载字幕。
   Future<void> _playSentence() async {
     final word = widget.savedWord;
-    if (word.audioItemId == null) return;
-
-    // 需要时间信息：优先冗余字段，其次字幕文件
-    final hasStoredTiming =
-        word.sentenceStartMs != null && word.sentenceEndMs != null;
-    if (!hasStoredTiming && word.sentenceIndex == null) return;
-
     if (_isPlaying) {
       await ref.read(shortAudioPlayerProvider).stop();
+      await ref.read(ttsControllerProvider.notifier).stop();
       setState(() => _isPlaying = false);
       return;
     }
 
     setState(() => _isPlaying = true);
 
+    await _playSourceSentence(
+      ref,
+      audioItemId: word.audioItemId,
+      sentenceIndex: word.sentenceIndex,
+      sentenceText: word.sentenceText,
+      sentenceStartMs: word.sentenceStartMs,
+      sentenceEndMs: word.sentenceEndMs,
+    );
+    if (mounted) setState(() => _isPlaying = false);
+    return;
+
+    /* Legacy inline implementation retained temporarily during migration.
     try {
+      if (word.audioItemId == null) {
+        if (word.sentenceText?.trim().isNotEmpty ?? false) {
+          await ref
+              .read(ttsControllerProvider.notifier)
+              .speak(word.sentenceText!);
+        }
+        return;
+      }
+
       // 从数据库获取音频项
       final dao = ref.read(audioItemDaoProvider);
       final row = await dao.getById(word.audioItemId!);
-      if (row == null || !mounted) return;
+      if (row == null || !mounted) {
+        if (word.sentenceText?.trim().isNotEmpty ?? false) {
+          await ref
+              .read(ttsControllerProvider.notifier)
+              .speak(word.sentenceText!);
+        }
+        return;
+      }
 
       final audioItem = model.AudioItem(
         id: row.id,
@@ -1433,7 +1555,14 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
       final filePath = await audioItem.getFullAudioPath();
       if (!mounted) return;
-      if (filePath == null) return;
+      if (filePath == null) {
+        if (word.sentenceText?.trim().isNotEmpty ?? false) {
+          await ref
+              .read(ttsControllerProvider.notifier)
+              .speak(word.sentenceText!);
+        }
+        return;
+      }
 
       Duration startTime;
       Duration endTime;
@@ -1450,23 +1579,35 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         endTime = Duration(milliseconds: word.sentenceEndMs!);
       } else {
         // 回退：加载字幕获取句子时间信息
-        if (word.sentenceIndex == null) return;
         final srt = await dao.getTranscriptSrt(word.audioItemId!);
-        if (srt == null || srt.isEmpty) return;
+        if (srt == null || srt.isEmpty) {
+          if (word.sentenceText?.trim().isNotEmpty == true) {
+            await ref
+                .read(ttsControllerProvider.notifier)
+                .speak(word.sentenceText!);
+          }
+          return;
+        }
         final sentences = await SubtitleParser.parseSubtitleString(srt);
         if (!mounted || sentences.isEmpty) {
+          if (word.sentenceText?.trim().isNotEmpty == true) {
+            await ref
+                .read(ttsControllerProvider.notifier)
+                .speak(word.sentenceText!);
+          }
           return;
         }
 
         // 优先用 sentenceIndex，但若字幕重新生成导致索引错位，
         // 则通过 sentenceText 匹配找到正确句子
-        final idx = word.sentenceIndex!;
-        var sentence = idx < sentences.length ? sentences[idx] : null;
+        final idx = word.sentenceIndex;
+        var sentence = idx != null && idx < sentences.length
+            ? sentences[idx]
+            : null;
         final storedText = word.sentenceText;
 
-        if (sentence != null &&
-            storedText != null &&
-            sentence.text.trim() != storedText.trim()) {
+        if (storedText != null &&
+            (sentence == null || sentence.text.trim() != storedText.trim())) {
           sentence = null;
           for (final s in sentences) {
             if (s.text.trim() == storedText.trim()) {
@@ -1477,15 +1618,25 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         }
 
         if (sentence == null) {
+          if (word.sentenceText?.trim().isNotEmpty == true) {
+            await ref
+                .read(ttsControllerProvider.notifier)
+                .speak(word.sentenceText!);
+          }
           return;
         }
         startTime = sentence.startTime;
         endTime = sentence.endTime;
       }
 
-      await ref
+      final played = await ref
           .read(shortAudioPlayerProvider)
           .playRangeFile(filePath, start: startTime, end: endTime);
+      if (!played && word.sentenceText?.trim().isNotEmpty == true) {
+        await ref
+            .read(ttsControllerProvider.notifier)
+            .speak(word.sentenceText!);
+      }
     } catch (_) {
       // 忽略播放错误（音频文件不存在等）
     } finally {
@@ -1493,6 +1644,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         setState(() => _isPlaying = false);
       }
     }
+    */
   }
 
   @override
@@ -1624,20 +1776,11 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                       ),
                       const SizedBox(height: AppSpacing.s),
                       InkWell(
-                        onTap:
-                            word.audioItemId != null &&
-                                (word.sentenceIndex != null ||
-                                    (word.sentenceStartMs != null &&
-                                        word.sentenceEndMs != null))
-                            ? _playSentence
-                            : null,
+                        onTap: _playSentence,
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           children: [
-                            if (word.audioItemId != null &&
-                                (word.sentenceIndex != null ||
-                                    (word.sentenceStartMs != null &&
-                                        word.sentenceEndMs != null)))
+                            if (word.sentenceText != null)
                               Icon(
                                 _isPlaying
                                     ? Icons.stop_circle_outlined
@@ -1645,10 +1788,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                                 size: 18,
                                 color: theme.colorScheme.primary,
                               ),
-                            if (word.audioItemId != null &&
-                                (word.sentenceIndex != null ||
-                                    (word.sentenceStartMs != null &&
-                                        word.sentenceEndMs != null)))
+                            if (word.sentenceText != null)
                               const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(

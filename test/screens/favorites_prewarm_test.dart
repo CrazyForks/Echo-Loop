@@ -139,6 +139,7 @@ class _RecordingShortAudioPlayer extends LocalAudioClipPlayer {
 
   final List<String> openedPaths = [];
   final List<Duration> openedStarts = [];
+  bool rangePlaybackResult = true;
 
   @override
   Future<bool> playRangeFile(
@@ -148,7 +149,7 @@ class _RecordingShortAudioPlayer extends LocalAudioClipPlayer {
   }) async {
     openedPaths.add(filePath);
     openedStarts.add(start);
-    return true;
+    return rangePlaybackResult;
   }
 }
 
@@ -676,5 +677,51 @@ void main() {
       '${appDataDir.path}/audios/audio-2.m4a',
     ]);
     expect(shortAudioPlayer.openedStarts, [const Duration(milliseconds: 4000)]);
+  });
+
+  testWidgets('收藏意群原声不可用时回退来源句 TTS', (tester) async {
+    shortAudioPlayer.rangePlaybackResult = false;
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([]);
+    phraseC.add([
+      _phrase(
+        1,
+        'scores a try',
+        audioItemId: 'audio-2',
+        sentenceText: 'When our team scores a try.',
+        sentenceStartMs: 4000,
+        sentenceEndMs: 6200,
+      ),
+    ]);
+    audioItemDao.items['audio-2'] = _audioItem('audio-2');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('scores a try'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('When our team scores a try.').last);
+    await tester.pumpAndSettle();
+
+    expect(rec.spokenTexts, ['When our team scores a try.']);
+  });
+
+  testWidgets('展开收藏意群后主 item 不重复显示来源句', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([]);
+    phraseC.add([
+      _phrase(1, 'scores a try', sentenceText: 'When our team scores a try.'),
+    ]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    expect(find.text('When our team scores a try.'), findsOneWidget);
+
+    await tester.tap(find.text('scores a try'));
+    await tester.pumpAndSettle();
+    expect(find.text('When our team scores a try.'), findsOneWidget);
   });
 }
