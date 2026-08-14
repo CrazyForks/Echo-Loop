@@ -902,7 +902,12 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
 
     await _annotationCountdown.start(pauseDur);
 
-    if (!engine.isActiveSession(sessionId)) return;
+    // 取消倒计时也会正常完成 Future；只有仍停留在倒计时阶段时，
+    // 才允许继续执行自动切句，避免用户接管后被旧流程推进到下一句。
+    if (!engine.isActiveSession(sessionId) ||
+        state.annotationState?.phase is! WaitingAnnotationInterval) {
+      return;
+    }
 
     final isLastSentence =
         state.currentSentenceIndex >= state.totalSentences - 1;

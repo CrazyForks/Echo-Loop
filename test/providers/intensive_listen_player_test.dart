@@ -10,6 +10,7 @@ import 'package:echo_loop/models/intensive_listen_settings.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
+import 'package:echo_loop/providers/intensive_annotation/intensive_annotation_phase.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
@@ -645,6 +646,25 @@ void main() {
       expect(advanced.isAnnotationReplay, false);
       expect(advanced.isAnnotationMode, false);
       expect(advanced.isPauseBetweenSentences, false);
+    });
+
+    test('点击详情倒计时后取消自动推进并等待用户', () async {
+      notifier.enterAnnotationMode();
+
+      final future = notifier.exitAnnotationMode();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      final pausing = container.read(intensiveListenPlayerProvider);
+      expect(pausing.isPauseBetweenSentences, true);
+
+      notifier.onAnnotationUserInteraction();
+      await future;
+
+      final waiting = container.read(intensiveListenPlayerProvider);
+      expect(waiting.currentSentenceIndex, 0);
+      expect(waiting.isAnnotationMode, true);
+      expect(waiting.isPauseBetweenSentences, false);
+      expect(waiting.annotationState?.phase, isA<WaitingAnnotationUser>());
     });
 
     test('最后一句点击继续后，重播和倒计时结束后标记完成', () async {
