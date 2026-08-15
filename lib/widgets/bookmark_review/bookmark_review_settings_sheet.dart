@@ -9,7 +9,7 @@ import '../../providers/bookmark_review_settings_provider.dart';
 import '../../providers/favorite_review_settings_provider.dart';
 import '../../theme/app_theme.dart';
 
-enum FavoriteReviewSettingsTask { sentence, vocabulary }
+enum FavoriteReviewSettingsTask { sentence, vocabulary, favorites }
 
 /// 收藏复习设置面板。
 ///

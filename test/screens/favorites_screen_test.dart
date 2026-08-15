@@ -202,6 +202,63 @@ void main() {
   }
 
   group('FavoritesScreen — SegmentedButton 切换', () {
+    testWidgets('右上角设置打开收藏复习共享设置且不展开内容分区', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('favorites-review-settings')));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Review settings'), findsOneWidget);
+      expect(
+        find.byKey(const Key('favorite-review-settings-sentence-section')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<ExpansionTile>(
+              find.byKey(
+                const Key('favorite-review-settings-sentence-section'),
+              ),
+            )
+            .initiallyExpanded,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<ExpansionTile>(
+              find.byKey(
+                const Key('favorite-review-settings-vocabulary-section'),
+              ),
+            )
+            .initiallyExpanded,
+        isFalse,
+      );
+    });
+
+    testWidgets('词汇 tab 设置同样不展开内容分区', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pump();
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('favorites-review-settings')));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Review settings'), findsOneWidget);
+      expect(find.text('Saved vocabulary review'), findsOneWidget);
+      expect(
+        tester
+            .widget<ExpansionTile>(
+              find.byKey(
+                const Key('favorite-review-settings-vocabulary-section'),
+              ),
+            )
+            .initiallyExpanded,
+        isFalse,
+      );
+    });
+
     testWidgets('默认显示句子视图和 tab 标签', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();

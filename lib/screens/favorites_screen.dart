@@ -35,6 +35,7 @@ import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
 import '../widgets/favorites/vocabulary_recycle_bin_sheet.dart';
+import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 import '../widgets/guide_flow.dart';
 
 /// 判断 tile 是否真实位于最近滚动视口内；`cacheExtent` 保留的离屏 widget 不预热。
@@ -93,6 +94,20 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   final GlobalKey _keySentencesReviewBtn = GlobalKey();
   final GlobalKey _keyWordsList = GlobalKey();
   final GlobalKey _keyVocabReviewBtn = GlobalKey();
+
+  /// 打开收藏复习共享设置；收藏页不预展开任一内容分区。
+  Future<void> _openReviewSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => BookmarkReviewSettingsSheet(
+        task: FavoriteReviewSettingsTask.favorites,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +221,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   }
                 },
               ),
+            ),
+            IconButton(
+              key: const Key('favorites-review-settings'),
+              icon: const Icon(Icons.tune),
+              tooltip: l10n.bookmarkReviewSettingsTitle,
+              onPressed: _openReviewSettings,
             ),
           ],
         ),
