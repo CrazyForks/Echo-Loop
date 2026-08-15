@@ -47,6 +47,9 @@ class PracticePlaybackFooter extends StatelessWidget {
   /// 可选的右侧自定义控件；未提供时显示下一句/完成图标。
   final Widget? nextControl;
 
+  /// 自定义右侧控件占用的布局宽度。
+  final double? nextControlWidth;
+
   /// 本地化
   final AppLocalizations l10n;
 
@@ -68,6 +71,7 @@ class PracticePlaybackFooter extends StatelessWidget {
     required this.playCountText,
     this.statusSuffixText,
     this.nextControl,
+    this.nextControlWidth,
     required this.l10n,
     required this.theme,
     this.centerGuideStep,
@@ -97,6 +101,7 @@ class PracticePlaybackFooter extends StatelessWidget {
               onNext: onNext,
               onCenter: onCenter,
               nextControl: nextControl,
+              nextControlWidth: nextControlWidth,
               centerGuideStep: centerGuideStep,
             ),
             const SizedBox(height: AppSpacing.s),

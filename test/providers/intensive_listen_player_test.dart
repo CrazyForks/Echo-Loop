@@ -35,6 +35,31 @@ class _ReplayTestAudioEngine extends TestAudioEngine {
   }
 }
 
+class _OverlappingReplayAudioEngine extends TestAudioEngine {
+  int _sessionId = 0;
+  final Map<int, Completer<void>> _playbackCompletions = {};
+
+  @override
+  int newSession() => ++_sessionId;
+
+  @override
+  bool isActiveSession(int id) => id == _sessionId;
+
+  @override
+  Future<void> playClipOnce(Sentence sentence, int sessionId) {
+    final completion = Completer<void>();
+    _playbackCompletions[sessionId] = completion;
+    return completion.future;
+  }
+
+  void completePlayback(int sessionId) {
+    final completion = _playbackCompletions[sessionId];
+    if (completion != null && !completion.isCompleted) {
+      completion.complete();
+    }
+  }
+}
+
 class _DeferredBlindAudioEngine extends TestAudioEngine {
   int _sessionId = 0;
   final Map<int, Completer<void>> _sentenceCompletions = {};
@@ -676,6 +701,47 @@ void main() {
       final completed = container.read(intensiveListenPlayerProvider);
       expect(completed.isAnnotationReplay, false);
       expect(completed.isPauseBetweenSentences, false);
+    });
+
+    test('旧详情重播结束不会覆盖新重播的播放态', () async {
+      final audioEngine = _OverlappingReplayAudioEngine();
+      final overlappingContainer = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWith(() => audioEngine),
+          learningSessionProvider.overrideWith(() => TestLearningSession()),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(overlappingContainer.dispose);
+      final overlappingNotifier = overlappingContainer.read(
+        intensiveListenPlayerProvider.notifier,
+      );
+      await overlappingNotifier.initialize(sentences);
+      overlappingNotifier.enterAnnotationMode();
+
+      final firstReplay = overlappingNotifier.exitAnnotationMode();
+      await Future<void>.delayed(Duration.zero);
+      overlappingNotifier.pause();
+      final secondReplay = overlappingNotifier.exitAnnotationMode();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        overlappingContainer.read(intensiveListenPlayerProvider).isPlaying,
+        true,
+      );
+
+      audioEngine.completePlayback(1);
+      await Future<void>.delayed(Duration.zero);
+
+      final replaying = overlappingContainer.read(
+        intensiveListenPlayerProvider,
+      );
+      expect(replaying.isAnnotationReplay, true);
+      expect(replaying.isPlaying, true);
+
+      audioEngine.completePlayback(2);
+      await Future.wait([firstReplay, secondReplay]);
     });
   });
 

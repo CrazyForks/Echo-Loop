@@ -2411,7 +2411,7 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenContinue.
   ///
   /// In en, this message translates to:
-  /// **'Continue'**
+  /// **'Next'**
   String get intensiveListenContinue;
 
   /// No description provided for @intensiveListenReplayingWithSubtitle.

@@ -1319,7 +1319,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get intensiveListenWordDictNotFound => 'Word not found in dictionary';
 
   @override
-  String get intensiveListenContinue => 'Continue';
+  String get intensiveListenContinue => 'Next';
 
   @override
   String get intensiveListenReplayingWithSubtitle =>

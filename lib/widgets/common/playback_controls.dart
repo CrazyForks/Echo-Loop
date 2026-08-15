@@ -5,14 +5,16 @@
 /// 用于盲听、精听、跟读、复述、难句补练、收藏复习页面。
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../guide_flow.dart';
-import 'tappable_wrapper.dart';
 
 /// 播放控制栏：[上一个] [播放/暂停] [下一个/完成]
 class PlaybackControls extends StatelessWidget {
   static const double controlButtonSize = 56;
+  static const double controlButtonGap = 24;
 
   /// 是否可以返回上一个
   final bool canGoPrev;
@@ -35,6 +37,9 @@ class PlaybackControls extends StatelessWidget {
   /// 可选的右侧自定义控件；未提供时显示下一句/完成图标。
   final Widget? nextControl;
 
+  /// 自定义右侧控件占用的布局宽度，控件自身尺寸由调用方管理。
+  final double? nextControlWidth;
+
   /// 可选：中间按钮的新手引导步骤，提供时会用 [GuideTarget] 包裹中间按钮
   final GuideStep? centerGuideStep;
 
@@ -47,6 +52,7 @@ class PlaybackControls extends StatelessWidget {
     this.onPrevious,
     this.onNext,
     this.nextControl,
+    this.nextControlWidth,
     this.centerGuideStep,
   });
 
@@ -54,25 +60,28 @@ class PlaybackControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final centerButton = TappableWrapper(
-      onTap: onCenter,
-      feedbackType: TapFeedback.scale,
-      scaleDown: 0.92,
-      child: Container(
-        width: controlButtonSize,
-        height: controlButtonSize,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primary,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.primary.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    final centerButton = SizedBox.square(
+      dimension: controlButtonSize,
+      child: IconButton.filled(
+        onPressed: onCenter,
+        icon: Icon(centerIcon),
+        style: IconButton.styleFrom(
+          fixedSize: const Size.square(controlButtonSize),
+          iconSize: 28,
+          foregroundColor: theme.colorScheme.onPrimary,
+          backgroundColor: theme.colorScheme.primary,
+          disabledForegroundColor: theme.colorScheme.onPrimary.withValues(
+            alpha: 0.38,
+          ),
+          disabledBackgroundColor: theme.colorScheme.primary.withValues(
+            alpha: 0.38,
+          ),
+          hoverColor: theme.colorScheme.onPrimary.withValues(alpha: 0.08),
+          focusColor: theme.colorScheme.onPrimary.withValues(alpha: 0.12),
+          highlightColor: theme.colorScheme.onPrimary.withValues(alpha: 0.12),
+          elevation: 2,
+          shadowColor: theme.colorScheme.primary.withValues(alpha: 0.15),
         ),
-        child: Icon(centerIcon, size: 28, color: theme.colorScheme.onPrimary),
       ),
     );
 
@@ -86,41 +95,60 @@ class PlaybackControls extends StatelessWidget {
       enabled: canGoPrev,
       onTap: canGoPrev ? onPrevious : null,
     );
-    final nextWidget = nextControl != null
-        ? IntrinsicWidth(child: nextControl!)
-        : PlaybackNavButton(
-            icon: isLast ? Icons.check_circle_rounded : Icons.skip_next_rounded,
-            enabled: true,
-            onTap: onNext,
-          );
+    final nextRegionChild =
+        nextControl ??
+        PlaybackNavButton(
+          icon: isLast ? Icons.check_circle_rounded : Icons.skip_next_rounded,
+          enabled: true,
+          onTap: onNext,
+        );
 
-    // 自定义右侧控件使用叠层定位，保持播放按钮始终位于控制区中心。
-    final controls = nextControl != null
-        ? SizedBox(
-            height: PlaybackControls.controlButtonSize,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(alignment: Alignment.centerLeft, child: previousWidget),
-                centerWidget,
-                Align(alignment: Alignment.centerRight, child: nextWidget),
-              ],
+    // 播放按钮必须始终固定在正中间，不能随 nextControl 的宽度变化而挪动。
+    // 用左右两个等 flex 的 Expanded 包住上一句/下一句区域：无论 nextControl
+    // 多宽，两侧分配到的空间永远相等，播放按钮的位置只取决于这个等分点，
+    // 和 nextControl 本身的宽度完全无关。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final requiredWidth =
+            controlButtonSize * 2 +
+            controlButtonGap * 2 +
+            (nextControl != null
+                ? (nextControlWidth ?? controlButtonSize)
+                : controlButtonSize);
+        final horizontalPadding = math
+            .max(
+              0,
+              math.min(
+                AppSpacing.l,
+                (constraints.maxWidth - requiredWidth) / 2,
+              ),
+            )
+            .toDouble();
+        final controls = Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: previousWidget,
+              ),
             ),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              previousWidget,
-              const SizedBox(width: 48),
-              centerWidget,
-              const SizedBox(width: 48),
-              nextWidget,
-            ],
-          );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-      child: controls,
+            const SizedBox(width: controlButtonGap),
+            centerWidget,
+            const SizedBox(width: controlButtonGap),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: nextRegionChild,
+              ),
+            ),
+          ],
+        );
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: controls,
+        );
+      },
     );
   }
 }
@@ -145,40 +173,29 @@ class PlaybackNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled) {
-      return SizedBox(
-        width: PlaybackControls.controlButtonSize,
-        height: PlaybackControls.controlButtonSize,
-        child: Center(
-          child: AnimatedOpacity(
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconWidget = enabled
+        ? Opacity(
+            opacity: 0.6,
+            child: Icon(icon, size: 32, color: colorScheme.onSurface),
+          )
+        : AnimatedOpacity(
             opacity: 0.15,
             duration: const Duration(milliseconds: 150),
-            child: Icon(
-              icon,
-              size: 32,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ),
-      );
-    }
-    return TappableWrapper(
-      onTap: onTap,
-      feedbackType: TapFeedback.opacityAndScale,
-      pressedOpacity: 0.4,
-      scaleDown: 0.85,
-      child: SizedBox(
-        width: PlaybackControls.controlButtonSize,
-        height: PlaybackControls.controlButtonSize,
-        child: Center(
-          child: Opacity(
-            opacity: 0.6,
-            child: Icon(
-              icon,
-              size: 32,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
+            child: Icon(icon, size: 32, color: colorScheme.onSurface),
+          );
+
+    return SizedBox.square(
+      dimension: PlaybackControls.controlButtonSize,
+      child: IconButton(
+        onPressed: enabled ? onTap : null,
+        icon: iconWidget,
+        style: IconButton.styleFrom(
+          fixedSize: const Size.square(PlaybackControls.controlButtonSize),
+          hoverColor: colorScheme.onSurface.withValues(alpha: 0.08),
+          focusColor: colorScheme.onSurface.withValues(alpha: 0.12),
+          highlightColor: colorScheme.onSurface.withValues(alpha: 0.12),
+          disabledForegroundColor: colorScheme.onSurface,
         ),
       ),
     );

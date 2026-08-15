@@ -725,7 +725,7 @@
   "aiVocabulary": "Key Vocabulary",
   "aiListening": "Listening tips",
   "intensiveListenWordDictNotFound": "Word not found in dictionary",
-  "intensiveListenContinue": "Continue",
+  "intensiveListenContinue": "Next",
   "intensiveListenReplayingWithSubtitle": "Replaying with subtitles...",
   "intensiveListenPauseBetweenPlays": "Next play in {seconds}s",
   "@intensiveListenPauseBetweenPlays": {

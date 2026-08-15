@@ -29,6 +29,7 @@ import 'package:echo_loop/services/notification_permission_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
+import 'package:echo_loop/widgets/common/playback_controls.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 
 import '../helpers/mock_providers.dart';
@@ -476,7 +477,7 @@ void main() {
       expect(find.text('Auto · Round 2/3 · 1.0x'), findsOneWidget);
     });
 
-    testWidgets('详情模式显示带提示的圆形继续图标按钮', (tester) async {
+    testWidgets('详情模式显示带文字的继续按钮', (tester) async {
       await tester.pumpWidget(
         createTestWidget(
           playerState: createPlayerState(
@@ -487,28 +488,26 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Continue'), findsNothing);
-      expect(find.byTooltip('Continue'), findsOneWidget);
+      final continueButtonFinder = find.byKey(
+        const ValueKey('intensive-annotation-continue-button'),
+      );
+      expect(continueButtonFinder, findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+      final continueLabel = tester.widget<Text>(find.text('Next'));
+      expect(continueLabel.maxLines, 1);
+      expect(continueLabel.softWrap, isFalse);
       final continueIcon = tester.widget<Icon>(
         find.byIcon(Icons.arrow_forward_rounded),
       );
+      expect(continueIcon.size, 20);
+
+      final continueButton = tester.widget<FilledButton>(continueButtonFinder);
+      expect(continueButton.style?.shape?.resolve({}), isA<StadiumBorder>());
+      expect(continueButton.style?.fixedSize?.resolve({}), const Size(128, 48));
       expect(
-        continueIcon.color,
-        Theme.of(
-          tester.element(find.byTooltip('Continue')),
-        ).colorScheme.onPrimary,
+        continueButton.style?.padding?.resolve({}),
+        const EdgeInsets.symmetric(horizontal: 16),
       );
-      final continueButton = tester.widget<IconButton>(
-        find.ancestor(
-          of: find.byIcon(Icons.arrow_forward_rounded),
-          matching: find.byType(IconButton),
-        ),
-      );
-      expect(
-        continueButton.style?.fixedSize?.resolve({}),
-        const Size.square(48),
-      );
-      expect(continueButton.style?.shape?.resolve({}), isA<CircleBorder>());
     });
 
     testWidgets('从普通倒计时点击听不懂进入详情页时只显示继续按钮', (tester) async {
@@ -529,7 +528,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      expect(find.byTooltip('Continue'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('intensive-annotation-continue-button')),
+        findsOneWidget,
+      );
       expect(find.text('3s'), findsNothing);
       expect(find.text('Replaying with subtitles...'), findsNothing);
     });
@@ -549,7 +551,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
-      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Next'), findsNothing);
       expect(find.text('Replaying with subtitles...'), findsOneWidget);
     });
 
@@ -571,7 +573,7 @@ void main() {
 
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
-      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Next'), findsNothing);
     });
 
     testWidgets('详情页倒计时使用 pauseDuration 作为总时长', (tester) async {
@@ -1277,7 +1279,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Continue'));
+      await tester.tap(
+        find.byKey(const ValueKey('intensive-annotation-continue-button')),
+      );
       await tester.pumpAndSettle();
 
       expect(player.goToNextCalls, 0);
@@ -1302,7 +1306,10 @@ void main() {
       // 标注模式下（非 annotationReplay）右侧位置由继续按钮接管。
       final prevIcon = find.byIcon(Icons.skip_previous_rounded);
       expect(prevIcon, findsOneWidget);
-      expect(find.byTooltip('Continue'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('intensive-annotation-continue-button')),
+        findsOneWidget,
+      );
 
       final prevOpacity = tester.widget<Opacity>(
         find.ancestor(of: prevIcon, matching: find.byType(Opacity)).first,
@@ -1443,7 +1450,7 @@ void main() {
       expect(player.replayInDetailsCalls, 0);
       expect(player.resumeCalls, 0);
       expect(find.text('Replaying with subtitles...'), findsOneWidget);
-      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Next'), findsNothing);
     });
 
     testWidgets('偷看按钮点击切换 isTextRevealed（非按住）', (tester) async {

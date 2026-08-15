@@ -434,7 +434,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     await engine.setSpeed(state.settings.playbackSpeed);
     await engine.playSentence(sentence, sessionId);
     if (!engine.isActiveSession(sessionId)) {
-      state = state.copyWith(isPlaying: false);
+      _clearPlayingIfCurrentSession(sessionId);
       return;
     }
 
@@ -861,7 +861,7 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     await engine.setSpeed(state.settings.playbackSpeed);
     await engine.playSentence(sentence, sessionId);
     if (!engine.isActiveSession(sessionId)) {
-      state = state.copyWith(isPlaying: false);
+      _clearPlayingIfCurrentSession(sessionId);
       return;
     }
 
@@ -979,6 +979,16 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     _currentSessionId = -1;
     _annotationWaitAfterCurrentPlayback = false;
     _playback.pause();
+  }
+
+  /// 仅允许当前详情播放会话清除播放态。
+  ///
+  /// 用户在详情重播期间再次点击继续或播放时，旧 session 会异步返回。
+  /// 旧 session 已失效并不代表新 session 已停止，因此不能覆盖新会话的
+  /// [IntensiveListenState.isPlaying]。
+  void _clearPlayingIfCurrentSession(int sessionId) {
+    if (_currentSessionId != sessionId) return;
+    state = state.copyWith(isPlaying: false);
   }
 
   void _setAnnotationPhase(IntensiveAnnotationPhase phase) {

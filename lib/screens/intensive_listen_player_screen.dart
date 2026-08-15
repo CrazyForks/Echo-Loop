@@ -960,24 +960,49 @@ class _IntensiveListenPlayerScreenState
                                       onCenter: _handleCenter,
                                       nextControl:
                                           _showContinueButton(playerState)
-                                          ? IconButton.filled(
-                                              tooltip:
-                                                  l10n.intensiveListenContinue,
-                                              onPressed: () =>
-                                                  player.exitAnnotationMode(),
-                                              icon: Icon(
-                                                Icons.arrow_forward_rounded,
-                                                color:
-                                                    theme.colorScheme.onPrimary,
-                                              ),
-                                              style: IconButton.styleFrom(
-                                                fixedSize: const Size.square(
-                                                  48,
+                                          ? SizedBox(
+                                              width: 128,
+                                              height: 48,
+                                              child: FilledButton.icon(
+                                                key: const ValueKey(
+                                                  'intensive-annotation-continue-button',
                                                 ),
-                                                shape: const CircleBorder(),
+                                                onPressed: () =>
+                                                    player.exitAnnotationMode(),
+                                                icon: const Icon(
+                                                  Icons.arrow_forward_rounded,
+                                                  size: 20,
+                                                ),
+                                                iconAlignment:
+                                                    IconAlignment.end,
+                                                label: Text(
+                                                  l10n.intensiveListenContinue,
+                                                  maxLines: 1,
+                                                  softWrap: false,
+                                                  overflow: TextOverflow.clip,
+                                                ),
+                                                style: FilledButton.styleFrom(
+                                                  shape: const StadiumBorder(),
+                                                  fixedSize: const Size(
+                                                    128,
+                                                    48,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                      ),
+                                                  textStyle: theme
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                ),
                                               ),
                                             )
                                           : null,
+                                      nextControlWidth: 128,
                                       isManualMode:
                                           playerState.settings.isManualMode,
                                       playCountText: formatPracticePlayCount(
