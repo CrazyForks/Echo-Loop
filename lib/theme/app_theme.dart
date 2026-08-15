@@ -121,6 +121,24 @@ class AppTheme {
   /// 选 Material Orange 800：白字对比足够，区别于品牌蓝、不会与封面同色系混淆
   static const Color officialBadgeColor = Color(0xFFEF6C00);
 
+  /// 设置类底部弹窗的分组卡片背景色。
+  ///
+  /// 浅色比弹层背景略灰（内凹分组，类似 iOS 分组列表）；
+  /// 深色比 `_sheetBlack`(#1E1E20) 略亮（浮起分组）。
+  static Color settingsSectionBackground(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF242427)
+      : const Color(0xFFF2F3F7);
+
+  /// 设置类底部弹窗中，展开态的可折叠分组标题行背景色。
+  ///
+  /// 比分组卡片背景更深一档（浅色）/更亮一档（深色），让用户能一眼看出
+  /// 当前哪个分组处于展开状态；收起态仍保持透明，融入卡片背景。
+  static Color settingsExpandedBackground(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xFF2E2E32)
+      : const Color(0xFFE8E9EF);
+
   /// 亮色主题
   static ThemeData light() {
     final colorScheme = ColorScheme.fromSeed(
@@ -427,5 +445,17 @@ class AppTextStyles {
   static TextStyle label(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant);
+  }
+
+  /// 分组标题文字样式：用于设置类弹窗内的二级分组标题
+  ///
+  /// 基于 titleSmall 加粗，颜色与普通行内文字一致（不染主色），避免与
+  /// 可点击/可折叠元素的语义混淆；层级区分完全依赖字重与间距。
+  static TextStyle? sectionHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.onSurface,
+    );
   }
 }
