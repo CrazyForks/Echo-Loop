@@ -174,20 +174,25 @@ class FreePlayCompleteDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.l),
                     ],
-                    // 按钮行：左「再来一遍」次要(Outlined)，右「完成」主操作(Filled)
-                    Row(
+                    // 按钮按内容宽度排列，避免英文操作文案在狭窄弹窗中折行。
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: AppSpacing.s,
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => onResult(false),
-                            child: Text(replayLabel ?? l10n.listenAgain),
+                        OutlinedButton(
+                          onPressed: () => onResult(false),
+                          child: Text(
+                            replayLabel ?? l10n.listenAgain,
+                            maxLines: 1,
+                            softWrap: false,
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.s),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => onResult(true),
-                            child: Text(doneLabel ?? l10n.done),
+                        FilledButton(
+                          onPressed: () => onResult(true),
+                          child: Text(
+                            doneLabel ?? l10n.done,
+                            maxLines: 1,
+                            softWrap: false,
                           ),
                         ),
                       ],

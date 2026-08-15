@@ -9,7 +9,7 @@
 /// 4. 底部操作按钮
 ///
 /// 按钮布局根据上下文分三种情况：
-/// 1. 有下一步可继续：[完成] [继续：X]
+/// 1. 有下一步可继续：[完成] [继续]
 /// 2. 末步骤：[完成首次学习/复习]（全宽）
 /// 3. 非末步骤但下一步不可用：[完成]（全宽）
 ///
@@ -217,7 +217,7 @@ class _StepCompleteDialogState extends State<StepCompleteDialog> {
   /// 构建底部操作按钮
   ///
   /// 三种情况：
-  /// 1. 有下一步可继续：[完成 Outlined] [继续：X Filled] 同一行
+  /// 1. 有下一步可继续：[完成 Outlined] [继续 Filled] 同一行
   /// 2. 末步骤：[完成首次学习/复习 Filled]（全宽）
   /// 3. 非末步骤但下一步不可用：[完成 Filled]（全宽）
   List<Widget> _buildActions(BuildContext context, AppLocalizations l10n) {
@@ -240,10 +240,7 @@ class _StepCompleteDialogState extends State<StepCompleteDialog> {
               child: FilledButton(
                 onPressed: () =>
                     widget.onResult((action: StepCompleteAction.continueNext)),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(l10n.continueToStep(widget.nextStepName!)),
-                ),
+                child: Text(l10n.continueButton),
               ),
             ),
           ],

@@ -47,7 +47,7 @@ void main() {
 
       // 验证两个按钮
       expect(find.text('Done'), findsOneWidget);
-      expect(find.text('Continue: Listen & Repeat'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
 
       // 右上角关闭按钮
       expect(find.byIcon(Icons.close), findsOneWidget);
@@ -78,7 +78,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final continueButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Continue: Listen & Repeat'),
+        find.widgetWithText(FilledButton, 'Continue'),
       );
       expect(continueButton.onPressed, isNotNull);
 
@@ -86,6 +86,25 @@ void main() {
         find.widgetWithText(OutlinedButton, 'Done'),
       );
       expect(doneButton.onPressed, isNotNull);
+    });
+
+    testWidgets('中文非末步骤使用简短的继续文案', (tester) async {
+      await tester.pumpWidget(
+        createTestApp(
+          Builder(
+            builder: (context) => StepCompleteDialog(
+              onResult: (_) {},
+              title: '完成',
+              nextStepName: '听写练习',
+            ),
+          ),
+          locale: const Locale('zh'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('继续'), findsOneWidget);
+      expect(find.text('继续：听写练习'), findsNothing);
     });
 
     testWidgets('非末步骤 — 点击"继续"返回 continueNext', (tester) async {
@@ -114,7 +133,7 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Continue: Listen & Repeat'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);
