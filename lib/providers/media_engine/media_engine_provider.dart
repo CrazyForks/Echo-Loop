@@ -32,6 +32,9 @@ class MediaEngine extends _$MediaEngine {
   EchoLoopMediaHandler? _handler;
   MediaSessionRouter? _router;
   bool _disposingChain = false;
+  int _rangeRequestId = 0;
+  bool _hasActiveRangeRequest = false;
+  Future<void> _rangeControlTail = Future<void>.value();
 
   @override
   MediaEngineState build() {
@@ -72,6 +75,7 @@ class MediaEngine extends _$MediaEngine {
     required String reason,
   }) async {
     if (_disposingChain) return;
+    _invalidateRangeRequest('dispose-$reason');
     _disposingChain = true;
     final handler = _handler;
     final backend = _backend;
@@ -179,6 +183,7 @@ class MediaEngine extends _$MediaEngine {
   Future<void> play() async => _handler?.playBackend();
 
   Future<void> pause() async {
+    _invalidateRangeRequest('legacy-pause');
     state = state.copyWith(sessionId: state.sessionId + 1);
     await _handler?.pauseBackend();
   }
@@ -186,12 +191,14 @@ class MediaEngine extends _$MediaEngine {
   Future<void> pauseKeepSession() async => _handler?.pauseBackend();
 
   Future<void> stop() async {
+    _invalidateRangeRequest('legacy-stop');
     state = state.copyWith(sessionId: state.sessionId + 1);
     await _handler?.stop();
   }
 
   /// 页面退出释放链路：只让业务 session 失效并释放 backend，不等待系统 stop 回调。
   Future<void> releaseFromScreen() async {
+    _invalidateRangeRequest('screen-release');
     state = state.copyWith(sessionId: state.sessionId + 1);
     await _handler?.pauseBackend();
     await disposeChain();
@@ -254,6 +261,198 @@ class MediaEngine extends _$MediaEngine {
   Future<void> startKeepAlive() async => _handler?.startKeepAlive();
 
   Future<void> stopKeepAlive() async => _handler?.stopKeepAlive();
+
+  /// 原子替换当前区间播放；调用方不持有媒体 session。
+  ///
+  /// 每个请求拥有私有 generation。新的 range、取消或页面释放都会使旧请求返回
+  /// [SentencePlaybackResult.cancelled]，旧请求的迟到回调不会暂停后继请求。
+  Future<SentencePlaybackResult> playRange(
+    Duration start,
+    Duration end, {
+    required double speed,
+  }) async {
+    if (start < Duration.zero || end <= start) {
+      AppLogger.log(
+        'MediaEngine Range',
+        'failed: invalid-range=${start.inMilliseconds}-${end.inMilliseconds}ms',
+      );
+      return SentencePlaybackResult.failed;
+    }
+
+    final requestId = ++_rangeRequestId;
+    _hasActiveRangeRequest = true;
+    AppLogger.log(
+      'MediaEngine Range',
+      'request: id=$requestId range=${start.inMilliseconds}-'
+          '${end.inMilliseconds}ms speed=$speed',
+    );
+
+    final setupResult = await _enqueueRangeControl(() async {
+      final handler = _handler;
+      final backend = _backend;
+      if (handler == null || backend == null) {
+        return (result: SentencePlaybackResult.cancelled, backend: backend);
+      }
+      if (!_isActiveRangeRequest(requestId)) {
+        return (result: SentencePlaybackResult.cancelled, backend: backend);
+      }
+      try {
+        await handler.pauseBackend();
+        if (!_isActiveRangeRequest(requestId)) {
+          return (result: SentencePlaybackResult.cancelled, backend: backend);
+        }
+        await handler.setSpeed(speed);
+        if (!_isActiveRangeRequest(requestId)) {
+          return (result: SentencePlaybackResult.cancelled, backend: backend);
+        }
+        await handler.seek(start);
+        if (!_isActiveRangeRequest(requestId)) {
+          return (result: SentencePlaybackResult.cancelled, backend: backend);
+        }
+        return (result: SentencePlaybackResult.completed, backend: backend);
+      } catch (error) {
+        AppLogger.log(
+          'MediaEngine Range',
+          'failed: id=$requestId setup-error=$error',
+        );
+        _invalidateRangeRequest('setup-failed');
+        return (result: SentencePlaybackResult.failed, backend: backend);
+      }
+    });
+
+    final backend = setupResult.backend;
+    if (setupResult.result != SentencePlaybackResult.completed ||
+        backend == null ||
+        !_isActiveRangeRequest(requestId)) {
+      return _rangeResultFor(requestId, setupResult.result);
+    }
+
+    final reached = _awaitRangeEndOrRequestInvalid(backend, end, requestId);
+    final playResult = await _enqueueRangeControl(() async {
+      final handler = _handler;
+      if (handler == null || !_isActiveRangeRequest(requestId)) {
+        return SentencePlaybackResult.cancelled;
+      }
+      try {
+        await handler.playBackend();
+        return _isActiveRangeRequest(requestId)
+            ? SentencePlaybackResult.completed
+            : SentencePlaybackResult.cancelled;
+      } catch (error) {
+        AppLogger.log(
+          'MediaEngine Range',
+          'failed: id=$requestId play-error=$error',
+        );
+        _invalidateRangeRequest('play-failed');
+        return SentencePlaybackResult.failed;
+      }
+    });
+    if (playResult != SentencePlaybackResult.completed) {
+      return playResult;
+    }
+
+    final result = await reached;
+    if (result == SentencePlaybackResult.completed) {
+      await _enqueueRangeControl(() async {
+        if (_isActiveRangeRequest(requestId)) {
+          await _handler?.pauseBackend();
+        }
+      });
+    }
+    AppLogger.log(
+      'MediaEngine Range',
+      'return: id=$requestId position=${backend.position.inMilliseconds}ms '
+          'result=$result',
+    );
+    _completeRangeRequest(requestId);
+    return result;
+  }
+
+  /// 取消当前自管理区间播放，并等待底层暂停排在已发出的控制命令之后执行。
+  Future<void> cancelActiveRange({String reason = 'caller-cancel'}) async {
+    _invalidateRangeRequest(reason);
+    await _enqueueRangeControl(() async {
+      await _handler?.pauseBackend();
+    });
+  }
+
+  bool _isActiveRangeRequest(int requestId) =>
+      _hasActiveRangeRequest && requestId == _rangeRequestId;
+
+  void _completeRangeRequest(int requestId) {
+    if (_isActiveRangeRequest(requestId)) {
+      _hasActiveRangeRequest = false;
+    }
+  }
+
+  SentencePlaybackResult _rangeResultFor(
+    int requestId,
+    SentencePlaybackResult fallback,
+  ) => _isActiveRangeRequest(requestId)
+      ? fallback
+      : SentencePlaybackResult.cancelled;
+
+  void _invalidateRangeRequest(String reason) {
+    if (!_hasActiveRangeRequest) return;
+    final previous = _rangeRequestId;
+    _rangeRequestId += 1;
+    _hasActiveRangeRequest = false;
+    AppLogger.log(
+      'MediaEngine Range',
+      'cancel: previous=$previous current=$_rangeRequestId reason=$reason',
+    );
+  }
+
+  Future<T> _enqueueRangeControl<T>(Future<T> Function() operation) {
+    final queued = _rangeControlTail.then((_) => operation());
+    _rangeControlTail = queued.then<void>((_) {}, onError: (_, _) {});
+    return queued;
+  }
+
+  Future<SentencePlaybackResult> _awaitRangeEndOrRequestInvalid(
+    MediaPlayerBackend backend,
+    Duration end,
+    int requestId,
+  ) {
+    final completer = Completer<SentencePlaybackResult>();
+    StreamSubscription<Duration>? posSub;
+    StreamSubscription<void>? doneSub;
+    Timer? guard;
+    void finish(SentencePlaybackResult result) {
+      if (completer.isCompleted) return;
+      unawaited(posSub?.cancel());
+      unawaited(doneSub?.cancel());
+      guard?.cancel();
+      completer.complete(result);
+    }
+
+    posSub = backend.positionStream.listen((position) {
+      if (!_isActiveRangeRequest(requestId)) {
+        finish(SentencePlaybackResult.cancelled);
+      } else if (position >= end) {
+        finish(SentencePlaybackResult.completed);
+      }
+    });
+    doneSub = backend.completedStream.listen((_) {
+      if (!_isActiveRangeRequest(requestId)) {
+        finish(SentencePlaybackResult.cancelled);
+      } else {
+        finish(
+          backend.position >= end
+              ? SentencePlaybackResult.completed
+              : SentencePlaybackResult.failed,
+        );
+      }
+    });
+    guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!_isActiveRangeRequest(requestId)) {
+        finish(SentencePlaybackResult.cancelled);
+      } else if (backend.position >= end) {
+        finish(SentencePlaybackResult.completed);
+      }
+    });
+    return completer.future;
+  }
 
   Future<SentencePlaybackResult> playRangeOnce(
     Duration start,

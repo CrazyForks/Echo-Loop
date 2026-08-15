@@ -50,6 +50,7 @@ class _ControlledMediaEngine extends MediaEngine {
   int subtitleCalls = 0;
   int pauseCalls = 0;
   Completer<void>? rangePlayback;
+  bool _rangeCancelled = false;
   final Completer<void> releaseStarted = Completer<void>();
 
   @override
@@ -71,18 +72,22 @@ class _ControlledMediaEngine extends MediaEngine {
   }
 
   @override
-  Future<SentencePlaybackResult> playRangeOnce(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
-    Duration end,
-    int sessionId,
-  ) async {
+    Duration end, {
+    required double speed,
+  }) async {
+    _rangeCancelled = false;
     await (rangePlayback ??= Completer<void>()).future;
-    return SentencePlaybackResult.completed;
+    return _rangeCancelled
+        ? SentencePlaybackResult.cancelled
+        : SentencePlaybackResult.completed;
   }
 
   @override
-  Future<void> pause() async {
+  Future<void> cancelActiveRange({String reason = 'caller-cancel'}) async {
     pauseCalls += 1;
+    _rangeCancelled = true;
     if (rangePlayback?.isCompleted == false) rangePlayback?.complete();
   }
 
@@ -91,31 +96,6 @@ class _ControlledMediaEngine extends MediaEngine {
     releaseCalls += 1;
     if (!releaseStarted.isCompleted) releaseStarted.complete();
   }
-}
-
-/// 模拟视频后端在设置速度时触发的异步媒体状态更新。
-class _SpeedInvalidatingMediaEngine extends _ControlledMediaEngine {
-  int _sessionId = 0;
-
-  @override
-  int newSession() => ++_sessionId;
-
-  @override
-  bool isActiveSession(int id) => id == _sessionId;
-
-  @override
-  Future<void> setSpeed(double speed) async {
-    _sessionId += 1;
-  }
-
-  @override
-  Future<SentencePlaybackResult> playRangeOnce(
-    Duration start,
-    Duration end,
-    int sessionId,
-  ) async => isActiveSession(sessionId)
-      ? SentencePlaybackResult.completed
-      : SentencePlaybackResult.cancelled;
 }
 
 /// 测试用 AudioEngine — playClipOnce 即时完成
@@ -354,30 +334,9 @@ void main() {
       await playing;
 
       expect(mediaEngine.pauseCalls, 1);
-    });
-
-    test('视频速度设置后创建新 session，区间播放不会被提前取消', () async {
-      final mediaEngine = _SpeedInvalidatingMediaEngine();
-      final mediaContainer = createMediaContainer(mediaEngine);
-      addTearDown(mediaContainer.dispose);
-      final mediaController = mediaContainer.read(
-        listenAndRepeatControllerProvider.notifier,
-      );
-
-      expect(
-        await mediaController.initializeMedia(
-          mediaItem: mediaItem(),
-          allSentences: createTestSentences(count: 1),
-          isFreePlay: false,
-        ),
-        MediaLoadResult.ready,
-      );
-
-      await mediaController.startPlaying();
-
       expect(
         mediaContainer.read(listenAndRepeatControllerProvider).phase,
-        isA<Recording>(),
+        isA<WaitingForUser>(),
       );
     });
 

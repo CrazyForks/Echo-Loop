@@ -3,7 +3,7 @@ import 'media_engine_provider.dart';
 
 /// 基于 [MediaEngine] 的意群区间播放实现。
 ///
-/// 每个学习会话各自创建实例；内部 generation 与 MediaEngine session 双重隔离，
+/// 每个学习会话各自创建实例；内部 generation 与活动标记隔离，
 /// 防止重复点击、切句或退出后的旧播放影响当前材料。
 class MediaSenseGroupRangePlayback implements SenseGroupRangePlayback {
   MediaSenseGroupRangePlayback({
@@ -15,21 +15,28 @@ class MediaSenseGroupRangePlayback implements SenseGroupRangePlayback {
   final MediaEngine _engine;
   final double Function() _playbackSpeed;
   int _generation = 0;
+  bool _isPlaying = false;
 
   @override
   Future<void> play(Duration start, Duration end) async {
     final generation = ++_generation;
-    final sessionId = _engine.newSession();
-    await _engine.setSpeed(_playbackSpeed());
-    if (generation != _generation || !_engine.isActiveSession(sessionId)) {
-      return;
+    _isPlaying = true;
+    try {
+      await _engine.playRange(start, end, speed: _playbackSpeed());
+    } finally {
+      if (generation == _generation) {
+        _isPlaying = false;
+      }
     }
-    await _engine.playRangeOnce(start, end, sessionId);
   }
 
   @override
   Future<void> cancel() async {
     _generation++;
-    await _engine.pause();
+    // 页面切句会清理每个 AnnotationContentView，即使用户从未点过意群。
+    // 此时不得暂停共享 MediaEngine 的主句 range，否则会误取消自动跟读。
+    if (!_isPlaying) return;
+    _isPlaying = false;
+    await _engine.cancelActiveRange(reason: 'sense-group-cancel');
   }
 }

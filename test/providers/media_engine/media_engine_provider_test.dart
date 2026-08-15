@@ -86,6 +86,47 @@ void main() {
     expect(backend.pauseCalls, 1);
   });
 
+  test('playRange 会替换旧请求，旧请求不能暂停新请求', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+
+    final first = engine.playRange(
+      const Duration(seconds: 1),
+      const Duration(seconds: 3),
+      speed: 1.0,
+    );
+    await Future<void>.delayed(Duration.zero);
+    final second = engine.playRange(
+      const Duration(seconds: 4),
+      const Duration(seconds: 6),
+      speed: 1.25,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(backend.seekCalls.last, const Duration(seconds: 4));
+    backend.emitPosition(const Duration(seconds: 6));
+
+    expect(await first, SentencePlaybackResult.cancelled);
+    expect(await second, SentencePlaybackResult.completed);
+    expect(backend.pauseCalls, 3);
+  });
+
+  test('cancelActiveRange 会取消当前请求且不等待句尾事件', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+
+    final playing = engine.playRange(
+      const Duration(seconds: 1),
+      const Duration(seconds: 3),
+      speed: 1.0,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await engine.cancelActiveRange(reason: 'user-next');
+
+    expect(await playing, SentencePlaybackResult.cancelled);
+    expect(backend.pauseCalls, 2);
+  });
+
   test('pause 会使旧区间 session 失效，旧终点不再二次暂停', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
@@ -122,7 +163,7 @@ void main() {
     expect(backend.pauseCalls, 1);
   });
 
-  test('媒体意群播放按当前速度播放区间，取消后旧 session 不再生效', () async {
+  test('媒体意群播放按当前速度播放区间，取消后活动 range 不再生效', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
     final playback = MediaSenseGroupRangePlayback(
@@ -142,7 +183,30 @@ void main() {
     backend.emitPosition(const Duration(seconds: 4));
     await playing;
 
-    expect(backend.pauseCalls, 1);
+    expect(backend.pauseCalls, 2);
+  });
+
+  test('媒体意群未开始播放时取消不会暂停主句 range', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    final playback = MediaSenseGroupRangePlayback(
+      engine: engine,
+      playbackSpeed: () => 1.25,
+    );
+
+    final mainPlaying = engine.playRange(
+      const Duration(seconds: 2),
+      const Duration(seconds: 4),
+      speed: 1.0,
+    );
+    await Future<void>.delayed(Duration.zero);
+    final pausesBeforeCancel = backend.pauseCalls;
+
+    await playback.cancel();
+
+    expect(backend.pauseCalls, pausesBeforeCancel);
+    backend.emitPosition(const Duration(seconds: 4));
+    expect(await mainPlaying, SentencePlaybackResult.completed);
   });
 
   test('disposeChain 交还会话并释放 backend', () async {

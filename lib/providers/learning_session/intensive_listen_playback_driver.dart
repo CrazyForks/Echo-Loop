@@ -23,6 +23,12 @@ abstract interface class SentencePlaybackDriver {
   Future<void> setSpeed(double speed);
   Future<SentencePlaybackResult> playSentence(Sentence sentence, int sessionId);
 
+  /// 按指定速度完整播放一句；MediaEngine 实现自行管理底层播放请求。
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  );
+
   /// 绑定系统媒体控制；不提供系统媒体会话的前台音频适配器实现为空操作。
   void bindLockScreen({
     required Future<void> Function() onPlay,
@@ -84,6 +90,15 @@ class ForegroundSentencePlaybackDriver implements SentencePlaybackDriver {
   }
 
   @override
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  ) async {
+    await setSpeed(speed);
+    return playSentence(sentence, newSession());
+  }
+
+  @override
   void bindLockScreen({
     required Future<void> Function() onPlay,
     required Future<void> Function() onPause,
@@ -138,6 +153,15 @@ class AudioIntensiveListenPlaybackDriver
     return _engine.isActiveSession(sessionId)
         ? SentencePlaybackResult.completed
         : SentencePlaybackResult.cancelled;
+  }
+
+  @override
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  ) async {
+    await setSpeed(speed);
+    return playSentence(sentence, newSession());
   }
 
   @override
@@ -204,42 +228,45 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
   bool isActiveSession(int sessionId) => _engine.isActiveSession(sessionId);
 
   @override
-  Future<void> invalidateSession() async {
-    _engine.newSession();
-    await _engine.pause();
-  }
+  Future<void> invalidateSession() =>
+      _engine.cancelActiveRange(reason: 'driver-invalidate');
 
   @override
-  Future<void> pause() => _engine.pause();
+  Future<void> pause() => _engine.cancelActiveRange(reason: 'driver-pause');
 
   @override
   Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
 
   @override
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  ) => _playSentenceWithDiagnostics(sentence, speed);
+
+  @override
   Future<SentencePlaybackResult> playSentence(
     Sentence sentence,
     int sessionId,
-  ) => _playSentenceWithDiagnostics(sentence, sessionId);
+  ) => _engine.playRangeOnce(sentence.startTime, sentence.endTime, sessionId);
 
   Future<SentencePlaybackResult> _playSentenceWithDiagnostics(
     Sentence sentence,
-    int sessionId,
+    double speed,
   ) async {
     AppLogger.log(
       'SentencePlaybackDriver',
-      'start: session=$sessionId sentence=${sentence.index} '
+      'start: sentence=${sentence.index} '
           'range=${sentence.startTime.inMilliseconds}-'
           '${sentence.endTime.inMilliseconds}ms',
     );
-    final result = await _engine.playRangeOnce(
+    final result = await _engine.playRange(
       sentence.startTime,
       sentence.endTime,
-      sessionId,
+      speed: speed,
     );
     AppLogger.log(
       'SentencePlaybackDriver',
-      'return: session=$sessionId sentence=${sentence.index} '
-          'active=${_engine.isActiveSession(sessionId)} '
+      'return: sentence=${sentence.index} '
           'position=${_engine.currentPosition.inMilliseconds}ms result=$result',
     );
     return result;

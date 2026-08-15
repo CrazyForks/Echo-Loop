@@ -625,16 +625,13 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     int flowToken,
   ) async {
     final driver = _playback;
-    // 速度设置可能跨 native 异步边界；必须在创建本次播放 session 前完成，
-    // 避免其间的媒体状态回调使刚创建的 session 过期。
-    await driver.setSpeed(
+    final result = await driver.playSentenceWithSpeed(
+      sentence,
       ref.read(listenAndRepeatSettingsProvider).playbackSpeed,
     );
-    final sessionId = driver.newSession();
-    final result = await driver.playSentence(sentence, sessionId);
     if (!driver.recordsStudyEventsInternally &&
         result == SentencePlaybackResult.completed &&
-        driver.isActiveSession(sessionId)) {
+        flowToken == state.flowToken) {
       studyEventRecorder?.onSentencePlayed(sentence);
     }
     return result;
