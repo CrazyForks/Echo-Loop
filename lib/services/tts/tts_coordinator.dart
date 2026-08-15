@@ -225,10 +225,7 @@ class TtsCoordinator {
           return _ensureEngine(kind, config);
         }
       } else {
-        AppLogger.log(
-          'TtsCoordinator',
-          '模型预热开始加载：引擎=${kind.diagnosticName}',
-        );
+        AppLogger.log('TtsCoordinator', '模型预热开始加载：引擎=${kind.diagnosticName}');
         final future = _buildEngine(kind, config);
         _ensuring = future;
         try {
@@ -239,10 +236,7 @@ class TtsCoordinator {
         return _engine;
       }
     }
-    AppLogger.log(
-      'TtsCoordinator',
-      '模型已就绪，无需重复加载：引擎=${kind.diagnosticName}',
-    );
+    AppLogger.log('TtsCoordinator', '模型已就绪，无需重复加载：引擎=${kind.diagnosticName}');
     if (_engine != null && _appliedConfig != config) {
       _appliedConfig = config;
       await _engine!.applyConfig(config);
@@ -345,10 +339,7 @@ class TtsCoordinator {
       AppLogger.log('TtsCoordinator', '模型预热跳过：TTS 尚未配置');
       return;
     }
-    AppLogger.log(
-      'TtsCoordinator',
-      '请求模型预热（不合成文本）：引擎=${kind.diagnosticName}',
-    );
+    AppLogger.log('TtsCoordinator', '请求模型预热（不合成文本）：引擎=${kind.diagnosticName}');
     await _ensureEngine(kind, config);
   }
 
@@ -557,7 +548,8 @@ class TtsCoordinator {
 
     if (path != null) {
       AppLogger.log('TtsCoordinator', '开始播放已生成的语音文件');
-      return _player.playFile(path);
+      final result = await _player.playFile(path);
+      return result == AudioPlaybackResult.completed;
     }
 
     // 合成失败：降级实时朗读（不缓存）

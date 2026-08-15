@@ -221,7 +221,9 @@ class PronunciationPlaybackController
       await play(clips.first, fallbackText: text, fallbackKey: key ?? text);
       return;
     }
-    await ref.read(ttsControllerProvider.notifier).speak(text, key: key);
+    await ref
+        .read(ttsControllerProvider.notifier)
+        .speak(text, key: key ?? text);
   }
 
   Future<void> play(
@@ -240,10 +242,13 @@ class PronunciationPlaybackController
       player = ref.read(shortAudioPlayerProvider);
       _player = player;
     }
-    final ok = await player.playFile(clip.absolutePath);
+    final result = await player.playFile(
+      clip.absolutePath,
+      playbackKey: clip.playbackKey,
+    );
     if (sessionId != _sessionId) return;
     state = const PronunciationPlaybackState();
-    if (!ok) {
+    if (result == AudioPlaybackResult.failed) {
       await ref
           .read(ttsControllerProvider.notifier)
           .speak(fallbackText, key: fallbackKey ?? clip.playbackKey);

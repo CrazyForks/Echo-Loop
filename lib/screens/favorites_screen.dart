@@ -59,22 +59,30 @@ enum _FavoritesView { sentences, words }
 
 Future<bool> _playSourceSentence(
   WidgetRef ref, {
+  required String key,
   required String? audioItemId,
   required int? sentenceIndex,
   required String? sentenceText,
   required int? sentenceStartMs,
   required int? sentenceEndMs,
 }) {
-  return SourceSentencePlayer(
+  AppLogger.log(
+    'FavoritesPlayback',
+    'source request key=$key text="$sentenceText" audio=$audioItemId',
+  );
+  final player = SourceSentencePlayer(
     audioItemDao: ref.read(audioItemDaoProvider),
     audioClipPlayer: ref.read(shortAudioPlayerProvider),
-    speak: (text) => ref.read(ttsControllerProvider.notifier).speak(text),
-  ).play(
+    speak: (text, playbackKey) =>
+        ref.read(ttsControllerProvider.notifier).speak(text, key: playbackKey),
+  );
+  return player.play(
     audioItemId: audioItemId,
     sentenceIndex: sentenceIndex,
     sentenceText: sentenceText,
     sentenceStartMs: sentenceStartMs,
     sentenceEndMs: sentenceEndMs,
+    playbackKey: key,
   );
 }
 
@@ -676,18 +684,14 @@ class _BookmarkSentenceTile extends ConsumerStatefulWidget {
 }
 
 class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
-  bool _isPlaying = false;
-
   /// 播放该句子的原声片段
   Future<void> _playSentence() async {
-    if (_isPlaying) {
-      ref.read(shortAudioPlayerProvider).stop();
-      setState(() => _isPlaying = false);
+    final key = 'saved-sentence:${widget.bookmark.id}';
+    final player = ref.read(shortAudioPlayerProvider);
+    if (player.state.playingKey == key) {
+      await player.stop();
       return;
     }
-
-    setState(() => _isPlaying = true);
-
     try {
       final dao = ref.read(audioItemDaoProvider);
       final row = await dao.getById(widget.audioId);
@@ -717,15 +721,14 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
       final end = Duration(
         milliseconds: (widget.bookmark.endTime * 1000).round(),
       );
-      await ref
-          .read(shortAudioPlayerProvider)
-          .playRangeFile(filePath, start: start, end: end);
+      await player.playRangeFile(
+        filePath,
+        start: start,
+        end: end,
+        playbackKey: key,
+      );
     } catch (_) {
       // 忽略播放错误（音频文件不存在等）
-    } finally {
-      if (mounted) {
-        setState(() => _isPlaying = false);
-      }
     }
   }
 
@@ -748,6 +751,10 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
 
   @override
   Widget build(BuildContext context) {
+    final playingKey = ref
+        .watch(shortAudioPlaybackStateProvider)
+        .valueOrNull
+        ?.playingKey;
     final theme = Theme.of(context);
     final bm = widget.bookmark;
 
@@ -772,10 +779,12 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
           icon: Icon(
-            _isPlaying ? Icons.stop_circle_outlined : Icons.play_circle_outline,
+            playingKey == 'saved-sentence:${bm.id}'
+                ? Icons.stop_circle_outlined
+                : Icons.play_circle_outline,
             size: 28,
           ),
-          color: _isPlaying
+          color: playingKey == 'saved-sentence:${bm.id}'
               ? theme.colorScheme.error
               : theme.colorScheme.primary,
           onPressed: _playSentence,
@@ -1075,7 +1084,6 @@ class _SavedPhraseTile extends ConsumerStatefulWidget {
 }
 
 class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
-  bool _isPlaying = false;
   bool _isExpanded = false;
   String? _audioName;
   bool _hasSubmittedPrewarm = false;
@@ -1137,26 +1145,31 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   /// 播放意群片段（优先意群时间，回退句子时间）
   Future<void> _playSentence() async {
     final phrase = widget.savedPhrase;
+    AppLogger.log(
+      'FavoritesPlayback',
+      'source sentence tap phraseId=${phrase.id} text="${phrase.sentenceText}"',
+    );
+    final key = 'saved-phrase-source:${phrase.id}';
+    final player = ref.read(shortAudioPlayerProvider);
 
     // 播放来源句子（非意群片段）
-    if (_isPlaying) {
-      await ref.read(shortAudioPlayerProvider).stop();
-      await ref.read(ttsControllerProvider.notifier).stop();
-      setState(() => _isPlaying = false);
+    if (player.state.playingKey == key) {
+      await player.stop();
       return;
     }
-
-    setState(() => _isPlaying = true);
-
+    if (ref.read(ttsControllerProvider).speakingKey == key) {
+      await ref.read(ttsControllerProvider.notifier).stop();
+      return;
+    }
     await _playSourceSentence(
       ref,
+      key: key,
       audioItemId: phrase.audioItemId,
       sentenceIndex: phrase.sentenceIndex,
       sentenceText: phrase.sentenceText,
       sentenceStartMs: phrase.sentenceStartMs,
       sentenceEndMs: phrase.sentenceEndMs,
     );
-    if (mounted) setState(() => _isPlaying = false);
     return;
 
     /* Legacy inline implementation retained temporarily during migration.
@@ -1272,6 +1285,13 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     ref.watch(
       ttsControllerProvider.select((state) => state.configurationVersion),
     );
+    final playingKey = ref
+        .watch(shortAudioPlaybackStateProvider)
+        .valueOrNull
+        ?.playingKey;
+    final ttsPlayingKey = ref.watch(
+      ttsControllerProvider.select((state) => state.speakingKey),
+    );
     _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
@@ -1342,6 +1362,7 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                     SpeakButton(
                       key: const Key('favorite_phrase_speak'),
                       text: phrase.displayText,
+                      speakKey: 'favorite-phrase:${phrase.id}',
                       size: 18,
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
@@ -1357,11 +1378,20 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                           children: [
                             if (phrase.sentenceText != null)
                               Icon(
-                                _isPlaying
+                                playingKey ==
+                                            'saved-phrase-source:${phrase.id}' ||
+                                        ttsPlayingKey ==
+                                            'saved-phrase-source:${phrase.id}'
                                     ? Icons.stop_circle_outlined
                                     : Icons.play_circle_outline,
                                 size: 18,
-                                color: theme.colorScheme.primary,
+                                color:
+                                    playingKey ==
+                                            'saved-phrase-source:${phrase.id}' ||
+                                        ttsPlayingKey ==
+                                            'saved-phrase-source:${phrase.id}'
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.onSurfaceVariant,
                               ),
                             if (phrase.sentenceText != null)
                               const SizedBox(width: AppSpacing.xs),
@@ -1431,7 +1461,6 @@ class _SavedWordTile extends ConsumerStatefulWidget {
 }
 
 class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
-  bool _isPlaying = false;
   bool _isExpanded = false;
 
   /// 源音频名称（异步加载）
@@ -1500,24 +1529,25 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
   /// 仅在无时间信息时回退到加载字幕。
   Future<void> _playSentence() async {
     final word = widget.savedWord;
-    if (_isPlaying) {
-      await ref.read(shortAudioPlayerProvider).stop();
-      await ref.read(ttsControllerProvider.notifier).stop();
-      setState(() => _isPlaying = false);
+    final key = 'saved-word-source:${word.id}';
+    final player = ref.read(shortAudioPlayerProvider);
+    if (player.state.playingKey == key) {
+      await player.stop();
       return;
     }
-
-    setState(() => _isPlaying = true);
-
+    if (ref.read(ttsControllerProvider).speakingKey == key) {
+      await ref.read(ttsControllerProvider.notifier).stop();
+      return;
+    }
     await _playSourceSentence(
       ref,
+      key: key,
       audioItemId: word.audioItemId,
       sentenceIndex: word.sentenceIndex,
       sentenceText: word.sentenceText,
       sentenceStartMs: word.sentenceStartMs,
       sentenceEndMs: word.sentenceEndMs,
     );
-    if (mounted) setState(() => _isPlaying = false);
     return;
 
     /* Legacy inline implementation retained temporarily during migration.
@@ -1660,6 +1690,13 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     ref.watch(
       ttsControllerProvider.select((state) => state.configurationVersion),
     );
+    final playingKey = ref
+        .watch(shortAudioPlaybackStateProvider)
+        .valueOrNull
+        ?.playingKey;
+    final ttsPlayingKey = ref.watch(
+      ttsControllerProvider.select((state) => state.speakingKey),
+    );
     _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
@@ -1790,11 +1827,19 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                           children: [
                             if (word.sentenceText != null)
                               Icon(
-                                _isPlaying
+                                playingKey == 'saved-word-source:${word.id}' ||
+                                        ttsPlayingKey ==
+                                            'saved-word-source:${word.id}'
                                     ? Icons.stop_circle_outlined
                                     : Icons.play_circle_outline,
                                 size: 18,
-                                color: theme.colorScheme.primary,
+                                color:
+                                    playingKey ==
+                                            'saved-word-source:${word.id}' ||
+                                        ttsPlayingKey ==
+                                            'saved-word-source:${word.id}'
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.onSurfaceVariant,
                               ),
                             if (word.sentenceText != null)
                               const SizedBox(width: AppSpacing.xs),

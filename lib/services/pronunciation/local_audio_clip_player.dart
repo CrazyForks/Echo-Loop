@@ -80,6 +80,21 @@ class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
   Future<void> dispose() => _player.dispose();
 }
 
+/// 单次本地短音频播放的终态。
+///
+/// [cancelled] 表示请求被后续播放、显式停止或销毁抢占；它不是文件或解码失败，
+/// 调用方不得据此触发业务回退。
+enum AudioPlaybackResult { completed, cancelled, failed }
+
+/// 共享短音频播放器的只读运行状态。
+///
+/// [playingKey] 是调用方提供的透明 UI 标识，播放器不解释其业务含义。
+class LocalAudioClipPlaybackState {
+  const LocalAudioClipPlaybackState({this.playingKey});
+
+  final String? playingKey;
+}
+
 /// 调用方无状态的本地短音频试听服务。
 ///
 /// 适用于单词发音、TTS 缓存及来源句等无画面的音轨播放。传入视频文件时
@@ -105,58 +120,74 @@ class LocalAudioClipPlayer {
   final PronunciationPlayerBackend _backend;
   int _sessionId = 0;
   _PlaybackCompletion? _activePlayback;
+  LocalAudioClipPlaybackState _state = const LocalAudioClipPlaybackState();
+  final StreamController<LocalAudioClipPlaybackState> _states =
+      StreamController<LocalAudioClipPlaybackState>.broadcast();
 
-  /// 播放文件直到完成。新播放或 stop 会使旧 await 失效。
-  Future<bool> playFile(String filePath) async {
+  LocalAudioClipPlaybackState get state => _state;
+  Stream<LocalAudioClipPlaybackState> get states => _states.stream;
+
+  /// 播放文件直到完成。新播放或 [stop] 会使旧请求返回 [AudioPlaybackResult.cancelled]。
+  Future<AudioPlaybackResult> playFile(
+    String filePath, {
+    String? playbackKey,
+  }) async {
     final sessionId = ++_sessionId;
     final completion = _replaceActivePlayback();
+    _setState(LocalAudioClipPlaybackState(playingKey: playbackKey));
     try {
       await _backend.stop();
-      if (sessionId != _sessionId) return false;
+      if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       AppLogger.log(
         'PronunciationPlayer',
         '▶ open sid=$sessionId path=$filePath',
       );
-      // open(play: true) may emit completion/error immediately.
       _watchCompletion(completion, sessionId);
       await _backend.open(filePath);
-      if (sessionId != _sessionId) return false;
+      if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       return await completion.future;
     } catch (error, stackTrace) {
-      completion.finish(false);
+      final result = sessionId == _sessionId
+          ? AudioPlaybackResult.failed
+          : AudioPlaybackResult.cancelled;
+      completion.finish(result);
       AppLogger.log(
         'PronunciationPlayer',
         'play failed path=$filePath error=$error\n$stackTrace',
       );
-      return false;
+      return result;
     } finally {
-      if (identical(_activePlayback, completion)) _activePlayback = null;
+      _finishActivePlayback(completion);
     }
   }
 
-  /// 播放本地文件的指定时间区间；新播放或停止会立即使本次等待返回 false。
+  /// 播放本地文件的指定时间区间。
   ///
   /// media_kit 没有区间终点参数，因此以位置流和 200ms 兜底共同检测终点。
-  Future<bool> playRangeFile(
+  Future<AudioPlaybackResult> playRangeFile(
     String filePath, {
     required Duration start,
     required Duration end,
+    String? playbackKey,
   }) async {
-    if (start < Duration.zero || end <= start) return false;
+    if (start < Duration.zero || end <= start) {
+      return AudioPlaybackResult.failed;
+    }
     final sessionId = ++_sessionId;
     final completion = _replaceActivePlayback();
+    _setState(LocalAudioClipPlaybackState(playingKey: playbackKey));
     StreamSubscription<Duration>? positionSub;
     Timer? guard;
 
     void stopAtEnd() {
       if (sessionId != _sessionId) return;
-      completion.finish(true);
+      completion.finish(AudioPlaybackResult.completed);
       unawaited(_backend.stop());
     }
 
     try {
       await _backend.stop();
-      if (sessionId != _sessionId) return false;
+      if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       AppLogger.log(
         'PronunciationPlayer',
         '▶ open range sid=$sessionId path=$filePath '
@@ -167,49 +198,59 @@ class LocalAudioClipPlayer {
       });
       guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (sessionId != _sessionId) {
-          completion.finish(false);
+          completion.finish(AudioPlaybackResult.cancelled);
         } else if (_backend.position >= end) {
           stopAtEnd();
         }
       });
-      // Register completion/error/position listeners before playback starts.
       _watchCompletion(completion, sessionId);
       await _backend.open(filePath, start: start);
-      if (sessionId != _sessionId) return false;
+      if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       if (_backend.position >= end) stopAtEnd();
       return await completion.future;
     } catch (error, stackTrace) {
-      completion.finish(false);
+      final result = sessionId == _sessionId
+          ? AudioPlaybackResult.failed
+          : AudioPlaybackResult.cancelled;
+      completion.finish(result);
       AppLogger.log(
         'PronunciationPlayer',
         'range play failed path=$filePath error=$error\n$stackTrace',
       );
-      return false;
+      return result;
     } finally {
       await positionSub?.cancel();
       guard?.cancel();
-      if (identical(_activePlayback, completion)) _activePlayback = null;
+      _finishActivePlayback(completion);
     }
   }
 
   _PlaybackCompletion _replaceActivePlayback() {
-    _activePlayback?.finish(false);
+    _activePlayback?.finish(AudioPlaybackResult.cancelled);
     final completion = _PlaybackCompletion();
     _activePlayback = completion;
     return completion;
   }
 
+  void _finishActivePlayback(_PlaybackCompletion completion) {
+    if (!identical(_activePlayback, completion)) return;
+    _activePlayback = null;
+    _setState(const LocalAudioClipPlaybackState());
+  }
+
   void _watchCompletion(_PlaybackCompletion completion, int sessionId) {
     late final StreamSubscription<void> completedSub;
     late final StreamSubscription<String> errorSub;
-    void finish(bool result) {
+    void finish(AudioPlaybackResult result) {
       if (sessionId == _sessionId) completion.finish(result);
     }
 
-    completedSub = _backend.completed.listen((_) => finish(true));
+    completedSub = _backend.completed.listen(
+      (_) => finish(AudioPlaybackResult.completed),
+    );
     errorSub = _backend.errors.listen((message) {
       AppLogger.log('PronunciationPlayer', '播放解码失败: $message');
-      finish(false);
+      finish(AudioPlaybackResult.failed);
     });
     unawaited(
       completion.future.whenComplete(() async {
@@ -221,25 +262,34 @@ class LocalAudioClipPlayer {
 
   Future<void> stop() async {
     _sessionId++;
-    _activePlayback?.finish(false);
+    _activePlayback?.finish(AudioPlaybackResult.cancelled);
     _activePlayback = null;
+    _setState(const LocalAudioClipPlaybackState());
     await _backend.stop();
   }
 
   Future<void> dispose() async {
     _sessionId++;
-    _activePlayback?.finish(false);
+    _activePlayback?.finish(AudioPlaybackResult.cancelled);
     _activePlayback = null;
+    _setState(const LocalAudioClipPlaybackState());
     await _backend.dispose();
+    await _states.close();
+  }
+
+  void _setState(LocalAudioClipPlaybackState next) {
+    _state = next;
+    if (!_states.isClosed) _states.add(next);
   }
 }
 
 class _PlaybackCompletion {
-  final Completer<bool> _completer = Completer<bool>();
+  final Completer<AudioPlaybackResult> _completer =
+      Completer<AudioPlaybackResult>();
 
-  Future<bool> get future => _completer.future;
+  Future<AudioPlaybackResult> get future => _completer.future;
 
-  void finish(bool result) {
+  void finish(AudioPlaybackResult result) {
     if (!_completer.isCompleted) _completer.complete(result);
   }
 }

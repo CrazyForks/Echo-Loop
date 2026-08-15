@@ -15,3 +15,9 @@ final shortAudioPlayerProvider = Provider<LocalAudioClipPlayer>((ref) {
   ref.onDispose(() => unawaited(player.dispose()));
   return player;
 });
+
+final shortAudioPlaybackStateProvider =
+    StreamProvider<LocalAudioClipPlaybackState>((ref) {
+      final player = ref.watch(shortAudioPlayerProvider);
+      return player.states;
+    });

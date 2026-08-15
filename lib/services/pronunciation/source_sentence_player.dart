@@ -12,14 +12,14 @@ class SourceSentencePlayer {
   SourceSentencePlayer({
     required AudioItemDao audioItemDao,
     required LocalAudioClipPlayer audioClipPlayer,
-    required Future<void> Function(String text) speak,
+    required Future<void> Function(String text, String playbackKey) speak,
   }) : _audioItemDao = audioItemDao,
        _audioClipPlayer = audioClipPlayer,
        _speak = speak;
 
   final AudioItemDao _audioItemDao;
   final LocalAudioClipPlayer _audioClipPlayer;
-  final Future<void> Function(String text) _speak;
+  final Future<void> Function(String text, String playbackKey) _speak;
 
   /// 播放来源句；返回 true 表示原音成功，false 表示已回退或无可播放内容。
   Future<bool> play({
@@ -28,6 +28,7 @@ class SourceSentencePlayer {
     required String? sentenceText,
     required int? sentenceStartMs,
     required int? sentenceEndMs,
+    required String playbackKey,
   }) async {
     final text = sentenceText?.trim();
     try {
@@ -55,12 +56,18 @@ class SourceSentencePlayer {
         final filePath = await audioItem.getFullAudioPath();
         final range = _resolveStoredRange(sentenceStartMs, sentenceEndMs);
         if (filePath != null && range != null) {
-          if (await _audioClipPlayer.playRangeFile(
+          switch (await _audioClipPlayer.playRangeFile(
             filePath,
             start: range.$1,
             end: range.$2,
+            playbackKey: playbackKey,
           )) {
-            return true;
+            case AudioPlaybackResult.completed:
+              return true;
+            case AudioPlaybackResult.cancelled:
+              return false;
+            case AudioPlaybackResult.failed:
+              break;
           }
         }
 
@@ -79,14 +86,20 @@ class SourceSentencePlayer {
               orElse: () => null,
             );
           }
-          if (filePath != null &&
-              sentence != null &&
-              await _audioClipPlayer.playRangeFile(
-                filePath,
-                start: sentence.startTime,
-                end: sentence.endTime,
-              )) {
-            return true;
+          if (filePath != null && sentence != null) {
+            switch (await _audioClipPlayer.playRangeFile(
+              filePath,
+              start: sentence.startTime,
+              end: sentence.endTime,
+              playbackKey: playbackKey,
+            )) {
+              case AudioPlaybackResult.completed:
+                return true;
+              case AudioPlaybackResult.cancelled:
+                return false;
+              case AudioPlaybackResult.failed:
+                break;
+            }
           }
         }
       }
@@ -94,7 +107,7 @@ class SourceSentencePlayer {
       // 原音链路失败时统一进入 TTS 兜底。
     }
     if (text != null && text.isNotEmpty) {
-      await _speak(text);
+      await _speak(text, playbackKey);
     }
     return false;
   }

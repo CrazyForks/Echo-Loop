@@ -113,6 +113,9 @@ class _RecordingTtsController extends TtsController {
   }
 
   @override
+  Future<void> stop() async {}
+
+  @override
   void cancelTextsPrewarm() => cancelCount++;
 }
 
@@ -139,13 +142,14 @@ class _RecordingShortAudioPlayer extends LocalAudioClipPlayer {
 
   final List<String> openedPaths = [];
   final List<Duration> openedStarts = [];
-  bool rangePlaybackResult = true;
+  AudioPlaybackResult rangePlaybackResult = AudioPlaybackResult.completed;
 
   @override
-  Future<bool> playRangeFile(
+  Future<AudioPlaybackResult> playRangeFile(
     String filePath, {
     required Duration start,
     required Duration end,
+    String? playbackKey,
   }) async {
     openedPaths.add(filePath);
     openedStarts.add(start);
@@ -680,7 +684,7 @@ void main() {
   });
 
   testWidgets('收藏意群原声不可用时回退来源句 TTS', (tester) async {
-    shortAudioPlayer.rangePlaybackResult = false;
+    shortAudioPlayer.rangePlaybackResult = AudioPlaybackResult.failed;
     await tester.pumpWidget(createWidget());
     bookmarkC.add([]);
     wordC.add([]);
@@ -705,6 +709,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rec.spokenTexts, ['When our team scores a try.']);
+  });
+
+  testWidgets('收藏意群原声被抢占时不回退来源句 TTS', (tester) async {
+    shortAudioPlayer.rangePlaybackResult = AudioPlaybackResult.cancelled;
+    audioItemDao.items['audio-2'] = _audioItem('audio-2');
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([]);
+    phraseC.add([
+      _phrase(
+        1,
+        'scores a try',
+        audioItemId: 'audio-2',
+        sentenceText: 'When our team scores a try.',
+        sentenceStartMs: 4000,
+        sentenceEndMs: 6200,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('scores a try'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('When our team scores a try.').last);
+    await tester.pumpAndSettle();
+
+    expect(rec.spokenTexts, isEmpty);
   });
 
   testWidgets('展开收藏意群后主 item 不重复显示来源句', (tester) async {

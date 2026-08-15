@@ -105,7 +105,9 @@ void main() {
     ).thenAnswer((_) async {});
 
     when(() => player.stop()).thenAnswer((_) async {});
-    when(() => player.playFile(any())).thenAnswer((_) async => true);
+    when(
+      () => player.playFile(any()),
+    ).thenAnswer((_) async => AudioPlaybackResult.completed);
   });
 
   group('configure（惰性引擎）', () {
@@ -175,6 +177,17 @@ void main() {
       verify(() => engineA.dispose()).called(1);
       verify(() => engineB.initialize()).called(1);
     });
+  });
+
+  test('缓存文件被抢占时不降级实时朗读', () async {
+    final c = build();
+    await c.configure(TtsEngineKind.platform, _config);
+    when(
+      () => player.playFile(any()),
+    ).thenAnswer((_) async => AudioPlaybackResult.cancelled);
+
+    expect(await c.speak('hello'), isFalse);
+    verifyNever(() => engine.speakLive(any()));
   });
 
   group('speak', () {
