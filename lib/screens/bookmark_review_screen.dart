@@ -15,6 +15,7 @@ import '../l10n/app_localizations.dart';
 import '../models/bookmark_sentence.dart';
 import '../providers/audio_engine/foreground_audio_engine_provider.dart';
 import '../providers/bookmark_review_settings_provider.dart';
+import '../providers/favorite_review_settings_provider.dart';
 import '../providers/audio_engine/foreground_sense_group_range_playback.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
 import '../providers/sentence_ai_provider.dart';
@@ -66,7 +67,9 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => const BookmarkReviewSettingsSheet(),
+      builder: (context) => const BookmarkReviewSettingsSheet(
+        task: FavoriteReviewSettingsTask.sentence,
+      ),
     );
   }
 
@@ -167,7 +170,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                                   card: card,
                                   preview: state.preview,
                                   showNextReviewTime: ref.watch(
-                                    bookmarkReviewSettingsProvider.select(
+                                    favoriteReviewSettingsProvider.select(
                                       (settings) => settings.showNextReviewTime,
                                     ),
                                   ),
@@ -488,19 +491,31 @@ class _ReviewAnswer extends ConsumerWidget {
         rating: MemoryRating.again,
         emoji: '😕',
         label: l10n.bookmarkReviewRatingAgain,
-        detail: _detail(context, preview?.again.dueAt),
+        detail: formatNextReviewTimeDetail(
+          context,
+          showNextReviewTime: showNextReviewTime,
+          dueAt: preview?.again.dueAt,
+        ),
       ),
       FlashcardRatingAction(
         rating: MemoryRating.good,
         emoji: '🙂',
         label: l10n.bookmarkReviewRatingGood,
-        detail: _detail(context, preview?.good.dueAt),
+        detail: formatNextReviewTimeDetail(
+          context,
+          showNextReviewTime: showNextReviewTime,
+          dueAt: preview?.good.dueAt,
+        ),
       ),
       FlashcardRatingAction(
         rating: MemoryRating.easy,
         emoji: '😎',
         label: l10n.bookmarkReviewRatingEasy,
-        detail: _detail(context, preview?.easy.dueAt),
+        detail: formatNextReviewTimeDetail(
+          context,
+          showNextReviewTime: showNextReviewTime,
+          dueAt: preview?.easy.dueAt,
+        ),
       ),
     ];
     final isPlaying =
@@ -567,11 +582,6 @@ class _ReviewAnswer extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  String? _detail(BuildContext context, DateTime? dueAt) {
-    if (!showNextReviewTime || dueAt == null) return null;
-    return formatTimeFromNow(context, dueAt);
   }
 }
 

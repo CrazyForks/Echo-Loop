@@ -4466,6 +4466,30 @@ abstract class AppLocalizations {
   /// **'Daily review goal'**
   String get bookmarkReviewDailyGoal;
 
+  /// No description provided for @favoriteReviewSentenceSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved sentence review'**
+  String get favoriteReviewSentenceSettings;
+
+  /// No description provided for @favoriteReviewVocabularySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved vocabulary review'**
+  String get favoriteReviewVocabularySettings;
+
+  /// No description provided for @favoriteReviewSentenceDailyGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily sentence review goal'**
+  String get favoriteReviewSentenceDailyGoal;
+
+  /// No description provided for @favoriteReviewVocabularyDailyGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily vocabulary review goal'**
+  String get favoriteReviewVocabularyDailyGoal;
+
   /// No description provided for @bookmarkReviewUnlimited.
   ///
   /// In en, this message translates to:

@@ -4,6 +4,7 @@ library;
 import 'package:echo_loop/features/memory_scheduler/application/memory_model_registry.dart';
 import 'package:echo_loop/features/memory_scheduler/config/memory_profiles.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_model_adapter.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_namespaces.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_profile.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
@@ -59,7 +60,7 @@ void main() {
   group('MemoryProfileRegistry', () {
     test('所有 namespace 默认返回冻结的 fsrs.default@1', () {
       expect(
-        kMemoryProfileRegistry.defaultForNamespace('favorite_sentence'),
+        kMemoryProfileRegistry.defaultForNamespace(kSavedSentenceNamespace),
         kFsrsDefaultProfileRef,
       );
       expect(
@@ -91,14 +92,14 @@ void main() {
   group('Memory commands', () {
     test('到期查询规范化 UTC 并校验边界', () {
       final query = DueMemorySchedulesQuery(
-        namespaces: <String>{' saved_word '},
+        namespaces: <String>{' $kSavedWordOrPhraseNamespace '},
         phases: null,
         dueBeforeOrAt: DateTime(2026, 7, 26, 8),
         limit: 500,
         after: null,
       );
 
-      expect(query.namespaces, <String>{'saved_word'});
+      expect(query.namespaces, <String>{kSavedWordOrPhraseNamespace});
       expect(query.dueBeforeOrAt.isUtc, isTrue);
       expect(
         () => DueMemorySchedulesQuery(
@@ -112,7 +113,7 @@ void main() {
       );
       expect(
         () => DueMemorySchedulesQuery(
-          namespaces: <String>{'saved_word'},
+          namespaces: <String>{kSavedWordOrPhraseNamespace},
           phases: <MemorySchedulePhase>{},
           dueBeforeOrAt: DateTime.utc(2026),
           limit: 1,
@@ -125,7 +126,10 @@ void main() {
     test('评分命令拒绝超过一天的作答耗时', () {
       expect(
         () => ReviewMemoryCommand(
-          subject: MemorySubjectRef(namespace: 'saved_word', subjectId: '1'),
+          subject: MemorySubjectRef(
+            namespace: kSavedWordOrPhraseNamespace,
+            subjectId: '1',
+          ),
           rating: MemoryRating.good,
           reviewedAt: DateTime.utc(2026),
           responseTime: const Duration(hours: 25),

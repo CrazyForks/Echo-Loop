@@ -120,7 +120,11 @@ class AppDatabase extends _$AppDatabase {
         // v49→v50：为收藏单词/意群补稳定的记忆主体 ID，并把收藏句专属的每日
         // 入队去重表泛化为带 namespace 的通用表，供词汇复习共用同一张表。
         if (from < 50) {
-          await _addColumnIfNotExists('saved_words', 'memory_subject_id', 'TEXT');
+          await _addColumnIfNotExists(
+            'saved_words',
+            'memory_subject_id',
+            'TEXT',
+          );
           await _addColumnIfNotExists(
             'saved_sense_groups',
             'memory_subject_id',
@@ -148,7 +152,7 @@ class AppDatabase extends _$AppDatabase {
               'TEXT',
             );
             await customStatement(
-              "UPDATE memory_review_queue_entries SET namespace = 'favorite_sentence' WHERE namespace IS NULL OR trim(namespace) = ''",
+              "UPDATE memory_review_queue_entries SET namespace = 'saved_sentence' WHERE namespace IS NULL OR trim(namespace) = ''",
             );
             await customStatement(
               'DROP INDEX IF EXISTS idx_bookmark_review_queue_subject_day',

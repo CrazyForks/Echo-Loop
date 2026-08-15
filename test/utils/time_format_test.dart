@@ -36,6 +36,31 @@ void main() {
       formatTimeFromNow(context, now.add(const Duration(days: 16))),
       '16天后',
     );
+    final nextReviewAt = now.add(const Duration(hours: 3));
+    expect(
+      formatNextReviewTimeDetail(
+        context,
+        showNextReviewTime: false,
+        dueAt: nextReviewAt,
+      ),
+      isNull,
+    );
+    expect(
+      formatNextReviewTimeDetail(
+        context,
+        showNextReviewTime: true,
+        dueAt: null,
+      ),
+      isNull,
+    );
+    expect(
+      formatNextReviewTimeDetail(
+        context,
+        showNextReviewTime: true,
+        dueAt: nextReviewAt,
+      ),
+      '3小时后',
+    );
     expect(
       formatTimeFromNow(
         context,

@@ -18,11 +18,14 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../database/app_database.dart';
 import '../../database/providers.dart';
+import '../../features/memory_scheduler/domain/memory_rating.dart';
+import '../../features/memory_scheduler/domain/memory_scheduler_results.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
+import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
 import '../../models/flashcard_item.dart';
 import '../../services/app_logger.dart';
-import '../favorite_vocabulary_review_settings_provider.dart';
+import '../favorite_review_settings_provider.dart';
 import '../pronunciation/pronunciation_providers.dart';
 import 'favorite_vocabulary_deck_source.dart';
 
@@ -40,6 +43,8 @@ class FavoriteVocabularyReviewState {
     this.face = FavoriteVocabularyReviewFace.front,
     this.playbackState = FavoriteVocabularyReviewPlaybackState.idle,
     this.mediaError,
+    this.preview,
+    this.isSubmittingRating = false,
   });
 
   final List<FlashcardItem> cards;
@@ -47,6 +52,8 @@ class FavoriteVocabularyReviewState {
   final FavoriteVocabularyReviewFace face;
   final FavoriteVocabularyReviewPlaybackState playbackState;
   final String? mediaError;
+  final MemoryRatingPreviewSet? preview;
+  final bool isSubmittingRating;
 
   FlashcardItem? get currentCard =>
       currentIndex >= 0 && currentIndex < cards.length
@@ -62,12 +69,17 @@ class FavoriteVocabularyReviewState {
     FavoriteVocabularyReviewPlaybackState? playbackState,
     String? mediaError,
     bool clearMediaError = false,
+    MemoryRatingPreviewSet? preview,
+    bool clearPreview = false,
+    bool? isSubmittingRating,
   }) => FavoriteVocabularyReviewState(
     cards: cards ?? this.cards,
     currentIndex: currentIndex ?? this.currentIndex,
     face: face ?? this.face,
     playbackState: playbackState ?? this.playbackState,
     mediaError: clearMediaError ? null : mediaError ?? this.mediaError,
+    preview: clearPreview ? null : preview ?? this.preview,
+    isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
   );
 }
 
@@ -113,7 +125,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         words: words,
         phrases: phrases,
         scheduler: scheduler,
-        settings: ref.read(favoriteVocabularyReviewSettingsProvider),
+        settings: ref.read(favoriteReviewSettingsProvider),
         database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
@@ -175,7 +187,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     await replayCurrent();
   }
 
-  /// 翻到背面：本步只做状态流转占位，不取评分预览、不展示反面内容。
+  /// 翻到背面后预取三档评分结果，评分语义与收藏句保持一致。
   Future<void> revealBack() async {
     final controller = _controller;
     final card = state.currentCard;
@@ -186,7 +198,46 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     }
     await interruptPlayback();
     controller.revealAnswer();
-    state = state.copyWith(face: FavoriteVocabularyReviewFace.back);
+    state = state.copyWith(
+      face: FavoriteVocabularyReviewFace.back,
+      clearPreview: true,
+    );
+    await controller.preview();
+    if (!identical(_controller, controller)) return;
+    if (state.currentCard == card &&
+        state.face == FavoriteVocabularyReviewFace.back) {
+      state = state.copyWith(preview: controller.state.preview);
+    }
+  }
+
+  /// 提交评分并在成功后推进队列；失败保留当前背面以便重试。
+  Future<void> selectRating(MemoryRating rating) async {
+    final controller = _controller;
+    final card = state.currentCard;
+    if (controller == null ||
+        card == null ||
+        state.face != FavoriteVocabularyReviewFace.back ||
+        state.isSubmittingRating ||
+        state.preview == null) {
+      return;
+    }
+    state = state.copyWith(isSubmittingRating: true);
+    await controller.submitRating(rating);
+    if (!identical(_controller, controller)) return;
+    final phase = controller.state.phase;
+    if (phase == ScheduledFlashcardPhase.prompt ||
+        phase == ScheduledFlashcardPhase.completed) {
+      state = FavoriteVocabularyReviewState(
+        cards: controller.state.deck
+            .map((card) => card.content)
+            .toList(growable: false),
+        currentIndex: controller.state.currentIndex,
+      );
+      if (controller.state.current != null) unawaited(startCurrentCard());
+    } else {
+      AppLogger.log('FavoriteVocabularyReview', 'rating failed or conflicted');
+      state = state.copyWith(isSubmittingRating: false);
+    }
   }
 
   Future<void> interruptPlayback() async {

@@ -43,6 +43,18 @@ String formatTimeFromNow(BuildContext context, DateTime dateTime) {
   );
 }
 
+/// 根据复习设置决定是否展示调度器预测的下次复习时间。
+///
+/// 收藏句与收藏词汇共用此函数，确保评分栏始终采用同一显示语义。
+String? formatNextReviewTimeDetail(
+  BuildContext context, {
+  required bool showNextReviewTime,
+  required DateTime? dueAt,
+}) {
+  if (!showNextReviewTime || dueAt == null) return null;
+  return formatTimeFromNow(context, dueAt);
+}
+
 /// 简体中文 timeago 消息
 class _ZhCnMessages implements timeago.LookupMessages {
   @override

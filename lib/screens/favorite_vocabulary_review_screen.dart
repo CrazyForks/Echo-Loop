@@ -8,9 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/app_localizations.dart';
+import '../features/chatbot/widgets/sentence_chat_button.dart';
+import '../features/memory_scheduler/domain/memory_rating.dart';
+import '../features/memory_scheduler/domain/memory_scheduler_results.dart';
+import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart';
 import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
+import '../providers/favorite_review_settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
+import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 
 class FavoriteVocabularyReviewScreen extends ConsumerStatefulWidget {
   const FavoriteVocabularyReviewScreen({super.key});
@@ -31,7 +38,9 @@ class _FavoriteVocabularyReviewScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(
-          ref.read(favoriteVocabularyReviewProvider.notifier).startCurrentCard(),
+          ref
+              .read(favoriteVocabularyReviewProvider.notifier)
+              .startCurrentCard(),
         );
       }
     });
@@ -42,6 +51,23 @@ class _FavoriteVocabularyReviewScreenState
     _isExiting = true;
     await ref.read(favoriteVocabularyReviewProvider.notifier).disposeSession();
     if (mounted && context.canPop()) context.pop();
+  }
+
+  Future<void> _openSettings() async {
+    await ref
+        .read(favoriteVocabularyReviewProvider.notifier)
+        .interruptPlayback();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => const BookmarkReviewSettingsSheet(
+        task: FavoriteReviewSettingsTask.vocabulary,
+      ),
+    );
   }
 
   @override
@@ -67,6 +93,17 @@ class _FavoriteVocabularyReviewScreenState
             ),
             title: Text(l10n.favoriteVocabularyReviewTitle),
             centerTitle: true,
+            actions: [
+              SentenceChatButton(
+                sentenceText: card?.displayText ?? '',
+                onBeforeOpen: () => unawaited(player.interruptPlayback()),
+              ),
+              IconButton(
+                key: const Key('favorite-vocabulary-review-settings'),
+                onPressed: _openSettings,
+                icon: const Icon(Icons.tune),
+              ),
+            ],
           ),
           body: card == null
               ? _EmptyReview(message: l10n.favoriteVocabularyReviewEmpty)
@@ -82,11 +119,21 @@ class _FavoriteVocabularyReviewScreenState
                           ? _VocabularyFront(
                               playbackState: state.playbackState,
                               hasError: state.mediaError != null,
-                              onReplay: () =>
-                                  unawaited(player.replayCurrent()),
+                              onReplay: () => unawaited(player.replayCurrent()),
                               onReveal: () => unawaited(player.revealBack()),
                             )
-                          : const _VocabularyBackPlaceholder(),
+                          : _VocabularyBack(
+                              word: card.displayText,
+                              preview: state.preview,
+                              showNextReviewTime: ref.watch(
+                                favoriteReviewSettingsProvider.select(
+                                  (settings) => settings.showNextReviewTime,
+                                ),
+                              ),
+                              isSubmitting: state.isSubmittingRating,
+                              onRating: (rating) =>
+                                  unawaited(player.selectRating(rating)),
+                            ),
                     ),
                   ],
                 ),
@@ -281,19 +328,84 @@ class _CenteredPrompt extends StatelessWidget {
   );
 }
 
-/// 反面占位：本步不实现真实反面内容，后续任务接入评分/翻译等。
-class _VocabularyBackPlaceholder extends StatelessWidget {
-  const _VocabularyBackPlaceholder();
+/// 词汇背面本步只显示收藏文本，内容扩展留待后续任务。
+class _VocabularyBack extends StatelessWidget {
+  const _VocabularyBack({
+    required this.word,
+    required this.preview,
+    required this.showNextReviewTime,
+    required this.isSubmitting,
+    required this.onRating,
+  });
+
+  final String word;
+  final MemoryRatingPreviewSet? preview;
+  final bool showNextReviewTime;
+  final bool isSubmitting;
+  final ValueChanged<MemoryRating> onRating;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Center(
-      child: Text(
-        l10n.favoriteVocabularyReviewBackPlaceholder,
-        key: const Key('favorite-vocabulary-review-back-placeholder'),
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.l),
+              child: Text(
+                word,
+                key: const Key('favorite-vocabulary-review-back-word'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          top: false,
+          maintainBottomViewPadding: true,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.m),
+            child: FlashcardRatingActionBar(
+              actions: [
+                FlashcardRatingAction(
+                  rating: MemoryRating.again,
+                  emoji: '😕',
+                  label: l10n.bookmarkReviewRatingAgain,
+                  detail: formatNextReviewTimeDetail(
+                    context,
+                    showNextReviewTime: showNextReviewTime,
+                    dueAt: preview?.again.dueAt,
+                  ),
+                ),
+                FlashcardRatingAction(
+                  rating: MemoryRating.good,
+                  emoji: '🙂',
+                  label: l10n.bookmarkReviewRatingGood,
+                  detail: formatNextReviewTimeDetail(
+                    context,
+                    showNextReviewTime: showNextReviewTime,
+                    dueAt: preview?.good.dueAt,
+                  ),
+                ),
+                FlashcardRatingAction(
+                  rating: MemoryRating.easy,
+                  emoji: '😎',
+                  label: l10n.bookmarkReviewRatingEasy,
+                  detail: formatNextReviewTimeDetail(
+                    context,
+                    showNextReviewTime: showNextReviewTime,
+                    dueAt: preview?.easy.dueAt,
+                  ),
+                ),
+              ],
+              enabled: preview != null && !isSubmitting,
+              onSelected: (action) => onRating(action.rating),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

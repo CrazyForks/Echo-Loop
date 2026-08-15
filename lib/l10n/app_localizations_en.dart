@@ -2557,6 +2557,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewDailyGoal => 'Daily review goal';
 
   @override
+  String get favoriteReviewSentenceSettings => 'Saved sentence review';
+
+  @override
+  String get favoriteReviewVocabularySettings => 'Saved vocabulary review';
+
+  @override
+  String get favoriteReviewSentenceDailyGoal => 'Daily sentence review goal';
+
+  @override
+  String get favoriteReviewVocabularyDailyGoal =>
+      'Daily vocabulary review goal';
+
+  @override
   String get bookmarkReviewUnlimited => 'Unlimited';
 
   @override

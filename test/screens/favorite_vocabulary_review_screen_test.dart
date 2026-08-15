@@ -1,9 +1,16 @@
 import 'package:echo_loop/database/app_database.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_model_adapter.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_results.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/flashcard_item.dart';
+import 'package:echo_loop/models/favorite_review_settings.dart';
+import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
 import 'package:echo_loop/screens/favorite_vocabulary_review_screen.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/utils/time_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,13 +28,53 @@ SavedWord _word(String text, {required String memorySubjectId}) => SavedWord(
   syncStatus: 0,
 );
 
+MemoryRatingPreview _preview(MemoryRating rating, DateTime dueAt) =>
+    MemoryRatingPreview(
+      scheduleId: 'test-schedule',
+      revision: 0,
+      rating: rating,
+      reviewedAt: DateTime.now().toUtc(),
+      dueAt: dueAt,
+      interval: dueAt.difference(DateTime.now().toUtc()),
+      phase: MemorySchedulePhase.review,
+      transition: MemoryModelTransition(
+        state: MemoryModelState(version: 1, values: const <String, Object?>{}),
+        phase: MemorySchedulePhase.review,
+        dueAt: dueAt,
+        lastReviewedAt: DateTime.now().toUtc(),
+      ),
+    );
+
+class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
+  _TestFavoriteReviewSettings(this.showNextReviewTime);
+
+  final bool showNextReviewTime;
+
+  @override
+  FavoriteReviewSettings build() =>
+      FavoriteReviewSettings(showNextReviewTime: showNextReviewTime);
+}
+
 class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   @override
   FavoriteVocabularyReviewState build() {
+    final now = DateTime.now().toUtc();
     return FavoriteVocabularyReviewState(
       cards: [
         FlashcardWordItem(savedWord: _word('apple', memorySubjectId: 'w-1')),
       ],
+      preview: MemoryRatingPreviewSet(
+        scheduleId: 'test-schedule',
+        revision: 1,
+        reviewedAt: now,
+        again: _preview(
+          MemoryRating.again,
+          now.add(const Duration(minutes: 9)),
+        ),
+        hard: _preview(MemoryRating.hard, now.add(const Duration(hours: 1))),
+        good: _preview(MemoryRating.good, now.add(const Duration(hours: 3))),
+        easy: _preview(MemoryRating.easy, now.add(const Duration(days: 16))),
+      ),
     );
   }
 
@@ -57,10 +104,13 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   Future<void> disposeSession() async {}
 }
 
-Widget _app() => ProviderScope(
+Widget _app({bool showNextReviewTime = false}) => ProviderScope(
   overrides: [
     favoriteVocabularyReviewProvider.overrideWith(
       _TestFavoriteVocabularyReview.new,
+    ),
+    favoriteReviewSettingsProvider.overrideWith(
+      () => _TestFavoriteReviewSettings(showNextReviewTime),
     ),
   ],
   child: MaterialApp(
@@ -78,6 +128,8 @@ Widget _app() => ProviderScope(
 );
 
 void main() {
+  setUpAll(initTimeago);
+
   testWidgets('front shows title, progress bar and equal listen/reveal split', (
     tester,
   ) async {
@@ -97,25 +149,64 @@ void main() {
     expect(reveal.height / listen.height, closeTo(1, 0.02));
   });
 
-  testWidgets('upper zone replays and lower zone reveals the back placeholder', (
+  testWidgets(
+    'upper zone replays and lower zone reveals the word and ratings',
+    (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
+      );
+      await tester.pump();
+      expect(find.text('正在播放'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const Key('favorite-vocabulary-review-back-word')),
+        findsOneWidget,
+      );
+      expect(find.text('apple'), findsOneWidget);
+      expect(find.byKey(const Key('flashcard-rating-again')), findsOneWidget);
+      expect(find.byKey(const Key('flashcard-rating-good')), findsOneWidget);
+      expect(find.byKey(const Key('flashcard-rating-easy')), findsOneWidget);
+      expect(find.textContaining('后'), findsNothing);
+    },
+  );
+
+  testWidgets('rating previews show relative future times when enabled', (
     tester,
   ) async {
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(_app(showNextReviewTime: true));
     await tester.pump();
-    await tester.tap(
-      find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
-    );
-    await tester.pump();
-    expect(find.text('正在播放'), findsOneWidget);
-
     await tester.tap(
       find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
     );
     await tester.pump();
-    expect(
-      find.byKey(const Key('favorite-vocabulary-review-back-placeholder')),
-      findsOneWidget,
+
+    expect(find.text('9分钟后'), findsOneWidget);
+    expect(find.text('3小时后'), findsOneWidget);
+    expect(find.text('16天后'), findsOneWidget);
+  });
+
+  testWidgets('settings opens the shared sheet with vocabulary controls', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-settings')),
     );
-    expect(find.text('反面正在开发中'), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    expect(find.text('显示下次复习时间'), findsOneWidget);
+    expect(find.text('复习顺序'), findsOneWidget);
+    expect(find.text('收藏词汇复习'), findsNWidgets(2));
+    expect(find.text('每日词汇复习目标'), findsOneWidget);
+    expect(find.text('收藏句子复习'), findsOneWidget);
+    expect(find.text('每日句子复习目标'), findsNothing);
   });
 }

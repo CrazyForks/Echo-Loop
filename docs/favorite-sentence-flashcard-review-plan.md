@@ -123,7 +123,7 @@ enum FollowUpOutcome { completed, skipped, failed }
 
 - Bookmarks 增加不可变 UUID `memorySubjectId`，数据库 schema 升级到 v49。
 - 存量 bookmark 在迁移时回填 UUID；新收藏由 DAO/服务生成；软删、恢复和备份恢复保留该 UUID。
-- subject 映射固定为 `MemorySubjectRef(namespace: 'favorite_sentence', subjectId: memorySubjectId)`。
+- subject 映射固定为 `MemorySubjectRef(namespace: 'saved_sentence', subjectId: memorySubjectId)`。
 - 禁止使用句子文本、可变 sentenceIndex 或 `audioItemId:sentenceIndex` 作为长期调度身份。
 - 新增 `FavoriteSentenceMemoryLifecycle`，集中处理 ensure、archive、restore、purge 和 reconcile；bookmark DAO 不直接依赖 FSRS adapter。
 

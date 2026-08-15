@@ -130,7 +130,7 @@ Profile 是“算法类型 + 算法配置 + 行为开关”的不可变版本。
 
 使用 `(namespace, subjectId)` 作为业务身份，并建立唯一约束。
 
-- `namespace` 表示内容域，例如未来的 `favorite_sentence`、`saved_word`、`saved_phrase`、`audio_plan`。
+- `namespace` 表示内容域，例如 `saved_sentence`、`saved_word_or_phrase`、`saved_sense_group`、`audio_plan`。
 - `subjectId` 是该域内稳定、可持久化的字符串 ID。
 - 基础设施不解析 `subjectId`，也不建立到具体业务表的外键。
 - 同一业务内容当前只允许一个调度；不在本阶段支持“一项多技能、多调度”。
@@ -972,9 +972,9 @@ git diff --check
 
 | 业务 | namespace 建议 | subjectId 建议 |
 | --- | --- | --- |
-| 收藏句子 | `favorite_sentence` | 优先使用稳定 bookmark UUID；当前自增 id 或 `audioItemId:sentenceIndex` 需先评估同步/重解析稳定性 |
-| 收藏词汇 | `saved_word` | 不直接依赖可变显示文本；未来应引入稳定 UUID 后接入 |
-| 收藏意群 | `saved_phrase` | 未来稳定 UUID |
+| 收藏句子 | `saved_sentence` | 优先使用稳定 bookmark UUID；当前自增 id 或 `audioItemId:sentenceIndex` 需先评估同步/重解析稳定性 |
+| 收藏单词或多词表达 | `saved_word_or_phrase` | 不直接依赖可变显示文本；未来应引入稳定 UUID 后接入 |
+| 收藏意群 | `saved_sense_group` | 未来稳定 UUID |
 | 音频学习计划 | `audio_plan` | `audio_items.id`，但需评估官方内容重装/同步身份 |
 
 每个接入任务至少需要定义：

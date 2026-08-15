@@ -11,8 +11,9 @@ import 'package:echo_loop/features/memory_scheduler/config/memory_profiles.dart'
 import 'package:echo_loop/features/memory_scheduler/data/drift_memory_schedule_repository.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_commands.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_namespaces.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_subject_ref.dart';
-import 'package:echo_loop/models/bookmark_review_settings.dart';
+import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/providers/learning_session/favorite_sentence_deck_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,7 +59,7 @@ void main() {
 
   FavoriteSentenceDeckSource source(
     List<BookmarkWithAudio> bookmarks, {
-    BookmarkReviewSettings settings = const BookmarkReviewSettings(),
+    FavoriteReviewSettings settings = const FavoriteReviewSettings(),
   }) => FavoriteSentenceDeckSource(
     bookmarks: bookmarks,
     scheduler: scheduler,
@@ -70,7 +71,7 @@ void main() {
   /// 让某个 subject 拥有一个到期时间在未来的既有 schedule（模拟已复习过、尚未到期）。
   Future<void> pushDueIntoFuture(String subjectId) async {
     final subject = MemorySubjectRef(
-      namespace: 'favorite_sentence',
+      namespace: kSavedSentenceNamespace,
       subjectId: subjectId,
     );
     final schedule = await scheduler.ensureSchedule(
@@ -114,10 +115,7 @@ void main() {
 
   test('过滤无效书签：零时长、空文本、缺失 memorySubjectId', () async {
     final zeroDuration = _bookmark('a', 1).bookmark.copyWith(endTime: 1);
-    final emptyText = _bookmark(
-      'b',
-      2,
-    ).bookmark.copyWith(sentenceText: '   ');
+    final emptyText = _bookmark('b', 2).bookmark.copyWith(sentenceText: '   ');
     final noSubject = _bookmark(
       'c',
       3,
@@ -135,17 +133,17 @@ void main() {
   });
 
   test('dueAt 排序：dueAt 相同时按 subjectId 稳定排序', () async {
-    final due = await source([
-      _bookmark('earlier', 1),
-      _bookmark('also-new', 2),
-    ], settings: const BookmarkReviewSettings(order: BookmarkReviewOrder.dueAt)).load();
+    final due = await source(
+      [_bookmark('earlier', 1), _bookmark('also-new', 2)],
+      settings: const FavoriteReviewSettings(order: FavoriteReviewOrder.dueAt),
+    ).load();
 
     // 两张都是新卡，dueAt 相同（都等于 now），退化为按 subjectId 排序。
     expect(due.map((c) => c.subject.subjectId), ['also-new', 'earlier']);
   });
 
   test('每日新卡上限：超额的新卡当天保持被排除', () async {
-    final settings = const BookmarkReviewSettings(dailyReviewGoal: 1);
+    final settings = const FavoriteReviewSettings(sentenceDailyReviewGoal: 1);
     final bookmarks = [_bookmark('first', 1), _bookmark('second', 2)];
 
     final firstLoad = await source(bookmarks, settings: settings).load();
@@ -165,12 +163,9 @@ void main() {
     ];
     final due = await source(
       bookmarks,
-      settings: const BookmarkReviewSettings(order: BookmarkReviewOrder.random),
+      settings: const FavoriteReviewSettings(order: FavoriteReviewOrder.random),
     ).load();
-    expect(
-      due.map((c) => c.subject.subjectId).toSet(),
-      {'r1', 'r2', 'r3'},
-    );
+    expect(due.map((c) => c.subject.subjectId).toSet(), {'r1', 'r2', 'r3'});
   });
 }
 

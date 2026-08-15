@@ -1,34 +1,33 @@
-/// 收藏句 FSRS 复习设置面板。
+/// 收藏复习共用设置面板。
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
-import '../../models/bookmark_review_settings.dart';
+import '../../models/favorite_review_settings.dart';
 import '../../providers/bookmark_review_settings_provider.dart';
+import '../../providers/favorite_review_settings_provider.dart';
 import '../../theme/app_theme.dart';
+
+enum FavoriteReviewSettingsTask { sentence, vocabulary }
 
 /// 收藏复习设置面板。
 ///
 /// 设置项直接监听全局 Provider，与其它学习任务设置弹窗保持一致，
 /// 使每次更新都能立即反映到当前控件。
 class BookmarkReviewSettingsSheet extends ConsumerWidget {
-  const BookmarkReviewSettingsSheet({super.key});
+  const BookmarkReviewSettingsSheet({super.key, required this.task});
 
-  static const _minimumDailyReviewGoal = 5;
-  static const _maximumDailyReviewGoal = 100;
-  static const _dailyReviewGoalStep = 5;
-  static const _dailyReviewGoalUnlimitedPosition =
-      (_maximumDailyReviewGoal - _minimumDailyReviewGoal) /
-          _dailyReviewGoalStep +
-      1;
+  final FavoriteReviewSettingsTask task;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final settings = ref.watch(bookmarkReviewSettingsProvider);
-    final notifier = ref.read(bookmarkReviewSettingsProvider.notifier);
+    final settings = ref.watch(favoriteReviewSettingsProvider);
+    final notifier = ref.read(favoriteReviewSettingsProvider.notifier);
+    final sentenceSettings = ref.watch(bookmarkReviewSettingsProvider);
+    final sentenceNotifier = ref.read(bookmarkReviewSettingsProvider.notifier);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -70,39 +69,6 @@ class BookmarkReviewSettingsSheet extends ConsumerWidget {
                   settings.copyWith(showNextReviewTime: value),
                 ),
               ),
-              const SizedBox(height: AppSpacing.m),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.bookmarkReviewDailyGoal,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    _dailyReviewGoalLabel(l10n, settings.dailyReviewGoal),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              Slider(
-                value: _dailyReviewGoalPosition(settings.dailyReviewGoal),
-                min: 0,
-                max: _dailyReviewGoalUnlimitedPosition,
-                divisions: _dailyReviewGoalUnlimitedPosition.toInt(),
-                label: _dailyReviewGoalLabel(l10n, settings.dailyReviewGoal),
-                onChanged: (position) {
-                  final goal = _dailyReviewGoalForPosition(position);
-                  notifier.update(
-                    goal == null
-                        ? settings.copyWith(clearDailyReviewGoal: true)
-                        : settings.copyWith(dailyReviewGoal: goal),
-                  );
-                },
-              ),
               const SizedBox(height: AppSpacing.l),
               Text(
                 l10n.bookmarkReviewOrder,
@@ -113,49 +79,139 @@ class BookmarkReviewSettingsSheet extends ConsumerWidget {
               const SizedBox(height: AppSpacing.s),
               _BookmarkReviewOrderSelector(
                 labels: {
-                  BookmarkReviewOrder.smart: l10n.bookmarkReviewOrderSmart,
-                  BookmarkReviewOrder.dueAt: l10n.bookmarkReviewOrderDueAt,
-                  BookmarkReviewOrder.random: l10n.bookmarkReviewOrderRandom,
+                  FavoriteReviewOrder.smart: l10n.bookmarkReviewOrderSmart,
+                  FavoriteReviewOrder.dueAt: l10n.bookmarkReviewOrderDueAt,
+                  FavoriteReviewOrder.random: l10n.bookmarkReviewOrderRandom,
                 },
                 selected: settings.order,
                 onSelected: (order) =>
                     notifier.update(settings.copyWith(order: order)),
               ),
               const SizedBox(height: AppSpacing.l),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.autoShowAiExplanationToggle),
-                value: settings.autoShowAiExplanation,
-                onChanged: (value) => notifier.update(
-                  settings.copyWith(autoShowAiExplanation: value),
-                ),
+              ExpansionTile(
+                key: const Key('favorite-review-settings-sentence-section'),
+                title: Text(l10n.favoriteReviewSentenceSettings),
+                initiallyExpanded: task == FavoriteReviewSettingsTask.sentence,
+                children: [
+                  _DailyGoalSetting(
+                    title: l10n.favoriteReviewSentenceDailyGoal,
+                    goal: settings.sentenceDailyReviewGoal,
+                    onChanged: (goal) => notifier.update(
+                      goal == null
+                          ? settings.copyWith(
+                              clearSentenceDailyReviewGoal: true,
+                            )
+                          : settings.copyWith(sentenceDailyReviewGoal: goal),
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.autoShowAiExplanationToggle),
+                    value: sentenceSettings.autoShowAiExplanation,
+                    onChanged: (value) => sentenceNotifier.update(
+                      sentenceSettings.copyWith(autoShowAiExplanation: value),
+                    ),
+                  ),
+                  if (sentenceSettings.autoShowAiExplanation) ...[
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiAnalysisToggle,
+                      value: sentenceSettings.autoShowAiAnalysis,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiAnalysis: value),
+                      ),
+                    ),
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiTranslationToggle,
+                      value: sentenceSettings.autoShowAiTranslation,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiTranslation: value),
+                      ),
+                    ),
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiSenseGroupsToggle,
+                      value: sentenceSettings.autoShowAiSenseGroups,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiSenseGroups: value),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              if (settings.autoShowAiExplanation) ...[
-                _AiExplanationSubSwitch(
-                  title: l10n.autoShowAiAnalysisToggle,
-                  value: settings.autoShowAiAnalysis,
-                  onChanged: (value) => notifier.update(
-                    settings.copyWith(autoShowAiAnalysis: value),
+              ExpansionTile(
+                key: const Key('favorite-review-settings-vocabulary-section'),
+                title: Text(l10n.favoriteReviewVocabularySettings),
+                initiallyExpanded:
+                    task == FavoriteReviewSettingsTask.vocabulary,
+                children: [
+                  _DailyGoalSetting(
+                    title: l10n.favoriteReviewVocabularyDailyGoal,
+                    goal: settings.vocabularyDailyReviewGoal,
+                    onChanged: (goal) => notifier.update(
+                      goal == null
+                          ? settings.copyWith(
+                              clearVocabularyDailyReviewGoal: true,
+                            )
+                          : settings.copyWith(vocabularyDailyReviewGoal: goal),
+                    ),
                   ),
-                ),
-                _AiExplanationSubSwitch(
-                  title: l10n.autoShowAiTranslationToggle,
-                  value: settings.autoShowAiTranslation,
-                  onChanged: (value) => notifier.update(
-                    settings.copyWith(autoShowAiTranslation: value),
-                  ),
-                ),
-                _AiExplanationSubSwitch(
-                  title: l10n.autoShowAiSenseGroupsToggle,
-                  value: settings.autoShowAiSenseGroups,
-                  onChanged: (value) => notifier.update(
-                    settings.copyWith(autoShowAiSenseGroups: value),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DailyGoalSetting extends StatelessWidget {
+  const _DailyGoalSetting({
+    required this.title,
+    required this.goal,
+    required this.onChanged,
+  });
+
+  final String title;
+  final int? goal;
+  final ValueChanged<int?> onChanged;
+
+  static const _minimumDailyReviewGoal = 5;
+  static const _maximumDailyReviewGoal = 100;
+  static const _dailyReviewGoalStep = 5;
+  static const _dailyReviewGoalUnlimitedPosition =
+      (_maximumDailyReviewGoal - _minimumDailyReviewGoal) /
+          _dailyReviewGoalStep +
+      1;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: theme.textTheme.titleSmall),
+              Text(
+                _dailyReviewGoalLabel(AppLocalizations.of(context)!, goal),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            value: _dailyReviewGoalPosition(goal),
+            min: 0,
+            max: _dailyReviewGoalUnlimitedPosition,
+            divisions: _dailyReviewGoalUnlimitedPosition.toInt(),
+            label: _dailyReviewGoalLabel(AppLocalizations.of(context)!, goal),
+            onChanged: (position) =>
+                onChanged(_dailyReviewGoalForPosition(position)),
+          ),
+        ],
       ),
     );
   }
@@ -205,9 +261,9 @@ class _BookmarkReviewOrderSelector extends StatelessWidget {
     required this.onSelected,
   });
 
-  final Map<BookmarkReviewOrder, String> labels;
-  final BookmarkReviewOrder selected;
-  final ValueChanged<BookmarkReviewOrder> onSelected;
+  final Map<FavoriteReviewOrder, String> labels;
+  final FavoriteReviewOrder selected;
+  final ValueChanged<FavoriteReviewOrder> onSelected;
 
   @override
   Widget build(BuildContext context) {

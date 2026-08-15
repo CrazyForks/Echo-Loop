@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,9 +60,10 @@ void main() {
   });
 
   test('initialize builds the deck and starts on front', () async {
-    await container
-        .read(favoriteVocabularyReviewProvider.notifier)
-        .initialize([_word('w1', 'apple'), _word('w2', 'banana')], []);
+    await container.read(favoriteVocabularyReviewProvider.notifier).initialize([
+      _word('w1', 'apple'),
+      _word('w2', 'banana'),
+    ], []);
 
     final state = container.read(favoriteVocabularyReviewProvider);
     expect(state.total, 2);
@@ -69,30 +71,45 @@ void main() {
     expect(state.currentCard?.displayText, isNotEmpty);
   });
 
-  test('replayCurrent speaks the current card via pronunciation provider', () async {
+  test(
+    'replayCurrent speaks the current card via pronunciation provider',
+    () async {
+      final notifier = container.read(
+        favoriteVocabularyReviewProvider.notifier,
+      );
+      await notifier.initialize([_word('w1', 'apple')], []);
+      final card = container
+          .read(favoriteVocabularyReviewProvider)
+          .currentCard!;
+
+      await notifier.replayCurrent();
+
+      expect(fakePlayback.spoken, [card.displayText]);
+      expect(
+        container.read(favoriteVocabularyReviewProvider).playbackState,
+        FavoriteVocabularyReviewPlaybackState.idle,
+      );
+    },
+  );
+
+  test('revealBack fetches ratings and submitting advances the deck', () async {
     final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
-    await notifier.initialize([_word('w1', 'apple')], []);
-    final card = container.read(favoriteVocabularyReviewProvider).currentCard!;
-
-    await notifier.replayCurrent();
-
-    expect(fakePlayback.spoken, [card.displayText]);
-    expect(
-      container.read(favoriteVocabularyReviewProvider).playbackState,
-      FavoriteVocabularyReviewPlaybackState.idle,
-    );
-  });
-
-  test('revealBack flips the face without fetching a rating preview', () async {
-    final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
-    await notifier.initialize([_word('w1', 'apple')], []);
+    await notifier.initialize([
+      _word('w1', 'apple'),
+      _word('w2', 'banana'),
+    ], []);
 
     await notifier.revealBack();
 
-    expect(
-      container.read(favoriteVocabularyReviewProvider).face,
-      FavoriteVocabularyReviewFace.back,
-    );
+    final revealed = container.read(favoriteVocabularyReviewProvider);
+    expect(revealed.face, FavoriteVocabularyReviewFace.back);
+    expect(revealed.preview, isNotNull);
     expect(fakePlayback.stops, greaterThan(0));
+
+    await notifier.selectRating(MemoryRating.good);
+
+    final advanced = container.read(favoriteVocabularyReviewProvider);
+    expect(advanced.face, FavoriteVocabularyReviewFace.front);
+    expect(advanced.currentCard?.displayText, 'banana');
   });
 }

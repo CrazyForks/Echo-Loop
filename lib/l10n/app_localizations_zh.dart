@@ -2448,6 +2448,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewDailyGoal => '每日复习目标';
 
   @override
+  String get favoriteReviewSentenceSettings => '收藏句子复习';
+
+  @override
+  String get favoriteReviewVocabularySettings => '收藏词汇复习';
+
+  @override
+  String get favoriteReviewSentenceDailyGoal => '每日句子复习目标';
+
+  @override
+  String get favoriteReviewVocabularyDailyGoal => '每日词汇复习目标';
+
+  @override
   String get bookmarkReviewUnlimited => '不限制';
 
   @override

@@ -8,7 +8,7 @@ final class MemorySubjectRef {
     : namespace = _requiredText(namespace, 'namespace'),
       subjectId = _requiredText(subjectId, 'subjectId');
 
-  /// 业务内容域，例如未来的 `favorite_sentence`。
+  /// 业务内容域，例如收藏句的 `saved_sentence`。
   final String namespace;
 
   /// 该内容域中的稳定业务标识。

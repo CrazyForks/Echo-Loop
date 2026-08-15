@@ -7,7 +7,6 @@ import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_resu
 import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/bookmark_sentence.dart';
-import 'package:echo_loop/models/bookmark_review_settings.dart';
 import 'package:echo_loop/models/dict_entry.dart';
 import 'package:echo_loop/models/dictionary/dictionary_lookup_result.dart';
 import 'package:echo_loop/models/sentence.dart';
@@ -16,6 +15,7 @@ import 'package:echo_loop/providers/dictionary/lookup_controller.dart';
 import 'package:echo_loop/providers/dictionary/visible_sources_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
 import 'package:echo_loop/providers/bookmark_review_settings_provider.dart';
+import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_sense_group_range_playback.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/providers/sense_group_range_playback_provider.dart';
@@ -482,7 +482,9 @@ void main() {
     await tester.tap(find.byKey(const Key('bookmark-review-settings')));
     await tester.pumpAndSettle();
     expect(find.text('显示下次复习时间'), findsOneWidget);
-    expect(find.text('每日复习目标'), findsOneWidget);
+    expect(find.text('收藏句子复习'), findsOneWidget);
+    expect(find.text('每日句子复习目标'), findsOneWidget);
+    expect(find.text('收藏词汇复习'), findsOneWidget);
     expect(find.text('不限制'), findsOneWidget);
     expect(find.text('复习顺序'), findsOneWidget);
     expect(find.text('自动显示 AI 讲解'), findsOneWidget);
@@ -491,7 +493,7 @@ void main() {
     expect(find.text('AI 翻译'), findsOneWidget);
     expect(find.text('AI 意群分割'), findsOneWidget);
 
-    final dailyGoalTitle = tester.getRect(find.text('每日复习目标'));
+    final dailyGoalTitle = tester.getRect(find.text('每日句子复习目标'));
     final dailyGoalValue = tester.getRect(find.text('不限制'));
     final dailyGoalSlider = tester.getRect(find.byType(Slider));
     expect(dailyGoalValue.left, greaterThanOrEqualTo(dailyGoalTitle.right));
@@ -594,15 +596,15 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.text('复习顺序')),
       );
-      final settings = container.read(bookmarkReviewSettingsProvider);
+      final settings = container.read(favoriteReviewSettingsProvider);
       expect(settings.showNextReviewTime, isTrue);
-      expect(settings.dailyReviewGoal, 60);
-      expect(settings.order, BookmarkReviewOrder.random);
+      expect(settings.sentenceDailyReviewGoal, 60);
+      expect(settings.order.name, 'random');
 
       tester.widget<Slider>(find.byType(Slider)).onChanged!(20);
       await tester.pump();
       expect(
-        container.read(bookmarkReviewSettingsProvider).dailyReviewGoal,
+        container.read(favoriteReviewSettingsProvider).sentenceDailyReviewGoal,
         isNull,
       );
       expect(find.text('不限制'), findsOneWidget);

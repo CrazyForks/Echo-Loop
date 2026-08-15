@@ -22,10 +22,11 @@ import '../../features/memory_scheduler/domain/memory_scheduler_commands.dart';
 import '../../features/memory_scheduler/domain/memory_scheduler_results.dart';
 import '../../features/memory_scheduler/domain/memory_schedule.dart';
 import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
+import '../../features/memory_scheduler/domain/memory_namespaces.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
-import '../bookmark_review_settings_provider.dart';
+import '../favorite_review_settings_provider.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
 import '../../models/bookmark_sentence.dart';
@@ -136,7 +137,7 @@ class BookmarkReview extends _$BookmarkReview {
       deckSource: FavoriteSentenceDeckSource(
         bookmarks: bookmarks,
         scheduler: scheduler,
-        settings: ref.read(bookmarkReviewSettingsProvider),
+        settings: ref.read(favoriteReviewSettingsProvider),
         database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
@@ -265,7 +266,7 @@ class BookmarkReview extends _$BookmarkReview {
           .removeBookmark(card.audioItemId, card.originalSentenceIndex);
       final scheduler = ref.read(memorySchedulerProvider);
       final subject = MemorySubjectRef(
-        namespace: 'favorite_sentence',
+        namespace: kSavedSentenceNamespace,
         subjectId: card.memorySubjectId,
       );
       final schedule = await scheduler.getSchedule(subject);

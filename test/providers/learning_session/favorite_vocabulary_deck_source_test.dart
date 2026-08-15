@@ -9,9 +9,11 @@ import 'package:echo_loop/features/memory_scheduler/config/memory_profiles.dart'
 import 'package:echo_loop/features/memory_scheduler/data/drift_memory_schedule_repository.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_commands.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_namespaces.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_subject_ref.dart';
-import 'package:echo_loop/models/favorite_vocabulary_review_settings.dart';
+import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_deck_source.dart';
+import 'package:echo_loop/providers/learning_session/favorite_review_deck_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 SavedWord _word(String memorySubjectId, String text, {DateTime? createdAt}) =>
@@ -71,8 +73,7 @@ void main() {
   FavoriteVocabularyDeckSource source({
     List<SavedWord> words = const [],
     List<SavedSenseGroup> phrases = const [],
-    FavoriteVocabularyReviewSettings settings =
-        const FavoriteVocabularyReviewSettings(),
+    FavoriteReviewSettings settings = const FavoriteReviewSettings(),
   }) => FavoriteVocabularyDeckSource(
     words: words,
     phrases: phrases,
@@ -84,7 +85,10 @@ void main() {
 
   /// 让某个 subject 拥有一个到期时间在未来的既有 schedule。
   Future<void> pushDueIntoFuture(String namespace, String subjectId) async {
-    final subject = MemorySubjectRef(namespace: namespace, subjectId: subjectId);
+    final subject = MemorySubjectRef(
+      namespace: namespace,
+      subjectId: subjectId,
+    );
     final schedule = await scheduler.ensureSchedule(
       EnsureMemoryScheduleCommand(
         subject: subject,
@@ -113,7 +117,7 @@ void main() {
   }
 
   test('新卡立即到期，未到期的既有单词被过滤', () async {
-    await pushDueIntoFuture('saved_word', 'future-word');
+    await pushDueIntoFuture(kSavedWordOrPhraseNamespace, 'future-word');
     final due = await source(
       words: [_word('future-word', 'apple'), _word('new-word', 'banana')],
     ).load();
@@ -130,13 +134,10 @@ void main() {
     ).load();
 
     expect(due.map((c) => c.subject.namespace).toSet(), {
-      'saved_word',
-      'saved_phrase',
+      kSavedWordOrPhraseNamespace,
+      kSavedSenseGroupNamespace,
     });
-    expect(due.map((c) => c.content.displayText).toSet(), {
-      'apple',
-      'give up',
-    });
+    expect(due.map((c) => c.content.displayText).toSet(), {'apple', 'give up'});
   });
 
   test('过滤非法项：空文本、缺失 memorySubjectId', () async {
@@ -165,18 +166,16 @@ void main() {
     final due = await source(
       words: [_word('earlier', 'a')],
       phrases: [_phrase('also-new', 'b')],
-      settings: const FavoriteVocabularyReviewSettings(
-        order: FavoriteVocabularyReviewOrder.dueAt,
-      ),
+      settings: const FavoriteReviewSettings(order: FavoriteReviewOrder.dueAt),
     ).load();
 
     // 两张都是新卡，dueAt 相同（都等于 now），退化为按 "namespace:subjectId"
-    // 稳定排序；'saved_phrase:...' 字典序早于 'saved_word:...'。
+    // 稳定排序；'saved_sense_group:...' 字典序早于 'saved_word_or_phrase:...'。
     expect(due.map((c) => c.subject.subjectId), ['also-new', 'earlier']);
   });
 
   test('每日新卡上限：单词和意群共用同一个预算', () async {
-    const settings = FavoriteVocabularyReviewSettings(dailyReviewGoal: 1);
+    const settings = FavoriteReviewSettings(vocabularyDailyReviewGoal: 1);
     final words = [_word('first', 'a')];
     final phrases = [_phrase('second', 'b')];
 
@@ -197,13 +196,43 @@ void main() {
     expect(secondLoad.single.subject.subjectId, admitted);
   });
 
+  test('每日新卡上限：句子与词汇预算彼此独立', () async {
+    const settings = FavoriteReviewSettings(
+      sentenceDailyReviewGoal: 1,
+      vocabularyDailyReviewGoal: 1,
+    );
+    final sentenceDeck = FavoriteReviewDeckSource<String>(
+      items: [
+        FavoriteReviewDeckItem(
+          content: 'sentence',
+          subject: MemorySubjectRef(
+            namespace: kSavedSentenceNamespace,
+            subjectId: 'sentence-1',
+          ),
+          createdAt: now,
+        ),
+      ],
+      scheduler: scheduler,
+      settings: settings,
+      dailyReviewGoal: settings.sentenceDailyReviewGoal,
+      budgetNamespaces: const [kSavedSentenceNamespace],
+      database: database,
+      now: () => now,
+    );
+
+    expect(await sentenceDeck.load(), hasLength(1));
+    final vocabulary = await source(
+      words: [_word('word-1', 'apple')],
+      settings: settings,
+    ).load();
+    expect(vocabulary, hasLength(1));
+  });
+
   test('随机排序不丢卡也不重复', () async {
     final due = await source(
       words: [_word('r1', 'a'), _word('r2', 'b')],
       phrases: [_phrase('r3', 'c')],
-      settings: const FavoriteVocabularyReviewSettings(
-        order: FavoriteVocabularyReviewOrder.random,
-      ),
+      settings: const FavoriteReviewSettings(order: FavoriteReviewOrder.random),
     ).load();
     expect(due.map((c) => c.subject.subjectId).toSet(), {'r1', 'r2', 'r3'});
   });

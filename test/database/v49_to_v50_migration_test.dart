@@ -8,7 +8,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 /// v49→v50 迁移测试：
 /// - 为 saved_words、saved_sense_groups 回填不可变 memory_subject_id UUID；
 /// - 把收藏句专属的 bookmark_review_queue_entries 泛化为带 namespace 的
-///   memory_review_queue_entries，并保留存量行（回填 namespace='favorite_sentence'）。
+///   memory_review_queue_entries，并保留存量行（回填 namespace='saved_sentence'）。
 void main() {
   test('v49→v50 回填词汇 UUID 并泛化每日新卡计数表', () async {
     final dir = Directory.systemTemp.createTempSync('fluency_v49_to_v50_');
@@ -49,14 +49,14 @@ void main() {
     expect(tableNames, contains('memory_review_queue_entries'));
     expect(tableNames, isNot(contains('bookmark_review_queue_entries')));
 
-    // 存量行回填 namespace='favorite_sentence'，原 subject_id/local_date 不变。
+    // 存量行回填 namespace='saved_sentence'，原 subject_id/local_date 不变。
     final queueRows = await db
         .customSelect(
           'SELECT namespace, subject_id, local_date FROM memory_review_queue_entries',
         )
         .get();
     expect(queueRows, hasLength(1));
-    expect(queueRows.single.data['namespace'], 'favorite_sentence');
+    expect(queueRows.single.data['namespace'], 'saved_sentence');
     expect(queueRows.single.data['subject_id'], 'legacy-subject-1');
     expect(queueRows.single.data['local_date'], '2026-01-01');
 
@@ -65,7 +65,7 @@ void main() {
     await db.customStatement('''
       INSERT INTO memory_review_queue_entries
         (namespace, subject_id, local_date, enqueued_at)
-      VALUES ('saved_word', 'legacy-subject-1', '2026-01-01', 0)
+      VALUES ('saved_word_or_phrase', 'legacy-subject-1', '2026-01-01', 0)
     ''');
     final afterInsert = await db
         .customSelect('SELECT namespace FROM memory_review_queue_entries')
