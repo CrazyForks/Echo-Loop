@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../app_database.dart';
 import '../tables/saved_words.dart';
@@ -61,6 +62,7 @@ class SavedWordDao extends DatabaseAccessor<AppDatabase>
     return into(savedWords).insert(
       SavedWordsCompanion(
         word: Value(word),
+        memorySubjectId: Value(const Uuid().v4()),
         audioItemId: Value(audioItemId),
         sentenceIndex: Value(sentenceIndex),
         sentenceText: Value(sentenceText),

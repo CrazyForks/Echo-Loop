@@ -13,6 +13,11 @@ class SavedSenseGroups extends Table {
   /// 意群文本（归一化：小写 + trim + 去句末标点，保留撇号），全局唯一
   TextColumn get phraseText => text().unique()();
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID（不可变 UUID）。
+  ///
+  /// 与 [phraseText] 解耦：调度身份不依赖可编辑/可合并的展示文本。
+  TextColumn get memorySubjectId => text().nullable()();
+
   /// 意群原始文本（保留大小写，用于展示）
   TextColumn get displayText => text()();
 

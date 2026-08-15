@@ -13,6 +13,11 @@ class SavedWords extends Table {
   /// 单词原形（小写，lemmatized），全局唯一
   TextColumn get word => text().unique()();
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID（不可变 UUID）。
+  ///
+  /// 与 [word] 解耦：调度身份不依赖可编辑/可合并的展示文本。
+  TextColumn get memorySubjectId => text().nullable()();
+
   /// 来源音频 ID，FK → audio_items，音频删除时置空
   TextColumn get audioItemId => text().nullable().references(
     AudioItems,

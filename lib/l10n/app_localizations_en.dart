@@ -2578,6 +2578,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewRatingGood => 'Got it';
 
   @override
+  String get favoriteVocabularyReviewTitle => 'Review Saved Vocabulary';
+
+  @override
+  String get favoriteVocabularyReviewEmpty =>
+      'No saved vocabulary left in this review.';
+
+  @override
+  String get favoriteVocabularyReviewTapReplay => 'Tap to replay';
+
+  @override
+  String get favoriteVocabularyReviewLoadingAudio => 'Loading audio…';
+
+  @override
+  String get favoriteVocabularyReviewPlaying => 'Playing';
+
+  @override
+  String get favoriteVocabularyReviewTapRetry => 'Tap to retry';
+
+  @override
+  String get favoriteVocabularyReviewAudioSkipped =>
+      'Audio unavailable, tap to retry';
+
+  @override
+  String get favoriteVocabularyReviewReadyTitle => 'Flip when ready';
+
+  @override
+  String get favoriteVocabularyReviewRevealHint => 'Tap to reveal the back';
+
+  @override
+  String get favoriteVocabularyReviewBackPlaceholder =>
+      'Back side is coming soon';
+
+  @override
   String get bookmarkReviewRatingEasy => 'Easy';
 
   @override

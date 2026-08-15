@@ -7922,6 +7922,17 @@ class $SavedWordsTable extends SavedWords
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _memorySubjectIdMeta = const VerificationMeta(
+    'memorySubjectId',
+  );
+  @override
+  late final GeneratedColumn<String> memorySubjectId = GeneratedColumn<String>(
+    'memory_subject_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _audioItemIdMeta = const VerificationMeta(
     'audioItemId',
   );
@@ -8080,6 +8091,7 @@ class $SavedWordsTable extends SavedWords
   List<GeneratedColumn> get $columns => [
     id,
     word,
+    memorySubjectId,
     audioItemId,
     sentenceIndex,
     sentenceText,
@@ -8116,6 +8128,15 @@ class $SavedWordsTable extends SavedWords
       );
     } else if (isInserting) {
       context.missing(_wordMeta);
+    }
+    if (data.containsKey('memory_subject_id')) {
+      context.handle(
+        _memorySubjectIdMeta,
+        memorySubjectId.isAcceptableOrUnknown(
+          data['memory_subject_id']!,
+          _memorySubjectIdMeta,
+        ),
+      );
     }
     if (data.containsKey('audio_item_id')) {
       context.handle(
@@ -8240,6 +8261,10 @@ class $SavedWordsTable extends SavedWords
         DriftSqlType.string,
         data['${effectivePrefix}word'],
       )!,
+      memorySubjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}memory_subject_id'],
+      ),
       audioItemId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}audio_item_id'],
@@ -8308,6 +8333,11 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
   /// 单词原形（小写，lemmatized），全局唯一
   final String word;
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID（不可变 UUID）。
+  ///
+  /// 与 [word] 解耦：调度身份不依赖可编辑/可合并的展示文本。
+  final String? memorySubjectId;
+
   /// 来源音频 ID，FK → audio_items，音频删除时置空
   final String? audioItemId;
 
@@ -8349,6 +8379,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
   const SavedWord({
     required this.id,
     required this.word,
+    this.memorySubjectId,
     this.audioItemId,
     this.sentenceIndex,
     this.sentenceText,
@@ -8368,6 +8399,9 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['word'] = Variable<String>(word);
+    if (!nullToAbsent || memorySubjectId != null) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId);
+    }
     if (!nullToAbsent || audioItemId != null) {
       map['audio_item_id'] = Variable<String>(audioItemId);
     }
@@ -8402,6 +8436,9 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     return SavedWordsCompanion(
       id: Value(id),
       word: Value(word),
+      memorySubjectId: memorySubjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memorySubjectId),
       audioItemId: audioItemId == null && nullToAbsent
           ? const Value.absent()
           : Value(audioItemId),
@@ -8440,6 +8477,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     return SavedWord(
       id: serializer.fromJson<int>(json['id']),
       word: serializer.fromJson<String>(json['word']),
+      memorySubjectId: serializer.fromJson<String?>(json['memorySubjectId']),
       audioItemId: serializer.fromJson<String?>(json['audioItemId']),
       sentenceIndex: serializer.fromJson<int?>(json['sentenceIndex']),
       sentenceText: serializer.fromJson<String?>(json['sentenceText']),
@@ -8461,6 +8499,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'word': serializer.toJson<String>(word),
+      'memorySubjectId': serializer.toJson<String?>(memorySubjectId),
       'audioItemId': serializer.toJson<String?>(audioItemId),
       'sentenceIndex': serializer.toJson<int?>(sentenceIndex),
       'sentenceText': serializer.toJson<String?>(sentenceText),
@@ -8480,6 +8519,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
   SavedWord copyWith({
     int? id,
     String? word,
+    Value<String?> memorySubjectId = const Value.absent(),
     Value<String?> audioItemId = const Value.absent(),
     Value<int?> sentenceIndex = const Value.absent(),
     Value<String?> sentenceText = const Value.absent(),
@@ -8496,6 +8536,9 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
   }) => SavedWord(
     id: id ?? this.id,
     word: word ?? this.word,
+    memorySubjectId: memorySubjectId.present
+        ? memorySubjectId.value
+        : this.memorySubjectId,
     audioItemId: audioItemId.present ? audioItemId.value : this.audioItemId,
     sentenceIndex: sentenceIndex.present
         ? sentenceIndex.value
@@ -8522,6 +8565,9 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     return SavedWord(
       id: data.id.present ? data.id.value : this.id,
       word: data.word.present ? data.word.value : this.word,
+      memorySubjectId: data.memorySubjectId.present
+          ? data.memorySubjectId.value
+          : this.memorySubjectId,
       audioItemId: data.audioItemId.present
           ? data.audioItemId.value
           : this.audioItemId,
@@ -8563,6 +8609,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
     return (StringBuffer('SavedWord(')
           ..write('id: $id, ')
           ..write('word: $word, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
           ..write('sentenceText: $sentenceText, ')
@@ -8584,6 +8631,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
   int get hashCode => Object.hash(
     id,
     word,
+    memorySubjectId,
     audioItemId,
     sentenceIndex,
     sentenceText,
@@ -8604,6 +8652,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
       (other is SavedWord &&
           other.id == this.id &&
           other.word == this.word &&
+          other.memorySubjectId == this.memorySubjectId &&
           other.audioItemId == this.audioItemId &&
           other.sentenceIndex == this.sentenceIndex &&
           other.sentenceText == this.sentenceText &&
@@ -8622,6 +8671,7 @@ class SavedWord extends DataClass implements Insertable<SavedWord> {
 class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
   final Value<int> id;
   final Value<String> word;
+  final Value<String?> memorySubjectId;
   final Value<String?> audioItemId;
   final Value<int?> sentenceIndex;
   final Value<String?> sentenceText;
@@ -8638,6 +8688,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
   const SavedWordsCompanion({
     this.id = const Value.absent(),
     this.word = const Value.absent(),
+    this.memorySubjectId = const Value.absent(),
     this.audioItemId = const Value.absent(),
     this.sentenceIndex = const Value.absent(),
     this.sentenceText = const Value.absent(),
@@ -8655,6 +8706,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
   SavedWordsCompanion.insert({
     this.id = const Value.absent(),
     required String word,
+    this.memorySubjectId = const Value.absent(),
     this.audioItemId = const Value.absent(),
     this.sentenceIndex = const Value.absent(),
     this.sentenceText = const Value.absent(),
@@ -8674,6 +8726,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
   static Insertable<SavedWord> custom({
     Expression<int>? id,
     Expression<String>? word,
+    Expression<String>? memorySubjectId,
     Expression<String>? audioItemId,
     Expression<int>? sentenceIndex,
     Expression<String>? sentenceText,
@@ -8691,6 +8744,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (word != null) 'word': word,
+      if (memorySubjectId != null) 'memory_subject_id': memorySubjectId,
       if (audioItemId != null) 'audio_item_id': audioItemId,
       if (sentenceIndex != null) 'sentence_index': sentenceIndex,
       if (sentenceText != null) 'sentence_text': sentenceText,
@@ -8710,6 +8764,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
   SavedWordsCompanion copyWith({
     Value<int>? id,
     Value<String>? word,
+    Value<String?>? memorySubjectId,
     Value<String?>? audioItemId,
     Value<int?>? sentenceIndex,
     Value<String?>? sentenceText,
@@ -8727,6 +8782,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
     return SavedWordsCompanion(
       id: id ?? this.id,
       word: word ?? this.word,
+      memorySubjectId: memorySubjectId ?? this.memorySubjectId,
       audioItemId: audioItemId ?? this.audioItemId,
       sentenceIndex: sentenceIndex ?? this.sentenceIndex,
       sentenceText: sentenceText ?? this.sentenceText,
@@ -8751,6 +8807,9 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
     }
     if (word.present) {
       map['word'] = Variable<String>(word.value);
+    }
+    if (memorySubjectId.present) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId.value);
     }
     if (audioItemId.present) {
       map['audio_item_id'] = Variable<String>(audioItemId.value);
@@ -8799,6 +8858,7 @@ class SavedWordsCompanion extends UpdateCompanion<SavedWord> {
     return (StringBuffer('SavedWordsCompanion(')
           ..write('id: $id, ')
           ..write('word: $word, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
           ..write('sentenceText: $sentenceText, ')
@@ -8847,6 +8907,17 @@ class $SavedSenseGroupsTable extends SavedSenseGroups
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _memorySubjectIdMeta = const VerificationMeta(
+    'memorySubjectId',
+  );
+  @override
+  late final GeneratedColumn<String> memorySubjectId = GeneratedColumn<String>(
+    'memory_subject_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _displayTextMeta = const VerificationMeta(
     'displayText',
@@ -9039,6 +9110,7 @@ class $SavedSenseGroupsTable extends SavedSenseGroups
   List<GeneratedColumn> get $columns => [
     id,
     phraseText,
+    memorySubjectId,
     displayText,
     audioItemId,
     sentenceIndex,
@@ -9078,6 +9150,15 @@ class $SavedSenseGroupsTable extends SavedSenseGroups
       );
     } else if (isInserting) {
       context.missing(_phraseTextMeta);
+    }
+    if (data.containsKey('memory_subject_id')) {
+      context.handle(
+        _memorySubjectIdMeta,
+        memorySubjectId.isAcceptableOrUnknown(
+          data['memory_subject_id']!,
+          _memorySubjectIdMeta,
+        ),
+      );
     }
     if (data.containsKey('display_text')) {
       context.handle(
@@ -9231,6 +9312,10 @@ class $SavedSenseGroupsTable extends SavedSenseGroups
         DriftSqlType.string,
         data['${effectivePrefix}phrase_text'],
       )!,
+      memorySubjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}memory_subject_id'],
+      ),
       displayText: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}display_text'],
@@ -9311,6 +9396,11 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
   /// 意群文本（归一化：小写 + trim + 去句末标点，保留撇号），全局唯一
   final String phraseText;
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID（不可变 UUID）。
+  ///
+  /// 与 [phraseText] 解耦：调度身份不依赖可编辑/可合并的展示文本。
+  final String? memorySubjectId;
+
   /// 意群原始文本（保留大小写，用于展示）
   final String displayText;
 
@@ -9361,6 +9451,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
   const SavedSenseGroup({
     required this.id,
     required this.phraseText,
+    this.memorySubjectId,
     required this.displayText,
     this.audioItemId,
     this.sentenceIndex,
@@ -9383,6 +9474,9 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['phrase_text'] = Variable<String>(phraseText);
+    if (!nullToAbsent || memorySubjectId != null) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId);
+    }
     map['display_text'] = Variable<String>(displayText);
     if (!nullToAbsent || audioItemId != null) {
       map['audio_item_id'] = Variable<String>(audioItemId);
@@ -9424,6 +9518,9 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
     return SavedSenseGroupsCompanion(
       id: Value(id),
       phraseText: Value(phraseText),
+      memorySubjectId: memorySubjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memorySubjectId),
       displayText: Value(displayText),
       audioItemId: audioItemId == null && nullToAbsent
           ? const Value.absent()
@@ -9469,6 +9566,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
     return SavedSenseGroup(
       id: serializer.fromJson<int>(json['id']),
       phraseText: serializer.fromJson<String>(json['phraseText']),
+      memorySubjectId: serializer.fromJson<String?>(json['memorySubjectId']),
       displayText: serializer.fromJson<String>(json['displayText']),
       audioItemId: serializer.fromJson<String?>(json['audioItemId']),
       sentenceIndex: serializer.fromJson<int?>(json['sentenceIndex']),
@@ -9493,6 +9591,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'phraseText': serializer.toJson<String>(phraseText),
+      'memorySubjectId': serializer.toJson<String?>(memorySubjectId),
       'displayText': serializer.toJson<String>(displayText),
       'audioItemId': serializer.toJson<String?>(audioItemId),
       'sentenceIndex': serializer.toJson<int?>(sentenceIndex),
@@ -9515,6 +9614,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
   SavedSenseGroup copyWith({
     int? id,
     String? phraseText,
+    Value<String?> memorySubjectId = const Value.absent(),
     String? displayText,
     Value<String?> audioItemId = const Value.absent(),
     Value<int?> sentenceIndex = const Value.absent(),
@@ -9534,6 +9634,9 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
   }) => SavedSenseGroup(
     id: id ?? this.id,
     phraseText: phraseText ?? this.phraseText,
+    memorySubjectId: memorySubjectId.present
+        ? memorySubjectId.value
+        : this.memorySubjectId,
     displayText: displayText ?? this.displayText,
     audioItemId: audioItemId.present ? audioItemId.value : this.audioItemId,
     sentenceIndex: sentenceIndex.present
@@ -9565,6 +9668,9 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
       phraseText: data.phraseText.present
           ? data.phraseText.value
           : this.phraseText,
+      memorySubjectId: data.memorySubjectId.present
+          ? data.memorySubjectId.value
+          : this.memorySubjectId,
       displayText: data.displayText.present
           ? data.displayText.value
           : this.displayText,
@@ -9615,6 +9721,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
     return (StringBuffer('SavedSenseGroup(')
           ..write('id: $id, ')
           ..write('phraseText: $phraseText, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('displayText: $displayText, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
@@ -9639,6 +9746,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
   int get hashCode => Object.hash(
     id,
     phraseText,
+    memorySubjectId,
     displayText,
     audioItemId,
     sentenceIndex,
@@ -9662,6 +9770,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
       (other is SavedSenseGroup &&
           other.id == this.id &&
           other.phraseText == this.phraseText &&
+          other.memorySubjectId == this.memorySubjectId &&
           other.displayText == this.displayText &&
           other.audioItemId == this.audioItemId &&
           other.sentenceIndex == this.sentenceIndex &&
@@ -9683,6 +9792,7 @@ class SavedSenseGroup extends DataClass implements Insertable<SavedSenseGroup> {
 class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
   final Value<int> id;
   final Value<String> phraseText;
+  final Value<String?> memorySubjectId;
   final Value<String> displayText;
   final Value<String?> audioItemId;
   final Value<int?> sentenceIndex;
@@ -9702,6 +9812,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
   const SavedSenseGroupsCompanion({
     this.id = const Value.absent(),
     this.phraseText = const Value.absent(),
+    this.memorySubjectId = const Value.absent(),
     this.displayText = const Value.absent(),
     this.audioItemId = const Value.absent(),
     this.sentenceIndex = const Value.absent(),
@@ -9722,6 +9833,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
   SavedSenseGroupsCompanion.insert({
     this.id = const Value.absent(),
     required String phraseText,
+    this.memorySubjectId = const Value.absent(),
     required String displayText,
     this.audioItemId = const Value.absent(),
     this.sentenceIndex = const Value.absent(),
@@ -9745,6 +9857,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
   static Insertable<SavedSenseGroup> custom({
     Expression<int>? id,
     Expression<String>? phraseText,
+    Expression<String>? memorySubjectId,
     Expression<String>? displayText,
     Expression<String>? audioItemId,
     Expression<int>? sentenceIndex,
@@ -9765,6 +9878,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (phraseText != null) 'phrase_text': phraseText,
+      if (memorySubjectId != null) 'memory_subject_id': memorySubjectId,
       if (displayText != null) 'display_text': displayText,
       if (audioItemId != null) 'audio_item_id': audioItemId,
       if (sentenceIndex != null) 'sentence_index': sentenceIndex,
@@ -9787,6 +9901,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
   SavedSenseGroupsCompanion copyWith({
     Value<int>? id,
     Value<String>? phraseText,
+    Value<String?>? memorySubjectId,
     Value<String>? displayText,
     Value<String?>? audioItemId,
     Value<int?>? sentenceIndex,
@@ -9807,6 +9922,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
     return SavedSenseGroupsCompanion(
       id: id ?? this.id,
       phraseText: phraseText ?? this.phraseText,
+      memorySubjectId: memorySubjectId ?? this.memorySubjectId,
       displayText: displayText ?? this.displayText,
       audioItemId: audioItemId ?? this.audioItemId,
       sentenceIndex: sentenceIndex ?? this.sentenceIndex,
@@ -9834,6 +9950,9 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
     }
     if (phraseText.present) {
       map['phrase_text'] = Variable<String>(phraseText.value);
+    }
+    if (memorySubjectId.present) {
+      map['memory_subject_id'] = Variable<String>(memorySubjectId.value);
     }
     if (displayText.present) {
       map['display_text'] = Variable<String>(displayText.value);
@@ -9891,6 +10010,7 @@ class SavedSenseGroupsCompanion extends UpdateCompanion<SavedSenseGroup> {
     return (StringBuffer('SavedSenseGroupsCompanion(')
           ..write('id: $id, ')
           ..write('phraseText: $phraseText, ')
+          ..write('memorySubjectId: $memorySubjectId, ')
           ..write('displayText: $displayText, ')
           ..write('audioItemId: $audioItemId, ')
           ..write('sentenceIndex: $sentenceIndex, ')
@@ -13933,12 +14053,12 @@ class MemoryReviewEventsCompanion extends UpdateCompanion<MemoryReviewEvent> {
   }
 }
 
-class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
-    with TableInfo<$BookmarkReviewQueueEntriesTable, BookmarkReviewQueueEntry> {
+class $MemoryReviewQueueEntriesTable extends MemoryReviewQueueEntries
+    with TableInfo<$MemoryReviewQueueEntriesTable, MemoryReviewQueueEntry> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $BookmarkReviewQueueEntriesTable(this.attachedDatabase, [this._alias]);
+  $MemoryReviewQueueEntriesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -13951,6 +14071,17 @@ class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'PRIMARY KEY AUTOINCREMENT',
     ),
+  );
+  static const VerificationMeta _namespaceMeta = const VerificationMeta(
+    'namespace',
+  );
+  @override
+  late final GeneratedColumn<String> namespace = GeneratedColumn<String>(
+    'namespace',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _subjectIdMeta = const VerificationMeta(
     'subjectId',
@@ -13986,21 +14117,35 @@ class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, subjectId, localDate, enqueuedAt];
+  List<GeneratedColumn> get $columns => [
+    id,
+    namespace,
+    subjectId,
+    localDate,
+    enqueuedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'bookmark_review_queue_entries';
+  static const String $name = 'memory_review_queue_entries';
   @override
   VerificationContext validateIntegrity(
-    Insertable<BookmarkReviewQueueEntry> instance, {
+    Insertable<MemoryReviewQueueEntry> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('namespace')) {
+      context.handle(
+        _namespaceMeta,
+        namespace.isAcceptableOrUnknown(data['namespace']!, _namespaceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_namespaceMeta);
     }
     if (data.containsKey('subject_id')) {
       context.handle(
@@ -14033,18 +14178,19 @@ class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
   List<Set<GeneratedColumn>> get uniqueKeys => [
-    {subjectId, localDate},
+    {namespace, subjectId, localDate},
   ];
   @override
-  BookmarkReviewQueueEntry map(
-    Map<String, dynamic> data, {
-    String? tablePrefix,
-  }) {
+  MemoryReviewQueueEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return BookmarkReviewQueueEntry(
+    return MemoryReviewQueueEntry(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
+      )!,
+      namespace: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}namespace'],
       )!,
       subjectId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -14062,19 +14208,21 @@ class $BookmarkReviewQueueEntriesTable extends BookmarkReviewQueueEntries
   }
 
   @override
-  $BookmarkReviewQueueEntriesTable createAlias(String alias) {
-    return $BookmarkReviewQueueEntriesTable(attachedDatabase, alias);
+  $MemoryReviewQueueEntriesTable createAlias(String alias) {
+    return $MemoryReviewQueueEntriesTable(attachedDatabase, alias);
   }
 }
 
-class BookmarkReviewQueueEntry extends DataClass
-    implements Insertable<BookmarkReviewQueueEntry> {
+class MemoryReviewQueueEntry extends DataClass
+    implements Insertable<MemoryReviewQueueEntry> {
   final int id;
+  final String namespace;
   final String subjectId;
   final String localDate;
   final DateTime enqueuedAt;
-  const BookmarkReviewQueueEntry({
+  const MemoryReviewQueueEntry({
     required this.id,
+    required this.namespace,
     required this.subjectId,
     required this.localDate,
     required this.enqueuedAt,
@@ -14083,28 +14231,31 @@ class BookmarkReviewQueueEntry extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['namespace'] = Variable<String>(namespace);
     map['subject_id'] = Variable<String>(subjectId);
     map['local_date'] = Variable<String>(localDate);
     map['enqueued_at'] = Variable<DateTime>(enqueuedAt);
     return map;
   }
 
-  BookmarkReviewQueueEntriesCompanion toCompanion(bool nullToAbsent) {
-    return BookmarkReviewQueueEntriesCompanion(
+  MemoryReviewQueueEntriesCompanion toCompanion(bool nullToAbsent) {
+    return MemoryReviewQueueEntriesCompanion(
       id: Value(id),
+      namespace: Value(namespace),
       subjectId: Value(subjectId),
       localDate: Value(localDate),
       enqueuedAt: Value(enqueuedAt),
     );
   }
 
-  factory BookmarkReviewQueueEntry.fromJson(
+  factory MemoryReviewQueueEntry.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return BookmarkReviewQueueEntry(
+    return MemoryReviewQueueEntry(
       id: serializer.fromJson<int>(json['id']),
+      namespace: serializer.fromJson<String>(json['namespace']),
       subjectId: serializer.fromJson<String>(json['subjectId']),
       localDate: serializer.fromJson<String>(json['localDate']),
       enqueuedAt: serializer.fromJson<DateTime>(json['enqueuedAt']),
@@ -14115,28 +14266,32 @@ class BookmarkReviewQueueEntry extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'namespace': serializer.toJson<String>(namespace),
       'subjectId': serializer.toJson<String>(subjectId),
       'localDate': serializer.toJson<String>(localDate),
       'enqueuedAt': serializer.toJson<DateTime>(enqueuedAt),
     };
   }
 
-  BookmarkReviewQueueEntry copyWith({
+  MemoryReviewQueueEntry copyWith({
     int? id,
+    String? namespace,
     String? subjectId,
     String? localDate,
     DateTime? enqueuedAt,
-  }) => BookmarkReviewQueueEntry(
+  }) => MemoryReviewQueueEntry(
     id: id ?? this.id,
+    namespace: namespace ?? this.namespace,
     subjectId: subjectId ?? this.subjectId,
     localDate: localDate ?? this.localDate,
     enqueuedAt: enqueuedAt ?? this.enqueuedAt,
   );
-  BookmarkReviewQueueEntry copyWithCompanion(
-    BookmarkReviewQueueEntriesCompanion data,
+  MemoryReviewQueueEntry copyWithCompanion(
+    MemoryReviewQueueEntriesCompanion data,
   ) {
-    return BookmarkReviewQueueEntry(
+    return MemoryReviewQueueEntry(
       id: data.id.present ? data.id.value : this.id,
+      namespace: data.namespace.present ? data.namespace.value : this.namespace,
       subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
       localDate: data.localDate.present ? data.localDate.value : this.localDate,
       enqueuedAt: data.enqueuedAt.present
@@ -14147,8 +14302,9 @@ class BookmarkReviewQueueEntry extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('BookmarkReviewQueueEntry(')
+    return (StringBuffer('MemoryReviewQueueEntry(')
           ..write('id: $id, ')
+          ..write('namespace: $namespace, ')
           ..write('subjectId: $subjectId, ')
           ..write('localDate: $localDate, ')
           ..write('enqueuedAt: $enqueuedAt')
@@ -14157,59 +14313,69 @@ class BookmarkReviewQueueEntry extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, subjectId, localDate, enqueuedAt);
+  int get hashCode =>
+      Object.hash(id, namespace, subjectId, localDate, enqueuedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is BookmarkReviewQueueEntry &&
+      (other is MemoryReviewQueueEntry &&
           other.id == this.id &&
+          other.namespace == this.namespace &&
           other.subjectId == this.subjectId &&
           other.localDate == this.localDate &&
           other.enqueuedAt == this.enqueuedAt);
 }
 
-class BookmarkReviewQueueEntriesCompanion
-    extends UpdateCompanion<BookmarkReviewQueueEntry> {
+class MemoryReviewQueueEntriesCompanion
+    extends UpdateCompanion<MemoryReviewQueueEntry> {
   final Value<int> id;
+  final Value<String> namespace;
   final Value<String> subjectId;
   final Value<String> localDate;
   final Value<DateTime> enqueuedAt;
-  const BookmarkReviewQueueEntriesCompanion({
+  const MemoryReviewQueueEntriesCompanion({
     this.id = const Value.absent(),
+    this.namespace = const Value.absent(),
     this.subjectId = const Value.absent(),
     this.localDate = const Value.absent(),
     this.enqueuedAt = const Value.absent(),
   });
-  BookmarkReviewQueueEntriesCompanion.insert({
+  MemoryReviewQueueEntriesCompanion.insert({
     this.id = const Value.absent(),
+    required String namespace,
     required String subjectId,
     required String localDate,
     required DateTime enqueuedAt,
-  }) : subjectId = Value(subjectId),
+  }) : namespace = Value(namespace),
+       subjectId = Value(subjectId),
        localDate = Value(localDate),
        enqueuedAt = Value(enqueuedAt);
-  static Insertable<BookmarkReviewQueueEntry> custom({
+  static Insertable<MemoryReviewQueueEntry> custom({
     Expression<int>? id,
+    Expression<String>? namespace,
     Expression<String>? subjectId,
     Expression<String>? localDate,
     Expression<DateTime>? enqueuedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (namespace != null) 'namespace': namespace,
       if (subjectId != null) 'subject_id': subjectId,
       if (localDate != null) 'local_date': localDate,
       if (enqueuedAt != null) 'enqueued_at': enqueuedAt,
     });
   }
 
-  BookmarkReviewQueueEntriesCompanion copyWith({
+  MemoryReviewQueueEntriesCompanion copyWith({
     Value<int>? id,
+    Value<String>? namespace,
     Value<String>? subjectId,
     Value<String>? localDate,
     Value<DateTime>? enqueuedAt,
   }) {
-    return BookmarkReviewQueueEntriesCompanion(
+    return MemoryReviewQueueEntriesCompanion(
       id: id ?? this.id,
+      namespace: namespace ?? this.namespace,
       subjectId: subjectId ?? this.subjectId,
       localDate: localDate ?? this.localDate,
       enqueuedAt: enqueuedAt ?? this.enqueuedAt,
@@ -14221,6 +14387,9 @@ class BookmarkReviewQueueEntriesCompanion
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (namespace.present) {
+      map['namespace'] = Variable<String>(namespace.value);
     }
     if (subjectId.present) {
       map['subject_id'] = Variable<String>(subjectId.value);
@@ -14236,8 +14405,9 @@ class BookmarkReviewQueueEntriesCompanion
 
   @override
   String toString() {
-    return (StringBuffer('BookmarkReviewQueueEntriesCompanion(')
+    return (StringBuffer('MemoryReviewQueueEntriesCompanion(')
           ..write('id: $id, ')
+          ..write('namespace: $namespace, ')
           ..write('subjectId: $subjectId, ')
           ..write('localDate: $localDate, ')
           ..write('enqueuedAt: $enqueuedAt')
@@ -14282,8 +14452,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $MemoryReviewEventsTable memoryReviewEvents =
       $MemoryReviewEventsTable(this);
-  late final $BookmarkReviewQueueEntriesTable bookmarkReviewQueueEntries =
-      $BookmarkReviewQueueEntriesTable(this);
+  late final $MemoryReviewQueueEntriesTable memoryReviewQueueEntries =
+      $MemoryReviewQueueEntriesTable(this);
   late final AudioItemDao audioItemDao = AudioItemDao(this as AppDatabase);
   late final CollectionDao collectionDao = CollectionDao(this as AppDatabase);
   late final BookmarkDao bookmarkDao = BookmarkDao(this as AppDatabase);
@@ -14339,7 +14509,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ttsCache,
     memorySchedules,
     memoryReviewEvents,
-    bookmarkReviewQueueEntries,
+    memoryReviewQueueEntries,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -19829,6 +19999,7 @@ typedef $$SavedWordsTableCreateCompanionBuilder =
     SavedWordsCompanion Function({
       Value<int> id,
       required String word,
+      Value<String?> memorySubjectId,
       Value<String?> audioItemId,
       Value<int?> sentenceIndex,
       Value<String?> sentenceText,
@@ -19847,6 +20018,7 @@ typedef $$SavedWordsTableUpdateCompanionBuilder =
     SavedWordsCompanion Function({
       Value<int> id,
       Value<String> word,
+      Value<String?> memorySubjectId,
       Value<String?> audioItemId,
       Value<int?> sentenceIndex,
       Value<String?> sentenceText,
@@ -19902,6 +20074,11 @@ class $$SavedWordsTableFilterComposer
 
   ColumnFilters<String> get word => $composableBuilder(
     column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -20008,6 +20185,11 @@ class $$SavedWordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get sentenceIndex => $composableBuilder(
     column: $table.sentenceIndex,
     builder: (column) => ColumnOrderings(column),
@@ -20106,6 +20288,11 @@ class $$SavedWordsTableAnnotationComposer
 
   GeneratedColumn<String> get word =>
       $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get sentenceIndex => $composableBuilder(
     column: $table.sentenceIndex,
@@ -20215,6 +20402,7 @@ class $$SavedWordsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> word = const Value.absent(),
+                Value<String?> memorySubjectId = const Value.absent(),
                 Value<String?> audioItemId = const Value.absent(),
                 Value<int?> sentenceIndex = const Value.absent(),
                 Value<String?> sentenceText = const Value.absent(),
@@ -20231,6 +20419,7 @@ class $$SavedWordsTableTableManager
               }) => SavedWordsCompanion(
                 id: id,
                 word: word,
+                memorySubjectId: memorySubjectId,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
                 sentenceText: sentenceText,
@@ -20249,6 +20438,7 @@ class $$SavedWordsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String word,
+                Value<String?> memorySubjectId = const Value.absent(),
                 Value<String?> audioItemId = const Value.absent(),
                 Value<int?> sentenceIndex = const Value.absent(),
                 Value<String?> sentenceText = const Value.absent(),
@@ -20265,6 +20455,7 @@ class $$SavedWordsTableTableManager
               }) => SavedWordsCompanion.insert(
                 id: id,
                 word: word,
+                memorySubjectId: memorySubjectId,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
                 sentenceText: sentenceText,
@@ -20350,6 +20541,7 @@ typedef $$SavedSenseGroupsTableCreateCompanionBuilder =
     SavedSenseGroupsCompanion Function({
       Value<int> id,
       required String phraseText,
+      Value<String?> memorySubjectId,
       required String displayText,
       Value<String?> audioItemId,
       Value<int?> sentenceIndex,
@@ -20371,6 +20563,7 @@ typedef $$SavedSenseGroupsTableUpdateCompanionBuilder =
     SavedSenseGroupsCompanion Function({
       Value<int> id,
       Value<String> phraseText,
+      Value<String?> memorySubjectId,
       Value<String> displayText,
       Value<String?> audioItemId,
       Value<int?> sentenceIndex,
@@ -20434,6 +20627,11 @@ class $$SavedSenseGroupsTableFilterComposer
 
   ColumnFilters<String> get phraseText => $composableBuilder(
     column: $table.phraseText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -20555,6 +20753,11 @@ class $$SavedSenseGroupsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get displayText => $composableBuilder(
     column: $table.displayText,
     builder: (column) => ColumnOrderings(column),
@@ -20668,6 +20871,11 @@ class $$SavedSenseGroupsTableAnnotationComposer
 
   GeneratedColumn<String> get phraseText => $composableBuilder(
     column: $table.phraseText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get memorySubjectId => $composableBuilder(
+    column: $table.memorySubjectId,
     builder: (column) => column,
   );
 
@@ -20796,6 +21004,7 @@ class $$SavedSenseGroupsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> phraseText = const Value.absent(),
+                Value<String?> memorySubjectId = const Value.absent(),
                 Value<String> displayText = const Value.absent(),
                 Value<String?> audioItemId = const Value.absent(),
                 Value<int?> sentenceIndex = const Value.absent(),
@@ -20815,6 +21024,7 @@ class $$SavedSenseGroupsTableTableManager
               }) => SavedSenseGroupsCompanion(
                 id: id,
                 phraseText: phraseText,
+                memorySubjectId: memorySubjectId,
                 displayText: displayText,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
@@ -20836,6 +21046,7 @@ class $$SavedSenseGroupsTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String phraseText,
+                Value<String?> memorySubjectId = const Value.absent(),
                 required String displayText,
                 Value<String?> audioItemId = const Value.absent(),
                 Value<int?> sentenceIndex = const Value.absent(),
@@ -20855,6 +21066,7 @@ class $$SavedSenseGroupsTableTableManager
               }) => SavedSenseGroupsCompanion.insert(
                 id: id,
                 phraseText: phraseText,
+                memorySubjectId: memorySubjectId,
                 displayText: displayText,
                 audioItemId: audioItemId,
                 sentenceIndex: sentenceIndex,
@@ -23126,24 +23338,26 @@ typedef $$MemoryReviewEventsTableProcessedTableManager =
       MemoryReviewEvent,
       PrefetchHooks Function({bool scheduleId})
     >;
-typedef $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder =
-    BookmarkReviewQueueEntriesCompanion Function({
+typedef $$MemoryReviewQueueEntriesTableCreateCompanionBuilder =
+    MemoryReviewQueueEntriesCompanion Function({
       Value<int> id,
+      required String namespace,
       required String subjectId,
       required String localDate,
       required DateTime enqueuedAt,
     });
-typedef $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder =
-    BookmarkReviewQueueEntriesCompanion Function({
+typedef $$MemoryReviewQueueEntriesTableUpdateCompanionBuilder =
+    MemoryReviewQueueEntriesCompanion Function({
       Value<int> id,
+      Value<String> namespace,
       Value<String> subjectId,
       Value<String> localDate,
       Value<DateTime> enqueuedAt,
     });
 
-class $$BookmarkReviewQueueEntriesTableFilterComposer
-    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
-  $$BookmarkReviewQueueEntriesTableFilterComposer({
+class $$MemoryReviewQueueEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $MemoryReviewQueueEntriesTable> {
+  $$MemoryReviewQueueEntriesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23152,6 +23366,11 @@ class $$BookmarkReviewQueueEntriesTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get namespace => $composableBuilder(
+    column: $table.namespace,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23171,9 +23390,9 @@ class $$BookmarkReviewQueueEntriesTableFilterComposer
   );
 }
 
-class $$BookmarkReviewQueueEntriesTableOrderingComposer
-    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
-  $$BookmarkReviewQueueEntriesTableOrderingComposer({
+class $$MemoryReviewQueueEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MemoryReviewQueueEntriesTable> {
+  $$MemoryReviewQueueEntriesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23182,6 +23401,11 @@ class $$BookmarkReviewQueueEntriesTableOrderingComposer
   });
   ColumnOrderings<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get namespace => $composableBuilder(
+    column: $table.namespace,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -23201,9 +23425,9 @@ class $$BookmarkReviewQueueEntriesTableOrderingComposer
   );
 }
 
-class $$BookmarkReviewQueueEntriesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $BookmarkReviewQueueEntriesTable> {
-  $$BookmarkReviewQueueEntriesTableAnnotationComposer({
+class $$MemoryReviewQueueEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MemoryReviewQueueEntriesTable> {
+  $$MemoryReviewQueueEntriesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23212,6 +23436,9 @@ class $$BookmarkReviewQueueEntriesTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get namespace =>
+      $composableBuilder(column: $table.namespace, builder: (column) => column);
 
   GeneratedColumn<String> get subjectId =>
       $composableBuilder(column: $table.subjectId, builder: (column) => column);
@@ -23225,58 +23452,60 @@ class $$BookmarkReviewQueueEntriesTableAnnotationComposer
   );
 }
 
-class $$BookmarkReviewQueueEntriesTableTableManager
+class $$MemoryReviewQueueEntriesTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $BookmarkReviewQueueEntriesTable,
-          BookmarkReviewQueueEntry,
-          $$BookmarkReviewQueueEntriesTableFilterComposer,
-          $$BookmarkReviewQueueEntriesTableOrderingComposer,
-          $$BookmarkReviewQueueEntriesTableAnnotationComposer,
-          $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder,
-          $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder,
+          $MemoryReviewQueueEntriesTable,
+          MemoryReviewQueueEntry,
+          $$MemoryReviewQueueEntriesTableFilterComposer,
+          $$MemoryReviewQueueEntriesTableOrderingComposer,
+          $$MemoryReviewQueueEntriesTableAnnotationComposer,
+          $$MemoryReviewQueueEntriesTableCreateCompanionBuilder,
+          $$MemoryReviewQueueEntriesTableUpdateCompanionBuilder,
           (
-            BookmarkReviewQueueEntry,
+            MemoryReviewQueueEntry,
             BaseReferences<
               _$AppDatabase,
-              $BookmarkReviewQueueEntriesTable,
-              BookmarkReviewQueueEntry
+              $MemoryReviewQueueEntriesTable,
+              MemoryReviewQueueEntry
             >,
           ),
-          BookmarkReviewQueueEntry,
+          MemoryReviewQueueEntry,
           PrefetchHooks Function()
         > {
-  $$BookmarkReviewQueueEntriesTableTableManager(
+  $$MemoryReviewQueueEntriesTableTableManager(
     _$AppDatabase db,
-    $BookmarkReviewQueueEntriesTable table,
+    $MemoryReviewQueueEntriesTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$BookmarkReviewQueueEntriesTableFilterComposer(
+              $$MemoryReviewQueueEntriesTableFilterComposer(
                 $db: db,
                 $table: table,
               ),
           createOrderingComposer: () =>
-              $$BookmarkReviewQueueEntriesTableOrderingComposer(
+              $$MemoryReviewQueueEntriesTableOrderingComposer(
                 $db: db,
                 $table: table,
               ),
           createComputedFieldComposer: () =>
-              $$BookmarkReviewQueueEntriesTableAnnotationComposer(
+              $$MemoryReviewQueueEntriesTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<String> namespace = const Value.absent(),
                 Value<String> subjectId = const Value.absent(),
                 Value<String> localDate = const Value.absent(),
                 Value<DateTime> enqueuedAt = const Value.absent(),
-              }) => BookmarkReviewQueueEntriesCompanion(
+              }) => MemoryReviewQueueEntriesCompanion(
                 id: id,
+                namespace: namespace,
                 subjectId: subjectId,
                 localDate: localDate,
                 enqueuedAt: enqueuedAt,
@@ -23284,11 +23513,13 @@ class $$BookmarkReviewQueueEntriesTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                required String namespace,
                 required String subjectId,
                 required String localDate,
                 required DateTime enqueuedAt,
-              }) => BookmarkReviewQueueEntriesCompanion.insert(
+              }) => MemoryReviewQueueEntriesCompanion.insert(
                 id: id,
+                namespace: namespace,
                 subjectId: subjectId,
                 localDate: localDate,
                 enqueuedAt: enqueuedAt,
@@ -23301,25 +23532,25 @@ class $$BookmarkReviewQueueEntriesTableTableManager
       );
 }
 
-typedef $$BookmarkReviewQueueEntriesTableProcessedTableManager =
+typedef $$MemoryReviewQueueEntriesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $BookmarkReviewQueueEntriesTable,
-      BookmarkReviewQueueEntry,
-      $$BookmarkReviewQueueEntriesTableFilterComposer,
-      $$BookmarkReviewQueueEntriesTableOrderingComposer,
-      $$BookmarkReviewQueueEntriesTableAnnotationComposer,
-      $$BookmarkReviewQueueEntriesTableCreateCompanionBuilder,
-      $$BookmarkReviewQueueEntriesTableUpdateCompanionBuilder,
+      $MemoryReviewQueueEntriesTable,
+      MemoryReviewQueueEntry,
+      $$MemoryReviewQueueEntriesTableFilterComposer,
+      $$MemoryReviewQueueEntriesTableOrderingComposer,
+      $$MemoryReviewQueueEntriesTableAnnotationComposer,
+      $$MemoryReviewQueueEntriesTableCreateCompanionBuilder,
+      $$MemoryReviewQueueEntriesTableUpdateCompanionBuilder,
       (
-        BookmarkReviewQueueEntry,
+        MemoryReviewQueueEntry,
         BaseReferences<
           _$AppDatabase,
-          $BookmarkReviewQueueEntriesTable,
-          BookmarkReviewQueueEntry
+          $MemoryReviewQueueEntriesTable,
+          MemoryReviewQueueEntry
         >,
       ),
-      BookmarkReviewQueueEntry,
+      MemoryReviewQueueEntry,
       PrefetchHooks Function()
     >;
 
@@ -23364,10 +23595,9 @@ class $AppDatabaseManager {
       $$MemorySchedulesTableTableManager(_db, _db.memorySchedules);
   $$MemoryReviewEventsTableTableManager get memoryReviewEvents =>
       $$MemoryReviewEventsTableTableManager(_db, _db.memoryReviewEvents);
-  $$BookmarkReviewQueueEntriesTableTableManager
-  get bookmarkReviewQueueEntries =>
-      $$BookmarkReviewQueueEntriesTableTableManager(
+  $$MemoryReviewQueueEntriesTableTableManager get memoryReviewQueueEntries =>
+      $$MemoryReviewQueueEntriesTableTableManager(
         _db,
-        _db.bookmarkReviewQueueEntries,
+        _db.memoryReviewQueueEntries,
       );
 }

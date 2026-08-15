@@ -4508,6 +4508,66 @@ abstract class AppLocalizations {
   /// **'Got it'**
   String get bookmarkReviewRatingGood;
 
+  /// No description provided for @favoriteVocabularyReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review Saved Vocabulary'**
+  String get favoriteVocabularyReviewTitle;
+
+  /// No description provided for @favoriteVocabularyReviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved vocabulary left in this review.'**
+  String get favoriteVocabularyReviewEmpty;
+
+  /// No description provided for @favoriteVocabularyReviewTapReplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to replay'**
+  String get favoriteVocabularyReviewTapReplay;
+
+  /// No description provided for @favoriteVocabularyReviewLoadingAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading audio…'**
+  String get favoriteVocabularyReviewLoadingAudio;
+
+  /// No description provided for @favoriteVocabularyReviewPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing'**
+  String get favoriteVocabularyReviewPlaying;
+
+  /// No description provided for @favoriteVocabularyReviewTapRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to retry'**
+  String get favoriteVocabularyReviewTapRetry;
+
+  /// No description provided for @favoriteVocabularyReviewAudioSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio unavailable, tap to retry'**
+  String get favoriteVocabularyReviewAudioSkipped;
+
+  /// No description provided for @favoriteVocabularyReviewReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Flip when ready'**
+  String get favoriteVocabularyReviewReadyTitle;
+
+  /// No description provided for @favoriteVocabularyReviewRevealHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reveal the back'**
+  String get favoriteVocabularyReviewRevealHint;
+
+  /// No description provided for @favoriteVocabularyReviewBackPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Back side is coming soon'**
+  String get favoriteVocabularyReviewBackPlaceholder;
+
   /// No description provided for @bookmarkReviewRatingEasy.
   ///
   /// In en, this message translates to:

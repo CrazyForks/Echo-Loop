@@ -45,6 +45,12 @@ sealed class FlashcardItem {
   /// 数据库回写键（单词=word, 意群=phraseText）
   String get dbKey;
 
+  /// 稳定关联 FSRS 调度快照的业务主体 ID（不可变 UUID）。
+  String? get memorySubjectId;
+
+  /// MemorySubjectRef 的业务命名空间：单词=saved_word，意群=saved_phrase。
+  String get namespace;
+
   /// 带更新词典的副本
   FlashcardItem withDictEntry(DictEntry? entry);
 }
@@ -99,6 +105,12 @@ class FlashcardWordItem extends FlashcardItem {
 
   @override
   String get dbKey => savedWord.word;
+
+  @override
+  String? get memorySubjectId => savedWord.memorySubjectId;
+
+  @override
+  String get namespace => 'saved_word';
 
   @override
   FlashcardWordItem withDictEntry(DictEntry? entry) => FlashcardWordItem(
@@ -158,6 +170,12 @@ class FlashcardPhraseItem extends FlashcardItem {
 
   @override
   String get dbKey => savedPhrase.phraseText;
+
+  @override
+  String? get memorySubjectId => savedPhrase.memorySubjectId;
+
+  @override
+  String get namespace => 'saved_phrase';
 
   @override
   FlashcardPhraseItem withDictEntry(DictEntry? entry) => FlashcardPhraseItem(

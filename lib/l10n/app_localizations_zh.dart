@@ -2469,6 +2469,36 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewRatingGood => '听懂了';
 
   @override
+  String get favoriteVocabularyReviewTitle => '收藏词汇复习';
+
+  @override
+  String get favoriteVocabularyReviewEmpty => '本次复习已没有收藏词汇。';
+
+  @override
+  String get favoriteVocabularyReviewTapReplay => '点按重播';
+
+  @override
+  String get favoriteVocabularyReviewLoadingAudio => '正在加载音频…';
+
+  @override
+  String get favoriteVocabularyReviewPlaying => '正在播放';
+
+  @override
+  String get favoriteVocabularyReviewTapRetry => '点按重试';
+
+  @override
+  String get favoriteVocabularyReviewAudioSkipped => '音频不可用，点按重试';
+
+  @override
+  String get favoriteVocabularyReviewReadyTitle => '想好后翻面';
+
+  @override
+  String get favoriteVocabularyReviewRevealHint => '点按查看反面';
+
+  @override
+  String get favoriteVocabularyReviewBackPlaceholder => '反面正在开发中';
+
+  @override
   String get bookmarkReviewRatingEasy => '轻松听懂';
 
   @override

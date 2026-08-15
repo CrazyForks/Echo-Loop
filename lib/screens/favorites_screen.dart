@@ -23,9 +23,8 @@ import '../providers/short_audio_player_provider.dart';
 import '../providers/tts/tts_controller_provider.dart';
 import '../providers/pronunciation/pronunciation_providers.dart';
 import '../widgets/tts/speak_button.dart';
-import '../providers/flashcard/flashcard_provider.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
-import '../models/flashcard_item.dart';
+import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
 import '../providers/new_user_guide_provider.dart';
 import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
@@ -448,31 +447,19 @@ class _FloatingFlashcardButton extends ConsumerWidget {
       icon: Icons.style_outlined,
       guideStep: guideStep,
       label: '${l10n.flashcardStartQuiz} ($totalCount)',
-      onPressed: () {
+      onPressed: () async {
         ref
             .read(usageTrackerProvider)
             .record(
               UsageEvent.flashcardButtonTapped,
               analyticsParams: {EventParams.totalCards: totalCount},
             );
-        final sw = Stopwatch()..start();
-        // 构建 FlashcardItem 列表，按 createdAt 倒序
-        final items = <FlashcardItem>[
-          for (final w in words) FlashcardWordItem(savedWord: w),
-          for (final p in phrases) FlashcardPhraseItem(savedPhrase: p),
-        ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        debugPrint(
-          '[PERF] 构建 FlashcardItem 列表: ${sw.elapsedMilliseconds}ms (${items.length} items)',
-        );
-
-        ref.read(flashcardNotifierProvider.notifier).initialize(items);
-        debugPrint(
-          '[PERF] flashcard initialize 已调用: ${sw.elapsedMilliseconds}ms',
-        );
-        context.push(AppRoutes.flashcard);
-        debugPrint(
-          '[PERF] context.push flashcard: ${sw.elapsedMilliseconds}ms',
-        );
+        await ref
+            .read(favoriteVocabularyReviewProvider.notifier)
+            .initialize(words, phrases);
+        if (context.mounted) {
+          context.push(AppRoutes.favoriteVocabularyReview);
+        }
       },
     );
   }

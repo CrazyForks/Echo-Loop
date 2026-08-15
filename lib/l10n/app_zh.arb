@@ -1085,6 +1085,18 @@
   "bookmarkReviewRatingAgain": "听不懂",
   "bookmarkReviewRatingGood": "听懂了",
   "bookmarkReviewRatingEasy": "轻松听懂",
+
+  "favoriteVocabularyReviewTitle": "收藏词汇复习",
+  "favoriteVocabularyReviewEmpty": "本次复习已没有收藏词汇。",
+  "favoriteVocabularyReviewTapReplay": "点按重播",
+  "favoriteVocabularyReviewLoadingAudio": "正在加载音频…",
+  "favoriteVocabularyReviewPlaying": "正在播放",
+  "favoriteVocabularyReviewTapRetry": "点按重试",
+  "favoriteVocabularyReviewAudioSkipped": "音频不可用，点按重试",
+  "favoriteVocabularyReviewReadyTitle": "想好后翻面",
+  "favoriteVocabularyReviewRevealHint": "点按查看反面",
+  "favoriteVocabularyReviewBackPlaceholder": "反面正在开发中",
+
   "difficultPracticeSettings": "练习设置",
   "difficultPracticeSettingsHint": "设置仅对本次练习有效",
   "difficultPracticeBlindListenRepeat": "盲听循环次数",

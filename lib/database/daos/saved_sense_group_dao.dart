@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../app_database.dart';
 import '../tables/saved_sense_groups.dart';
@@ -55,6 +56,7 @@ class SavedSenseGroupDao extends DatabaseAccessor<AppDatabase>
     return into(savedSenseGroups).insert(
       SavedSenseGroupsCompanion(
         phraseText: Value(phraseText),
+        memorySubjectId: Value(const Uuid().v4()),
         displayText: Value(displayText),
         audioItemId: Value(audioItemId),
         sentenceIndex: Value(sentenceIndex),

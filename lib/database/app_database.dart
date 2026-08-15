@@ -29,7 +29,7 @@ import 'tables/daily_stage_study_records.dart';
 import 'tables/tts_cache.dart';
 import 'tables/memory_schedules.dart';
 import 'tables/memory_review_events.dart';
-import 'tables/bookmark_review_queue_entries.dart';
+import 'tables/memory_review_queue_entries.dart';
 import '../models/study_stage.dart';
 import 'daos/audio_item_dao.dart';
 import 'daos/collection_dao.dart';
@@ -74,7 +74,7 @@ part 'app_database.g.dart';
     TtsCache,
     MemorySchedules,
     MemoryReviewEvents,
-    BookmarkReviewQueueEntries,
+    MemoryReviewQueueEntries,
   ],
   daos: [
     AudioItemDao,
@@ -98,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   /// 当前 schema 版本（静态访问，用于导入前版本检查）
-  static const currentSchemaVersion = 49;
+  static const currentSchemaVersion = 50;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -117,23 +117,66 @@ class AppDatabase extends _$AppDatabase {
         await _ensurePodcastColumns();
       },
       onUpgrade: (Migrator m, int from, int to) async {
+        // v49→v50：为收藏单词/意群补稳定的记忆主体 ID，并把收藏句专属的每日
+        // 入队去重表泛化为带 namespace 的通用表，供词汇复习共用同一张表。
+        if (from < 50) {
+          await _addColumnIfNotExists('saved_words', 'memory_subject_id', 'TEXT');
+          await _addColumnIfNotExists(
+            'saved_sense_groups',
+            'memory_subject_id',
+            'TEXT',
+          );
+          for (final table in ['saved_words', 'saved_sense_groups']) {
+            if (!await _tableExists(table)) continue;
+            final rows = await customSelect(
+              'SELECT id FROM $table WHERE memory_subject_id IS NULL OR trim(memory_subject_id) = \'\'',
+            ).get();
+            for (final row in rows) {
+              await customStatement(
+                'UPDATE $table SET memory_subject_id = ? WHERE id = ?',
+                [const Uuid().v4(), row.data['id']],
+              );
+            }
+          }
+          if (await _tableExists('bookmark_review_queue_entries')) {
+            await customStatement(
+              'ALTER TABLE bookmark_review_queue_entries RENAME TO memory_review_queue_entries',
+            );
+            await _addColumnIfNotExists(
+              'memory_review_queue_entries',
+              'namespace',
+              'TEXT',
+            );
+            await customStatement(
+              "UPDATE memory_review_queue_entries SET namespace = 'favorite_sentence' WHERE namespace IS NULL OR trim(namespace) = ''",
+            );
+            await customStatement(
+              'DROP INDEX IF EXISTS idx_bookmark_review_queue_subject_day',
+            );
+          } else {
+            await m.createTable(memoryReviewQueueEntries);
+          }
+          await customStatement('''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_review_queue_namespace_subject_day
+            ON memory_review_queue_entries(namespace, subject_id, local_date)
+          ''');
+        }
         // v48→v49：为收藏句补稳定的记忆主体 ID，并建立每日入队去重表。
         if (from < 49) {
           await _addColumnIfNotExists('bookmarks', 'memory_subject_id', 'TEXT');
-          final rows = await customSelect(
-            'SELECT id FROM bookmarks WHERE memory_subject_id IS NULL OR trim(memory_subject_id) = \'\'',
-          ).get();
-          for (final row in rows) {
-            await customStatement(
-              'UPDATE bookmarks SET memory_subject_id = ? WHERE id = ?',
-              [const Uuid().v4(), row.data['id']],
-            );
+          if (await _tableExists('bookmarks')) {
+            final rows = await customSelect(
+              'SELECT id FROM bookmarks WHERE memory_subject_id IS NULL OR trim(memory_subject_id) = \'\'',
+            ).get();
+            for (final row in rows) {
+              await customStatement(
+                'UPDATE bookmarks SET memory_subject_id = ? WHERE id = ?',
+                [const Uuid().v4(), row.data['id']],
+              );
+            }
           }
-          await m.createTable(bookmarkReviewQueueEntries);
-          await customStatement('''
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmark_review_queue_subject_day
-            ON bookmark_review_queue_entries(subject_id, local_date)
-          ''');
+          // memory_review_queue_entries 的建表/改名/索引已由上面 v50 分支统一
+          // 处理（该分支对任何 from < 50 都会先执行一次），此处不再重复建表。
         }
         // v47→v48：新增通用记忆调度快照与只追加评分事件；不回填既有业务数据。
         if (from < 48) {

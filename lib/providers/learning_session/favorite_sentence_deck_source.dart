@@ -40,6 +40,9 @@ final class FavoriteSentenceDeckSource
   final AppDatabase _database;
   final DateTime Function() _now;
 
+  /// 调度与每日新卡计数共用的命名空间，值必须与 [_subject] 保持一致。
+  static const _namespace = 'favorite_sentence';
+
   @override
   Future<List<ScheduledFlashcard<BookmarkSentence>>> load() async {
     final valid = _bookmarks
@@ -125,7 +128,7 @@ final class FavoriteSentenceDeckSource
       );
 
   MemorySubjectRef _subject(String id) =>
-      MemorySubjectRef(namespace: 'favorite_sentence', subjectId: id);
+      MemorySubjectRef(namespace: _namespace, subjectId: id);
 
   String _requireSubjectId(String? value) {
     if (value == null || value.isEmpty) {
@@ -191,8 +194,8 @@ final class FavoriteSentenceDeckSource
         '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
     final rows = await _database
         .customSelect(
-          'SELECT subject_id FROM bookmark_review_queue_entries WHERE local_date = ?',
-          variables: [Variable<String>(day)],
+          'SELECT subject_id FROM memory_review_queue_entries WHERE namespace = ? AND local_date = ?',
+          variables: [Variable<String>(_namespace), Variable<String>(day)],
         )
         .get();
     final enrolled = rows
@@ -208,13 +211,14 @@ final class FavoriteSentenceDeckSource
       }
       if (remaining <= 0) continue;
       final inserted = await _database.customUpdate(
-        'INSERT OR IGNORE INTO bookmark_review_queue_entries(subject_id, local_date, enqueued_at) VALUES (?, ?, ?)',
+        'INSERT OR IGNORE INTO memory_review_queue_entries(namespace, subject_id, local_date, enqueued_at) VALUES (?, ?, ?, ?)',
         variables: [
+          Variable<String>(_namespace),
           Variable<String>(subjectId),
           Variable<String>(day),
           Variable<DateTime>(now),
         ],
-        updates: {_database.bookmarkReviewQueueEntries},
+        updates: {_database.memoryReviewQueueEntries},
       );
       if (inserted > 0) {
         result.add(item);

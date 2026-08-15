@@ -1,0 +1,211 @@
+/// 收藏词汇闪卡复习状态与控制器（本步仅实现正面）。
+///
+/// 会话状态机复用通用调度引擎 `ScheduledFlashcardController<FlashcardItem>`
+/// （`lib/features/scheduled_flashcard/`），机制与 `BookmarkReview`
+/// （收藏句复习）完全一致；区别只在于：
+/// - 正面重播调用的是词汇收藏列表同款的 `pronunciationPlaybackProvider`
+///   （离线发音库优先，回退 TTS），不是收藏句用的前台音频引擎；
+/// - 本步翻到背面只做状态流转（`face` 置为 back），不取 preview、不接评分，
+///   反面内容留待后续任务。
+/// 所有播放操作都用 generation 隔离，切卡、翻面和退出后，旧异步回调不能恢复
+/// 播放或污染状态。
+library;
+
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../database/app_database.dart';
+import '../../database/providers.dart';
+import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
+import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
+import '../../models/flashcard_item.dart';
+import '../../services/app_logger.dart';
+import '../favorite_vocabulary_review_settings_provider.dart';
+import '../pronunciation/pronunciation_providers.dart';
+import 'favorite_vocabulary_deck_source.dart';
+
+part 'favorite_vocabulary_review_provider.g.dart';
+
+enum FavoriteVocabularyReviewFace { front, back }
+
+enum FavoriteVocabularyReviewPlaybackState { idle, loading, playing, failed }
+
+@immutable
+class FavoriteVocabularyReviewState {
+  const FavoriteVocabularyReviewState({
+    this.cards = const <FlashcardItem>[],
+    this.currentIndex = 0,
+    this.face = FavoriteVocabularyReviewFace.front,
+    this.playbackState = FavoriteVocabularyReviewPlaybackState.idle,
+    this.mediaError,
+  });
+
+  final List<FlashcardItem> cards;
+  final int currentIndex;
+  final FavoriteVocabularyReviewFace face;
+  final FavoriteVocabularyReviewPlaybackState playbackState;
+  final String? mediaError;
+
+  FlashcardItem? get currentCard =>
+      currentIndex >= 0 && currentIndex < cards.length
+      ? cards[currentIndex]
+      : null;
+  int get total => cards.length;
+  int get position => cards.isEmpty ? 0 : currentIndex + 1;
+
+  FavoriteVocabularyReviewState copyWith({
+    List<FlashcardItem>? cards,
+    int? currentIndex,
+    FavoriteVocabularyReviewFace? face,
+    FavoriteVocabularyReviewPlaybackState? playbackState,
+    String? mediaError,
+    bool clearMediaError = false,
+  }) => FavoriteVocabularyReviewState(
+    cards: cards ?? this.cards,
+    currentIndex: currentIndex ?? this.currentIndex,
+    face: face ?? this.face,
+    playbackState: playbackState ?? this.playbackState,
+    mediaError: clearMediaError ? null : mediaError ?? this.mediaError,
+  );
+}
+
+@Riverpod(keepAlive: true)
+class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
+  int _generation = 0;
+  late final AppLifecycleListener _lifecycleListener;
+  ScheduledFlashcardController<FlashcardItem>? _controller;
+
+  @override
+  FavoriteVocabularyReviewState build() {
+    final playback = ref.read(pronunciationPlaybackProvider.notifier);
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (value) {
+        if (value == AppLifecycleState.paused ||
+            value == AppLifecycleState.hidden ||
+            value == AppLifecycleState.detached) {
+          unawaited(interruptPlayback());
+        }
+      },
+    );
+    ref.onDispose(() {
+      _generation++;
+      _lifecycleListener.dispose();
+      _controller?.dispose();
+      unawaited(playback.stop());
+    });
+    return const FavoriteVocabularyReviewState();
+  }
+
+  /// 建立只含 FSRS 到期收藏词汇（单词 + 意群）的本次复习快照。
+  Future<void> initialize(
+    List<SavedWord> words,
+    List<SavedSenseGroup> phrases,
+  ) async {
+    _generation++;
+    unawaited(ref.read(pronunciationPlaybackProvider.notifier).stop());
+
+    _controller?.dispose();
+    final scheduler = ref.read(memorySchedulerProvider);
+    final controller = ScheduledFlashcardController<FlashcardItem>(
+      deckSource: FavoriteVocabularyDeckSource(
+        words: words,
+        phrases: phrases,
+        scheduler: scheduler,
+        settings: ref.read(favoriteVocabularyReviewSettingsProvider),
+        database: ref.read(appDatabaseProvider),
+      ),
+      ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
+    );
+    _controller = controller;
+    await controller.load();
+    if (!identical(_controller, controller)) return;
+    state = FavoriteVocabularyReviewState(
+      cards: controller.state.deck
+          .map((card) => card.content)
+          .toList(growable: false),
+    );
+  }
+
+  Future<void> startCurrentCard() => replayCurrent();
+
+  /// 立即废弃旧播放，重新朗读当前词汇（离线发音库优先，回退 TTS）。
+  Future<void> replayCurrent() async {
+    final card = state.currentCard;
+    if (card == null) return;
+    final generation = ++_generation;
+    final player = ref.read(pronunciationPlaybackProvider.notifier);
+    await player.stop();
+    if (!_isCurrent(generation, card)) return;
+    state = state.copyWith(
+      playbackState: FavoriteVocabularyReviewPlaybackState.loading,
+      clearMediaError: true,
+    );
+    try {
+      if (!_isCurrent(generation, card)) return;
+      state = state.copyWith(
+        playbackState: FavoriteVocabularyReviewPlaybackState.playing,
+      );
+      await player.speak(card.displayText, key: card.dbKey);
+      if (!_isCurrent(generation, card)) return;
+      state = state.copyWith(
+        playbackState: FavoriteVocabularyReviewPlaybackState.idle,
+      );
+    } catch (error, stackTrace) {
+      if (!_isCurrent(generation, card)) return;
+      AppLogger.log(
+        'FavoriteVocabularyReview',
+        'playback failed error=$error\n$stackTrace',
+      );
+      state = state.copyWith(
+        playbackState: FavoriteVocabularyReviewPlaybackState.failed,
+        mediaError: 'audio_unavailable',
+      );
+    }
+  }
+
+  Future<void> toggleCurrentPlayback() async {
+    final playbackState = state.playbackState;
+    if (playbackState == FavoriteVocabularyReviewPlaybackState.loading ||
+        playbackState == FavoriteVocabularyReviewPlaybackState.playing) {
+      await interruptPlayback();
+      return;
+    }
+    await replayCurrent();
+  }
+
+  /// 翻到背面：本步只做状态流转占位，不取评分预览、不展示反面内容。
+  Future<void> revealBack() async {
+    final controller = _controller;
+    final card = state.currentCard;
+    if (controller == null ||
+        card == null ||
+        state.face != FavoriteVocabularyReviewFace.front) {
+      return;
+    }
+    await interruptPlayback();
+    controller.revealAnswer();
+    state = state.copyWith(face: FavoriteVocabularyReviewFace.back);
+  }
+
+  Future<void> interruptPlayback() async {
+    _generation++;
+    if (state.playbackState != FavoriteVocabularyReviewPlaybackState.idle) {
+      state = state.copyWith(
+        playbackState: FavoriteVocabularyReviewPlaybackState.idle,
+      );
+    }
+    await ref.read(pronunciationPlaybackProvider.notifier).stop();
+  }
+
+  Future<void> disposeSession() async {
+    await interruptPlayback();
+    _controller?.dispose();
+    _controller = null;
+    state = const FavoriteVocabularyReviewState();
+  }
+
+  bool _isCurrent(int generation, FlashcardItem card) =>
+      generation == _generation && identical(state.currentCard, card);
+}
