@@ -10,6 +10,7 @@ import '../../models/media_load_result.dart';
 import '../../models/media_playback_state.dart';
 import '../../models/playback_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../models/sense_group_range_playback.dart';
 import '../../services/app_logger.dart';
 import '../../services/storage_service.dart';
@@ -967,18 +968,18 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     final gen = ++_playbackGen;
     _activeSentenceDrivenPlayback = true;
     _awaitingReplayFromStart = false;
-    _playbackSessionId = _engine.newSession();
+    _playbackSessionId = _engine.currentSessionId;
     state = state.copyWith(
       isPlaying: true,
       wholeLoopsDone: resetWholeLoops ? 0 : state.wholeLoopsDone,
       sentenceRepeatsDone: resetSentenceRepeats ? 0 : state.sentenceRepeatsDone,
     );
-    unawaited(_playSentenceDriven(gen, _playbackSessionId));
+    unawaited(_playSentenceDriven(gen));
   }
 
-  Future<void> _playSentenceDriven(int gen, int sid) async {
+  Future<void> _playSentenceDriven(int gen) async {
     var pos = _currentPos ?? 0;
-    while (gen == _playbackGen && _engine.isActiveSession(sid)) {
+    while (gen == _playbackGen) {
       final playable = _playable;
       if (playable.isEmpty || pos < 0 || pos >= playable.length) {
         state = state.copyWith(isPlaying: false);
@@ -986,8 +987,14 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       }
       final sentence = playable[pos];
       _setCurrentFromSentence(sentence);
-      await _engine.playRangeOnce(sentence.startTime, sentence.endTime, sid);
-      if (gen != _playbackGen || !_engine.isActiveSession(sid)) return;
+      final result = await _engine.playRange(
+        sentence.startTime,
+        sentence.endTime,
+        speed: state.settings.playbackSpeed,
+      );
+      if (gen != _playbackGen || result != SentencePlaybackResult.completed) {
+        return;
+      }
       if (_pauseAfterPosition != null) {
         await pause();
         return;

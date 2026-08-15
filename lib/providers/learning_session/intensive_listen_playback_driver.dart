@@ -217,6 +217,7 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
   MediaSentencePlaybackDriver(this._engine);
 
   final MediaEngine _engine;
+  double _playbackSpeed = 1.0;
 
   @override
   bool get recordsStudyEventsInternally => false;
@@ -235,7 +236,9 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
   Future<void> pause() => _engine.cancelActiveRange(reason: 'driver-pause');
 
   @override
-  Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
+  Future<void> setSpeed(double speed) async {
+    _playbackSpeed = speed;
+  }
 
   @override
   Future<SentencePlaybackResult> playSentenceWithSpeed(
@@ -247,7 +250,11 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
   Future<SentencePlaybackResult> playSentence(
     Sentence sentence,
     int sessionId,
-  ) => _engine.playRangeOnce(sentence.startTime, sentence.endTime, sessionId);
+  ) => _engine.playRange(
+    sentence.startTime,
+    sentence.endTime,
+    speed: _playbackSpeed,
+  );
 
   Future<SentencePlaybackResult> _playSentenceWithDiagnostics(
     Sentence sentence,
@@ -277,7 +284,7 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
     Duration start,
     Duration end,
     int sessionId,
-  ) => _engine.playRangeOnce(start, end, sessionId);
+  ) => _engine.playRange(start, end, speed: _playbackSpeed);
 
   @override
   void bindLockScreen({

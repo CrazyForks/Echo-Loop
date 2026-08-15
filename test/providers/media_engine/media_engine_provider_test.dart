@@ -66,24 +66,26 @@ void main() {
     expect(container.read(mediaEngineProvider).currentMediaId, 'video-1');
   });
 
-  test('playRangeOnce 到达区间终点后自动暂停', () async {
+  test('playRange 到达区间终点后自动暂停，并在起播前通知就绪', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
-    final sid = engine.newSession();
+    var readyCalls = 0;
 
-    final playing = engine.playRangeOnce(
+    final playing = engine.playRange(
       const Duration(seconds: 1),
       const Duration(seconds: 3),
-      sid,
+      speed: 1.0,
+      onRangeReady: () => readyCalls++,
     );
     await Future<void>.delayed(Duration.zero);
 
     expect(backend.seekCalls.last, const Duration(seconds: 1));
     expect(backend.playCalls, 1);
+    expect(readyCalls, 1);
     backend.emitPosition(const Duration(seconds: 3));
     expect(await playing, SentencePlaybackResult.completed);
 
-    expect(backend.pauseCalls, 1);
+    expect(backend.pauseCalls, 2);
   });
 
   test('playRange 会替换旧请求，旧请求不能暂停新请求', () async {
@@ -127,33 +129,31 @@ void main() {
     expect(backend.pauseCalls, 2);
   });
 
-  test('pause 会使旧区间 session 失效，旧终点不再二次暂停', () async {
+  test('pause 会取消旧区间，旧终点不再二次暂停', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
-    final sid = engine.newSession();
 
-    final playing = engine.playRangeOnce(
+    final playing = engine.playRange(
       Duration.zero,
       const Duration(seconds: 4),
-      sid,
+      speed: 1.0,
     );
     await Future<void>.delayed(Duration.zero);
     await engine.pause();
     backend.emitPosition(const Duration(seconds: 5));
     expect(await playing, SentencePlaybackResult.cancelled);
 
-    expect(backend.pauseCalls, 1);
+    expect(backend.pauseCalls, 2);
   });
 
   test('播放器提前 completed 时返回 failed，不能伪装成区间完成', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
-    final sid = engine.newSession();
 
-    final playing = engine.playRangeOnce(
+    final playing = engine.playRange(
       const Duration(seconds: 1),
       const Duration(seconds: 3),
-      sid,
+      speed: 1.0,
     );
     await Future<void>.delayed(Duration.zero);
     backend.emitPosition(const Duration(seconds: 2));

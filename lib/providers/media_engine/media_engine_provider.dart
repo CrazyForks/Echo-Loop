@@ -270,6 +270,7 @@ class MediaEngine extends _$MediaEngine {
     Duration start,
     Duration end, {
     required double speed,
+    VoidCallback? onRangeReady,
   }) async {
     if (start < Duration.zero || end <= start) {
       AppLogger.log(
@@ -334,6 +335,8 @@ class MediaEngine extends _$MediaEngine {
         return SentencePlaybackResult.cancelled;
       }
       try {
+        // seek 已完成且请求仍有效，调用方此刻才能安全订阅位置流。
+        onRangeReady?.call();
         await handler.playBackend();
         return _isActiveRangeRequest(requestId)
             ? SentencePlaybackResult.completed
@@ -446,148 +449,6 @@ class MediaEngine extends _$MediaEngine {
     });
     guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (!_isActiveRangeRequest(requestId)) {
-        finish(SentencePlaybackResult.cancelled);
-      } else if (backend.position >= end) {
-        finish(SentencePlaybackResult.completed);
-      }
-    });
-    return completer.future;
-  }
-
-  Future<SentencePlaybackResult> playRangeOnce(
-    Duration start,
-    Duration end,
-    int sessionId,
-  ) async {
-    final handler = _handler;
-    final backend = _backend;
-    if (handler == null || backend == null || !isActiveSession(sessionId)) {
-      AppLogger.log(
-        'MediaEngine Range',
-        'skip: session=$sessionId current=${state.sessionId} '
-            'range=${start.inMilliseconds}-${end.inMilliseconds}ms',
-      );
-      return SentencePlaybackResult.cancelled;
-    }
-
-    if (start < Duration.zero || end <= start) {
-      AppLogger.log(
-        'MediaEngine Range',
-        'failed: session=$sessionId invalid-range='
-            '${start.inMilliseconds}-${end.inMilliseconds}ms',
-      );
-      return SentencePlaybackResult.failed;
-    }
-
-    AppLogger.log(
-      'MediaEngine Range',
-      'start: session=$sessionId range=${start.inMilliseconds}-'
-          '${end.inMilliseconds}ms position=${backend.position.inMilliseconds}ms',
-    );
-
-    try {
-      await handler.seek(start);
-    } catch (error) {
-      AppLogger.log(
-        'MediaEngine Range',
-        'failed: session=$sessionId seek-error=$error',
-      );
-      return SentencePlaybackResult.failed;
-    }
-    AppLogger.log(
-      'MediaEngine Range',
-      'seeked: session=$sessionId position=${backend.position.inMilliseconds}ms '
-          'active=${isActiveSession(sessionId)}',
-    );
-    if (!isActiveSession(sessionId)) return SentencePlaybackResult.cancelled;
-
-    final reached = _awaitRangeEndOrInvalid(backend, end, sessionId);
-    try {
-      await handler.playBackend();
-    } catch (error) {
-      AppLogger.log(
-        'MediaEngine Range',
-        'failed: session=$sessionId play-error=$error',
-      );
-      // 区间监听已在 play 前建立；失效该 session 让守卫统一清理监听。
-      if (isActiveSession(sessionId)) {
-        state = state.copyWith(sessionId: state.sessionId + 1);
-      }
-      await reached;
-      return SentencePlaybackResult.failed;
-    }
-    AppLogger.log(
-      'MediaEngine Range',
-      'play-issued: session=$sessionId position=${backend.position.inMilliseconds}ms '
-          'active=${isActiveSession(sessionId)}',
-    );
-    if (!isActiveSession(sessionId)) {
-      // 新播放会话可能已经接管同一个 backend；旧区间协程不能再暂停新会话。
-      return SentencePlaybackResult.cancelled;
-    }
-
-    final result = await reached;
-    if (result != SentencePlaybackResult.cancelled &&
-        isActiveSession(sessionId)) {
-      await handler.pauseBackend();
-    }
-    AppLogger.log(
-      'MediaEngine Range',
-      'return: session=$sessionId position=${backend.position.inMilliseconds}ms '
-          'active=${isActiveSession(sessionId)} result=$result',
-    );
-    return result;
-  }
-
-  /// 等待区间终点、自然完成或 session 失效；200ms 守卫避免位置流停发时泄漏。
-  Future<SentencePlaybackResult> _awaitRangeEndOrInvalid(
-    MediaPlayerBackend backend,
-    Duration end,
-    int sessionId,
-  ) {
-    final completer = Completer<SentencePlaybackResult>();
-    StreamSubscription<Duration>? posSub;
-    StreamSubscription<void>? doneSub;
-    Timer? guard;
-    void finish(SentencePlaybackResult result) {
-      if (completer.isCompleted) return;
-      unawaited(posSub?.cancel());
-      unawaited(doneSub?.cancel());
-      guard?.cancel();
-      completer.complete(result);
-    }
-
-    posSub = backend.positionStream.listen((pos) {
-      if (pos >= end || !isActiveSession(sessionId)) {
-        final result = isActiveSession(sessionId)
-            ? SentencePlaybackResult.completed
-            : SentencePlaybackResult.cancelled;
-        AppLogger.log(
-          'MediaEngine Range',
-          'position-finish: session=$sessionId position=${pos.inMilliseconds}ms '
-              'end=${end.inMilliseconds}ms active=${isActiveSession(sessionId)} '
-              'result=$result',
-        );
-        finish(result);
-      }
-    });
-    doneSub = backend.completedStream.listen((_) {
-      final position = backend.position;
-      final result = !isActiveSession(sessionId)
-          ? SentencePlaybackResult.cancelled
-          : position >= end
-          ? SentencePlaybackResult.completed
-          : SentencePlaybackResult.failed;
-      AppLogger.log(
-        'MediaEngine Range',
-        'completed-event: session=$sessionId position=${position.inMilliseconds}ms '
-            'end=${end.inMilliseconds}ms active=${isActiveSession(sessionId)} '
-            'result=$result',
-      );
-      finish(result);
-    });
-    guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (!isActiveSession(sessionId)) {
         finish(SentencePlaybackResult.cancelled);
       } else if (backend.position >= end) {
         finish(SentencePlaybackResult.completed);

@@ -76,8 +76,10 @@ class _ControlledMediaEngine extends MediaEngine {
     Duration start,
     Duration end, {
     required double speed,
+    void Function()? onRangeReady,
   }) async {
     _rangeCancelled = false;
+    onRangeReady?.call();
     await (rangePlayback ??= Completer<void>()).future;
     return _rangeCancelled
         ? SentencePlaybackResult.cancelled

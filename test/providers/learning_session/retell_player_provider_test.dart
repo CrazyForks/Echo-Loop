@@ -11,6 +11,7 @@ import 'package:echo_loop/models/intensive_listen_settings.dart'
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/retell_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/settings_provider.dart';
@@ -170,16 +171,19 @@ class _RecordingParagraphPlaybackDriver implements ParagraphPlaybackDriver {
   Future<void> seek(Duration position) async => seeks.add(position);
 
   @override
-  Future<void> playRange(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
     Duration end,
     int sessionId, {
+    required double speed,
     required void Function() onRangeReady,
   }) async {
     ranges.add((start: start, end: end));
+    speeds.add(speed);
     onRangeReady();
     // 模拟切换页面或任务导致本次播放过期，避免进入复述倒计时。
     _sessionId += 1;
+    return SentencePlaybackResult.cancelled;
   }
 
   @override

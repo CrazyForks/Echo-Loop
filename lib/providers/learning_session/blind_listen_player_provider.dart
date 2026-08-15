@@ -2,7 +2,7 @@
 ///
 /// 参考 RetellPlayer 的段落播放模式，去掉复述相关逻辑。
 /// 核心功能：
-/// - 段落播放（playRangeOnce：首句 startTime → 末句 endTime）
+/// - 段落播放（首句 startTime → 末句 endTime）
 /// - 播放期间句子高亮（监听 absolutePositionStream + 二分查找）
 /// - 段间停顿倒计时（段落播放完→倒计时→重复或下一段）
 /// - 遍数循环（播完段落→倒计时为一遍，达到遍数后推进下一段）
@@ -20,6 +20,7 @@ import '../../features/usage/usage_providers.dart';
 import '../../database/providers.dart';
 import '../../models/blind_listen_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../models/study_stage.dart';
 import '../../services/learned_vocabulary_tracker.dart';
 import '../../services/silence_skip_detector.dart';
@@ -788,17 +789,20 @@ class BlindListenPlayer extends _$BlindListenPlayer {
     final start = sentences[startLocalIdx].startTime;
     final end = sentences.last.endTime;
 
-    await playback.setSpeed(state.settings.playbackSpeed);
     // 订阅 position stream 实现句子高亮——必须等 clip+seek(0) 落定后才订阅，
     // 否则 setClip/seek 过渡期的陈旧 position 会把高亮跳到错误句、污染断点。
-    await playback.playRange(
+    final result = await playback.playRange(
       start,
       end,
       sid,
+      speed: state.settings.playbackSpeed,
       onRangeReady: () => _startPositionTracking(sentences),
     );
 
-    if (!playback.isActiveSession(sid)) return;
+    if (result != SentencePlaybackResult.completed ||
+        !playback.isActiveSession(sid)) {
+      return;
+    }
 
     // 通过 recorder 记录听力时长、输入词数、已学词形
     final paragraphWordCount = countWordsInSentences(sentences);

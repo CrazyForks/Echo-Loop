@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../models/sentence_playback_result.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../media_engine/media_engine_provider.dart';
@@ -15,10 +16,11 @@ abstract interface class ParagraphPlaybackDriver {
   Future<void> pause();
   Future<void> setSpeed(double speed);
   Future<void> seek(Duration position);
-  Future<void> playRange(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
     Duration end,
     int sessionId, {
+    required double speed,
     required void Function() onRangeReady,
   });
   void bindLockScreen({
@@ -50,12 +52,25 @@ class AudioParagraphPlaybackDriver implements ParagraphPlaybackDriver {
   @override
   Future<void> seek(Duration position) => _engine.seekToAbsolute(position);
   @override
-  Future<void> playRange(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
     Duration end,
     int sessionId, {
+    required double speed,
     required void Function() onRangeReady,
-  }) => _engine.playRangeOnce(start, end, sessionId, onClipReady: onRangeReady);
+  }) async {
+    await _engine.setSpeed(speed);
+    await _engine.playRangeOnce(
+      start,
+      end,
+      sessionId,
+      onClipReady: onRangeReady,
+    );
+    return _engine.isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
+  }
+
   @override
   void bindLockScreen({
     required Future<void> Function() onPlay,
@@ -117,12 +132,24 @@ class ForegroundParagraphPlaybackDriver implements ParagraphPlaybackDriver {
   Future<void> seek(Duration position) => _engine.seekToAbsolute(position);
 
   @override
-  Future<void> playRange(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
     Duration end,
     int sessionId, {
+    required double speed,
     required void Function() onRangeReady,
-  }) => _engine.playRangeOnce(start, end, sessionId, onClipReady: onRangeReady);
+  }) async {
+    await _engine.setSpeed(speed);
+    await _engine.playRangeOnce(
+      start,
+      end,
+      sessionId,
+      onClipReady: onRangeReady,
+    );
+    return _engine.isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
+  }
 
   @override
   void bindLockScreen({
@@ -153,20 +180,25 @@ class MediaParagraphPlaybackDriver implements ParagraphPlaybackDriver {
   @override
   Stream<Duration> get positionStream => _engine.positionStream;
   @override
-  Future<void> pause() => _engine.pauseKeepSession();
+  Future<void> pause() => _engine.cancelActiveRange(reason: 'paragraph-pause');
   @override
   Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
   @override
   Future<void> seek(Duration position) => _engine.seek(position);
   @override
-  Future<void> playRange(
+  Future<SentencePlaybackResult> playRange(
     Duration start,
     Duration end,
     int sessionId, {
+    required double speed,
     required void Function() onRangeReady,
   }) async {
-    onRangeReady();
-    await _engine.playRangeOnce(start, end, sessionId);
+    return _engine.playRange(
+      start,
+      end,
+      speed: speed,
+      onRangeReady: onRangeReady,
+    );
   }
 
   @override
