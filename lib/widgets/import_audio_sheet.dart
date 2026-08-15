@@ -18,6 +18,7 @@ import 'add_audio_dialog.dart';
 import 'common/form_input_style.dart';
 import 'common/secondary_action_button.dart';
 import 'import_audio_selection_list.dart';
+import 'media_type_icon.dart';
 
 /// 显示统一的音频导入流程。
 Future<void> showImportAudioSheet(
@@ -1057,6 +1058,7 @@ class _BaiduSelectedFilesConfirmPanel extends StatelessWidget {
       displayName: entry.name,
       fileSize: entry.size,
       hasSubtitle: _hasSubtitleForEntry(entry, matchedSubtitleFsIds),
+      isVideo: isVideoImportExtension(entry.extension),
       status: _selectionStatusFor(entry, duplicateExistingName),
       duplicateExistingName: duplicateExistingName,
       failureMessage: _failureMessageFor(entry),
@@ -1666,8 +1668,11 @@ class _DuplicatesListState extends State<_DuplicatesList> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 与本地文件导入列表统一使用波形图标（非音乐图标）。
-          Icon(Icons.graphic_eq, size: 18, color: colorScheme.primary),
+          MediaTypeIcon(
+            isVideo: isVideoImportExtension(dup.attempted),
+            size: 18,
+            color: colorScheme.primary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

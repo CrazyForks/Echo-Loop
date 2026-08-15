@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/audio_import/audio_import_models.dart';
 import '../l10n/app_localizations.dart';
+import 'media_type_icon.dart';
 
 /// 音频导入确认列表。
 ///
@@ -190,7 +191,11 @@ class _ImportAudioSelectionListState extends State<ImportAudioSelectionList> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         child: Row(
           children: [
-            Icon(Icons.graphic_eq, size: 18, color: colorScheme.primary),
+            MediaTypeIcon(
+              isVideo: item.isVideo,
+              size: 18,
+              color: colorScheme.primary,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

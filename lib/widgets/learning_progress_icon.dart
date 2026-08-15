@@ -8,10 +8,10 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../models/learning_progress.dart';
 import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
+import 'media_type_icon.dart';
 
 /// 环形学习进度图标组件
 ///
@@ -43,22 +43,12 @@ class LearningProgressIcon extends ConsumerWidget {
   });
 
   /// 视频条目左侧媒体图标资源。
-  static const _videoIconAsset = 'assets/icon/video-2.svg';
-
   /// 已完成状态的绿色
   static const completedColor = Color(0xFF4CAF50);
 
   /// 构建中心媒体图标：视频用 [_videoIconAsset]，音频用波形 [Icons.graphic_eq]。
   Widget _mediaGlyph(Color color) {
-    if (isVideo) {
-      return SvgPicture.asset(
-        _videoIconAsset,
-        width: iconSize,
-        height: iconSize,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      );
-    }
-    return Icon(Icons.graphic_eq, size: iconSize, color: color);
+    return MediaTypeIcon(isVideo: isVideo, size: iconSize, color: color);
   }
 
   @override

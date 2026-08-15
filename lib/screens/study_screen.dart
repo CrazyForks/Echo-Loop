@@ -24,6 +24,7 @@ import '../theme/app_theme.dart';
 import '../widgets/speech_permission_dialog.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/learning_progress_icon.dart';
+import '../widgets/media_type_icon.dart';
 import '../widgets/study/study_stats_header.dart';
 
 /// 学习 Tab 待复习分组标题图标。
@@ -415,6 +416,11 @@ class _TaskCard extends ConsumerWidget {
     // 获取进度数据
     final progressMap = ref.watch(learningProgressNotifierProvider).progressMap;
     final progress = progressMap[task.audioId];
+    final audioItem = ref
+        .watch(audioLibraryProvider)
+        .audioItems
+        .where((item) => item.id == task.audioId)
+        .firstOrNull;
     final plan = ref.watch(learningPlanForAudioProvider(task.audioId));
     final completedKeys = ref
         .watch(learningProgressNotifierProvider)
@@ -468,6 +474,7 @@ class _TaskCard extends ConsumerWidget {
                             progress: progress,
                             size: 36,
                             iconSize: 18,
+                            isVideo: audioItem?.isVideo ?? false,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -574,7 +581,7 @@ class _CompletedSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-
+    final audioItems = ref.watch(audioLibraryProvider).audioItems;
     return Card(
       child: ExpansionTile(
         title: Text(
@@ -593,10 +600,25 @@ class _CompletedSection extends ConsumerWidget {
             .map(
               (audio) => ListTile(
                 dense: true,
-                leading: Icon(
-                  Icons.check_circle,
-                  color: theme.colorScheme.primary,
-                  size: 20,
+                leading: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    MediaTypeIcon(
+                      isVideo:
+                          audioItems
+                              .where((item) => item.id == audio.audioId)
+                              .firstOrNull
+                              ?.isVideo ??
+                          false,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                    Icon(
+                      Icons.check_circle,
+                      size: 10,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
                 ),
                 title: Text(audio.audioName),
                 contentPadding: EdgeInsets.zero,
@@ -676,6 +698,7 @@ class _RecentCompletionTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final audioItems = ref.watch(audioLibraryProvider).audioItems;
     final stage = LearningStage.fromKey(completion.stage);
     final subStage = SubStageType.fromKey(completion.subStage);
     final stageLabel = _stageSubStageLabel(l10n, stage, subStage);
@@ -699,10 +722,27 @@ class _RecentCompletionTile extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(12, 12, AppSpacing.m, 12),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.check_circle,
-                        color: theme.colorScheme.outlineVariant,
-                        size: 36,
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          MediaTypeIcon(
+                            isVideo:
+                                audioItems
+                                    .where(
+                                      (item) => item.id == completion.audioId,
+                                    )
+                                    .firstOrNull
+                                    ?.isVideo ??
+                                false,
+                            size: 36,
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ],
                       ),
                       const SizedBox(width: 10),
                       Expanded(

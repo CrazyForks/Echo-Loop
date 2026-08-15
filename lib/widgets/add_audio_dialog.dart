@@ -350,6 +350,7 @@ class _AddAudioDialogState extends ConsumerState<AddAudioDialog> {
       displayName: file.displayName,
       fileSize: file.fileSize,
       hasSubtitle: _addedSubtitleStates[id] ?? file.subtitleText != null,
+      isVideo: isVideoImportExtension(path.extension(file.displayName)),
       status: _importStatuses[id] ?? AudioImportSelectionStatus.pending,
       duplicateExistingName: _duplicateExistingNames[id],
     );

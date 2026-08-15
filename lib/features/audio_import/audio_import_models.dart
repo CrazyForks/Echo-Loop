@@ -85,6 +85,7 @@ class AudioImportSelectionItem {
     required this.displayName,
     required this.fileSize,
     required this.hasSubtitle,
+    this.isVideo = false,
     this.status = AudioImportSelectionStatus.pending,
     this.duplicateExistingName,
     this.failureMessage,
@@ -94,6 +95,9 @@ class AudioImportSelectionItem {
   final String displayName;
   final int fileSize;
   final bool hasSubtitle;
+
+  /// 是否为视频媒体，由导入文件扩展名派生。
+  final bool isVideo;
   final AudioImportSelectionStatus status;
   final String? duplicateExistingName;
   final String? failureMessage;
