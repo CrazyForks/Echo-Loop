@@ -28,6 +28,7 @@ import '../../models/audio_item.dart' as model;
 import '../../models/bookmark_sentence.dart';
 import '../../models/difficult_practice_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../database/providers.dart';
 import '../../models/study_stage.dart';
 import '../../services/learned_vocabulary_tracker.dart';
@@ -979,9 +980,12 @@ class BookmarkReview extends _$BookmarkReview {
     }
   }
 
-  Future<void> _playSentenceForRepeat(Sentence sentence, int flowToken) async {
+  Future<SentencePlaybackResult> _playSentenceForRepeat(
+    Sentence sentence,
+    int flowToken,
+  ) async {
     final bookmarkSentence = currentBookmarkSentence;
-    if (bookmarkSentence == null) return;
+    if (bookmarkSentence == null) return SentencePlaybackResult.cancelled;
 
     final loaded = await _ensureAudioLoaded(bookmarkSentence);
     if (!loaded) {
@@ -999,14 +1003,18 @@ class BookmarkReview extends _$BookmarkReview {
       } else {
         await goToNext();
       }
-      return;
+      return SentencePlaybackResult.failed;
     }
 
     final engine = ref.read(foregroundAudioEngineProvider.notifier);
     final sessionId = engine.newSession();
     await engine.setSpeed(state.settings.playbackSpeed);
     await engine.playClipOnce(sentence, sessionId);
+    if (!engine.isActiveSession(sessionId)) {
+      return SentencePlaybackResult.cancelled;
+    }
     unawaited(_addOutputWords(countWords(sentence.text)));
+    return SentencePlaybackResult.completed;
   }
 
   void _startRecordingForRepeat({

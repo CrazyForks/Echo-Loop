@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../services/app_logger.dart';
 import '../../services/audio_playback_service.dart';
 import '../learning_session/countdown_controller.dart';
@@ -79,7 +80,11 @@ class RepeatFlowCallbacks {
   final void Function() pauseAudio;
 
   /// 播放句子音频
-  final Future<void> Function(Sentence sentence, int flowToken) playSentence;
+  final Future<SentencePlaybackResult> Function(
+    Sentence sentence,
+    int flowToken,
+  )
+  playSentence;
 
   /// 开始录音
   final void Function({
@@ -582,6 +587,12 @@ class RepeatFlowEngine {
 
     _updateState(_state.copyWith(phase: const PlayingPrompt()));
     final token = _state.flowToken;
+    AppLogger.log(
+      logTag,
+      'play-start: token=$token sentence=${sentence.index} '
+      'range=${sentence.startTime.inMilliseconds}-'
+      '${sentence.endTime.inMilliseconds}ms',
+    );
 
     AppLogger.log(
       logTag,
@@ -589,8 +600,26 @@ class RepeatFlowEngine {
       '第 ${_state.repeatIndex + 1}/${_state.totalRepeats} 遍',
     );
 
-    await callbacks.playSentence(sentence, token);
+    final result = await callbacks.playSentence(sentence, token);
 
+    AppLogger.log(
+      logTag,
+      'play-return: token=$token sentence=${sentence.index} '
+      'phase=${_state.phase.runtimeType} result=$result',
+    );
+
+    if (result != SentencePlaybackResult.completed) {
+      AppLogger.log(logTag, '播放未完成，跳过录音: result=$result token=$token');
+      // 若不是用户操作已经切换了 phase，留在当前句等待重试，不能卡在播放态。
+      if (token == _state.flowToken && _state.phase is PlayingPrompt) {
+        _updateState(
+          _state.copyWith(
+            phase: const WaitingForUser(WaitingReason.recordingFailed),
+          ),
+        );
+      }
+      return;
+    }
     _onPromptFinished(token);
   }
 
@@ -639,6 +668,11 @@ class RepeatFlowEngine {
     final promptId =
         '${_config.promptIdPrefix}:${_config.audioItemId}:${sentence.index}';
     _updateState(_state.copyWith(phase: Recording(promptId: promptId)));
+    AppLogger.log(
+      logTag,
+      'record-start: token=${_state.flowToken} sentence=${sentence.index} '
+      'promptId=$promptId',
+    );
 
     final computed =
         sentence.duration * kRecordingDurationMultiplier +

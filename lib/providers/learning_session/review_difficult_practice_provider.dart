@@ -19,6 +19,7 @@ import '../../features/usage/usage_providers.dart';
 import '../../database/providers.dart';
 import '../../models/difficult_practice_settings.dart';
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../models/study_stage.dart';
 import '../../services/learned_vocabulary_tracker.dart';
 import '../../services/study_event_recorder.dart';
@@ -784,15 +785,20 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
 
   // ========== 跟读引擎回调实现 ==========
 
-  Future<void> _playSentenceForRepeat(Sentence sentence, int flowToken) async {
+  Future<SentencePlaybackResult> _playSentenceForRepeat(
+    Sentence sentence,
+    int flowToken,
+  ) async {
     final playback = _playback;
     final sessionId = playback.newSession();
     await playback.setSpeed(state.settings.playbackSpeed);
-    await playback.playSentence(sentence, sessionId);
+    final result = await playback.playSentence(sentence, sessionId);
     if (!playback.recordsStudyEventsInternally &&
+        result == SentencePlaybackResult.completed &&
         playback.isActiveSession(sessionId)) {
       _recorder.onSentencePlayed(sentence);
     }
+    return result;
   }
 
   void _startRecordingForRepeat({
@@ -914,8 +920,8 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     final playback = _playback;
     final sessionId = playback.newSession();
     await playback.setSpeed(state.settings.playbackSpeed);
-    await playback.playSentence(sentence, sessionId);
-    return true;
+    return (await playback.playSentence(sentence, sessionId)) ==
+        SentencePlaybackResult.completed;
   }
 
   /// 异步保存断点

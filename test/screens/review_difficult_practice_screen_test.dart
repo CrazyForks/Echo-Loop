@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/models/speech_practice_models.dart';
 import 'package:echo_loop/models/media_engine_state.dart';
 import 'package:echo_loop/models/media_learning_startup.dart';
@@ -93,7 +94,7 @@ class _WaitingSpyRepeatEngine extends RepeatFlowEngine {
         onStateChanged: (_) {},
         callbacks: RepeatFlowCallbacks(
           pauseAudio: () {},
-          playSentence: (_, _) async {},
+          playSentence: (_, _) async => SentencePlaybackResult.completed,
           startRecording:
               ({
                 required String promptId,

@@ -10,6 +10,7 @@ import 'package:echo_loop/models/difficult_practice_settings.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart';
 import 'package:echo_loop/models/learning_progress.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
 import 'package:echo_loop/providers/blind_flow/blind_practice_flow_phase.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
@@ -40,7 +41,6 @@ class _ReplayTestAudioEngine extends TestForegroundAudioEngine {
   Future<void> playClipOnce(Sentence sentence, int sessionId) async {
     if (!isActiveSession(sessionId)) return;
     await Future<void>.delayed(const Duration(milliseconds: 10));
-    _sessionId += 1;
   }
 }
 
@@ -135,8 +135,14 @@ class _RecordingPlaybackDriver implements SentencePlaybackDriver {
   }
 
   @override
-  Future<void> playSentence(Sentence sentence, int sessionId) async {
+  Future<SentencePlaybackResult> playSentence(
+    Sentence sentence,
+    int sessionId,
+  ) async {
     if (isActiveSession(sessionId)) playedSentences.add(sentence);
+    return isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
   }
 
   @override

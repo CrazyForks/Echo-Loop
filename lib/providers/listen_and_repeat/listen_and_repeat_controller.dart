@@ -23,6 +23,7 @@ import '../../models/audio_item.dart';
 import '../../models/media_load_result.dart';
 import '../../models/sense_group_range_playback.dart';
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
 import '../audio_engine/audio_engine_provider.dart';
@@ -619,17 +620,24 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
   }
 
   /// 播放句子
-  Future<void> _playSentence(Sentence sentence, int flowToken) async {
+  Future<SentencePlaybackResult> _playSentence(
+    Sentence sentence,
+    int flowToken,
+  ) async {
     final driver = _playback;
-    final sessionId = driver.newSession();
+    // 速度设置可能跨 native 异步边界；必须在创建本次播放 session 前完成，
+    // 避免其间的媒体状态回调使刚创建的 session 过期。
     await driver.setSpeed(
       ref.read(listenAndRepeatSettingsProvider).playbackSpeed,
     );
-    await driver.playSentence(sentence, sessionId);
+    final sessionId = driver.newSession();
+    final result = await driver.playSentence(sentence, sessionId);
     if (!driver.recordsStudyEventsInternally &&
+        result == SentencePlaybackResult.completed &&
         driver.isActiveSession(sessionId)) {
       studyEventRecorder?.onSentencePlayed(sentence);
     }
+    return result;
   }
 
   /// 开始录音
@@ -639,6 +647,11 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     required Duration maxDuration,
     Duration? referenceDuration,
   }) {
+    AppLogger.log(
+      'L&R Rec',
+      'request-start: flowToken=${state.flowToken} promptId=$promptId '
+          'referenceDuration=${referenceDuration?.inMilliseconds}ms',
+    );
     final controller = ref.read(speechRecordingControllerProvider.notifier);
     controller.setMaxRecordingDuration(maxDuration);
     unawaited(

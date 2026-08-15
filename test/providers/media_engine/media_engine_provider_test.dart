@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_playback_driver.dart';
 import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
 import 'package:echo_loop/providers/media_engine/media_sense_group_range_playback.dart';
@@ -80,7 +81,7 @@ void main() {
     expect(backend.seekCalls.last, const Duration(seconds: 1));
     expect(backend.playCalls, 1);
     backend.emitPosition(const Duration(seconds: 3));
-    await playing;
+    expect(await playing, SentencePlaybackResult.completed);
 
     expect(backend.pauseCalls, 1);
   });
@@ -98,8 +99,26 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await engine.pause();
     backend.emitPosition(const Duration(seconds: 5));
-    await playing;
+    expect(await playing, SentencePlaybackResult.cancelled);
 
+    expect(backend.pauseCalls, 1);
+  });
+
+  test('播放器提前 completed 时返回 failed，不能伪装成区间完成', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    final sid = engine.newSession();
+
+    final playing = engine.playRangeOnce(
+      const Duration(seconds: 1),
+      const Duration(seconds: 3),
+      sid,
+    );
+    await Future<void>.delayed(Duration.zero);
+    backend.emitPosition(const Duration(seconds: 2));
+    backend.emitCompleted();
+
+    expect(await playing, SentencePlaybackResult.failed);
     expect(backend.pauseCalls, 1);
   });
 

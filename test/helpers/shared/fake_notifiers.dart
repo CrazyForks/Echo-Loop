@@ -58,6 +58,7 @@ import 'package:echo_loop/providers/learning_session/paragraph_playback_driver.d
 import 'package:echo_loop/models/playback_settings.dart';
 import 'package:echo_loop/models/retell_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
+import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/models/sense_group_range_playback.dart';
 import 'package:echo_loop/models/study_stage.dart';
 import 'package:echo_loop/models/tag.dart';
@@ -1699,7 +1700,7 @@ class FakeReviewDifficultPractice extends ReviewDifficultPractice {
       onStateChanged: (_) {},
       callbacks: RepeatFlowCallbacks(
         pauseAudio: () {},
-        playSentence: (_, _) async {},
+        playSentence: (_, _) async => SentencePlaybackResult.completed,
         startRecording:
             ({
               required String promptId,

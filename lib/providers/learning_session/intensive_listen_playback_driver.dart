@@ -1,7 +1,9 @@
 import '../../models/sentence.dart';
+import '../../models/sentence_playback_result.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../media_engine/media_engine_provider.dart';
+import '../../services/app_logger.dart';
 
 /// 句子级学习任务依赖的最小播放契约。
 ///
@@ -19,7 +21,7 @@ abstract interface class SentencePlaybackDriver {
 
   Future<void> pause();
   Future<void> setSpeed(double speed);
-  Future<void> playSentence(Sentence sentence, int sessionId);
+  Future<SentencePlaybackResult> playSentence(Sentence sentence, int sessionId);
 
   /// 绑定系统媒体控制；不提供系统媒体会话的前台音频适配器实现为空操作。
   void bindLockScreen({
@@ -36,7 +38,11 @@ abstract interface class SentencePlaybackDriver {
 /// 逐句精听在句子播放之外还需要意群区间播放。
 abstract interface class IntensiveListenPlaybackDriver
     implements SentencePlaybackDriver {
-  Future<void> playRangeOnce(Duration start, Duration end, int sessionId);
+  Future<SentencePlaybackResult> playRangeOnce(
+    Duration start,
+    Duration end,
+    int sessionId,
+  );
 }
 
 /// 难句跟读原音频适配器；所有调用仍委托前台 just_audio 引擎。
@@ -67,8 +73,15 @@ class ForegroundSentencePlaybackDriver implements SentencePlaybackDriver {
   Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
 
   @override
-  Future<void> playSentence(Sentence sentence, int sessionId) =>
-      _engine.playClipOnce(sentence, sessionId);
+  Future<SentencePlaybackResult> playSentence(
+    Sentence sentence,
+    int sessionId,
+  ) async {
+    await _engine.playClipOnce(sentence, sessionId);
+    return _engine.isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
+  }
 
   @override
   void bindLockScreen({
@@ -117,12 +130,27 @@ class AudioIntensiveListenPlaybackDriver
   Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
 
   @override
-  Future<void> playSentence(Sentence sentence, int sessionId) =>
-      _engine.playClipOnce(sentence, sessionId);
+  Future<SentencePlaybackResult> playSentence(
+    Sentence sentence,
+    int sessionId,
+  ) async {
+    await _engine.playClipOnce(sentence, sessionId);
+    return _engine.isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
+  }
 
   @override
-  Future<void> playRangeOnce(Duration start, Duration end, int sessionId) =>
-      _engine.playRangeOnce(start, end, sessionId);
+  Future<SentencePlaybackResult> playRangeOnce(
+    Duration start,
+    Duration end,
+    int sessionId,
+  ) async {
+    await _engine.playRangeOnce(start, end, sessionId);
+    return _engine.isActiveSession(sessionId)
+        ? SentencePlaybackResult.completed
+        : SentencePlaybackResult.cancelled;
+  }
 
   @override
   void bindLockScreen({
@@ -188,12 +216,41 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
   Future<void> setSpeed(double speed) => _engine.setSpeed(speed);
 
   @override
-  Future<void> playSentence(Sentence sentence, int sessionId) =>
-      _engine.playRangeOnce(sentence.startTime, sentence.endTime, sessionId);
+  Future<SentencePlaybackResult> playSentence(
+    Sentence sentence,
+    int sessionId,
+  ) => _playSentenceWithDiagnostics(sentence, sessionId);
+
+  Future<SentencePlaybackResult> _playSentenceWithDiagnostics(
+    Sentence sentence,
+    int sessionId,
+  ) async {
+    AppLogger.log(
+      'SentencePlaybackDriver',
+      'start: session=$sessionId sentence=${sentence.index} '
+          'range=${sentence.startTime.inMilliseconds}-'
+          '${sentence.endTime.inMilliseconds}ms',
+    );
+    final result = await _engine.playRangeOnce(
+      sentence.startTime,
+      sentence.endTime,
+      sessionId,
+    );
+    AppLogger.log(
+      'SentencePlaybackDriver',
+      'return: session=$sessionId sentence=${sentence.index} '
+          'active=${_engine.isActiveSession(sessionId)} '
+          'position=${_engine.currentPosition.inMilliseconds}ms result=$result',
+    );
+    return result;
+  }
 
   @override
-  Future<void> playRangeOnce(Duration start, Duration end, int sessionId) =>
-      _engine.playRangeOnce(start, end, sessionId);
+  Future<SentencePlaybackResult> playRangeOnce(
+    Duration start,
+    Duration end,
+    int sessionId,
+  ) => _engine.playRangeOnce(start, end, sessionId);
 
   @override
   void bindLockScreen({
