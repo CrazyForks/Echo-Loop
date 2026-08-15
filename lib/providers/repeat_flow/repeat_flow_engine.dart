@@ -225,10 +225,12 @@ class RepeatFlowEngine {
     await _playCurrentSentence();
   }
 
-  /// 进入等待用户操作状态
+  /// 进入等待用户操作状态。
+  ///
+  /// 完成弹窗展示前也允许从 [SessionCompleted] 接管，保留末句的练习交互界面。
   void enterWaitingForUser({bool afterCurrentPrompt = false}) {
     final phase = _state.phase;
-    if (phase is WaitingForUser || phase is Idle || phase is SessionCompleted) {
+    if (phase is WaitingForUser || phase is Idle) {
       return;
     }
 

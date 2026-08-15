@@ -335,6 +335,7 @@ void main() {
     int totalRepeats = 3,
     bool isReviewPlaybackActive = false,
     bool usesMediaEngine = false,
+    bool isFreePlay = false,
   }) {
     return ListenAndRepeatSessionState(
       phase: phase,
@@ -346,6 +347,7 @@ void main() {
       flowToken: 1,
       currentSentenceBookmarked: true,
       usesMediaEngine: usesMediaEngine,
+      isFreePlay: isFreePlay,
     );
   }
 
@@ -625,6 +627,47 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('Listen & Repeat Complete'), findsOneWidget);
+    });
+
+    testWidgets('完成弹窗显示期间进入等待用户接管并保留末句', (tester) async {
+      final controller = _TestListenAndRepeatController(
+        createState(sentenceIndex: 2, totalSentences: 3),
+        createTestSentences(count: 3),
+        startPlayingNoop: true,
+      );
+
+      await tester.pumpWidget(_createTestWidget(controller: controller));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      controller.completeSession();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('Listen & Repeat Complete'), findsOneWidget);
+      expect(controller.state.phase, isA<WaitingForUser>());
+      expect(find.text('Sentence 3/3'), findsOneWidget);
+      expect(find.byType(RecordingButton), findsOneWidget);
+    });
+
+    testWidgets('自由练习末句完成弹窗期间进入等待用户接管', (tester) async {
+      final controller = _TestListenAndRepeatController(
+        createState(sentenceIndex: 2, totalSentences: 3, isFreePlay: true),
+        createTestSentences(count: 3),
+        startPlayingNoop: true,
+      );
+
+      await tester.pumpWidget(_createTestWidget(controller: controller));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      await tester.tap(find.byIcon(Icons.check_circle_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('Listen & Repeat Complete'), findsOneWidget);
+      expect(controller.state.phase, isA<WaitingForUser>());
+      expect(find.byType(RecordingButton), findsOneWidget);
     });
 
     testWidgets('完成后不再检查学习版通知提示', (tester) async {

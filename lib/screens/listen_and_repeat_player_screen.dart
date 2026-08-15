@@ -187,6 +187,11 @@ class _ListenAndRepeatPlayerScreenState
       if (next.phase is SessionCompleted && prev.phase is! SessionCompleted) {
         ref.read(listenAndRepeatControllerProvider.notifier).pauseStudyTimer();
         shortenIdleTimeout(5);
+        // 完成弹窗显示期间保留末句练习界面，交由用户决定下一步。
+        // 不能停在 SessionCompleted，否则练习面板会失去可渲染的交互状态。
+        ref
+            .read(listenAndRepeatControllerProvider.notifier)
+            .enterWaitingForUser();
         unawaited(_handleCompleted());
       }
     }
@@ -440,12 +445,14 @@ class _ListenAndRepeatPlayerScreenState
     );
   }
 
-  /// 先完成向下一句的分页动画，再提交业务切句；末句保持原完成行为。
+  /// 先完成向下一句的分页动画，再提交业务切句；末句进入等待态后显示完成弹窗。
   void _handleNext() {
     final state = ref.read(listenAndRepeatControllerProvider);
     final ctrl = ref.read(listenAndRepeatControllerProvider.notifier);
     if (state.isLastSentence) {
-      ctrl.stopSession();
+      // 自由练习从这里直接弹完成窗，不能 stopSession 进入 Idle，
+      // 否则弹窗期间练习区会丢失录音按钮。
+      ctrl.enterWaitingForUser();
       unawaited(_handleCompleted());
       return;
     }
