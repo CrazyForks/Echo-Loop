@@ -146,6 +146,89 @@ class _RecordingPlaybackDriver implements SentencePlaybackDriver {
   }
 
   @override
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  ) async {
+    await setSpeed(speed);
+    return playSentence(sentence, newSession());
+  }
+
+  @override
+  void bindLockScreen({
+    required Future<void> Function() onPlay,
+    required Future<void> Function() onPause,
+    required Future<void> Function() onNext,
+    required Future<void> Function() onPrevious,
+  }) {}
+
+  @override
+  void setProgressFrozen(bool frozen) {}
+
+  @override
+  void setSessionActive(bool active) {}
+
+  @override
+  void unbindLockScreen() {}
+}
+
+class _ControlledPlaybackDriver implements SentencePlaybackDriver {
+  int _sessionId = 0;
+  final List<Sentence> playedSentences = [];
+  final List<Completer<SentencePlaybackResult>> _results = [];
+  final StreamController<int> _playCountController =
+      StreamController<int>.broadcast();
+
+  @override
+  bool get recordsStudyEventsInternally => false;
+
+  @override
+  int newSession() => ++_sessionId;
+
+  @override
+  bool isActiveSession(int sessionId) => sessionId == _sessionId;
+
+  @override
+  Future<void> invalidateSession() async {
+    _sessionId += 1;
+  }
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<SentencePlaybackResult> playSentence(
+    Sentence sentence,
+    int sessionId,
+  ) {
+    playedSentences.add(sentence);
+    final result = Completer<SentencePlaybackResult>();
+    _results.add(result);
+    _playCountController.add(_results.length);
+    return result.future;
+  }
+
+  @override
+  Future<SentencePlaybackResult> playSentenceWithSpeed(
+    Sentence sentence,
+    double speed,
+  ) => playSentence(sentence, newSession());
+
+  Future<void> waitForPlayCount(int count) async {
+    if (_results.length >= count) return;
+    await _playCountController.stream.firstWhere((value) => value >= count);
+  }
+
+  void complete(int index, SentencePlaybackResult result) {
+    _results[index].complete(result);
+  }
+
+  void dispose() => _playCountController.close();
+
+  @override
   void bindLockScreen({
     required Future<void> Function() onPlay,
     required Future<void> Function() onPause,
@@ -722,6 +805,38 @@ void main() {
         container.read(reviewDifficultPracticeProvider).currentSentenceIndex,
         2,
       );
+    });
+
+    test('定位时旧播放取消不会跳过目标句', () async {
+      final playback = _ControlledPlaybackDriver();
+      addTearDown(playback.dispose);
+      final container = buildContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(reviewDifficultPracticeProvider.notifier);
+      notifier.initialize(
+        buildSentences(3),
+        settings: const DifficultPracticeSettings(
+          controlMode: ShadowingControlMode.manual,
+        ),
+        playbackDriver: playback,
+      );
+
+      final firstPlayback = notifier.startPlaying();
+      await playback.waitForPlayCount(1);
+
+      final locate = notifier.goToSentence(1);
+      await playback.waitForPlayCount(2);
+      playback.complete(0, SentencePlaybackResult.cancelled);
+      await firstPlayback;
+
+      expect(
+        container.read(reviewDifficultPracticeProvider).currentSentenceIndex,
+        1,
+      );
+      expect(playback.playedSentences.map((s) => s.index), [0, 1]);
+
+      playback.complete(1, SentencePlaybackResult.completed);
+      await locate;
     });
   });
 }

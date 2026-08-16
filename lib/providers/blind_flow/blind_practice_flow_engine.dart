@@ -137,6 +137,8 @@ class BlindPracticeFlowEngine {
     _updateState(
       _state.copyWith(
         phase: const BlindWaitingForUser(BlindWaitingReason.userInteraction),
+        // 主动暂停会取消当前播放；递增 token，避免取消结果被误判为不可播放。
+        flowToken: _state.flowToken + 1,
       ),
     );
     AppLogger.log(logTag, '-> WaitingForUser (from ${phase.runtimeType})');
@@ -274,11 +276,20 @@ class BlindPracticeFlowEngine {
     final played = await callbacks.playSentence(sentence, token);
     if (_disposed) return;
     if (!played) {
-      await _skipCurrentSentence();
+      await _handlePromptNotPlayed(token);
       return;
     }
 
     _onPromptFinished(token);
+  }
+
+  /// 区分当前句真实不可播放和旧播放请求被取消两种结果。
+  ///
+  /// 切句会递增 [BlindPracticeFlowState.flowToken] 并取消旧播放器 session；
+  /// 旧请求随后返回 `false` 时只能静默丢弃，不能跳过已切换后的当前句。
+  Future<void> _handlePromptNotPlayed(int token) async {
+    if (token != _state.flowToken) return;
+    await _skipCurrentSentence();
   }
 
   void _onPromptFinished(int token) {
