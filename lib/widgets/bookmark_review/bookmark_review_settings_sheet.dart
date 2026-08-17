@@ -223,18 +223,32 @@ class _BookmarkReviewSettingsSheetState
                     children: const [],
                   ),
                   if (_vocabularyExpanded)
-                    _DailyGoalSetting(
-                      title: l10n.favoriteReviewVocabularyDailyGoal,
-                      goal: settings.vocabularyDailyReviewGoal,
-                      onChanged: (goal) => notifier.update(
-                        goal == null
-                            ? settings.copyWith(
-                                clearVocabularyDailyReviewGoal: true,
-                              )
-                            : settings.copyWith(
-                                vocabularyDailyReviewGoal: goal,
-                              ),
-                      ),
+                    Column(
+                      children: [
+                        _DailyGoalSetting(
+                          title: l10n.favoriteReviewVocabularyDailyGoal,
+                          goal: settings.vocabularyDailyReviewGoal,
+                          onChanged: (goal) => notifier.update(
+                            goal == null
+                                ? settings.copyWith(
+                                    clearVocabularyDailyReviewGoal: true,
+                                  )
+                                : settings.copyWith(
+                                    vocabularyDailyReviewGoal: goal,
+                                  ),
+                          ),
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('翻面自动播放来源例句'),
+                          value: settings.autoPlayVocabularySourceSentence,
+                          onChanged: (value) => notifier.update(
+                            settings.copyWith(
+                              autoPlayVocabularySourceSentence: value,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                 ],
               ),

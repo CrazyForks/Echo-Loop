@@ -20,4 +20,13 @@ void main() {
       settings.toJson(),
     );
   });
+
+  test('旧设置缺少来源句自动播放字段时默认开启', () {
+    expect(
+      FavoriteReviewSettings.fromJson(
+        const {},
+      ).autoPlayVocabularySourceSentence,
+      isTrue,
+    );
+  });
 }

@@ -27,7 +27,10 @@ import '../../models/flashcard_item.dart';
 import '../../services/app_logger.dart';
 import '../favorite_review_settings_provider.dart';
 import '../pronunciation/pronunciation_providers.dart';
+import '../short_audio_player_provider.dart';
+import '../tts/tts_controller_provider.dart';
 import 'favorite_vocabulary_deck_source.dart';
+import '../../services/pronunciation/source_sentence_player.dart';
 
 part 'favorite_vocabulary_review_provider.g.dart';
 
@@ -86,6 +89,7 @@ class FavoriteVocabularyReviewState {
 @Riverpod(keepAlive: true)
 class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
   int _generation = 0;
+  bool _hasSourcePlayback = false;
   late final AppLifecycleListener _lifecycleListener;
   ScheduledFlashcardController<FlashcardItem>? _controller;
 
@@ -129,6 +133,8 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
+      operationIdGenerator: ref.read(memoryIdGeneratorProvider),
+      logger: (message) => AppLogger.log('FavoriteVocabularyReview', message),
     );
     _controller = controller;
     await controller.load();
@@ -207,6 +213,49 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     if (state.currentCard == card &&
         state.face == FavoriteVocabularyReviewFace.back) {
       state = state.copyWith(preview: controller.state.preview);
+      if (ref
+          .read(favoriteReviewSettingsProvider)
+          .autoPlayVocabularySourceSentence) {
+        unawaited(playSourceSentence());
+      }
+    }
+  }
+
+  /// 按收藏词汇列表同一契约播放来源句：原音区间优先，失败才回退 TTS。
+  Future<void> playSourceSentence() async {
+    final card = state.currentCard;
+    if (card == null ||
+        state.face != FavoriteVocabularyReviewFace.back ||
+        card.sentenceText?.trim().isEmpty != false) {
+      return;
+    }
+    final generation = ++_generation;
+    const playbackKey = 'favorite-vocabulary-review-source';
+    await interruptPlayback();
+    if (!_isCurrent(generation + 1, card)) return;
+    final player = SourceSentencePlayer(
+      audioItemDao: ref.read(audioItemDaoProvider),
+      audioClipPlayer: ref.read(shortAudioPlayerProvider),
+      speak: (text, key) =>
+          ref.read(ttsControllerProvider.notifier).speak(text, key: key),
+    );
+    try {
+      _hasSourcePlayback = true;
+      await player.play(
+        audioItemId: card.audioItemId,
+        sentenceIndex: card.sentenceIndex,
+        sentenceText: card.sentenceText,
+        sentenceStartMs: card.sentenceStartMs,
+        sentenceEndMs: card.sentenceEndMs,
+        playbackKey: playbackKey,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'FavoriteVocabularyReview',
+        'source playback failed error=$error\n$stackTrace',
+      );
+    } finally {
+      if (_isCurrent(generation + 1, card)) _hasSourcePlayback = false;
     }
   }
 
@@ -235,7 +284,10 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
-      AppLogger.log('FavoriteVocabularyReview', 'rating failed or conflicted');
+      AppLogger.log(
+        'FavoriteVocabularyReview',
+        'rating submission failed error=${controller.state.error}',
+      );
       state = state.copyWith(isSubmittingRating: false);
     }
   }
@@ -248,6 +300,11 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       );
     }
     await ref.read(pronunciationPlaybackProvider.notifier).stop();
+    if (_hasSourcePlayback) {
+      _hasSourcePlayback = false;
+      await ref.read(shortAudioPlayerProvider).stop();
+      await ref.read(ttsControllerProvider.notifier).stop();
+    }
   }
 
   Future<void> disposeSession() async {

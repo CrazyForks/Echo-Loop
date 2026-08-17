@@ -119,6 +119,34 @@ void main() {
     );
   });
 
+  test('旧开发期 operationId 不妨碍使用新唯一 ID 的下一次评分', () async {
+    final initial = await _ensure(scheduler, subject, createdAt);
+    final first = await scheduler.review(
+      ReviewMemoryCommand(
+        subject: subject,
+        rating: MemoryRating.good,
+        reviewedAt: createdAt.add(const Duration(minutes: 1)),
+        responseTime: null,
+        operationId: 'scheduled-flashcard-1',
+        expectedRevision: initial.revision,
+      ),
+    );
+
+    final second = await scheduler.review(
+      ReviewMemoryCommand(
+        subject: subject,
+        rating: MemoryRating.good,
+        reviewedAt: first.schedule.dueAt,
+        responseTime: null,
+        operationId: '550e8400-e29b-41d4-a716-446655440000',
+        expectedRevision: first.schedule.revision,
+      ),
+    );
+
+    expect(second.event.operationId, '550e8400-e29b-41d4-a716-446655440000');
+    expect(second.schedule.revision, first.schedule.revision + 1);
+  });
+
   test('归档调度不能预览或评分', () async {
     final initial = await _ensure(scheduler, subject, createdAt);
     await scheduler.archive(

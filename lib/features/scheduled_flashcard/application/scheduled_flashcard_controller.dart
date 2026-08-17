@@ -13,38 +13,29 @@ import '../../memory_scheduler/application/memory_scheduler.dart';
 import '../domain/scheduled_flashcard.dart';
 import 'scheduled_flashcard_engine.dart';
 
-/// 为 controller 生成幂等操作 ID。
-abstract interface class FlashcardOperationIdGenerator {
-  String newId();
-}
-
-/// 默认操作 ID 生成器，不依赖 Flutter 或 UUID 插件。
-final class IncrementingFlashcardOperationIdGenerator
-    implements FlashcardOperationIdGenerator {
-  int _next = 0;
-  @override
-  String newId() => 'scheduled-flashcard-${++_next}';
-}
-
 /// 调度 Flashcard 的 IO 编排层。
 final class ScheduledFlashcardController<T> {
   ScheduledFlashcardController({
     required FlashcardDeckSource<T> deckSource,
     required FlashcardRatingPort ratingPort,
+    required MemoryIdGenerator operationIdGenerator,
     Clock? clock,
-    FlashcardOperationIdGenerator? operationIdGenerator,
     void Function(String message)? logger,
   }) : _deckSource = deckSource,
        _ratingPort = ratingPort,
        _clock = clock ?? const Clock(),
-       _operationIdGenerator =
-           operationIdGenerator ?? IncrementingFlashcardOperationIdGenerator(),
+       _operationIdGenerator = operationIdGenerator,
        _logger = logger ?? _ignoreLog;
 
   final FlashcardDeckSource<T> _deckSource;
   final FlashcardRatingPort _ratingPort;
   final Clock _clock;
-  final FlashcardOperationIdGenerator _operationIdGenerator;
+
+  /// 为每次用户评分动作提供跨会话唯一的幂等键。
+  ///
+  /// 该依赖必须由生产装配注入 UUID 实现；控制器内递增值会在新会话中
+  /// 重置，无法满足审计事件的持久化唯一约束。
+  final MemoryIdGenerator _operationIdGenerator;
   final void Function(String message) _logger;
   final ScheduledFlashcardEngine<T> _engine = ScheduledFlashcardEngine<T>();
   final List<void Function()> _listeners = <void Function()>[];
@@ -156,6 +147,18 @@ final class ScheduledFlashcardController<T> {
           'submit.conflict card=${card.subject.subjectId} operationId=$operationId',
         );
         await _reloadAfterConflict(card, generation);
+        return;
+      }
+      if (error is MemoryOperationIdConflictException ||
+          error is MemoryIdempotencyReplayStaleException) {
+        // 此 ID 已被历史事件确定性拒绝；下次用户主动评分必须创建新动作。
+        _pendingOperationId = null;
+        _engine.returnToAnswer(error);
+        _log(
+          'submit.operation_id_rejected card=${card.subject.subjectId} '
+          'operationId=$operationId error=$error',
+        );
+        _notify();
         return;
       }
       _engine.returnToAnswer(error);

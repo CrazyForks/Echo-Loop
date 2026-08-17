@@ -7,6 +7,8 @@ import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_model_adapter.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_review_event.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_exceptions.dart';
+import 'package:echo_loop/features/memory_scheduler/application/memory_scheduler.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_scheduler_results.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_subject_ref.dart';
 import 'package:echo_loop/features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
@@ -89,6 +91,7 @@ void main() {
       final controller = ScheduledFlashcardController<String>(
         deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card, second]),
         ratingPort: _FakeRatingPort(),
+        operationIdGenerator: _FixedIds(),
       );
       await controller.load();
       controller.revealAnswer();
@@ -123,6 +126,7 @@ void main() {
     final controller = ScheduledFlashcardController<String>(
       deckSource: source,
       ratingPort: _FakeRatingPort(),
+      operationIdGenerator: _FixedIds(),
     );
     final load = controller.load();
     controller.dispose();
@@ -130,6 +134,51 @@ void main() {
     await load;
     expect(controller.state.current, isNull);
   });
+
+  test('independent sessions use different operation IDs', () async {
+    final ids = _SequenceIds(<String>['uuid-action-1', 'uuid-action-2']);
+    final port = _FakeRatingPort();
+
+    for (var index = 0; index < 2; index++) {
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+        ratingPort: port,
+        operationIdGenerator: ids,
+      );
+      await controller.load();
+      controller.revealAnswer();
+      await controller.preview();
+      await controller.submitRating(MemoryRating.good);
+      controller.dispose();
+    }
+
+    expect(port.operationIds, <String>['uuid-action-1', 'uuid-action-2']);
+  });
+
+  test(
+    'operation ID rejection clears the pending ID for a new user action',
+    () async {
+      final port = _RejectOnceRatingPort();
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+        ratingPort: port,
+        operationIdGenerator: _SequenceIds(<String>[
+          'legacy-conflict',
+          'uuid-action-2',
+        ]),
+      );
+      await controller.load();
+      controller.revealAnswer();
+      await controller.preview();
+
+      await controller.submitRating(MemoryRating.good);
+      expect(controller.state.phase, ScheduledFlashcardPhase.answer);
+      await controller.submitRating(MemoryRating.good);
+
+      expect(port.operationIds, <String>['legacy-conflict', 'uuid-action-2']);
+      expect(controller.state.phase, ScheduledFlashcardPhase.completed);
+    },
+  );
 }
 
 final class _FakeDeckSource implements FlashcardDeckSource<String> {
@@ -147,14 +196,24 @@ final class _CompletingDeckSource implements FlashcardDeckSource<String> {
       _completer.complete(cards);
 }
 
-final class _FixedIds implements FlashcardOperationIdGenerator {
+final class _FixedIds implements MemoryIdGenerator {
   @override
   String newId() => 'op-1';
 }
 
-final class _FakeRatingPort implements FlashcardRatingPort {
+final class _SequenceIds implements MemoryIdGenerator {
+  _SequenceIds(this._ids);
+  final List<String> _ids;
+  var _index = 0;
+
+  @override
+  String newId() => _ids[_index++];
+}
+
+class _FakeRatingPort implements FlashcardRatingPort {
   int? lastRevision;
   String? lastOperationId;
+  final operationIds = <String>[];
   @override
   Future<MemoryRatingPreviewSet> preview({
     required MemorySubjectRef subject,
@@ -202,6 +261,7 @@ final class _FakeRatingPort implements FlashcardRatingPort {
   }) async {
     lastRevision = expectedRevision;
     lastOperationId = operationId;
+    operationIds.add(operationId);
     final now = preview.reviewedAt;
     final profile = MemoryProfileRef(profileId: 'test', profileVersion: 1);
     final schedule = MemorySchedule(
@@ -248,4 +308,34 @@ final class _FakeRatingPort implements FlashcardRatingPort {
 
   @override
   Future<int> reloadRevision(MemorySubjectRef subject) async => 4;
+}
+
+final class _RejectOnceRatingPort extends _FakeRatingPort {
+  var _shouldReject = true;
+
+  @override
+  Future<MemoryReviewResult> submit({
+    required MemorySubjectRef subject,
+    required MemoryRating rating,
+    required MemoryRatingPreview preview,
+    required int expectedRevision,
+    required Duration responseTime,
+    required String operationId,
+  }) {
+    if (_shouldReject) {
+      _shouldReject = false;
+      operationIds.add(operationId);
+      return Future<MemoryReviewResult>.error(
+        const MemoryOperationIdConflictException('legacy operation ID'),
+      );
+    }
+    return super.submit(
+      subject: subject,
+      rating: rating,
+      preview: preview,
+      expectedRevision: expectedRevision,
+      responseTime: responseTime,
+      operationId: operationId,
+    );
+  }
 }

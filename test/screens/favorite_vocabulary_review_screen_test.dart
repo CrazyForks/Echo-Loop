@@ -169,6 +169,14 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('apple'), findsOneWidget);
+      expect(
+        find.byKey(const Key('favorite-vocabulary-review-word-speak')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('favorite-vocabulary-review-ai-toggle')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('flashcard-rating-again')), findsOneWidget);
       expect(find.byKey(const Key('flashcard-rating-good')), findsOneWidget);
       expect(find.byKey(const Key('flashcard-rating-easy')), findsOneWidget);

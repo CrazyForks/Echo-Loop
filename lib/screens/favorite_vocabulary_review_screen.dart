@@ -9,11 +9,22 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/app_localizations.dart';
 import '../features/chatbot/widgets/sentence_chat_button.dart';
+import '../features/auth/sign_in_required_dialog.dart';
+import '../features/subscription/widgets/feature_gate.dart';
 import '../features/memory_scheduler/domain/memory_rating.dart';
 import '../features/memory_scheduler/domain/memory_scheduler_results.dart';
 import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart';
 import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
 import '../providers/favorite_review_settings_provider.dart';
+import '../providers/dictionary/lookup_controller.dart';
+import '../providers/dictionary/dictionary_registry.dart';
+import '../database/providers.dart';
+import '../models/dictionary/dictionary_lookup_result.dart';
+import '../models/flashcard_item.dart';
+import '../router/app_router.dart';
+import '../widgets/dictionary/ai_dict_result_view.dart';
+import '../widgets/dictionary/local_dict_result_view.dart';
+import '../services/dictionary/dictionary_source.dart';
 import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
@@ -123,7 +134,8 @@ class _FavoriteVocabularyReviewScreenState
                               onReveal: () => unawaited(player.revealBack()),
                             )
                           : _VocabularyBack(
-                              word: card.displayText,
+                              key: ValueKey(card.dbKey),
+                              card: card,
                               preview: state.preview,
                               showNextReviewTime: ref.watch(
                                 favoriteReviewSettingsProvider.select(
@@ -329,36 +341,168 @@ class _CenteredPrompt extends StatelessWidget {
 }
 
 /// 词汇背面本步只显示收藏文本，内容扩展留待后续任务。
-class _VocabularyBack extends StatelessWidget {
+class _VocabularyBack extends ConsumerStatefulWidget {
   const _VocabularyBack({
-    required this.word,
+    super.key,
+    required this.card,
     required this.preview,
     required this.showNextReviewTime,
     required this.isSubmitting,
     required this.onRating,
   });
 
-  final String word;
+  final FlashcardItem card;
   final MemoryRatingPreviewSet? preview;
   final bool showNextReviewTime;
   final bool isSubmitting;
   final ValueChanged<MemoryRating> onRating;
 
   @override
+  ConsumerState<_VocabularyBack> createState() => _VocabularyBackState();
+}
+
+class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
+  bool _showAi = false;
+
+  bool get _isSingleWord =>
+      !widget.card.displayText.trim().contains(RegExp(r'\s')) &&
+      widget.card is FlashcardWordItem;
+
+  Future<void> _playSource() async {
+    await ref
+        .read(favoriteVocabularyReviewProvider.notifier)
+        .playSourceSentence();
+  }
+
+  Future<void> _signInAndRetryAi() async {
+    final l10n = AppLocalizations.of(context)!;
+    final signedIn = await ensureSignedInForAction(
+      context: context,
+      ref: ref,
+      title: l10n.senseGroupSignInRequiredTitle,
+      message: l10n.senseGroupSignInRequiredMessage,
+    );
+    if (!signedIn || !mounted) return;
+    ref
+        .read(
+          dictionaryLookupControllerProvider(
+            widget.card.displayText,
+            preferredSourceId: 'ai',
+          ).notifier,
+        )
+        .retry();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final card = widget.card;
+    final aiLookup = _showAi
+        ? ref.watch(
+            dictionaryLookupControllerProvider(
+              card.displayText,
+              preferredSourceId: 'ai',
+            ),
+          )
+        : null;
     return Column(
       children: [
         Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.l),
-              child: Text(
-                word,
-                key: const Key('favorite-vocabulary-review-back-word'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.l,
+              AppSpacing.m,
+              AppSpacing.l,
+              AppSpacing.s,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        card.displayText,
+                        key: const Key('favorite-vocabulary-review-back-word'),
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('favorite-vocabulary-review-word-speak'),
+                      tooltip: '播放发音',
+                      onPressed: () => unawaited(
+                        ref
+                            .read(favoriteVocabularyReviewProvider.notifier)
+                            .replayCurrent(),
+                      ),
+                      icon: const Icon(Icons.volume_up_outlined),
+                    ),
+                  ],
+                ),
+                if (_isSingleWord) ...[
+                  const SizedBox(height: AppSpacing.s),
+                  _LocalDictionarySection(word: card.displayText),
+                ],
+                if (card.sentenceText?.trim() case final String sentenceText
+                    when sentenceText.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.m),
+                  const Divider(),
+                  const SizedBox(height: AppSpacing.s),
+                  InkWell(
+                    key: const Key('favorite-vocabulary-review-source'),
+                    onTap: _playSource,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.play_circle_outline, size: 20),
+                          const SizedBox(width: AppSpacing.s),
+                          Expanded(
+                            child: Text(
+                              sentenceText,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                if (card.audioItemId case final String audioItemId) ...[
+                  const SizedBox(height: AppSpacing.s),
+                  _SourceMaterialLink(audioItemId: audioItemId),
+                ],
+                const SizedBox(height: AppSpacing.m),
+                OutlinedButton.icon(
+                  key: const Key('favorite-vocabulary-review-ai-toggle'),
+                  onPressed: () => setState(() => _showAi = !_showAi),
+                  icon: Icon(
+                    _showAi
+                        ? Icons.keyboard_arrow_up
+                        : Icons.auto_awesome_outlined,
+                  ),
+                  label: Text(_showAi ? '收起 AI 查词' : '显示 AI 查词'),
+                ),
+                if (_showAi) ...[
+                  const SizedBox(height: AppSpacing.s),
+                  AiDictResultView(
+                    state: aiLookup?.current,
+                    onRetry: () => ref
+                        .read(
+                          dictionaryLookupControllerProvider(
+                            card.displayText,
+                            preferredSourceId: 'ai',
+                          ).notifier,
+                        )
+                        .retry(),
+                    onSignIn: () => unawaited(_signInAndRetryAi()),
+                    onUpgrade: () => unawaited(openPaywall(context, ref)),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -375,8 +519,8 @@ class _VocabularyBack extends StatelessWidget {
                   label: l10n.bookmarkReviewRatingAgain,
                   detail: formatNextReviewTimeDetail(
                     context,
-                    showNextReviewTime: showNextReviewTime,
-                    dueAt: preview?.again.dueAt,
+                    showNextReviewTime: widget.showNextReviewTime,
+                    dueAt: widget.preview?.again.dueAt,
                   ),
                 ),
                 FlashcardRatingAction(
@@ -385,8 +529,8 @@ class _VocabularyBack extends StatelessWidget {
                   label: l10n.bookmarkReviewRatingGood,
                   detail: formatNextReviewTimeDetail(
                     context,
-                    showNextReviewTime: showNextReviewTime,
-                    dueAt: preview?.good.dueAt,
+                    showNextReviewTime: widget.showNextReviewTime,
+                    dueAt: widget.preview?.good.dueAt,
                   ),
                 ),
                 FlashcardRatingAction(
@@ -395,19 +539,103 @@ class _VocabularyBack extends StatelessWidget {
                   label: l10n.bookmarkReviewRatingEasy,
                   detail: formatNextReviewTimeDetail(
                     context,
-                    showNextReviewTime: showNextReviewTime,
-                    dueAt: preview?.easy.dueAt,
+                    showNextReviewTime: widget.showNextReviewTime,
+                    dueAt: widget.preview?.easy.dueAt,
                   ),
                 ),
               ],
-              enabled: preview != null && !isSubmitting,
-              onSelected: (action) => onRating(action.rating),
+              enabled: widget.preview != null && !widget.isSubmitting,
+              onSelected: (action) => widget.onRating(action.rating),
             ),
           ),
         ),
       ],
     );
   }
+}
+
+/// 单词背面直接查询本地源，不继承查词面板的默认源与会话偏好。
+class _LocalDictionarySection extends ConsumerStatefulWidget {
+  const _LocalDictionarySection({required this.word});
+
+  final String word;
+
+  @override
+  ConsumerState<_LocalDictionarySection> createState() =>
+      _LocalDictionarySectionState();
+}
+
+class _LocalDictionarySectionState
+    extends ConsumerState<_LocalDictionarySection> {
+  late Future<DictionaryLookupResult?> _lookup = _startLookup();
+
+  Future<DictionaryLookupResult?> _startLookup() => ref
+      .read(localDictionarySourceProvider)
+      .lookup(DictionaryLookupRequest(word: widget.word));
+
+  @override
+  void didUpdateWidget(_LocalDictionarySection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.word != widget.word) _lookup = _startLookup();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<DictionaryLookupResult?>(
+    future: _lookup,
+    builder: (context, snapshot) {
+      if (snapshot.data case final LocalDictResult result) {
+        return LocalDictResultView(
+          state: LookupLoaded(result),
+          word: widget.word,
+        );
+      }
+      return const SizedBox.shrink();
+    },
+  );
+}
+
+/// 来源材料入口只读取标题；播放仍由来源句统一播放编排负责。
+class _SourceMaterialLink extends ConsumerWidget {
+  const _SourceMaterialLink({required this.audioItemId});
+
+  final String audioItemId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => FutureBuilder(
+    future: ref.read(audioItemDaoProvider).getById(audioItemId),
+    builder: (context, snapshot) {
+      final title = snapshot.data?.name ?? '来源材料';
+      return InkWell(
+        key: const Key('favorite-vocabulary-review-source-material'),
+        onTap: () => context.push(AppRoutes.audioLearningPlan(audioItemId)),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                Icons.headphones_outlined,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _EmptyReview extends StatelessWidget {

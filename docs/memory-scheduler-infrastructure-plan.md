@@ -281,7 +281,7 @@ final class MemoryReviewEvent {
 }
 ```
 
-`operationId` 是调用方为一次评分生成的幂等键。`rating`、`reviewedAt`、事件顺序和当时是否发生 lapse 是模型无关的历史事实；`isLapse` 固定定义为“评分前 phase 为 review 且 rating 为 again”。`dueBefore`、`dueAfter`、Profile 和版本用于审计，不作为重放算法的输入来源。事件只追加，不提供常规 update/delete API；只有永久清除整个调度时级联删除。
+`operationId` 是调用方为一次用户评分动作生成的、跨会话全局唯一的幂等键（生产环境使用 UUID）。网络或调用结果未知时，对同一动作的重试必须复用原键；下一次用户评分动作必须生成新键，不能使用页面或 controller 内重置的递增值。`rating`、`reviewedAt`、事件顺序和当时是否发生 lapse 是模型无关的历史事实；`isLapse` 固定定义为“评分前 phase 为 review 且 rating 为 again”。`dueBefore`、`dueAfter`、Profile 和版本用于审计，不作为重放算法的输入来源。事件只追加，不提供常规 update/delete API；只有永久清除整个调度时级联删除。
 
 `reviewCount` 由 application 在每次成功追加评分事件时加 1；`lapseCount` 仅在 `isLapse = true` 时加 1。Adapter 不拥有这两个统计字段，避免 Profile 迁移时把历史统计按目标模型重新解释。
 

@@ -141,6 +141,8 @@ class BookmarkReview extends _$BookmarkReview {
         database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
+      operationIdGenerator: ref.read(memoryIdGeneratorProvider),
+      logger: (message) => AppLogger.log('FavoriteSentenceReview', message),
     );
     _controller = controller;
     await controller.load();
@@ -249,7 +251,10 @@ class BookmarkReview extends _$BookmarkReview {
       );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
-      AppLogger.log('FavoriteSentenceReview', 'rating failed or conflicted');
+      AppLogger.log(
+        'FavoriteSentenceReview',
+        'rating submission failed error=${controller.state.error}',
+      );
       state = state.copyWith(isSubmittingRating: false);
     }
   }

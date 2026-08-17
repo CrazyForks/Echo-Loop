@@ -10,12 +10,16 @@ enum FavoriteReviewOrder { smart, dueAt, random }
 class FavoriteReviewSettings {
   const FavoriteReviewSettings({
     this.showNextReviewTime = false,
+    this.autoPlayVocabularySourceSentence = true,
     this.sentenceDailyReviewGoal,
     this.vocabularyDailyReviewGoal,
     this.order = FavoriteReviewOrder.smart,
   });
 
   final bool showNextReviewTime;
+
+  /// 词汇复习翻到背面时是否自动播放来源例句。
+  final bool autoPlayVocabularySourceSentence;
 
   /// 收藏句的每日复习目标；为空时不限制。
   final int? sentenceDailyReviewGoal;
@@ -42,6 +46,7 @@ class FavoriteReviewSettings {
 
   FavoriteReviewSettings copyWith({
     bool? showNextReviewTime,
+    bool? autoPlayVocabularySourceSentence,
     int? sentenceDailyReviewGoal,
     bool clearSentenceDailyReviewGoal = false,
     int? vocabularyDailyReviewGoal,
@@ -49,6 +54,9 @@ class FavoriteReviewSettings {
     FavoriteReviewOrder? order,
   }) => FavoriteReviewSettings(
     showNextReviewTime: showNextReviewTime ?? this.showNextReviewTime,
+    autoPlayVocabularySourceSentence:
+        autoPlayVocabularySourceSentence ??
+        this.autoPlayVocabularySourceSentence,
     sentenceDailyReviewGoal: clearSentenceDailyReviewGoal
         ? null
         : sentenceDailyReviewGoal ?? this.sentenceDailyReviewGoal,
@@ -60,6 +68,7 @@ class FavoriteReviewSettings {
 
   Map<String, dynamic> toJson() => {
     'showNextReviewTime': showNextReviewTime,
+    'autoPlayVocabularySourceSentence': autoPlayVocabularySourceSentence,
     'sentenceDailyReviewGoal': sentenceDailyReviewGoal,
     'vocabularyDailyReviewGoal': vocabularyDailyReviewGoal,
     'order': order.name,
@@ -75,6 +84,11 @@ class FavoriteReviewSettings {
       showNextReviewTime: json['showNextReviewTime'] is bool
           ? json['showNextReviewTime'] == true
           : false,
+      // 旧版没有此字段时保持旧闪卡的默认体验：翻面即播放来源句。
+      autoPlayVocabularySourceSentence:
+          json['autoPlayVocabularySourceSentence'] is bool
+          ? json['autoPlayVocabularySourceSentence'] == true
+          : true,
       sentenceDailyReviewGoal:
           rawSentenceGoal is int &&
               dailyReviewGoalOptions.contains(rawSentenceGoal)
