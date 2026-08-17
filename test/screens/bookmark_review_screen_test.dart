@@ -30,6 +30,8 @@ import 'package:echo_loop/services/speech_permission_service.dart';
 import 'package:echo_loop/services/transcription_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
+import 'package:echo_loop/widgets/common/playback_controls.dart';
+import 'package:echo_loop/widgets/practice/practice_progress_section.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 import 'package:echo_loop/widgets/common/recording_button.dart';
 
@@ -551,7 +553,7 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byType(PracticeProgressBar), findsOneWidget);
     });
   });
 
@@ -929,14 +931,14 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
       expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
 
-      // 按钮始终可用（opacity > 0.15）
-      final checkIcon = find.byIcon(Icons.check_circle_rounded);
-      final opacity = tester.widget<AnimatedOpacity>(
-        find
-            .ancestor(of: checkIcon, matching: find.byType(AnimatedOpacity))
-            .first,
+      // 完成按钮复用当前共享导航控件，并保持启用。
+      final nextButton = tester.widget<PlaybackNavButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.check_circle_rounded),
+          matching: find.byType(PlaybackNavButton),
+        ),
       );
-      expect(opacity.opacity, greaterThan(0.15));
+      expect(nextButton.enabled, isTrue);
     });
 
     testWidgets('点击听不懂进入跟读模式', (tester) async {
