@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/database/app_database.dart';
+import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/bundled_example_installer.dart';
 import 'package:echo_loop/utils/app_data_dir.dart';
 
@@ -26,7 +27,6 @@ void main() {
   late Directory tempDir;
   late AppDatabase db;
   late SharedPreferences prefs;
-
   BundledExampleInstaller installer() {
     return BundledExampleInstaller(db, prefs, assetBundle: _FakeAssets());
   }
@@ -39,6 +39,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     db = _createDb();
+    AppLogger.instance.clear();
   });
 
   tearDown(() async {
@@ -49,7 +50,7 @@ void main() {
     }
   });
 
-  test('空库首次安装 6 条 CEFR 示例且无字幕', () async {
+  test('空库首次安装 6 条带完整字幕的示例', () async {
     await installer().installOnFirstLaunch();
 
     final collections = await db.collectionDao.getAllActive();
@@ -72,232 +73,52 @@ void main() {
     final items = await db.audioItemDao.getAllActive();
     expect(items, hasLength(6));
     for (final item in items) {
-      expect(item.audioPath, startsWith('audios/CEFR '));
+      expect(item.audioPath, startsWith('audios/'));
       expect(item.transcriptPath, isNull);
-      expect(item.transcriptSrt, isNull);
-      expect(item.transcriptSource, isNull);
+      expect(item.transcriptSrt, isNotEmpty);
+      expect(item.wordTimestampsJson, isNotEmpty);
+      expect(item.transcriptSource, 1);
+      expect(item.transcriptLanguage, 'en');
       expect(await File('${tempDir.path}/${item.audioPath}').exists(), isTrue);
     }
-    expect(prefs.getInt('bundled_example_installed_version'), 2);
+    final a1 = await db.audioItemDao.getById('bundled-example-audio-a1');
+    expect(a1!.name, 'A1 - Class Information');
+    expect(a1.totalDuration, 32);
+    expect(a1.sentenceCount, 7);
+    expect(a1.wordCount, 56);
+    expect(a1.transcriptSrt, contains('Before we begin'));
+    expect(a1.wordTimestampsJson, contains('"Before"'));
     expect(prefs.getBool('bundled_example_installed'), isTrue);
+    expect(AppLogger.instance.entries.last.message, '安装完成：6 条示例已写入');
   });
 
-  test('已是最新版时跳过安装', () async {
-    await prefs.setInt('bundled_example_installed_version', 2);
+  test('已安装示例后再次启动时跳过安装', () async {
+    await installer().installOnFirstLaunch();
+    final audioFile = File('${tempDir.path}/audios/A1 - Class Information.m4a');
+    await audioFile.writeAsString('user-edited');
+
+    await installer().installOnFirstLaunch();
+
+    expect(await db.audioItemDao.getAllActive(), hasLength(6));
+    expect(await audioFile.readAsString(), 'user-edited');
+    expect(AppLogger.instance.entries.last.message, '安装跳过：此前已处理');
+  });
+
+  test('用户手动删光示例后不会重新安装', () async {
+    await installer().installOnFirstLaunch();
+    await db.audioItemDao.hardDeleteMany({
+      'bundled-example-audio-a1',
+      'bundled-example-audio-a2',
+      'bundled-example-audio-b1',
+      'bundled-example-audio-b2',
+      'bundled-example-audio-c1',
+      'bundled-example-audio-c2',
+    });
 
     await installer().installOnFirstLaunch();
 
     expect(await db.audioItemDao.getAllActive(), isEmpty);
-    expect(Directory('${tempDir.path}/audios').existsSync(), isFalse);
-  });
-
-  test('版本标记丢失但新示例已存在时保持幂等', () async {
-    await installer().installOnFirstLaunch();
-    await db.audioItemDao.saveTranscriptContent(
-      'bundled-example-audio-a1',
-      srt: '1\n00:00:00,000 --> 00:00:01,000\nhello\n',
-      wordTimestampsJson: '[{"word":"hello"}]',
-    );
-    await (db.update(
-      db.audioItems,
-    )..where((t) => t.id.equals('bundled-example-audio-a1'))).write(
-      const AudioItemsCompanion(
-        transcriptSource: Value(1),
-        transcriptLanguage: Value('en'),
-        sentenceCount: Value(1),
-        wordCount: Value(1),
-      ),
-    );
-    await prefs.remove('bundled_example_installed_version');
-
-    await installer().installOnFirstLaunch();
-
-    final audioIds = await db.collectionDao.getAudioIds(
-      BundledExampleInstaller.collectionId,
-    );
-    expect(audioIds, hasLength(6));
-    expect(await db.audioItemDao.getAllActive(), hasLength(6));
-    final a1 = await db.audioItemDao.getById('bundled-example-audio-a1');
-    expect(a1!.transcriptSrt, contains('hello'));
-    expect(a1.wordTimestampsJson, '[{"word":"hello"}]');
-    expect(a1.transcriptSource, 1);
-    expect(a1.transcriptLanguage, 'en');
-    expect(prefs.getInt('bundled_example_installed_version'), 2);
-  });
-
-  test('旧 English in a Minute 示例迁移为 6 条新示例并删除旧文件', () async {
-    final now = DateTime.now();
-    await Directory('${tempDir.path}/audios').create(recursive: true);
-    final legacyFile = File(
-      '${tempDir.path}/audios/English in a Minute - On the Ball.m4a',
-    );
-    await legacyFile.writeAsBytes([1, 2, 3]);
-    await db
-        .into(db.collections)
-        .insert(
-          CollectionsCompanion.insert(
-            id: BundledExampleInstaller.collectionId,
-            name: 'Examples',
-            createdDate: now,
-            updatedAt: now,
-          ),
-        );
-    await db
-        .into(db.audioItems)
-        .insert(
-          AudioItemsCompanion.insert(
-            id: 'bundled-example-audio-0001',
-            name: 'English in a Minute - On the Ball',
-            audioPath: const Value(
-              'audios/English in a Minute - On the Ball.m4a',
-            ),
-            addedDate: now,
-            updatedAt: now,
-          ),
-        );
-    await db
-        .into(db.collectionAudioItems)
-        .insert(
-          CollectionAudioItemsCompanion.insert(
-            collectionId: BundledExampleInstaller.collectionId,
-            audioItemId: 'bundled-example-audio-0001',
-            addedAt: now,
-          ),
-        );
-    await db
-        .into(db.bookmarks)
-        .insert(
-          BookmarksCompanion.insert(
-            audioItemId: 'bundled-example-audio-0001',
-            sentenceIndex: 0,
-            sentenceText: 'legacy sentence',
-            startTime: 0,
-            endTime: 1,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
-    await db
-        .into(db.learningProgresses)
-        .insert(
-          LearningProgressesCompanion.insert(
-            audioItemId: 'bundled-example-audio-0001',
-            updatedAt: now,
-          ),
-        );
-    await db
-        .into(db.stageCompletions)
-        .insert(
-          StageCompletionsCompanion.insert(
-            audioItemId: 'bundled-example-audio-0001',
-            stage: 'firstLearn',
-            subStage: 'blindListen',
-            completedAt: now,
-          ),
-        );
-    await db
-        .into(db.playbackStates)
-        .insert(
-          PlaybackStatesCompanion.insert(
-            audioItemId: 'bundled-example-audio-0001',
-            positionMs: 1000,
-            savedAt: now,
-          ),
-        );
-    await db
-        .into(db.tags)
-        .insert(
-          TagsCompanion.insert(
-            id: 'tag-1',
-            name: 'legacy',
-            color: 0xff000000,
-            createdDate: now,
-            updatedAt: now,
-          ),
-        );
-    await db
-        .into(db.audioItemTags)
-        .insert(
-          AudioItemTagsCompanion.insert(
-            tagId: 'tag-1',
-            audioItemId: 'bundled-example-audio-0001',
-            addedAt: now,
-          ),
-        );
-    await db.savedWordDao.saveWord(
-      word: 'legacy',
-      audioItemId: 'bundled-example-audio-0001',
-      sentenceIndex: 0,
-      sentenceText: 'legacy sentence',
-      sentenceStartMs: 0,
-      sentenceEndMs: 1000,
-    );
-    await db.savedSenseGroupDao.saveSenseGroup(
-      phraseText: 'legacy phrase',
-      displayText: 'legacy phrase',
-      audioItemId: 'bundled-example-audio-0001',
-      sentenceIndex: 0,
-      sentenceText: 'legacy sentence',
-      sentenceStartMs: 0,
-      sentenceEndMs: 1000,
-      groupStartMs: 100,
-      groupEndMs: 900,
-    );
-    await prefs.setBool('bundled_example_installed', true);
-
-    await installer().installOnFirstLaunch();
-
-    expect(await db.audioItemDao.getById('bundled-example-audio-0001'), isNull);
-    expect(await legacyFile.exists(), isFalse);
-    expect(
-      await (db.select(db.bookmarks)
-            ..where((t) => t.audioItemId.equals('bundled-example-audio-0001')))
-          .get(),
-      isEmpty,
-    );
-    expect(
-      await (db.select(db.learningProgresses)
-            ..where((t) => t.audioItemId.equals('bundled-example-audio-0001')))
-          .get(),
-      isEmpty,
-    );
-    expect(
-      await (db.select(db.stageCompletions)
-            ..where((t) => t.audioItemId.equals('bundled-example-audio-0001')))
-          .get(),
-      isEmpty,
-    );
-    expect(
-      await (db.select(db.playbackStates)
-            ..where((t) => t.audioItemId.equals('bundled-example-audio-0001')))
-          .get(),
-      isEmpty,
-    );
-    expect(
-      await (db.select(db.audioItemTags)
-            ..where((t) => t.audioItemId.equals('bundled-example-audio-0001')))
-          .get(),
-      isEmpty,
-    );
-    final savedWord = (await db.savedWordDao.getAll()).single;
-    expect(savedWord.audioItemId, isNull);
-    expect(savedWord.sentenceIndex, isNull);
-    expect(savedWord.sentenceText, isNull);
-    expect(savedWord.sentenceStartMs, isNull);
-    expect(savedWord.sentenceEndMs, isNull);
-    final savedGroup = (await db.select(db.savedSenseGroups).get()).single;
-    expect(savedGroup.audioItemId, isNull);
-    expect(savedGroup.sentenceIndex, isNull);
-    expect(savedGroup.sentenceText, isNull);
-    expect(savedGroup.sentenceStartMs, isNull);
-    expect(savedGroup.sentenceEndMs, isNull);
-    expect(savedGroup.groupStartMs, isNull);
-    expect(savedGroup.groupEndMs, isNull);
-    expect(
-      await db.collectionDao.getAudioIds(BundledExampleInstaller.collectionId),
-      hasLength(6),
-    );
-    expect(prefs.getInt('bundled_example_installed_version'), 2);
+    expect(AppLogger.instance.entries.last.message, '安装跳过：此前已处理');
   });
 
   test('非空用户库且无旧示例时不自动插入 examples', () async {
@@ -323,18 +144,34 @@ void main() {
       await db.collectionDao.getById(BundledExampleInstaller.collectionId),
       isNull,
     );
-    expect(prefs.getInt('bundled_example_installed_version'), 2);
+    expect(prefs.getBool('bundled_example_installed'), isTrue);
+    expect(AppLogger.instance.entries.last.message, '安装跳过：已有用户音频，已标记为完成');
   });
 }
 
 class _FakeAssets extends AssetBundle {
   static const _assets = {
-    'assets/demo/CEFR A1 - Book a table.m4a': 'a1',
-    'assets/demo/CEFR A2 - Invitation to a party.m4a': 'a2',
-    'assets/demo/CEFR B1 - Work-life balance.m4a': 'b1',
-    'assets/demo/CEFR B2 - Incentives.m4a': 'b2',
-    'assets/demo/CEFR C1 - Rent a house.m4a': 'c1',
-    'assets/demo/CEFR C2 - Conducting yourself.m4a': 'c2',
+    'assets/demo/A1 - Class Information.m4a': 'a1',
+    'assets/demo/A1 - Class Information.srt': 'Before we begin',
+    'assets/demo/A1 - Class Information.words.json': '[{"word":"Before"}]',
+    'assets/demo/A2 - Change a meeting time.m4a': 'a2',
+    'assets/demo/A2 - Change a meeting time.srt': 'Hi, Anna.',
+    'assets/demo/A2 - Change a meeting time.words.json': '[{"word":"Hi,"}]',
+    'assets/demo/B1 - Work-life balance.m4a': 'b1',
+    'assets/demo/B1 - Work-life balance.srt':
+        'Well, in the more traditional workplaces',
+    'assets/demo/B1 - Work-life balance.words.json': '[{"word":"Well,"}]',
+    'assets/demo/B2 - Incentives.m4a': 'b2',
+    'assets/demo/B2 - Incentives.srt': 'Another study by Dan Ariely',
+    'assets/demo/B2 - Incentives.words.json': '[{"word":"Another"}]',
+    'assets/demo/C1 - Rent a house.m4a': 'c1',
+    'assets/demo/C1 - Rent a house.srt': 'We saw the ad in the summer',
+    'assets/demo/C1 - Rent a house.words.json': '[{"word":"We"}]',
+    'assets/demo/C2 - Conducting yourself.m4a': 'c2',
+    'assets/demo/C2 - Conducting yourself.srt':
+        'Conducting yourself effectively',
+    'assets/demo/C2 - Conducting yourself.words.json':
+        '[{"word":"Conducting"}]',
   };
 
   @override

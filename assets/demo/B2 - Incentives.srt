@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:09,225
+Another study by Dan Ariely showed that the bigger the reward, the worse the subjects performed on a complex task.
+
+2
+00:00:09,385 --> 00:00:16,415
+The reward made them focus so hard on the result that they couldn't think creatively anymore.
+
+3
+00:00:16,812 --> 00:00:23,273
+And this all matters because more and more simple jobs will become automated.
+
+4
+00:00:23,373 --> 00:00:29,280
+We'll be left with creative, problem-solving jobs that computers will never do.
+
+5
+00:00:29,357 --> 00:00:38,295
+And we need to find a way to motivate people to do those jobs when we've proved the traditional incentives don't work.

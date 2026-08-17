@@ -1,0 +1,43 @@
+1
+00:00:00,060 --> 00:00:05,700
+Hi, Anna. Do you have a minute to talk about the meeting next Tuesday?
+
+2
+00:00:06,080 --> 00:00:08,776
+Sure. We said eleven, didn't we?
+
+3
+00:00:08,811 --> 00:00:12,960
+Yeah. We did, but I have a bit of a problem with the time.
+
+4
+00:00:13,305 --> 00:00:15,505
+Would it be possible to move it?
+
+5
+00:00:15,625 --> 00:00:17,527
+Oh, I see.
+
+6
+00:00:18,025 --> 00:00:24,540
+We could postpone it to the afternoon to 1PM, for example, or bring it forward to earlier in the morning.
+
+7
+00:00:24,761 --> 00:00:26,041
+What would suit you?
+
+8
+00:00:26,175 --> 00:00:28,861
+Could we make it 09:00?
+
+9
+00:00:29,021 --> 00:00:30,781
+That would really help me.
+
+10
+00:00:30,861 --> 00:00:35,041
+I have another important meeting in the central office at twelve.
+
+11
+00:00:35,641 --> 00:00:36,549
+No problem.

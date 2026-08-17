@@ -3,25 +3,19 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import '../utils/app_data_dir.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_data_dir.dart';
 
 import '../database/app_database.dart';
+import 'app_logger.dart';
 
 /// 内置示例内容安装器
 ///
 /// 首次启动时将 assets/demo/ 中的示例音频复制到 Documents 目录，
-/// 并在数据库中创建 "Examples" 合集和对应的音频条目（无字幕，引导用户生成）。
-/// 通过 SharedPreferences 版本标记确保幂等，并支持替换旧内置示例。
+/// 并在数据库中创建带有句子级、词级预置字幕的 "Examples" 合集。
+/// 通过持久化标记确保每位用户最多安装一次，避免恢复用户主动删除的示例。
 class BundledExampleInstaller {
   static const _installedKey = 'bundled_example_installed';
-  static const _installedVersionKey = 'bundled_example_installed_version';
-  static const _currentVersion = 2;
-
-  /// 旧版固定 ID（English in a Minute），用于 v1→v2 迁移清理。
-  static const _legacyAudioId = 'bundled-example-audio-0001';
-  static const _legacyAudioRelPath =
-      'audios/English in a Minute - On the Ball.m4a';
 
   /// 固定合集 ID（保证幂等）
   static const collectionId = 'bundled-example-collection-0001';
@@ -29,39 +23,57 @@ class BundledExampleInstaller {
   static const _examples = <_BundledExample>[
     _BundledExample(
       id: 'bundled-example-audio-a1',
-      title: 'CEFR A1 - Book a table',
-      assetPath: 'assets/demo/CEFR A1 - Book a table.m4a',
-      audioRelPath: 'audios/CEFR A1 - Book a table.m4a',
+      title: 'A1 - Class Information',
+      assetPath: 'assets/demo/A1 - Class Information.m4a',
+      audioRelPath: 'audios/A1 - Class Information.m4a',
+      durationSeconds: 32,
+      sentenceCount: 7,
+      wordCount: 56,
     ),
     _BundledExample(
       id: 'bundled-example-audio-a2',
-      title: 'CEFR A2 - Invitation to a party',
-      assetPath: 'assets/demo/CEFR A2 - Invitation to a party.m4a',
-      audioRelPath: 'audios/CEFR A2 - Invitation to a party.m4a',
+      title: 'A2 - Change a meeting time',
+      assetPath: 'assets/demo/A2 - Change a meeting time.m4a',
+      audioRelPath: 'audios/A2 - Change a meeting time.m4a',
+      durationSeconds: 36,
+      sentenceCount: 11,
+      wordCount: 91,
     ),
     _BundledExample(
       id: 'bundled-example-audio-b1',
-      title: 'CEFR B1 - Work-life balance',
-      assetPath: 'assets/demo/CEFR B1 - Work-life balance.m4a',
-      audioRelPath: 'audios/CEFR B1 - Work-life balance.m4a',
+      title: 'B1 - Work-life balance',
+      assetPath: 'assets/demo/B1 - Work-life balance.m4a',
+      audioRelPath: 'audios/B1 - Work-life balance.m4a',
+      durationSeconds: 37,
+      sentenceCount: 6,
+      wordCount: 84,
     ),
     _BundledExample(
       id: 'bundled-example-audio-b2',
-      title: 'CEFR B2 - Incentives',
-      assetPath: 'assets/demo/CEFR B2 - Incentives.m4a',
-      audioRelPath: 'audios/CEFR B2 - Incentives.m4a',
+      title: 'B2 - Incentives',
+      assetPath: 'assets/demo/B2 - Incentives.m4a',
+      audioRelPath: 'audios/B2 - Incentives.m4a',
+      durationSeconds: 38,
+      sentenceCount: 5,
+      wordCount: 83,
     ),
     _BundledExample(
       id: 'bundled-example-audio-c1',
-      title: 'CEFR C1 - Rent a house',
-      assetPath: 'assets/demo/CEFR C1 - Rent a house.m4a',
-      audioRelPath: 'audios/CEFR C1 - Rent a house.m4a',
+      title: 'C1 - Rent a house',
+      assetPath: 'assets/demo/C1 - Rent a house.m4a',
+      audioRelPath: 'audios/C1 - Rent a house.m4a',
+      durationSeconds: 37,
+      sentenceCount: 5,
+      wordCount: 110,
     ),
     _BundledExample(
       id: 'bundled-example-audio-c2',
-      title: 'CEFR C2 - Conducting yourself',
-      assetPath: 'assets/demo/CEFR C2 - Conducting yourself.m4a',
-      audioRelPath: 'audios/CEFR C2 - Conducting yourself.m4a',
+      title: 'C2 - Conducting yourself',
+      assetPath: 'assets/demo/C2 - Conducting yourself.m4a',
+      audioRelPath: 'audios/C2 - Conducting yourself.m4a',
+      durationSeconds: 42,
+      sentenceCount: 6,
+      wordCount: 125,
     ),
   ];
 
@@ -72,33 +84,27 @@ class BundledExampleInstaller {
   BundledExampleInstaller(this.db, this.prefs, {AssetBundle? assetBundle})
     : assetBundle = assetBundle ?? rootBundle;
 
-  /// 首次启动或示例版本升级时安装示例内容，已是最新版本则跳过。
+  /// 仅为首次空库用户安装示例内容，每位用户最多执行一次。
   Future<void> installOnFirstLaunch() async {
-    if ((prefs.getInt(_installedVersionKey) ?? 0) >= _currentVersion) return;
-
-    final legacyItem = await (db.select(
-      db.audioItems,
-    )..where((t) => t.id.equals(_legacyAudioId))).getSingleOrNull();
-
-    final existing = await (db.select(db.audioItems)..limit(1)).get();
-    final shouldInstall = existing.isEmpty || legacyItem != null;
-
-    if (shouldInstall) {
-      await _copyAssetFiles();
-      await db.transaction(() async {
-        if (legacyItem != null) {
-          await _deleteLegacyDatabaseRecords();
-        }
-        await _insertDatabaseRecords();
-      });
-
-      if (legacyItem != null) {
-        await _deleteLegacyAudioFile();
-      }
+    if (prefs.getBool(_installedKey) ?? false) {
+      AppLogger.log('BundledExamples', '安装跳过：此前已处理');
+      return;
     }
 
-    await prefs.setInt(_installedVersionKey, _currentVersion);
+    final existing = await (db.select(db.audioItems)..limit(1)).get();
+    if (existing.isNotEmpty) {
+      await prefs.setBool(_installedKey, true);
+      AppLogger.log('BundledExamples', '安装跳过：已有用户音频，已标记为完成');
+      return;
+    }
+
+    await _copyAssetFiles();
+    final transcriptContents = await _loadTranscriptContents();
+    await db.transaction(() async {
+      await _insertDatabaseRecords(transcriptContents);
+    });
     await prefs.setBool(_installedKey, true);
+    AppLogger.log('BundledExamples', '安装完成：${_examples.length} 条示例已写入');
   }
 
   /// 将 asset 文件复制到应用数据目录
@@ -109,7 +115,6 @@ class BundledExampleInstaller {
       await audiosDir.create(recursive: true);
     }
 
-    // 仅复制音频文件，字幕由用户通过 AI 转录生成。
     for (final example in _examples) {
       final audioData = await assetBundle.load(example.assetPath);
       final audioFile = File(p.join(docsDir.path, example.audioRelPath));
@@ -123,8 +128,29 @@ class BundledExampleInstaller {
     }
   }
 
+  /// 读取随安装包发布的字幕，数据库才是运行时字幕的唯一真相源。
+  Future<Map<String, _BundledTranscriptContent>>
+  _loadTranscriptContents() async {
+    final contents = <String, _BundledTranscriptContent>{};
+    for (final example in _examples) {
+      final basePath = example.assetPath.substring(
+        0,
+        example.assetPath.length - '.m4a'.length,
+      );
+      contents[example.id] = _BundledTranscriptContent(
+        srt: await assetBundle.loadString('$basePath.srt'),
+        wordTimestampsJson: await assetBundle.loadString(
+          '$basePath.words.json',
+        ),
+      );
+    }
+    return contents;
+  }
+
   /// 在数据库中创建合集和音频条目
-  Future<void> _insertDatabaseRecords() async {
+  Future<void> _insertDatabaseRecords(
+    Map<String, _BundledTranscriptContent> transcriptContents,
+  ) async {
     final now = DateTime.now();
 
     // 创建或恢复 "Examples" 合集
@@ -142,36 +168,29 @@ class BundledExampleInstaller {
 
     for (var i = 0; i < _examples.length; i++) {
       final example = _examples[i];
-      // 创建音频条目（无字幕，引导用户通过 AI 转录生成）
-      final existingAudio = await (db.select(
-        db.audioItems,
-      )..where((t) => t.id.equals(example.id))).getSingleOrNull();
-      if (existingAudio == null) {
-        await db
-            .into(db.audioItems)
-            .insert(
-              AudioItemsCompanion.insert(
-                id: example.id,
-                name: example.title,
-                audioPath: Value(example.audioRelPath),
-                addedDate: now,
-                updatedAt: now,
-              ),
-            );
-      } else {
-        // 版本标记丢失时可能重复进入安装流程；只恢复示例的基础元数据，
-        // 不覆盖用户已通过 AI 转录生成的字幕和词级时间戳。
-        await (db.update(
-          db.audioItems,
-        )..where((t) => t.id.equals(example.id))).write(
-          AudioItemsCompanion(
-            name: Value(example.title),
-            audioPath: Value(example.audioRelPath),
-            updatedAt: Value(now),
-            deletedAt: const Value(null),
-          ),
-        );
+      final transcriptContent = transcriptContents[example.id];
+      if (transcriptContent == null) {
+        throw StateError('缺少内置示例字幕: ${example.id}');
       }
+      // 新条目直接写入随安装包发布的完整字幕，用户无需先转录。
+      await db
+          .into(db.audioItems)
+          .insert(
+            AudioItemsCompanion.insert(
+              id: example.id,
+              name: example.title,
+              audioPath: Value(example.audioRelPath),
+              addedDate: now,
+              totalDuration: Value(example.durationSeconds),
+              sentenceCount: Value(example.sentenceCount),
+              wordCount: Value(example.wordCount),
+              transcriptSource: const Value(1),
+              transcriptLanguage: const Value('en'),
+              transcriptSrt: Value(transcriptContent.srt),
+              wordTimestampsJson: Value(transcriptContent.wordTimestampsJson),
+              updatedAt: now,
+            ),
+          );
 
       // 关联音频到合集
       await db
@@ -186,72 +205,6 @@ class BundledExampleInstaller {
           );
     }
   }
-
-  Future<void> _deleteLegacyDatabaseRecords() async {
-    const ids = {_legacyAudioId};
-
-    // 先清除 SET NULL 表里的冗余上下文，避免 hard delete 后只剩旧句子信息。
-    await (db.update(
-      db.savedWords,
-    )..where((t) => t.audioItemId.isIn(ids))).write(
-      const SavedWordsCompanion(
-        audioItemId: Value(null),
-        sentenceIndex: Value(null),
-        sentenceText: Value(null),
-        sentenceStartMs: Value(null),
-        sentenceEndMs: Value(null),
-      ),
-    );
-    await (db.update(
-      db.savedSenseGroups,
-    )..where((t) => t.audioItemId.isIn(ids))).write(
-      const SavedSenseGroupsCompanion(
-        audioItemId: Value(null),
-        sentenceIndex: Value(null),
-        sentenceText: Value(null),
-        sentenceStartMs: Value(null),
-        sentenceEndMs: Value(null),
-        groupStartMs: Value(null),
-        groupEndMs: Value(null),
-      ),
-    );
-
-    // 显式清理所有旧 audio 外键引用；生产 DB 也开启 FK cascade，这里是双保险。
-    await (db.delete(db.collectionAudioItems)..where(
-          (t) =>
-              t.collectionId.equals(collectionId) &
-              t.audioItemId.equals(_legacyAudioId),
-        ))
-        .go();
-    await (db.delete(
-      db.bookmarks,
-    )..where((t) => t.audioItemId.equals(_legacyAudioId))).go();
-    await (db.delete(
-      db.learningProgresses,
-    )..where((t) => t.audioItemId.equals(_legacyAudioId))).go();
-    await (db.delete(
-      db.stageCompletions,
-    )..where((t) => t.audioItemId.equals(_legacyAudioId))).go();
-    await (db.delete(
-      db.playbackStates,
-    )..where((t) => t.audioItemId.equals(_legacyAudioId))).go();
-    await (db.delete(
-      db.audioItemTags,
-    )..where((t) => t.audioItemId.equals(_legacyAudioId))).go();
-    await (db.delete(
-      db.audioItems,
-    )..where((t) => t.id.equals(_legacyAudioId))).go();
-  }
-
-  Future<void> _deleteLegacyAudioFile() async {
-    final docsDir = await getAppDataDirectory();
-    final file = File(p.join(docsDir.path, _legacyAudioRelPath));
-    if (await file.exists()) {
-      try {
-        await file.delete();
-      } catch (_) {}
-    }
-  }
 }
 
 class _BundledExample {
@@ -259,11 +212,27 @@ class _BundledExample {
   final String title;
   final String assetPath;
   final String audioRelPath;
+  final int durationSeconds;
+  final int sentenceCount;
+  final int wordCount;
 
   const _BundledExample({
     required this.id,
     required this.title,
     required this.assetPath,
     required this.audioRelPath,
+    required this.durationSeconds,
+    required this.sentenceCount,
+    required this.wordCount,
+  });
+}
+
+class _BundledTranscriptContent {
+  final String srt;
+  final String wordTimestampsJson;
+
+  const _BundledTranscriptContent({
+    required this.srt,
+    required this.wordTimestampsJson,
   });
 }

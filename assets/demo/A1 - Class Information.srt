@@ -1,0 +1,27 @@
+1
+00:00:00,140 --> 00:00:04,820
+Before we begin, some information about the class.
+
+2
+00:00:05,409 --> 00:00:10,000
+Our class is in Room 13 on the 1st Floor.
+
+3
+00:00:10,400 --> 00:00:14,295
+When you go upstairs, turn left to find the room.
+
+4
+00:00:14,495 --> 00:00:17,575
+Again, that's Room 13.
+
+5
+00:00:19,260 --> 00:00:24,523
+We have class twice a week on Monday and Wednesday.
+
+6
+00:00:24,583 --> 00:00:29,423
+Our class begins at 04:30PM and lasts ninety minutes.
+
+7
+00:00:29,481 --> 00:00:32,299
+So we finish at 6PM.
