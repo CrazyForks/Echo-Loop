@@ -217,6 +217,7 @@ class _FreePlayerSentencePagerState extends State<FreePlayerSentencePager> {
               senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
               onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
               enableGuide: isActivePage,
+              isActiveSentence: isActivePage,
               showTranscript: widget.showTranscript,
             ),
           ),

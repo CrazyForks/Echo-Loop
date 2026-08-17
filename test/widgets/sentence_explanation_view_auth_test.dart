@@ -190,6 +190,40 @@ class _NoopSenseGroupRangePlayback implements SenseGroupRangePlayback {
 
 class MockDio extends Mock implements Dio {}
 
+class _SentenceExplanationScrollHost extends StatefulWidget {
+  const _SentenceExplanationScrollHost({super.key, required this.aiNotifier});
+
+  final SentenceAiNotifier aiNotifier;
+
+  @override
+  State<_SentenceExplanationScrollHost> createState() =>
+      _SentenceExplanationScrollHostState();
+}
+
+class _SentenceExplanationScrollHostState
+    extends State<_SentenceExplanationScrollHost> {
+  var _isActive = true;
+  var _sentenceIndex = 0;
+
+  void setActive(bool value) => setState(() => _isActive = value);
+
+  void selectNextSentence() => setState(() => _sentenceIndex = 1);
+
+  @override
+  Widget build(BuildContext context) {
+    return SentenceExplanationView(
+      text: List<String>.filled(
+        80,
+        'A long sentence for scroll lifecycle.',
+      ).join(' '),
+      sentenceIndex: _sentenceIndex,
+      aiNotifier: widget.aiNotifier,
+      enableGuide: false,
+      isActiveSentence: _isActive,
+    );
+  }
+}
+
 Session testSession() {
   return Session(
     accessToken: 'test-access-token',
@@ -217,6 +251,7 @@ void main() {
     bool autoShowAiSenseGroups = false,
     bool useProviderAiNotifier = false,
     bool wrapDictionaryPanelHost = false,
+    Widget? content,
     SenseGroupRangePlayback? senseGroupRangePlayback,
     String? audioItemId,
     int? sentenceIndex,
@@ -230,7 +265,7 @@ void main() {
         GoRoute(
           path: '/',
           builder: (context, state) {
-            final content = SentenceExplanationView(
+            final defaultContent = SentenceExplanationView(
               text: 'Hello world.',
               enableGuide: false,
               audioItemId: audioItemId,
@@ -246,8 +281,8 @@ void main() {
             );
             return Scaffold(
               body: wrapDictionaryPanelHost
-                  ? DictionaryPanelHost(child: content)
-                  : content,
+                  ? DictionaryPanelHost(child: content ?? defaultContent)
+                  : content ?? defaultContent,
             );
           },
         ),
@@ -316,6 +351,61 @@ void main() {
       find.ancestor(of: find.text('Analysis'), matching: scrollView),
       findsOneWidget,
     );
+  });
+
+  testWidgets('重新进入句子讲解时同步滚动区回到工具栏顶部', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    final hostKey = GlobalKey<_SentenceExplanationScrollHostState>();
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      content: _SentenceExplanationScrollHost(
+        key: hostKey,
+        aiNotifier: SentenceAiNotifier(
+          cacheDao: cacheDao,
+          apiClient: _NoopSentenceAiApiClient(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.descendant(
+      of: find.byType(SentenceExplanationView),
+      matching: find.byType(Scrollable),
+    );
+    await tester.drag(scrollable, const Offset(0, -240));
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      greaterThan(0),
+    );
+
+    hostKey.currentState!.setActive(false);
+    await tester.pump();
+    hostKey.currentState!.setActive(true);
+    await tester.pump();
+    await tester.pump();
+
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.pixels, 0);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('analysis'))).dy,
+      greaterThanOrEqualTo(tester.getTopLeft(scrollable).dy),
+    );
+
+    await tester.drag(scrollable, const Offset(0, -160));
+    await tester.pumpAndSettle();
+    hostKey.currentState!.selectNextSentence();
+    await tester.pump();
+    await tester.pump();
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
   });
 
   testWidgets('AI 工具栏上下使用统一的 6dp 紧凑留白', (tester) async {

@@ -9,6 +9,11 @@
   不再贴边。补充音频/视频随心听与共享讲解视图的滚动层级、边距回归断言。
   **完成时间**: 2026-08-18
 
+- [x] 修复句子分页切换后的讲解滚动生命周期：每个讲解视图自行拥有显式
+  `ScrollController`，关闭 `PageStorage` 的隐式 offset 恢复，并在切句或离屏页重新激活时
+  将共享滚动容器归零；音频/视频随心听及视频难句跟读分页器显式传递激活状态，补充滚动后
+  离屏再进入与切句归零回归测试，避免 AI 工具栏被旧滚动位置遮挡。**完成时间**: 2026-08-18
+
 - [x] 修复 GitHub CI 静态分析中的失效集成测试引用：进度布局重构后将三个
   `PracticeProgressSection` 断言同步为 `PracticeProgressBar`，并将 Kokoro TTS
   集成测试从已删除的 `TtsPlayer` 迁移至当前 `LocalAudioClipPlayer` 依赖。

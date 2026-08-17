@@ -1,6 +1,6 @@
 /// 标注模式内容视图（共享组件）
 ///
-/// 将工具栏固定在顶部不随内容滚动，句子文本和翻译/解析在下方可滚动区域。
+/// 将工具栏、句子文本和翻译/解析放入同一个滚动容器。
 /// 内部管理意群全部逻辑：词级时间戳加载、AI 拆分请求、时间范围计算、播放。
 ///
 /// 用于精听、难句补练、难句跟读和收藏复习页面。
@@ -117,6 +117,12 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
   final SentenceExplanationContext? explanationContext;
   final bool showTranscript;
 
+  /// 当前页面是否是用户正在查看的句子。
+  ///
+  /// 分页器会保活相邻页面；从离屏页重新进入时，讲解滚动区必须回到顶部，
+  /// 不能让上一轮阅读位置裁切工具栏。
+  final bool isActiveSentence;
+
   const SentenceExplanationView({
     super.key,
     this.text,
@@ -136,6 +142,7 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
     this.diagnosticFlowPhase,
     this.explanationContext,
     this.showTranscript = true,
+    this.isActiveSentence = true,
   });
 
   @override
@@ -166,6 +173,13 @@ class _SentenceExplanationViewState
 
   /// 工具栏刷新通知器
   final _toolbarNotifier = RebuildNotifier();
+
+  /// 讲解滚动位置由视图自身拥有，避免受 PageView / PageStorage 隐式恢复影响。
+  final ScrollController _scrollController = ScrollController(
+    keepScrollOffset: false,
+  );
+
+  int _scrollResetGeneration = 0;
 
   /// 意群数据服务
   final _sgService = SenseGroupService();
@@ -227,6 +241,7 @@ class _SentenceExplanationViewState
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _deferSenseGroupPlaybackCancellation();
     _sgSub?.cancel();
     _sgCancel?.cancel();
@@ -252,6 +267,42 @@ class _SentenceExplanationViewState
       _wordTimestamps = null;
       _fetchWordTimestamps();
     }
+    if (_shouldResetScrollPosition(oldWidget)) {
+      _resetScrollPosition();
+    }
+  }
+
+  /// 判断是否进入了新的讲解阅读会话。
+  ///
+  /// 仅切句或离屏页重新激活时归零；翻译、解析和意群的流式 rebuild 不应打断
+  /// 用户正在阅读同一句时的滚动位置。
+  bool _shouldResetScrollPosition(SentenceExplanationView oldWidget) {
+    final sentenceChanged =
+        widget.audioItemId != oldWidget.audioItemId ||
+        _sentenceIndex != oldWidget.sentenceIndex ||
+        _text != (oldWidget.text ?? '');
+    final becameActive = widget.isActiveSentence && !oldWidget.isActiveSentence;
+    return widget.isActiveSentence && (sentenceChanged || becameActive);
+  }
+
+  /// 将新激活句的工具栏和正文同步带回滚动区顶部。
+  ///
+  /// PageView 的子页可能尚未挂载 [ScrollPosition]。因此同步归零后保留一次
+  /// 帧后兜底，并用 generation 与当前激活态隔离已过期的切句回调。
+  void _resetScrollPosition() {
+    final generation = ++_scrollResetGeneration;
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _scrollResetGeneration ||
+          !widget.isActiveSentence ||
+          !_scrollController.hasClients) {
+        return;
+      }
+      _scrollController.jumpTo(0);
+    });
   }
 
   /// 加载词级时间戳
@@ -993,6 +1044,7 @@ class _SentenceExplanationViewState
           child: _TranscriptVisibilityMask(
             showTranscript: widget.showTranscript,
             child: _AnnotationContentLayout(
+              scrollController: _scrollController,
               toolbar: Padding(
                 // 紧凑工具栏与相邻信息/正文统一保留 6dp，正文自己的顶部留白
                 // 继续负责维持首行文本的可读起点。
@@ -1204,16 +1256,19 @@ class _SentenceExplanationViewState
 /// 讲解工具栏与正文属于同一个滚动容器，保证所有讲解内容同步滚动。
 class _AnnotationContentLayout extends StatelessWidget {
   const _AnnotationContentLayout({
+    required this.scrollController,
     required this.toolbar,
     required this.content,
   });
 
+  final ScrollController scrollController;
   final Widget toolbar;
   final Widget content;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      controller: scrollController,
       padding: const EdgeInsets.only(bottom: AppSpacing.l),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
