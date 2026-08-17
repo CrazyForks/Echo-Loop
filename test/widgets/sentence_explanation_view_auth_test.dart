@@ -28,7 +28,8 @@ import 'package:echo_loop/providers/audio_sentences_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/router/app_router.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
-import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
 import 'package:echo_loop/widgets/animated_bookmark_icon.dart';
 
@@ -215,10 +216,12 @@ void main() {
     bool autoShowAiAnalysis = true,
     bool autoShowAiTranslation = true,
     bool autoShowAiSenseGroups = false,
+    bool useProviderAiNotifier = false,
     bool wrapDictionaryPanelHost = false,
     SenseGroupRangePlayback? senseGroupRangePlayback,
     String? audioItemId,
     int? sentenceIndex,
+    Widget? scrollHeader,
     List<Override> extraOverrides = const [],
   }) async {
     SharedPreferences.setMockInitialValues({});
@@ -229,19 +232,21 @@ void main() {
         GoRoute(
           path: '/',
           builder: (context, state) {
-            final content = AnnotationContentView(
+            final content = SentenceExplanationView(
               text: 'Hello world.',
               enableGuide: false,
               autoLoadSentenceAi: autoLoadSentenceAi,
               audioItemId: audioItemId,
               sentenceIndex: sentenceIndex,
+              scrollHeader: scrollHeader,
               senseGroupRangePlayback: senseGroupRangePlayback,
-              aiNotifier:
-                  aiNotifier ??
-                  SentenceAiNotifier(
-                    cacheDao: cacheDao,
-                    apiClient: _NoopSentenceAiApiClient(),
-                  ),
+              aiNotifier: useProviderAiNotifier
+                  ? null
+                  : aiNotifier ??
+                        SentenceAiNotifier(
+                          cacheDao: cacheDao,
+                          apiClient: _NoopSentenceAiApiClient(),
+                        ),
             );
             return Scaffold(
               body: wrapDictionaryPanelHost
@@ -292,7 +297,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('默认布局保持学习任务工具栏固定在滚动区外', (tester) async {
+  testWidgets('默认布局让学习任务工具栏随讲解内容滚动', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();
     when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
@@ -307,14 +312,76 @@ void main() {
     );
 
     final scrollView = find.descendant(
-      of: find.byType(AnnotationContentView),
+      of: find.byType(SentenceExplanationView),
       matching: find.byType(SingleChildScrollView),
     );
     expect(scrollView, findsOneWidget);
     expect(
       find.ancestor(of: find.text('Analysis'), matching: scrollView),
-      findsNothing,
+      findsOneWidget,
     );
+  });
+
+  testWidgets('AI 工具栏上下使用统一的 6dp 紧凑留白', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    const headerKey = ValueKey('explanation-scroll-header');
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      scrollHeader: const SizedBox(key: headerKey, height: 24),
+    );
+
+    final headerBottom = tester.getBottomLeft(find.byKey(headerKey)).dy;
+    final toolbarTop = tester
+        .getTopLeft(find.byKey(const ValueKey('analysis')))
+        .dy;
+    final toolbarBottom = tester
+        .getBottomLeft(find.byKey(const ValueKey('analysis')))
+        .dy;
+    final contentTop = tester
+        .getTopLeft(find.byType(SentenceAnnotationCard))
+        .dy;
+
+    expect(toolbarTop - headerBottom, closeTo(6, 0.1));
+    expect(contentTop - toolbarBottom, closeTo(6, 0.1));
+  });
+
+  testWidgets('未显式注入 notifier 时 AI 工具栏仍使用 Provider 发起请求', (tester) async {
+    final cacheDao = _MockCacheDao();
+    final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    final aiNotifier = _RecordingSentenceAiNotifier(
+      cacheDao: cacheDao,
+      apiClient: _NoopSentenceAiApiClient(),
+    );
+    when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
+    when(
+      savedSenseGroupDao.watchSavedPhraseTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
+
+    await pumpAuthTestApp(
+      tester,
+      cacheDao: cacheDao,
+      savedSenseGroupDao: savedSenseGroupDao,
+      signedIn: true,
+      useProviderAiNotifier: true,
+      autoLoadSentenceAi: true,
+      autoShowAiAnalysis: false,
+      extraOverrides: [
+        sentenceAiNotifierProvider.overrideWithValue(aiNotifier),
+      ],
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(aiNotifier.translationRequests, hasLength(1));
   });
 
   testWidgets('未登录请求新意群时展示可关闭的登录弹窗', (tester) async {

@@ -49,7 +49,7 @@ import '../widgets/common/recording_button.dart' show RecordingButtonMode;
 import '../widgets/common/repeat_practice_panel.dart';
 import '../widgets/practice/practice_normal_mode_view.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/practice_playback_footer.dart';
 import '../widgets/common/managed_media_visual_surface.dart';
@@ -625,27 +625,35 @@ class _ReviewDifficultPracticeScreenState
                           children: [
                             if (playerState.usesMediaEngine) mediaSurface,
                             // 进度区域
-                            PracticeProgressSection(
+                            PracticeProgressBar(
                               current: playerState.currentSentenceIndex + 1,
                               total: playerState.totalSentences,
+                              elapsed: currentSentence?.startTime,
+                              remaining:
+                                  player.sentences.isEmpty ||
+                                      currentSentence == null
+                                  ? null
+                                  : player.sentences.last.endTime -
+                                        currentSentence.startTime,
+                              onSeek: (i) => ref
+                                  .read(
+                                    reviewDifficultPracticeProvider.notifier,
+                                  )
+                                  .goToSentence(i),
+                            ),
+                            PracticeSentenceInfoRow(
                               progressText: l10n
                                   .reviewDifficultPracticeProgress(
                                     playerState.currentSentenceIndex + 1,
                                     playerState.totalSentences,
                                   ),
                               durationText: durationText,
-                              showAudioSource: false,
                               // 收藏操作固定在进度信息行，避免盲听/跟读切换时发生位移。
                               trailing: BookmarkToggleRow(
                                 isDifficult:
                                     currentSentence?.isBookmarked ?? true,
                                 onTap: _handleToggleDifficult,
                               ),
-                              onSeek: (i) => ref
-                                  .read(
-                                    reviewDifficultPracticeProvider.notifier,
-                                  )
-                                  .goToSentence(i),
                             ),
 
                             // 主体内容：盲听/跟读 双态切换
@@ -653,13 +661,13 @@ class _ReviewDifficultPracticeScreenState
                               child: playerState.isAnnotationMode
                                   ? Padding(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.l,
+                                        horizontal: AppSpacing.m,
                                       ),
                                       child: currentSentence != null
                                           ? Column(
                                               children: [
                                                 Expanded(
-                                                  child: AnnotationContentView(
+                                                  child: SentenceExplanationView(
                                                     text: currentSentence.text,
                                                     aiNotifier: ref.read(
                                                       sentenceAiNotifierProvider,

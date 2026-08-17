@@ -860,7 +860,9 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
 
     await engine.setSpeed(state.settings.playbackSpeed);
     await engine.playSentence(sentence, sessionId);
-    if (!engine.isActiveSession(sessionId)) {
+    // 暂停会立即放弃当前讲解会话。即使底层播放器的取消回调晚到，
+    // 旧重播也不能进入倒计时或覆盖图中的“继续”等待态。
+    if (_currentSessionId != sessionId || !engine.isActiveSession(sessionId)) {
       _clearPlayingIfCurrentSession(sessionId);
       return;
     }

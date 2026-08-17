@@ -15,7 +15,7 @@ const _activeFillDark = Color(0xFF1A3A5C);
 
 /// 异步 toggle 按钮
 ///
-/// 按钮高度 36dp，圆角 8dp，图标 16dp + labelMedium 文字。
+/// 按钮高度 32dp，圆角 8dp，图标 16dp + labelMedium 文字。
 /// [onPressed] 返回 Future，按钮在 Future 完成前自动显示 loading。
 class AsyncToggleButton extends StatefulWidget {
   /// 按钮文字
@@ -120,7 +120,7 @@ class _AsyncToggleButtonState extends State<AsyncToggleButton> {
     return GestureDetector(
       onTap: _handleTap,
       child: Container(
-        height: 36,
+        height: 32,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),

@@ -24,13 +24,13 @@ import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
 import '../providers/learning_session/intensive_listen_player_provider.dart';
 import '../providers/learning_session/learning_session_provider.dart';
+import '../providers/sentence_ai_provider.dart';
 import '../providers/listening_practice/bookmark_manager.dart';
 import '../theme/app_theme.dart';
 import '../widgets/notification_permission_dialog.dart'
     show maybeShowLearningNotificationPrompt;
 import '../widgets/speech_permission_dialog.dart';
 import '../widgets/intensive_listen/intensive_listen_settings_sheet.dart';
-import '../providers/sentence_ai_provider.dart';
 import '../services/app_logger.dart';
 import '../widgets/dialogs/free_play_complete_dialog.dart';
 import '../widgets/dialogs/step_complete_dialog.dart';
@@ -42,7 +42,7 @@ import '../widgets/common/practice_playback_footer.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/player_hotkey_scope.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/practice/practice_play_count_label.dart';
 import '../widgets/practice/practice_normal_mode_view.dart';
 import '../widgets/practice/practice_progress_section.dart';
@@ -693,15 +693,28 @@ class _IntensiveListenPlayerScreenState
                           child: Column(
                             children: [
                               if (playerState.usesMediaEngine) mediaSurface,
-                              PracticeProgressSection(
+                              PracticeProgressBar(
                                 current: playerState.currentSentenceIndex + 1,
                                 total: playerState.totalSentences,
+                                elapsed: currentSentence?.startTime,
+                                remaining:
+                                    currentSentence == null ||
+                                        player.sentences.isEmpty
+                                    ? null
+                                    : player.sentences.last.endTime -
+                                          currentSentence.startTime,
+                                onSeek: (i) => ref
+                                    .read(
+                                      intensiveListenPlayerProvider.notifier,
+                                    )
+                                    .goToSentence(i),
+                              ),
+                              PracticeSentenceInfoRow(
                                 progressText: l10n.intensiveListenProgress(
                                   playerState.currentSentenceIndex + 1,
                                   playerState.totalSentences,
                                 ),
                                 durationText: durationText,
-                                showAudioSource: false,
                                 trailing: BookmarkToggleRow(
                                   isDifficult: playerState.difficultSentences
                                       .contains(
@@ -711,11 +724,6 @@ class _IntensiveListenPlayerScreenState
                                       playerState.isCurrentSentenceAutoMarked,
                                   onTap: _toggleAndSaveDifficult,
                                 ),
-                                onSeek: (i) => ref
-                                    .read(
-                                      intensiveListenPlayerProvider.notifier,
-                                    )
-                                    .goToSentence(i),
                               ),
 
                               // 主体内容
@@ -743,7 +751,7 @@ class _IntensiveListenPlayerScreenState
                                             playerState.isAnnotationReplay);
                                     final content = showAnnotationContent
                                         ? _AnnotationContent(
-                                            child: AnnotationContentView(
+                                            child: SentenceExplanationView(
                                               text: sentence.text,
                                               aiNotifier: ref.read(
                                                 sentenceAiNotifierProvider,
@@ -766,10 +774,7 @@ class _IntensiveListenPlayerScreenState
                                                 player
                                                     .onAnnotationUserInteraction();
                                               },
-                                              // 精听页已有独立引导；分页预建相邻页时不注册内部引导，
-                                              // 避免离屏页销毁后遗留 showcase 回调。
                                               enableGuide: false,
-                                              // PageView 会预建相邻页，只有当前页可以自动请求 AI。
                                               autoLoadSentenceAi: isActivePage,
                                             ),
                                           )
@@ -1049,7 +1054,8 @@ class _AnnotationContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+      // 与顶部进度区使用相同边距，保持句次、收藏和讲解内容左右对齐。
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
       child: Column(children: [Expanded(child: child)]),
     );
   }

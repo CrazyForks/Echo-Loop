@@ -178,7 +178,9 @@ void main() {
       // 加载层只覆盖 Scaffold.body，不能像整页遮罩一样吞掉盲听的 AppBar。
       expect(find.text('Listen without subtitles'), findsOneWidget);
       final canvasTop = tester
-          .getTopLeft(find.byKey(const ValueKey('managed-media-overlay-canvas')))
+          .getTopLeft(
+            find.byKey(const ValueKey('managed-media-overlay-canvas')),
+          )
           .dy;
       expect(canvasTop, greaterThan(0));
       expect(starts, 0);
@@ -254,7 +256,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // 多段模式进度条按段落驱动，且可拖动跳段（共享骨架的进度区域）
-      expect(find.byType(PracticeProgressSection), findsOneWidget);
+      expect(find.byType(PracticeProgressBar), findsOneWidget);
+      expect(find.byType(PracticeSentenceInfoRow), findsOneWidget);
       // 倒计时阶段不再显示多余的「回忆提示」label（仅倒计时行）。
       expect(find.text('Recall what you just heard'), findsNothing);
       expect(find.byType(PlaybackControls), findsOneWidget);

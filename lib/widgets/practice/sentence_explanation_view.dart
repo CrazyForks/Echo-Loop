@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -51,16 +52,21 @@ import 'sense_group_action_bar.dart';
 import '../selection/selection_toolbar.dart';
 import 'sense_group_text.dart';
 
-/// 解析工具栏相对句子讲解内容的布局方式。
-enum AnnotationToolbarPlacement { fixed, scrollWithContent }
+/// 用于 AI 自动预加载诊断的页面上下文。
+class SentenceExplanationContext {
+  const SentenceExplanationContext({required this.source, this.flowPhase});
 
-/// 标注模式内容视图
+  final String source;
+  final String? flowPhase;
+}
+
+/// 完整的单句讲解视图。
 ///
-/// 默认工具栏固定在顶部不随内容滚动；随心听场景可让工具栏与讲解内容一起滚动。
-/// 内部管理意群数据和播放。
-class AnnotationContentView extends ConsumerStatefulWidget {
+/// 管理讲解正文、AI 翻译/解析、意群、缓存、认证与词典交互；不管理任务流程、
+/// 播放会话、录音、句子进度或元信息行。
+class SentenceExplanationView extends ConsumerStatefulWidget {
   /// 句子文本
-  final String text;
+  final String? text;
 
   /// AI 翻译/解析服务
   final SentenceAiNotifier? aiNotifier;
@@ -104,18 +110,28 @@ class AnnotationContentView extends ConsumerStatefulWidget {
   /// 仅讲解详情页启用；未登录时不会自动触发，避免冷启动直接弹登录。
   final bool autoLoadSentenceAi;
 
-  /// 工具栏固定在内容区顶部，或与句子、翻译和解析一起滚动。
-  final AnnotationToolbarPlacement toolbarPlacement;
-
-  /// 随滚动讲解内容显示在工具栏之前的宿主内容，例如单句元信息。
-  final Widget? scrollHeader;
-
   /// 工具栏与句子正文的横向内边距；解析内容面板仍保持满宽，由自身处理内边距。
   final double contentHorizontalPadding;
 
-  const AnnotationContentView({
+  /// 自动预加载的页面来源，仅用于诊断日志。
+  final String? diagnosticSource;
+
+  /// 调用方流程阶段，仅用于诊断日志，不参与调度。
+  final String? diagnosticFlowPhase;
+
+  final bool isExplanationVisible;
+  final SentenceExplanationContext? explanationContext;
+  final bool showTranscript;
+
+  /// 位于讲解工具栏之前、且随讲解内容一起滚动的宿主元信息。
+  ///
+  /// 随心听将句次、时间和收藏操作置于此处，避免固定信息行额外压缩
+  /// 小屏设备上的讲解可视区。
+  final Widget? scrollHeader;
+
+  const SentenceExplanationView({
     super.key,
-    required this.text,
+    this.text,
     this.aiNotifier,
     this.audioItemId,
     this.sentenceIndex,
@@ -128,17 +144,31 @@ class AnnotationContentView extends ConsumerStatefulWidget {
     this.onToolbarButtonTapped,
     this.enableGuide = true,
     this.autoLoadSentenceAi = false,
-    this.toolbarPlacement = AnnotationToolbarPlacement.fixed,
-    this.scrollHeader,
     this.contentHorizontalPadding = 0,
+    this.diagnosticSource,
+    this.diagnosticFlowPhase,
+    this.isExplanationVisible = false,
+    this.explanationContext,
+    this.showTranscript = true,
+    this.scrollHeader,
   });
 
   @override
-  ConsumerState<AnnotationContentView> createState() =>
-      _AnnotationContentViewState();
+  ConsumerState<SentenceExplanationView> createState() =>
+      _SentenceExplanationViewState();
 }
 
-class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
+class _SentenceExplanationViewState
+    extends ConsumerState<SentenceExplanationView> {
+  String get _text => widget.text ?? '';
+  int? get _sentenceIndex => widget.sentenceIndex;
+  int? get _sentenceStartMs => widget.sentenceStartMs;
+  int? get _sentenceEndMs => widget.sentenceEndMs;
+  String? get _diagnosticSource =>
+      widget.explanationContext?.source ?? widget.diagnosticSource;
+  String? get _diagnosticFlowPhase =>
+      widget.explanationContext?.flowPhase ?? widget.diagnosticFlowPhase;
+
   /// 用于访问卡片 State 以构建外部工具栏
   GlobalKey<SentenceAnnotationCardState> _cardKey =
       GlobalKey<SentenceAnnotationCardState>();
@@ -187,6 +217,9 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   /// 缓存预加载 generation counter（防竞态）
   int _preloadGeneration = 0;
 
+  /// 自动预加载诊断去重键，避免 rebuild 重复记录同一判定。
+  String? _autoLoadDiagnosticKey;
+
   // --- 意群流式状态 ---
   /// 当前意群流订阅（逐帧渐显 medium）
   StreamSubscription<(SenseGroupResult, List<SenseGroupTiming>)>? _sgSub;
@@ -219,10 +252,10 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   }
 
   @override
-  void didUpdateWidget(AnnotationContentView oldWidget) {
+  void didUpdateWidget(SentenceExplanationView oldWidget) {
     super.didUpdateWidget(oldWidget);
     // 切句时重建 GlobalKey + 重置意群数据 + 关闭工具条
-    if (widget.text != oldWidget.text) {
+    if (_text != (oldWidget.text ?? '')) {
       _cardKey = GlobalKey<SentenceAnnotationCardState>();
       _resetSenseGroups();
       _dismissActionBar();
@@ -257,7 +290,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   /// 无来源音频 / 无句索引 / 越界（首、末句）均返回 null。仅取不可变的
   /// [Sentence.text]，前后句上下文进翻译缓存键（见 `getTranslationStream`）。
   (String?, String?) _neighborTexts(List<Sentence>? sentences) {
-    final idx = widget.sentenceIndex;
+    final idx = _sentenceIndex;
     if (sentences == null || idx == null) return (null, null);
     String? at(int i) =>
         (i >= 0 && i < sentences.length) ? sentences[i].text : null;
@@ -271,7 +304,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
   /// 在 build() 中控制是否将缓存数据透传给 card。
   Future<void> _preloadCache() async {
     final generation = ++_preloadGeneration;
-    final ai = widget.aiNotifier;
+    final ai = widget.aiNotifier ?? ref.read(sentenceAiNotifierProvider);
     if (ai == null) return;
 
     final nativeLanguage = ref.read(
@@ -288,15 +321,15 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
     // 预加载翻译和解析（结果通过 getCachedTranslation/getCachedAnalysis 透给 card）
     await ai.preloadTranslationFromDb(
-      widget.text,
+      _text,
       targetLanguage: nativeLanguage,
       previous: previousText,
       next: nextText,
     );
-    await ai.preloadAnalysisFromDb(widget.text, targetLanguage: nativeLanguage);
+    await ai.preloadAnalysisFromDb(_text, targetLanguage: nativeLanguage);
 
     // 预加载意群并计算时间范围
-    final sgLoaded = await ai.preloadSenseGroupsFromDb(widget.text);
+    final sgLoaded = await ai.preloadSenseGroupsFromDb(_text);
 
     if (!mounted || generation != _preloadGeneration) return;
 
@@ -305,13 +338,13 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
       final autoExpand =
           settings.autoShowAiExplanation && settings.autoShowAiSenseGroups;
       if (!autoExpand) return;
-      final result = ai.getCachedSenseGroups(widget.text);
+      final result = ai.getCachedSenseGroups(_text);
       if (result != null && result.medium.isNotEmpty) {
         final timings = _sgService.computeTimings(
           chunks: result.medium,
           wordTimestamps: _wordTimestamps ?? const [],
-          sentenceStartMs: widget.sentenceStartMs ?? 0,
-          sentenceEndMs: widget.sentenceEndMs ?? 0,
+          sentenceStartMs: _sentenceStartMs ?? 0,
+          sentenceEndMs: _sentenceEndMs ?? 0,
         );
         _senseGroupResult = result;
         _senseGroupTimings = timings;
@@ -335,9 +368,11 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
       return activeReady.future;
     }
 
-    final startMs = widget.sentenceStartMs ?? 0;
-    final endMs = widget.sentenceEndMs ?? 0;
-    final ai = widget.aiNotifier;
+    final startMs = _sentenceStartMs ?? 0;
+    final endMs = _sentenceEndMs ?? 0;
+    // 调用方可以显式注入测试或会话级 notifier；统一页面入口未注入时，
+    // 必须回退到 Provider，避免工具栏请求回调为空而整组 AI 按钮被禁用。
+    final ai = widget.aiNotifier ?? ref.read(sentenceAiNotifierProvider);
     if (ai == null) return;
     final accessToken = ref
         .read(supabaseSessionProvider)
@@ -360,7 +395,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
     _sgSub = _sgService
         .streamSenseGroups(
-          text: widget.text,
+          text: _text,
           ai: ai,
           accessToken: accessToken,
           sentenceStartMs: startMs,
@@ -492,8 +527,8 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
       final timings = _sgService.computeTimings(
         chunks: chunks,
         wordTimestamps: _wordTimestamps ?? const [],
-        sentenceStartMs: widget.sentenceStartMs ?? 0,
-        sentenceEndMs: widget.sentenceEndMs ?? 0,
+        sentenceStartMs: _sentenceStartMs ?? 0,
+        sentenceEndMs: _sentenceEndMs ?? 0,
       );
       setState(() => _senseGroupTimings = timings);
       widget.onTimingsChanged?.call(timings);
@@ -753,10 +788,10 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
         preferredSourceId: AiDictionarySource.sourceId,
         bookmarkKind: DictionaryBookmarkKind.senseGroup,
         audioItemId: widget.audioItemId,
-        sentenceIndex: widget.sentenceIndex,
-        sentenceText: widget.text,
-        sentenceStartMs: widget.sentenceStartMs,
-        sentenceEndMs: widget.sentenceEndMs,
+        sentenceIndex: _sentenceIndex,
+        sentenceText: _text,
+        sentenceStartMs: _sentenceStartMs,
+        sentenceEndMs: _sentenceEndMs,
       ),
       owner: this,
     );
@@ -771,7 +806,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     unawaited(
       showSentenceChatbotSheet(
         context: context,
-        sentenceText: widget.text,
+        sentenceText: _text,
         initialQuote: quote,
       ),
     );
@@ -800,10 +835,10 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
         phraseText: normalizedText,
         displayText: displayText.trim(),
         audioItemId: widget.audioItemId,
-        sentenceIndex: widget.sentenceIndex,
-        sentenceText: widget.text,
-        sentenceStartMs: widget.sentenceStartMs,
-        sentenceEndMs: widget.sentenceEndMs,
+        sentenceIndex: _sentenceIndex,
+        sentenceText: _text,
+        sentenceStartMs: _sentenceStartMs,
+        sentenceEndMs: _sentenceEndMs,
         groupStartMs: groupStartMs,
         groupEndMs: groupEndMs,
       );
@@ -834,7 +869,9 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
 
   @override
   Widget build(BuildContext context) {
-    final ai = widget.aiNotifier;
+    // 调用方可以显式注入测试或会话级 notifier；统一页面入口未注入时，
+    // 必须回退到 Provider，避免工具栏请求回调为空而整组 AI 按钮被禁用。
+    final ai = widget.aiNotifier ?? ref.read(sentenceAiNotifierProvider);
     final nativeLanguage = ref.watch(
       appSettingsProvider.select((s) => s.nativeLanguage),
     );
@@ -851,9 +888,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     // 否则首帧会用 null/null 写入无上下文 key，返回页面时再用带上下文 key 读取就会 miss。
     final audioItemId = widget.audioItemId;
     final hasSentenceContextSource =
-        audioItemId != null &&
-        audioItemId.isNotEmpty &&
-        widget.sentenceIndex != null;
+        audioItemId != null && audioItemId.isNotEmpty && _sentenceIndex != null;
     final sentencesAsync = (audioItemId != null && audioItemId.isNotEmpty)
         ? ref.watch(audioSentencesProvider(audioItemId))
         : null;
@@ -877,7 +912,7 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
     final cachedTranslation = autoShowAiTranslation
         ? ai
               ?.getCachedTranslation(
-                widget.text,
+                _text,
                 previous: previousText,
                 next: nextText,
                 targetLanguage: nativeLanguage,
@@ -885,16 +920,29 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
               ?.translation
         : null;
     final cachedAnalysis = autoShowAiAnalysis
-        ? ai?.getCachedAnalysis(widget.text, targetLanguage: nativeLanguage)
+        ? ai?.getCachedAnalysis(_text, targetLanguage: nativeLanguage)
         : null;
     final accessToken = ref
         .watch(supabaseSessionProvider)
         .valueOrNull
         ?.accessToken;
     final shouldAutoLoadSentenceAi =
-        widget.autoLoadSentenceAi &&
+        (widget.autoLoadSentenceAi || widget.isExplanationVisible) &&
         accessToken != null &&
         accessToken.isNotEmpty;
+    final willStartAutoLoad =
+        shouldAutoLoadSentenceAi &&
+        (autoShowAiAnalysis ||
+            autoShowAiSenseGroups ||
+            (autoShowAiTranslation && translationContextReady));
+    _logAutoLoadDecision(
+      hasAccessToken: accessToken != null && accessToken.isNotEmpty,
+      autoShowAiTranslation: autoShowAiTranslation,
+      autoShowAiAnalysis: autoShowAiAnalysis,
+      autoShowAiSenseGroups: autoShowAiSenseGroups,
+      translationContextReady: translationContextReady,
+      willLoad: willStartAutoLoad,
+    );
 
     // 局部 watch 已收藏意群文本集合，避免全局重建
     final savedTextsAsync = ref.watch(savedSenseGroupTextsProvider);
@@ -957,203 +1005,270 @@ class _AnnotationContentViewState extends ConsumerState<AnnotationContentView> {
         child: Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (_) => _dismissActionBar(),
-          child: _AnnotationContentLayout(
-            toolbarPlacement: widget.toolbarPlacement,
-            scrollHeader: widget.scrollHeader,
-            toolbar: Padding(
-              // 下方间距缩小：句子已自带 12dp 上留白（给选区手柄圆点让位，
-              // 见 SentenceAnnotationCard），二者合计维持原 16dp 视觉间距。
-              padding: EdgeInsets.only(
-                left: widget.contentHorizontalPadding,
-                right: widget.contentHorizontalPadding,
-                bottom: AppSpacing.xs,
+          child: _TranscriptVisibilityMask(
+            showTranscript: widget.showTranscript,
+            child: _AnnotationContentLayout(
+              scrollHeader: widget.scrollHeader,
+              toolbar: Padding(
+                // 紧凑工具栏与相邻信息/正文统一保留 6dp，正文自己的顶部留白
+                // 继续负责维持首行文本的可读起点。
+                padding: EdgeInsets.only(
+                  left: widget.contentHorizontalPadding,
+                  top: 6,
+                  right: widget.contentHorizontalPadding,
+                  bottom: 6,
+                ),
+                child: ListenableBuilder(
+                  listenable: _toolbarNotifier,
+                  builder: (context, _) {
+                    final cardState = _cardKey.currentState;
+                    if (cardState == null || !cardState.hasToolbarButtons) {
+                      return const SizedBox.shrink();
+                    }
+                    return cardState.buildToolbar(context);
+                  },
+                ),
               ),
-              child: ListenableBuilder(
-                listenable: _toolbarNotifier,
-                builder: (context, _) {
-                  final cardState = _cardKey.currentState;
-                  if (cardState == null || !cardState.hasToolbarButtons) {
-                    return const SizedBox.shrink();
-                  }
-                  return cardState.buildToolbar(context);
+              content: SentenceAnnotationCard(
+                key: _cardKey,
+                text: _text,
+                contentHorizontalPadding: widget.contentHorizontalPadding,
+                showToolbar: false,
+                onToolbarStateChanged: _toolbarNotifier.notify,
+                onRequestTranslation: ai != null
+                    ? (cancelToken, source) async* {
+                        var hasContent = false;
+                        try {
+                          final (requestPreviousText, requestNextText) =
+                              await resolveTranslationContext();
+                          // await for（非 yield*）确保流内 auth/quota 错误在本
+                          // try 内重抛，从而弹登录/订阅（与 onRequestAnalysis 语义一致）。
+                          await for (final t in ai.getTranslationStream(
+                            _text,
+                            previous: requestPreviousText,
+                            next: requestNextText,
+                            targetLanguage: nativeLanguage,
+                            accessToken: accessToken,
+                            cancelToken: cancelToken,
+                            respectLocalQuotaReset:
+                                source == SentenceAiRequestSource.automatic,
+                          )) {
+                            if (t.translation.isNotEmpty) {
+                              hasContent = true;
+                            }
+                            yield t.translation;
+                          }
+                          if (hasContent) {
+                            ref
+                                .read(usageTrackerProvider)
+                                .record(UsageEvent.translationSucceeded);
+                          }
+                        } on AiFeatureAuthRequiredException {
+                          if (mounted) {
+                            unawaited(_showAiFeatureSignInDialog());
+                          }
+                          rethrow;
+                        } on AiFeatureQuotaExceededException catch (e) {
+                          if (mounted) {
+                            unawaited(
+                              _showAiQuotaExceededDialog(
+                                e,
+                                force:
+                                    source == SentenceAiRequestSource.userTap,
+                              ),
+                            );
+                          }
+                          rethrow;
+                        }
+                      }
+                    : null,
+                onRequestAnalysis: ai != null
+                    ? (cancelToken, source) async* {
+                        var hasContent = false;
+                        try {
+                          // await for 确保流内 auth/quota 错误进入本层 catch，
+                          // 从而触发登录或订阅导航，并由卡片恢复按钮状态。
+                          await for (final analysis in ai.getAnalysisStream(
+                            _text,
+                            targetLanguage: nativeLanguage,
+                            accessToken: accessToken,
+                            cancelToken: cancelToken,
+                            respectLocalQuotaReset:
+                                source == SentenceAiRequestSource.automatic,
+                          )) {
+                            if (analysis.isNotEmpty) {
+                              hasContent = true;
+                            }
+                            yield analysis;
+                          }
+                          if (hasContent) {
+                            ref
+                                .read(usageTrackerProvider)
+                                .record(UsageEvent.analysisSucceeded);
+                          }
+                        } on AiFeatureAuthRequiredException {
+                          if (mounted) {
+                            unawaited(_showAiFeatureSignInDialog());
+                          }
+                          rethrow;
+                        } on AiFeatureQuotaExceededException catch (e) {
+                          if (mounted) {
+                            unawaited(
+                              _showAiQuotaExceededDialog(
+                                e,
+                                force:
+                                    source == SentenceAiRequestSource.userTap,
+                              ),
+                            );
+                          }
+                          rethrow;
+                        }
+                      }
+                    : null,
+                cachedTranslation: cachedTranslation,
+                cachedAnalysis: cachedAnalysis,
+                autoLoadTranslation:
+                    shouldAutoLoadSentenceAi &&
+                    autoShowAiTranslation &&
+                    translationContextReady,
+                autoLoadAnalysis:
+                    shouldAutoLoadSentenceAi && autoShowAiAnalysis,
+                onTranslationUserIntent: () {
+                  ref
+                      .read(usageTrackerProvider)
+                      .record(UsageEvent.translationTapped);
                 },
+                onAnalysisUserIntent: () {
+                  ref
+                      .read(usageTrackerProvider)
+                      .record(UsageEvent.analysisTapped);
+                },
+                audioItemId: widget.audioItemId,
+                sentenceIndex: _sentenceIndex,
+                sentenceStartMs: _sentenceStartMs,
+                sentenceEndMs: _sentenceEndMs,
+                senseGroupResult: _senseGroupResult,
+                senseGroupTimings: _senseGroupTimings,
+                onSenseGroupModeChanged: _handleModeChanged,
+                playingSenseGroupIndex: _playingSenseGroupIndex,
+                playedSenseGroupIndices: _playedSenseGroupIndices,
+                onTapSenseGroup: _handleTapSenseGroup,
+                onRequestSenseGroups: _requestSenseGroups,
+                autoLoadSenseGroups:
+                    shouldAutoLoadSentenceAi && autoShowAiSenseGroups,
+                onAwaitSenseGroupFine: _awaitSenseGroupFine,
+                hasWordTimestamps: _wordTimestamps != null,
+                highlightedSegments: widget.highlightedSegments,
+                savedGroupTexts: savedTexts,
+                onTapGroupWithRect: _showActionBar,
+                onToolbarButtonTapped: widget.onToolbarButtonTapped,
+                sentenceGuideStep: sentenceStep,
+                senseGroupGuideStep: senseGroupStep,
+                translationGuideStep: translationStep,
+                analysisGuideStep: analysisStep,
               ),
-            ),
-            content: SentenceAnnotationCard(
-              key: _cardKey,
-              text: widget.text,
-              contentHorizontalPadding: widget.contentHorizontalPadding,
-              showToolbar: false,
-              onToolbarStateChanged: _toolbarNotifier.notify,
-              onRequestTranslation: ai != null
-                  ? (cancelToken, source) async* {
-                      var hasContent = false;
-                      try {
-                        final (requestPreviousText, requestNextText) =
-                            await resolveTranslationContext();
-                        // await for（非 yield*）确保流内 auth/quota 错误在本
-                        // try 内重抛，从而弹登录/订阅（与 onRequestAnalysis 语义一致）。
-                        await for (final t in ai.getTranslationStream(
-                          widget.text,
-                          previous: requestPreviousText,
-                          next: requestNextText,
-                          targetLanguage: nativeLanguage,
-                          accessToken: accessToken,
-                          cancelToken: cancelToken,
-                          respectLocalQuotaReset:
-                              source == SentenceAiRequestSource.automatic,
-                        )) {
-                          if (t.translation.isNotEmpty) {
-                            hasContent = true;
-                          }
-                          yield t.translation;
-                        }
-                        if (hasContent) {
-                          ref
-                              .read(usageTrackerProvider)
-                              .record(UsageEvent.translationSucceeded);
-                        }
-                      } on AiFeatureAuthRequiredException {
-                        if (mounted) {
-                          unawaited(_showAiFeatureSignInDialog());
-                        }
-                        rethrow;
-                      } on AiFeatureQuotaExceededException catch (e) {
-                        if (mounted) {
-                          unawaited(
-                            _showAiQuotaExceededDialog(
-                              e,
-                              force: source == SentenceAiRequestSource.userTap,
-                            ),
-                          );
-                        }
-                        rethrow;
-                      }
-                    }
-                  : null,
-              onRequestAnalysis: ai != null
-                  ? (cancelToken, source) async* {
-                      var hasContent = false;
-                      try {
-                        // await for 确保流内 auth/quota 错误进入本层 catch，
-                        // 从而触发登录或订阅导航，并由卡片恢复按钮状态。
-                        await for (final analysis in ai.getAnalysisStream(
-                          widget.text,
-                          targetLanguage: nativeLanguage,
-                          accessToken: accessToken,
-                          cancelToken: cancelToken,
-                          respectLocalQuotaReset:
-                              source == SentenceAiRequestSource.automatic,
-                        )) {
-                          if (analysis.isNotEmpty) {
-                            hasContent = true;
-                          }
-                          yield analysis;
-                        }
-                        if (hasContent) {
-                          ref
-                              .read(usageTrackerProvider)
-                              .record(UsageEvent.analysisSucceeded);
-                        }
-                      } on AiFeatureAuthRequiredException {
-                        if (mounted) {
-                          unawaited(_showAiFeatureSignInDialog());
-                        }
-                        rethrow;
-                      } on AiFeatureQuotaExceededException catch (e) {
-                        if (mounted) {
-                          unawaited(
-                            _showAiQuotaExceededDialog(
-                              e,
-                              force: source == SentenceAiRequestSource.userTap,
-                            ),
-                          );
-                        }
-                        rethrow;
-                      }
-                    }
-                  : null,
-              cachedTranslation: cachedTranslation,
-              cachedAnalysis: cachedAnalysis,
-              autoLoadTranslation:
-                  shouldAutoLoadSentenceAi &&
-                  autoShowAiTranslation &&
-                  translationContextReady,
-              autoLoadAnalysis: shouldAutoLoadSentenceAi && autoShowAiAnalysis,
-              onTranslationUserIntent: () {
-                ref
-                    .read(usageTrackerProvider)
-                    .record(UsageEvent.translationTapped);
-              },
-              onAnalysisUserIntent: () {
-                ref
-                    .read(usageTrackerProvider)
-                    .record(UsageEvent.analysisTapped);
-              },
-              audioItemId: widget.audioItemId,
-              sentenceIndex: widget.sentenceIndex,
-              sentenceStartMs: widget.sentenceStartMs,
-              sentenceEndMs: widget.sentenceEndMs,
-              senseGroupResult: _senseGroupResult,
-              senseGroupTimings: _senseGroupTimings,
-              onSenseGroupModeChanged: _handleModeChanged,
-              playingSenseGroupIndex: _playingSenseGroupIndex,
-              playedSenseGroupIndices: _playedSenseGroupIndices,
-              onTapSenseGroup: _handleTapSenseGroup,
-              onRequestSenseGroups: _requestSenseGroups,
-              autoLoadSenseGroups:
-                  shouldAutoLoadSentenceAi && autoShowAiSenseGroups,
-              onAwaitSenseGroupFine: _awaitSenseGroupFine,
-              hasWordTimestamps: _wordTimestamps != null,
-              highlightedSegments: widget.highlightedSegments,
-              savedGroupTexts: savedTexts,
-              onTapGroupWithRect: _showActionBar,
-              onToolbarButtonTapped: widget.onToolbarButtonTapped,
-              sentenceGuideStep: sentenceStep,
-              senseGroupGuideStep: senseGroupStep,
-              translationGuideStep: translationStep,
-              analysisGuideStep: analysisStep,
             ),
           ),
         ),
       ),
     );
   }
+
+  /// 记录当前可见讲解句的自动加载判定，便于区分认证、设置与上下文阻断。
+  void _logAutoLoadDecision({
+    required bool hasAccessToken,
+    required bool autoShowAiTranslation,
+    required bool autoShowAiAnalysis,
+    required bool autoShowAiSenseGroups,
+    required bool translationContextReady,
+    required bool willLoad,
+  }) {
+    if (!widget.autoLoadSentenceAi && !widget.isExplanationVisible) return;
+    final reason = !hasAccessToken
+        ? 'missingAuth'
+        : !autoShowAiTranslation &&
+              !autoShowAiAnalysis &&
+              !autoShowAiSenseGroups
+        ? 'allSettingsDisabled'
+        : !translationContextReady
+        ? 'translationContextPending'
+        : 'triggered';
+    final key = [
+      widget.audioItemId,
+      _sentenceIndex,
+      _diagnosticSource,
+      _diagnosticFlowPhase,
+      hasAccessToken,
+      autoShowAiTranslation,
+      autoShowAiAnalysis,
+      autoShowAiSenseGroups,
+      translationContextReady,
+    ].join('|');
+    if (_autoLoadDiagnosticKey == key) return;
+    _autoLoadDiagnosticKey = key;
+    AppLogger.log(
+      'SentenceAnnotation',
+      '自动预加载判定: source=${_diagnosticSource ?? 'unknown'} '
+          'sentence=${_sentenceIndex ?? -1} '
+          'phase=${_diagnosticFlowPhase ?? 'none'} '
+          'auth=$hasAccessToken translation=$autoShowAiTranslation '
+          'analysis=$autoShowAiAnalysis senseGroups=$autoShowAiSenseGroups '
+          'contextReady=$translationContextReady load=$willLoad reason=$reason',
+    );
+  }
 }
 
-/// 根据宿主场景决定工具栏固定或随讲解内容滚动，讲解卡片本身保持单一实例。
+/// 讲解工具栏与正文属于同一个滚动容器，确保页面滚动行为一致。
 class _AnnotationContentLayout extends StatelessWidget {
   const _AnnotationContentLayout({
-    required this.toolbarPlacement,
-    required this.scrollHeader,
+    this.scrollHeader,
     required this.toolbar,
     required this.content,
   });
 
-  final AnnotationToolbarPlacement toolbarPlacement;
   final Widget? scrollHeader;
   final Widget toolbar;
   final Widget content;
 
   @override
   Widget build(BuildContext context) {
-    if (toolbarPlacement == AnnotationToolbarPlacement.scrollWithContent) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.l),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [if (scrollHeader != null) scrollHeader!, toolbar, content],
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.l),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [if (scrollHeader != null) scrollHeader!, toolbar, content],
+      ),
+    );
+  }
+}
+
+class _TranscriptVisibilityMask extends StatelessWidget {
+  const _TranscriptVisibilityMask({
+    required this.showTranscript,
+    required this.child,
+  });
+
+  final bool showTranscript;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (showTranscript) return child;
+    return Stack(
       children: [
-        toolbar,
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: AppSpacing.l),
-            child: content,
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
           ),
         ),
       ],

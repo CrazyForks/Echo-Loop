@@ -141,8 +141,9 @@ class _SenseGroupTextState extends ConsumerState<SenseGroupText> {
     final chunkSpans = _buildChunkSpans(savedMasks, savedColor);
 
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      // 与讲解工具栏使用同一紧凑间距，保证意群换行后横纵留白一致。
+      spacing: AppSpacing.s,
+      runSpacing: AppSpacing.s,
       children: [
         for (var i = 0; i < widget.chunks.length; i++)
           _buildGroupBadge(

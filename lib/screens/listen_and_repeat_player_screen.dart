@@ -32,9 +32,9 @@ import '../providers/listen_and_repeat/listen_and_repeat_controller.dart';
 import '../providers/listen_and_repeat/listen_and_repeat_phase.dart';
 import '../providers/listen_and_repeat/listen_and_repeat_settings_provider.dart';
 import '../providers/listen_and_repeat/listen_and_repeat_session_state.dart';
+import '../providers/sentence_ai_provider.dart';
 import '../services/app_logger.dart';
 import '../theme/app_theme.dart';
-import '../providers/sentence_ai_provider.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/countdown_chip.dart';
 import '../widgets/listen_and_repeat/listen_and_repeat_settings_sheet.dart';
@@ -43,7 +43,7 @@ import '../widgets/dialogs/step_complete_dialog.dart';
 import '../widgets/review/review_briefing_sheet.dart';
 import '../widgets/player_hotkey_scope.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/common/practice_playback_footer.dart';
 import '../widgets/common/recording_button.dart' show RecordingButtonMode;
 import '../widgets/common/repeat_practice_panel.dart';
@@ -628,28 +628,34 @@ class _ListenAndRepeatPlayerScreenState
                         child: Column(
                           children: [
                             if (ctrlState.usesMediaEngine) mediaSurface,
-                            // 进度条
-                            PracticeProgressSection(
+                            PracticeProgressBar(
                               current: ctrlState.sentenceIndex + 1,
                               total: ctrlState.totalSentences,
-                              progressText: l10n.listenAndRepeatProgress(
-                                ctrlState.sentenceIndex + 1,
-                                ctrlState.totalSentences,
-                              ),
-                              durationText: durationText,
-                              showAudioSource: false,
-                              trailing: BookmarkToggleRow(
-                                isDifficult:
-                                    ctrlState.currentSentenceBookmarked,
-                                onTap: ctrl.toggleCurrentBookmark,
-                              ),
+                              elapsed: ctrl.currentSentence?.startTime,
+                              remaining:
+                                  ctrl.sentences.isEmpty ||
+                                      ctrl.currentSentence == null
+                                  ? null
+                                  : ctrl.sentences.last.endTime -
+                                        ctrl.currentSentence!.startTime,
                               onSeek: (i) => ref
                                   .read(
                                     listenAndRepeatControllerProvider.notifier,
                                   )
                                   .goToSentence(i),
                             ),
-
+                            PracticeSentenceInfoRow(
+                              progressText: l10n.listenAndRepeatProgress(
+                                ctrlState.sentenceIndex + 1,
+                                ctrlState.totalSentences,
+                              ),
+                              durationText: durationText,
+                              trailing: BookmarkToggleRow(
+                                isDifficult:
+                                    ctrlState.currentSentenceBookmarked,
+                                onTap: ctrl.toggleCurrentBookmark,
+                              ),
+                            ),
                             // 主体内容：标注内容
                             Expanded(
                               child: PracticeSentencePager(
@@ -667,13 +673,12 @@ class _ListenAndRepeatPlayerScreenState
                                       sentenceIndex == ctrlState.sentenceIndex;
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.l,
+                                      horizontal: AppSpacing.m,
                                     ),
                                     child: Column(
                                       children: [
-                                        const SizedBox(height: AppSpacing.s),
                                         Expanded(
-                                          child: AnnotationContentView(
+                                          child: SentenceExplanationView(
                                             text: sentence.text,
                                             aiNotifier: ref.read(
                                               sentenceAiNotifierProvider,
@@ -691,8 +696,6 @@ class _ListenAndRepeatPlayerScreenState
                                                 ? currentAttempt
                                                       ?.referenceSegments
                                                 : null,
-                                            // 分页切句会回收旧页；与逐句精听一致，不在分页内容
-                                            // 注册内部 showcase，避免销毁后遗留回调。
                                             enableGuide: false,
                                             autoLoadSentenceAi: isActive,
                                             onStopMainPlayer:

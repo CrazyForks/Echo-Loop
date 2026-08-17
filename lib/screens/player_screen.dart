@@ -18,7 +18,7 @@ import '../widgets/playback_controls.dart';
 import '../widgets/sleep_timer.dart';
 import '../widgets/common/paragraph_sentence_list_card.dart';
 import '../widgets/common/audio_app_bar_title.dart';
-import '../widgets/common/single_sentence_study_view.dart';
+import '../widgets/common/free_player_sentence_pager.dart';
 import '../widgets/player_hotkey_scope.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
 import 'sentence_detail_screen.dart';
@@ -397,7 +397,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final playable = isBookmarkMode
         ? playerState.bookmarkedSentences
         : playerState.sentences;
-    return SingleSentenceStudyView(
+    return FreePlayerSentencePager(
       audioItem: audioItem,
       sentences: playable,
       currentSentenceIndex: index,
@@ -405,9 +405,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       showTranscript: settings.showTranscript,
       isPlaying: playerState.isPlaying,
       scope: isBookmarkMode
-          ? SingleSentenceStudyScope.bookmarks
-          : SingleSentenceStudyScope.full,
-      actions: SingleSentenceStudyActions(
+          ? FreePlayerSentenceScope.bookmarks
+          : FreePlayerSentenceScope.full,
+      actions: FreePlayerSentenceActions(
         onSentenceSelected: isBookmarkMode
             ? controller.selectBookmarkedSentence
             : controller.selectFullSentence,
@@ -557,6 +557,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           return ProgressBar(
             progress: position,
             total: total,
+            // 使用不透明的容器色绘制未播放轨道，避免低透明度边缘抗锯齿
+            // 造成其视觉上比已播放轨道更细。
+            baseBarColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             onSeek: (duration) {
               final token = ++_seekPreviewToken;
               setState(() {

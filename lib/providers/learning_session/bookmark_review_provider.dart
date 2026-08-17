@@ -384,6 +384,9 @@ class BookmarkReview extends _$BookmarkReview {
       ? _sentences[state.currentSentenceIndex]
       : null;
 
+  /// 当前收藏复习队列，供顶部时间轴计算整篇音频尾点。
+  List<BookmarkSentence> get bookmarkSentences => List.unmodifiable(_sentences);
+
   /// 跟读流程引擎（跟读模式时有值，供 Screen 读取 engine API）
   RepeatFlowEngine? get repeatEngine => _repeatEngine;
 

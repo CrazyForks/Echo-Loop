@@ -14,7 +14,8 @@ import 'package:echo_loop/widgets/common/paragraph_sentence_list_card.dart';
 import 'package:echo_loop/widgets/common/masked_sentence_tile.dart';
 import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
 import 'package:echo_loop/widgets/playback_controls.dart';
-import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
+import 'package:echo_loop/widgets/practice/practice_progress_section.dart';
 import 'package:echo_loop/models/audio_engine_state.dart';
 import 'package:echo_loop/models/playback_settings.dart';
 import 'package:echo_loop/providers/settings_provider.dart';
@@ -433,6 +434,34 @@ void main() {
         await _disposeTree(tester);
       });
 
+      testWidgets('进度条未播放轨道使用不透明容器色', (tester) async {
+        final item = createTestAudioItem();
+        final sentences = createTestSentences(count: 3);
+
+        await tester.pumpWidget(
+          createTestScreen(
+            const PlayerScreen(),
+            overrides: _audioOverrides(
+              practiceState: ListeningPracticeState(
+                currentAudioItem: item,
+                sentences: sentences,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final context = tester.element(find.byType(ProgressBar));
+        final progressBar = tester.widget<ProgressBar>(
+          find.byType(ProgressBar),
+        );
+        expect(
+          progressBar.baseBarColor,
+          Theme.of(context).colorScheme.surfaceContainerHighest,
+        );
+        await _disposeTree(tester);
+      });
+
       testWidgets('AppBar 不再显示设置按钮（已移除）', (tester) async {
         await tester.pumpWidget(createTestScreen(const PlayerScreen()));
         await tester.pump();
@@ -631,7 +660,7 @@ void main() {
     });
 
     group('单句模式（精听）', () {
-      testWidgets('复用精听解析组件 AnnotationContentView + 难句标记行', (tester) async {
+      testWidgets('复用讲解组件与句子信息行，不显示重复进度条', (tester) async {
         final item = createTestAudioItem();
         final sentences = createTestSentences(count: 3);
 
@@ -651,7 +680,9 @@ void main() {
         await tester.pump();
 
         // 不再是旧的列表卡片，而是精听解析视图 + 难句标记行
-        expect(find.byType(AnnotationContentView), findsOneWidget);
+        expect(find.byType(SentenceExplanationView), findsOneWidget);
+        expect(find.byType(PracticeProgressBar), findsNothing);
+        expect(find.byType(PracticeSentenceInfoRow), findsOneWidget);
         expect(find.byType(BookmarkToggleRow), findsOneWidget);
         expect(find.byType(ParagraphSentenceListCard), findsNothing);
         await _disposeTree(tester);
@@ -676,15 +707,17 @@ void main() {
         );
         await tester.pump();
 
-        final metadataCenter = tester.getCenter(find.text('#1')).dy;
+        final metadataCenter = tester
+            .getCenter(find.byType(PracticeSentenceInfoRow))
+            .dy;
         final bookmarkCenter = tester
             .getCenter(find.byType(BookmarkToggleRow))
             .dy;
-        expect(metadataCenter, closeTo(bookmarkCenter, 1));
+        expect(metadataCenter, closeTo(bookmarkCenter, 3));
         await _disposeTree(tester);
       });
 
-      testWidgets('句子信息、难句标记与讲解内容在同一滚动区域', (tester) async {
+      testWidgets('句子信息和难句标记随讲解内容滚动', (tester) async {
         final item = createTestAudioItem();
         final sentences = createTestSentences(count: 3);
 
@@ -704,12 +737,15 @@ void main() {
         await tester.pump();
 
         final scrollView = find.descendant(
-          of: find.byType(AnnotationContentView),
+          of: find.byType(SentenceExplanationView),
           matching: find.byType(SingleChildScrollView),
         );
         expect(scrollView, findsOneWidget);
         expect(
-          find.ancestor(of: find.text('#1'), matching: scrollView),
+          find.ancestor(
+            of: find.byType(PracticeSentenceInfoRow),
+            matching: scrollView,
+          ),
           findsOneWidget,
         );
         expect(

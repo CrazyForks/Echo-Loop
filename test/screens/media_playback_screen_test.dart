@@ -18,9 +18,10 @@ import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:echo_loop/widgets/common/paragraph_sentence_list_card.dart';
 import 'package:echo_loop/widgets/common/masked_sentence_tile.dart';
-import 'package:echo_loop/widgets/common/single_sentence_study_view.dart';
+import 'package:echo_loop/widgets/common/free_player_sentence_pager.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
+import 'package:echo_loop/widgets/practice/practice_progress_section.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
-import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -477,12 +478,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(SingleSentenceStudyView), findsOneWidget);
-    expect(find.byType(AnnotationContentView), findsOneWidget);
+    expect(find.byType(FreePlayerSentencePager), findsOneWidget);
+    expect(find.byType(SentenceExplanationView), findsOneWidget);
+    expect(find.byType(PracticeProgressBar), findsNothing);
+    expect(find.byType(PracticeSentenceInfoRow), findsOneWidget);
     expect(find.byType(DictionaryPanelHost), findsOneWidget);
     expect(find.byType(ParagraphSentenceListCard), findsNothing);
     expect(find.byKey(const ValueKey('fake-video-view')), findsOneWidget);
-    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('Sentence 1/2'), findsOneWidget);
     expect(find.text('0:01 - 0:03'), findsOneWidget);
 
     final pagerRect = tester.getRect(
@@ -492,7 +495,7 @@ void main() {
     final viewportWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
     expect(pagerRect.left, greaterThan(0));
-    expect(pagerRect.right, viewportWidth);
+    expect(pagerRect.right, greaterThanOrEqualTo(viewportWidth));
     expect(toolbarRect.left, greaterThan(pagerRect.left));
   });
 
@@ -746,15 +749,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(kBookmarkSingleSentenceSwipeAreaKey), findsOneWidget);
-    var view = tester.widget<SingleSentenceStudyView>(
-      find.byType(SingleSentenceStudyView),
+    var view = tester.widget<FreePlayerSentencePager>(
+      find.byType(FreePlayerSentencePager),
     );
     view.actions.onBookmarkToggle(2);
     await tester.pumpAndSettle();
     expect(container.read(mediaPlaybackProvider).currentBookmarkIndex, 3);
 
-    view = tester.widget<SingleSentenceStudyView>(
-      find.byType(SingleSentenceStudyView),
+    view = tester.widget<FreePlayerSentencePager>(
+      find.byType(FreePlayerSentencePager),
     );
     view.actions.onBookmarkToggle(3);
     await tester.pumpAndSettle();

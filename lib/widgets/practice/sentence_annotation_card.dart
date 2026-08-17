@@ -31,8 +31,8 @@ enum ContentLoadState { idle, loading, loaded, error }
 /// 意群显示模式
 enum SenseGroupMode { off, medium, fine }
 
-/// 句子顶部留白。
-const double _sentenceTopPadding = AppSpacing.m - 4;
+/// 紧凑工具栏后的句子顶部留白。
+const double _sentenceTopPadding = AppSpacing.xs;
 
 /// 句子与内联翻译之间的留白，保持译文贴近原句。
 const double _sentenceBottomPadding = AppSpacing.xs;

@@ -1,18 +1,17 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../models/audio_item.dart';
 import '../../models/sentence.dart';
 import '../../models/sense_group_range_playback.dart';
-import '../../providers/sentence_ai_provider.dart';
 import '../../services/subtitle_parser.dart';
 import '../../theme/app_theme.dart';
-import '../dictionary/dictionary_panel_host.dart';
-import '../practice/annotation_content_view.dart';
 import 'bookmark_toggle_row.dart';
+import '../dictionary/dictionary_panel_host.dart';
+import '../practice/practice_progress_section.dart';
+import '../practice/sentence_explanation_view.dart';
 
 const kFullSingleSentenceSwipeAreaKey = ValueKey(
   'player-single-sentence-swipe-area',
@@ -22,13 +21,13 @@ const kBookmarkSingleSentenceSwipeAreaKey = ValueKey(
 );
 
 /// 单句视图所在的播放列表，用于隔离全文与收藏两个分页器。
-enum SingleSentenceStudyScope { full, bookmarks }
+enum FreePlayerSentenceScope { full, bookmarks }
 
 /// 单句视图触发的播放器动作。
 ///
 /// 组件只表达交互意图，不依赖 just_audio 或 media_kit 的 controller。
-class SingleSentenceStudyActions {
-  const SingleSentenceStudyActions({
+class FreePlayerSentenceActions {
+  const FreePlayerSentenceActions({
     required this.onSentenceSelected,
     required this.onBookmarkToggle,
     required this.onStopMainPlayer,
@@ -45,12 +44,13 @@ class SingleSentenceStudyActions {
   final SenseGroupRangePlayback? senseGroupRangePlayback;
 }
 
-/// 音频与视频随心听共用的单句精听视图。
+/// 音频与视频随心听共用的单句分页器。
 ///
-/// 负责句子元信息、难句标记、讲解内容和左右分页；播放状态仍由调用页面对应的
-/// controller 管理。程序化分页期间会屏蔽回调，避免自动推进或循环回卷反向重启播放。
-class SingleSentenceStudyView extends ConsumerStatefulWidget {
-  const SingleSentenceStudyView({
+/// 仅负责随心听的列表位置映射和左右分页；讲解展示统一由
+/// [SentenceExplanationView] 管理。程序化分页期间会屏蔽回调，避免自动推进或
+/// 循环回卷反向重启播放。
+class FreePlayerSentencePager extends StatefulWidget {
+  const FreePlayerSentencePager({
     super.key,
     required this.audioItem,
     required this.sentences,
@@ -68,16 +68,15 @@ class SingleSentenceStudyView extends ConsumerStatefulWidget {
   final Set<int> bookmarkedSentenceIndices;
   final bool showTranscript;
   final bool isPlaying;
-  final SingleSentenceStudyScope scope;
-  final SingleSentenceStudyActions actions;
+  final FreePlayerSentenceScope scope;
+  final FreePlayerSentenceActions actions;
 
   @override
-  ConsumerState<SingleSentenceStudyView> createState() =>
-      _SingleSentenceStudyViewState();
+  State<FreePlayerSentencePager> createState() =>
+      _FreePlayerSentencePagerState();
 }
 
-class _SingleSentenceStudyViewState
-    extends ConsumerState<SingleSentenceStudyView> {
+class _FreePlayerSentencePagerState extends State<FreePlayerSentencePager> {
   final PageController _pageController = PageController();
   bool _pagerSynced = false;
   bool _programmaticPageChange = false;
@@ -88,7 +87,7 @@ class _SingleSentenceStudyViewState
   /// 面板与选区绑定在同一个句子上：`PageView` 每页是独立实例，跨句存活会让
   /// 已离屏的旧 owner 继续把焦点和操作条投影到离屏页的几何上。
   @override
-  void didUpdateWidget(SingleSentenceStudyView oldWidget) {
+  void didUpdateWidget(FreePlayerSentencePager oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentSentenceIndex != widget.currentSentenceIndex) {
       DictionaryPanelHost.maybeOf(context)?.closeIfOpen();
@@ -111,7 +110,7 @@ class _SingleSentenceStudyViewState
     _syncPage(targetPosition);
 
     return PageView.builder(
-      key: widget.scope == SingleSentenceStudyScope.bookmarks
+      key: widget.scope == FreePlayerSentenceScope.bookmarks
           ? kBookmarkSingleSentenceSwipeAreaKey
           : kFullSingleSentenceSwipeAreaKey,
       // 面板开着时不接受滑动：屏障按区域放行正文文本以支持连续点词，而触屏的
@@ -125,38 +124,8 @@ class _SingleSentenceStudyViewState
       onPageChanged: _onPageChanged,
       itemBuilder: (context, position) => _buildSentencePage(
         widget.sentences[position],
+        position: position,
         isActivePage: position == targetPosition,
-      ),
-    );
-  }
-
-  Widget _buildSentenceHeader(Sentence sentence) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        AppSpacing.m,
-        AppSpacing.m,
-        AppSpacing.m,
-      ),
-      child: Row(
-        children: [
-          Text('#${sentence.index + 1}', style: AppTextStyles.caption(context)),
-          const SizedBox(width: AppSpacing.l),
-          Text(
-            '${SubtitleParser.formatDuration(sentence.startTime)} - '
-            '${SubtitleParser.formatDuration(sentence.endTime)}',
-            style: AppTextStyles.caption(context),
-          ),
-          const SizedBox(width: AppSpacing.m),
-          Expanded(
-            child: BookmarkToggleRow(
-              isDifficult: widget.bookmarkedSentenceIndices.contains(
-                sentence.index,
-              ),
-              onTap: () => widget.actions.onBookmarkToggle(sentence.index),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -204,43 +173,45 @@ class _SingleSentenceStudyViewState
     );
   }
 
-  Widget _buildSentencePage(Sentence sentence, {required bool isActivePage}) {
-    return Stack(
-      children: [
-        AnnotationContentView(
-          key: ValueKey(sentence.index),
-          text: sentence.text,
-          aiNotifier: ref.read(sentenceAiNotifierProvider),
-          audioItemId: widget.audioItem.id,
-          sentenceIndex: sentence.index,
-          sentenceStartMs: sentence.startTime.inMilliseconds,
-          sentenceEndMs: sentence.endTime.inMilliseconds,
-          onStopMainPlayer: widget.actions.onStopMainPlayer,
-          senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
-          onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
-          enableGuide: isActivePage,
-          toolbarPlacement: AnnotationToolbarPlacement.scrollWithContent,
-          scrollHeader: _buildSentenceHeader(sentence),
-          // 单句分页器满宽；工具栏、原文和译文各自留出稳定内边距，
-          // 解析内容面板则使用整行宽度与其自身的内容内边距。
-          contentHorizontalPadding: AppSpacing.m,
+  Widget _buildSentencePage(
+    Sentence sentence, {
+    required int position,
+    required bool isActivePage,
+  }) {
+    return SentenceExplanationView(
+      key: ValueKey(sentence.index),
+      text: sentence.text,
+      audioItemId: widget.audioItem.id,
+      sentenceIndex: sentence.index,
+      sentenceStartMs: sentence.startTime.inMilliseconds,
+      sentenceEndMs: sentence.endTime.inMilliseconds,
+      contentHorizontalPadding: AppSpacing.m,
+      scrollHeader: PracticeSentenceInfoRow(
+        progressText: AppLocalizations.of(
+          context,
+        )!.intensiveListenProgress(position + 1, widget.sentences.length),
+        durationText: AppLocalizations.of(context)!.sentenceDuration(
+          (sentence.duration.inMilliseconds / 1000).toStringAsFixed(1),
         ),
-        if (!widget.showTranscript)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.05),
-                  ),
-                ),
-              ),
-            ),
+        timestampText:
+            '${SubtitleParser.formatDuration(sentence.startTime)} - '
+            '${SubtitleParser.formatDuration(sentence.endTime)}',
+        trailing: BookmarkToggleRow(
+          isDifficult: widget.bookmarkedSentenceIndices.contains(
+            sentence.index,
           ),
-      ],
+          onTap: () => widget.actions.onBookmarkToggle(sentence.index),
+        ),
+      ),
+      isExplanationVisible: isActivePage,
+      explanationContext: const SentenceExplanationContext(
+        source: 'freePlayer',
+      ),
+      onStopMainPlayer: widget.actions.onStopMainPlayer,
+      senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
+      onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
+      enableGuide: isActivePage,
+      showTranscript: widget.showTranscript,
     );
   }
 }

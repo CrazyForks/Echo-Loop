@@ -743,6 +743,36 @@ void main() {
       audioEngine.completePlayback(2);
       await Future.wait([firstReplay, secondReplay]);
     });
+
+    test('暂停详情重播后，旧回调不会启动倒计时', () async {
+      final audioEngine = _OverlappingReplayAudioEngine();
+      final pausedContainer = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWith(() => audioEngine),
+          learningSessionProvider.overrideWith(() => TestLearningSession()),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(pausedContainer.dispose);
+      final pausedNotifier = pausedContainer.read(
+        intensiveListenPlayerProvider.notifier,
+      );
+      await pausedNotifier.initialize(sentences);
+      pausedNotifier.enterAnnotationMode();
+
+      final replay = pausedNotifier.exitAnnotationMode();
+      await Future<void>.delayed(Duration.zero);
+      await pausedNotifier.pause();
+      audioEngine.completePlayback(1);
+      await Future<void>.delayed(Duration.zero);
+
+      final paused = pausedContainer.read(intensiveListenPlayerProvider);
+      expect(paused.annotationState?.phase, isA<WaitingAnnotationUser>());
+      expect(paused.isAnnotationReplay, isFalse);
+      expect(paused.isPauseBetweenSentences, isFalse);
+      await replay;
+    });
   });
 
   group('开始播放一句时异步保存断点', () {

@@ -28,6 +28,10 @@ class ParagraphPracticeScaffold extends StatelessWidget {
   /// 段落时长文本（如 "32s"）
   final String? durationText;
 
+  /// 整篇音频时间轴上的当前已播放与剩余时长。
+  final Duration? elapsed;
+  final Duration? remaining;
+
   /// 进度条拖动跳转回调（0-based 句索引）；非 null 时进度条可拖动
   final void Function(int targetIndex)? onSeekToIndex;
 
@@ -35,6 +39,7 @@ class ParagraphPracticeScaffold extends StatelessWidget {
 
   /// 视频段落任务的画面插槽；音频任务保持 null。
   final Widget? topContent;
+
   /// 包装页面 body 的可选宿主，例如视频加载状态托管层。
   final Widget Function(Widget child)? bodyWrapper;
 
@@ -63,6 +68,8 @@ class ParagraphPracticeScaffold extends StatelessWidget {
     required this.total,
     required this.progressText,
     this.durationText,
+    this.elapsed,
+    this.remaining,
     this.onSeekToIndex,
     required this.paragraphContent,
     this.topContent,
@@ -88,12 +95,16 @@ class ParagraphPracticeScaffold extends StatelessWidget {
     final body = Column(
       children: [
         if (topContent != null) topContent!,
-        PracticeProgressSection(
+        PracticeProgressBar(
           current: current,
           total: total,
+          onSeek: onSeekToIndex,
+          elapsed: elapsed,
+          remaining: remaining,
+        ),
+        PracticeSentenceInfoRow(
           progressText: progressText,
           durationText: durationText,
-          onSeek: onSeekToIndex,
         ),
         Expanded(child: paragraphContent),
         if (contentControls != null)

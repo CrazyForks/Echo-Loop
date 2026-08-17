@@ -33,7 +33,7 @@ class MediaSenseGroupRangePlayback implements SenseGroupRangePlayback {
   @override
   Future<void> cancel() async {
     _generation++;
-    // 页面切句会清理每个 AnnotationContentView，即使用户从未点过意群。
+    // 页面切句会清理每个 SentenceExplanationView，即使用户从未点过意群。
     // 此时不得暂停共享 MediaEngine 的主句 range，否则会误取消自动跟读。
     if (!_isPlaying) return;
     _isPlaying = false;

@@ -727,9 +727,11 @@ class _BlindListenPlayerScreenState
             durationText: _formatDurationText(
               l10n,
               paragraphDuration: paragraphDuration,
-              totalDuration: player.totalDuration,
-              paragraphTotal: playerState.totalParagraphs,
             ),
+            elapsed: sentences.isEmpty ? null : sentences.first.startTime,
+            remaining: sentences.isEmpty
+                ? null
+                : player.totalDuration - sentences.first.startTime,
             onSeekToIndex: isMultiParagraph
                 ? (p) => ref
                       .read(blindListenPlayerProvider.notifier)
@@ -911,17 +913,11 @@ String _formatHumanDuration(AppLocalizations l10n, Duration duration) {
   return l10n.durationMinutesSeconds(totalSec ~/ 60, totalSec % 60);
 }
 
-/// 时长文案：单段时只显示总长，多段时显示「段长 / 总长」
+/// 时长文案：仅显示当前段落时长。
 String _formatDurationText(
   AppLocalizations l10n, {
   required Duration paragraphDuration,
-  required Duration totalDuration,
-  required int paragraphTotal,
-}) {
-  if (paragraphTotal <= 1) return _formatHumanDuration(l10n, totalDuration);
-  return '${_formatHumanDuration(l10n, paragraphDuration)} / '
-      '${_formatHumanDuration(l10n, totalDuration)}';
-}
+}) => _formatHumanDuration(l10n, paragraphDuration);
 
 /// 统一显示速度标签：始终保留一位小数。
 String _formatSpeed(double speed) => formatPlaybackSpeedLabel(speed);

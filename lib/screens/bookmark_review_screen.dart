@@ -43,7 +43,7 @@ import '../widgets/common/countdown_chip.dart';
 import '../widgets/practice/practice_normal_mode_view.dart';
 import '../widgets/practice/practice_progress_section.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/practice_playback_footer.dart';
 import '../widgets/common/recording_button.dart' show RecordingButtonMode;
@@ -323,9 +323,18 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
               child: Column(
                 children: [
                   // 进度区域（含音频来源名称）
-                  PracticeProgressSection(
+                  PracticeProgressBar(
                     current: playerState.currentSentenceIndex + 1,
                     total: playerState.totalSentences,
+                    elapsed: currentSentence?.startTime,
+                    remaining:
+                        player.bookmarkSentences.isEmpty ||
+                            currentSentence == null
+                        ? null
+                        : player.bookmarkSentences.last.sentence.endTime -
+                              currentSentence.startTime,
+                  ),
+                  PracticeSentenceInfoRow(
                     progressText: l10n.bookmarkReviewProgress(
                       playerState.currentSentenceIndex + 1,
                       playerState.totalSentences,
@@ -346,22 +355,24 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                     child: playerState.isAnnotationMode
                         ? Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.l,
+                              horizontal: AppSpacing.m,
                             ),
                             child: currentSentence == null
                                 ? const SizedBox.shrink()
                                 : Column(
                                     children: [
                                       Expanded(
-                                        child: AnnotationContentView(
+                                        child: SentenceExplanationView(
                                           text: currentSentence.text,
                                           aiNotifier: ref.read(
                                             sentenceAiNotifierProvider,
                                           ),
                                           audioItemId:
                                               currentBookmark?.audioItemId,
-                                          sentenceIndex: currentBookmark
-                                              ?.originalSentenceIndex,
+                                          sentenceIndex:
+                                              currentBookmark
+                                                  ?.originalSentenceIndex ??
+                                              currentSentence.index,
                                           sentenceStartMs: currentSentence
                                               .startTime
                                               .inMilliseconds,

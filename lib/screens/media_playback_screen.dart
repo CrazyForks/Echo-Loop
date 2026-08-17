@@ -23,7 +23,7 @@ import '../utils/playback_speed.dart';
 import '../widgets/common/anchored_bubble.dart';
 import '../widgets/common/audio_app_bar_title.dart';
 import '../widgets/common/paragraph_sentence_list_card.dart';
-import '../widgets/common/single_sentence_study_view.dart';
+import '../widgets/common/free_player_sentence_pager.dart';
 import '../widgets/common/media_visual_surface.dart';
 import '../widgets/common/managed_media_visual_surface.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
@@ -403,7 +403,7 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     if (settings.singleSentenceMode && currentSentenceIndex != null) {
       final audioItem = state.audioItem ?? widget.audioItem;
       final isBookmarkMode = mode == PlaylistMode.bookmarks;
-      return SingleSentenceStudyView(
+      return FreePlayerSentencePager(
         key: PageStorageKey(
           'media-single-sentence-${audioItem.id}-${mode.name}',
         ),
@@ -414,9 +414,9 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
         showTranscript: settings.showTranscript,
         isPlaying: state.isPlaying,
         scope: isBookmarkMode
-            ? SingleSentenceStudyScope.bookmarks
-            : SingleSentenceStudyScope.full,
-        actions: SingleSentenceStudyActions(
+            ? FreePlayerSentenceScope.bookmarks
+            : FreePlayerSentenceScope.full,
+        actions: FreePlayerSentenceActions(
           onSentenceSelected: isBookmarkMode
               ? controller.selectBookmarkedSentence
               : controller.selectFullSentence,

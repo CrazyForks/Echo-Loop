@@ -23,6 +23,20 @@ void main() {
       expect(find.byIcon(Icons.star), findsOneWidget);
     });
 
+    testWidgets('使用紧凑的 32dp 按钮高度', (tester) async {
+      await tester.pumpWidget(
+        createTestApp(
+          AsyncToggleButton(
+            label: 'Compact',
+            icon: Icons.star,
+            onPressed: () async {},
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(AsyncToggleButton)).height, 32);
+    });
+
     testWidgets('点击触发 onPressed', (tester) async {
       var pressed = false;
       await tester.pumpWidget(

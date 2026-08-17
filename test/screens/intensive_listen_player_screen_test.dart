@@ -29,8 +29,8 @@ import 'package:echo_loop/services/notification_permission_service.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
-import 'package:echo_loop/widgets/common/playback_controls.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
 
 import '../helpers/mock_providers.dart';
 
@@ -452,6 +452,37 @@ void main() {
 
       expect(find.text('Peek at subtitles'), findsOneWidget);
       expect(find.text('Unclear'), findsOneWidget);
+    });
+
+    testWidgets('讲解工具栏随内容滚动，句次和收藏保留在顶部进度区', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(isAnnotationMode: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scrollView = find.descendant(
+        of: find.byType(SentenceExplanationView),
+        matching: find.byType(SingleChildScrollView),
+      );
+
+      expect(scrollView, findsOneWidget);
+      expect(
+        find.ancestor(of: find.text('Sentence 1/5'), matching: scrollView),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(BookmarkToggleRow),
+          matching: find.byType(SentenceExplanationView),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester.getRect(find.byType(SentenceExplanationView)).left,
+        closeTo(tester.getRect(find.text('Sentence 1/5')).left, 1),
+      );
     });
 
     testWidgets('普通模式显示播放遍数（默认 1 次）', (tester) async {

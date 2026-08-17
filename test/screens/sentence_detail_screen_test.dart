@@ -6,7 +6,8 @@ import 'package:echo_loop/providers/media_playback/media_playback_provider.dart'
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/screens/sentence_detail_screen.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
-import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,8 +93,8 @@ void main() {
     );
     await tester.pump();
 
-    final annotation = tester.widget<AnnotationContentView>(
-      find.byType(AnnotationContentView),
+    final annotation = tester.widget<SentenceExplanationView>(
+      find.byType(SentenceExplanationView),
     );
     expect(annotation.senseGroupRangePlayback, same(rangePlayback));
 
@@ -102,6 +103,43 @@ void main() {
 
     expect(rangePlayback.start, const Duration(seconds: 1));
     expect(rangePlayback.end, const Duration(seconds: 3));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('详情页顶部信息行与讲解区使用相同水平边距', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        SentenceDetailScreen(
+          args: const SentenceDetailArgs(
+            audioItemId: 'media-item',
+            audioName: 'Media item',
+            sentenceText: 'A sentence for alignment.',
+            sentenceIndex: 0,
+            totalSentenceCount: 10,
+            startTimeMs: 1000,
+            endTimeMs: 3000,
+          ),
+        ),
+        overrides: detailOverrides(),
+      ),
+    );
+    await tester.pump();
+
+    final progress = find.textContaining('第 1/10 句');
+    final annotation = find.byType(SentenceExplanationView);
+    expect(progress, findsOneWidget);
+    expect(annotation, findsOneWidget);
+    expect(tester.getRect(annotation).left, closeTo(AppSpacing.m, 1));
+    expect(tester.getRect(progress).left, closeTo(AppSpacing.m, 1));
+    expect(
+      tester
+          .getSize(
+            find.byKey(const ValueKey('sentence-detail-explanation-gap')),
+          )
+          .height,
+      6,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });

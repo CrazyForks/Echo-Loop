@@ -32,7 +32,7 @@ import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/media_visual_surface.dart';
 import '../widgets/common/tappable_wrapper.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 
 /// 句子讲解页借用的视频会话。
 ///
@@ -391,7 +391,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                   // 句子进度与收藏操作保持单行，方便用户快速确认当前位置。
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.l,
+                      AppSpacing.m,
                       AppSpacing.m,
                       AppSpacing.l,
                       0,
@@ -418,21 +418,25 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.m),
+                  const SizedBox(
+                    key: ValueKey('sentence-detail-explanation-gap'),
+                    height: 6,
+                  ),
 
                   // 主体内容：解析/翻译/意群 + 句子文本
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.l,
+                        horizontal: AppSpacing.m,
                       ),
-                      child: AnnotationContentView(
+                      child: SentenceExplanationView(
                         text: args.sentenceText,
                         aiNotifier: ref.read(sentenceAiNotifierProvider),
                         audioItemId: args.audioItemId,
                         sentenceIndex: args.sentenceIndex,
                         sentenceStartMs: args.startTimeMs,
                         sentenceEndMs: args.endTimeMs,
+                        autoLoadSentenceAi: true,
                         onStopMainPlayer: () {
                           final rangePlayback = args.rangePlayback;
                           if (rangePlayback != null) {
@@ -443,7 +447,6 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                           if (_isPlaying) setState(() => _isPlaying = false);
                         },
                         senseGroupRangePlayback: args.rangePlayback,
-                        autoLoadSentenceAi: true,
                       ),
                     ),
                   ),
