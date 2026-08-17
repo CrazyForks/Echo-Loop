@@ -263,7 +263,7 @@ void reviewSubStageTests() {
 
       expect(find.text('Practice saved sentences'), findsOneWidget);
       // 可拖动进度条（多句为吸附滑块，单句为 LinearProgressIndicator）
-      expect(find.byType(PracticeProgressSection), findsOneWidget);
+      expect(find.byType(PracticeProgressBar), findsOneWidget);
       expect(find.text('Sentence 1/3'), findsOneWidget);
       expect(find.text('Peek'), findsOneWidget);
       expect(find.text('Unclear'), findsOneWidget);

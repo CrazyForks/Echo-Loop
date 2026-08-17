@@ -23,7 +23,7 @@ import 'package:echo_loop/services/tts/kokoro_tts_engine.dart';
 import 'package:echo_loop/services/tts/tts_cache_store.dart';
 import 'package:echo_loop/services/tts/tts_coordinator.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
-import 'package:echo_loop/services/tts/tts_player.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 
 /// 包装真实引擎，统计 synthesize 调用次数（验证缓存命中不重复合成）。
 class _CountingEngine implements TtsEngine {
@@ -179,7 +179,7 @@ void main() {
           return counting!;
         },
         cacheStore: cacheStore,
-        player: TtsPlayer(),
+        player: LocalAudioClipPlayer(),
       );
       addTearDown(coordinator.dispose);
 

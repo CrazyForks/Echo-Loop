@@ -194,8 +194,8 @@ void retellTests() {
       // 验证 AppBar 标题
       expect(find.text('Listen & Retell'), findsOneWidget);
 
-      // 验证进度条（多段为可拖动吸附滑块，统一用 PracticeProgressSection 判定）
-      expect(find.byType(PracticeProgressSection), findsOneWidget);
+      // 验证进度条（多段为可拖动吸附滑块，统一用 PracticeProgressBar 判定）
+      expect(find.byType(PracticeProgressBar), findsOneWidget);
 
       // 验证段落进度信息
       expect(find.textContaining('1/3'), findsWidgets);

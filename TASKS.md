@@ -3,6 +3,11 @@
 > 最后更新：2026-08-17（修复 GitHub CI 单测 native 播放器初始化）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 修复 GitHub CI 静态分析中的失效集成测试引用：进度布局重构后将三个
+  `PracticeProgressSection` 断言同步为 `PracticeProgressBar`，并将 Kokoro TTS
+  集成测试从已删除的 `TtsPlayer` 迁移至当前 `LocalAudioClipPlayer` 依赖。
+  **完成时间**: 2026-08-17
+
 - [x] 优化最近完成条目的媒体图标：使用淡主色圆角图标容器、主色完成勾选徽标与更均衡的间距，避免覆盖媒体主体图标；补充图标尺寸与徽标布局回归断言。**完成时间**: 2026-08-17
 
 - [x] 修复 GitHub CI 单测因未打包 `media_kit` native 播放器导致的 TTS 级联失败：短音频播放器在 native backend 不可用时降级为明确失败后端，保持 TTS 回退链路与测试状态机可运行；补充 TTS 控制器与设置页定向回归。**完成时间**: 2026-08-17

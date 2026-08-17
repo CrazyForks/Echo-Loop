@@ -95,7 +95,7 @@ void intensiveListenTests() {
       expect(find.text('Intensive Listening'), findsOneWidget);
 
       // 验证进度条（可拖动进度条：多句时为吸附滑块，单句为 LinearProgressIndicator）
-      expect(find.byType(PracticeProgressSection), findsOneWidget);
+      expect(find.byType(PracticeProgressBar), findsOneWidget);
 
       // 验证播放控制按钮
       expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
