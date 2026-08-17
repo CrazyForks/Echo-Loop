@@ -18,12 +18,14 @@ import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
 import '../providers/favorite_review_settings_provider.dart';
 import '../providers/dictionary/lookup_controller.dart';
 import '../providers/dictionary/dictionary_registry.dart';
+import '../providers/pronunciation/pronunciation_providers.dart';
 import '../database/providers.dart';
 import '../models/dictionary/dictionary_lookup_result.dart';
 import '../models/flashcard_item.dart';
 import '../router/app_router.dart';
 import '../widgets/dictionary/ai_dict_result_view.dart';
 import '../widgets/dictionary/local_dict_result_view.dart';
+import '../widgets/dictionary/pronunciation_controls.dart';
 import '../services/dictionary/dictionary_source.dart';
 import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
@@ -397,6 +399,9 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final card = widget.card;
+    final pronunciationClips = _isSingleWord
+        ? ref.watch(pronunciationClipsProvider(card.displayText))
+        : const [];
     final aiLookup = _showAi
         ? ref.watch(
             dictionaryLookupControllerProvider(
@@ -428,16 +433,18 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ),
-                    IconButton(
-                      key: const Key('favorite-vocabulary-review-word-speak'),
-                      tooltip: '播放发音',
-                      onPressed: () => unawaited(
-                        ref
-                            .read(favoriteVocabularyReviewProvider.notifier)
-                            .replayCurrent(),
+                    // 多发音 badge 已提供逐条播放，标题行不再重复提供总播放入口。
+                    if (pronunciationClips.length <= 1)
+                      IconButton(
+                        key: const Key('favorite-vocabulary-review-word-speak'),
+                        tooltip: '播放发音',
+                        onPressed: () => unawaited(
+                          ref
+                              .read(favoriteVocabularyReviewProvider.notifier)
+                              .replayCurrent(),
+                        ),
+                        icon: const Icon(Icons.volume_up_outlined),
                       ),
-                      icon: const Icon(Icons.volume_up_outlined),
-                    ),
                   ],
                 ),
                 if (_isSingleWord) ...[
@@ -580,18 +587,33 @@ class _LocalDictionarySectionState
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<DictionaryLookupResult?>(
-    future: _lookup,
-    builder: (context, snapshot) {
-      if (snapshot.data case final LocalDictResult result) {
-        return LocalDictResultView(
-          state: LookupLoaded(result),
-          word: widget.word,
-        );
-      }
-      return const SizedBox.shrink();
-    },
-  );
+  Widget build(BuildContext context) {
+    final clips = ref.watch(pronunciationClipsProvider(widget.word));
+    return FutureBuilder<DictionaryLookupResult?>(
+      future: _lookup,
+      builder: (context, snapshot) {
+        if (snapshot.data case final LocalDictResult result) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (clips.length > 1) ...[
+                PronunciationBadgeGroup(
+                  clips: clips,
+                  fallbackText: widget.word,
+                ),
+                const SizedBox(height: AppSpacing.s),
+              ],
+              LocalDictResultView(
+                state: LookupLoaded(result),
+                word: widget.word,
+              ),
+            ],
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
 }
 
 /// 来源材料入口只读取标题；播放仍由来源句统一播放编排负责。
