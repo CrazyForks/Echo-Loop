@@ -199,22 +199,26 @@ class _FreePlayerSentencePagerState extends State<FreePlayerSentencePager> {
           ),
         ),
         Expanded(
-          child: SentenceExplanationView(
-            key: ValueKey(sentence.index),
-            text: sentence.text,
-            audioItemId: widget.audioItem.id,
-            sentenceIndex: sentence.index,
-            sentenceStartMs: sentence.startTime.inMilliseconds,
-            sentenceEndMs: sentence.endTime.inMilliseconds,
-            contentHorizontalPadding: AppSpacing.m,
-            explanationContext: const SentenceExplanationContext(
-              source: 'freePlayer',
+          // 与其余句子练习页一致，由宿主统一提供讲解区横向边距。
+          // 不能只传入内容内边距，否则解析面板会绕过该间距贴到页面边缘。
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+            child: SentenceExplanationView(
+              key: ValueKey(sentence.index),
+              text: sentence.text,
+              audioItemId: widget.audioItem.id,
+              sentenceIndex: sentence.index,
+              sentenceStartMs: sentence.startTime.inMilliseconds,
+              sentenceEndMs: sentence.endTime.inMilliseconds,
+              explanationContext: const SentenceExplanationContext(
+                source: 'freePlayer',
+              ),
+              onStopMainPlayer: widget.actions.onStopMainPlayer,
+              senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
+              onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
+              enableGuide: isActivePage,
+              showTranscript: widget.showTranscript,
             ),
-            onStopMainPlayer: widget.actions.onStopMainPlayer,
-            senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
-            onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
-            enableGuide: isActivePage,
-            showTranscript: widget.showTranscript,
           ),
         ),
       ],

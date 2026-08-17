@@ -1201,12 +1201,7 @@ class _SentenceExplanationViewState
   }
 }
 
-/// 工具栏固定在正文滚动区上方，不随内容滚动。
-///
-/// 工具栏高度会因 [SentenceAnnotationCard] 首帧挂载延迟、翻译/解析/意群异步
-/// 加载而反复变化；若与正文共用同一滚动位置，一旦滚动残留非 0 偏移，工具栏
-/// 作为最靠上的元素会被裁切（见 CLAUDE.md 7.13/7.28 同类滚动位置踩坑）。
-/// 工具栏本身不需要滚动展示，故拆出滚动区域即可从根源避免。
+/// 讲解工具栏与正文属于同一个滚动容器，保证所有讲解内容同步滚动。
 class _AnnotationContentLayout extends StatelessWidget {
   const _AnnotationContentLayout({
     required this.toolbar,
@@ -1218,17 +1213,12 @@ class _AnnotationContentLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        toolbar,
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: AppSpacing.l),
-            child: content,
-          ),
-        ),
-      ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.l),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [toolbar, content],
+      ),
     );
   }
 }

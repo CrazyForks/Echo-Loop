@@ -29,6 +29,7 @@ import 'package:echo_loop/database/app_database.dart' show AudioItem, Bookmark;
 import 'package:echo_loop/database/daos/audio_item_dao.dart';
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../helpers/mock_providers.dart';
@@ -685,6 +686,12 @@ void main() {
         expect(find.byType(PracticeSentenceInfoRow), findsOneWidget);
         expect(find.byType(BookmarkToggleRow), findsOneWidget);
         expect(find.byType(ParagraphSentenceListCard), findsNothing);
+
+        // 随心听讲解区与信息行共用宿主级水平边距，解析面板也不会贴边。
+        expect(
+          tester.getRect(find.byType(SentenceExplanationView)).left,
+          AppSpacing.m,
+        );
         await _disposeTree(tester);
       });
 
@@ -717,7 +724,7 @@ void main() {
         await _disposeTree(tester);
       });
 
-      testWidgets('句子信息、难句标记和讲解工具栏固定在正文滚动区上方', (tester) async {
+      testWidgets('信息行固定，讲解工具栏与正文位于同一滚动区', (tester) async {
         final item = createTestAudioItem();
         final sentences = createTestSentences(count: 3);
 
@@ -757,7 +764,7 @@ void main() {
         );
         expect(
           find.ancestor(of: find.text('Analysis'), matching: scrollView),
-          findsNothing,
+          findsOneWidget,
         );
         await _disposeTree(tester);
       });

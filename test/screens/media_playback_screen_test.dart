@@ -15,6 +15,7 @@ import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/screens/media_playback_screen.dart';
 import 'package:echo_loop/services/media_session_router.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
+import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:echo_loop/widgets/common/paragraph_sentence_list_card.dart';
 import 'package:echo_loop/widgets/common/masked_sentence_tile.dart';
@@ -498,9 +499,21 @@ void main() {
       ),
       findsNothing,
     );
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('analysis')),
+        matching: explanationScroll,
+      ),
+      findsOneWidget,
+    );
 
     final pagerRect = tester.getRect(
       find.byKey(kFullSingleSentenceSwipeAreaKey),
+    );
+    expect(
+      tester.getRect(find.byType(SentenceExplanationView).hitTestable()).left,
+      pagerRect.left + AppSpacing.m,
+      reason: '视频随心听讲解区应相对分页器保留宿主级水平边距',
     );
     final toolbarRect = tester.getRect(find.byKey(const ValueKey('analysis')));
     final viewportWidth =

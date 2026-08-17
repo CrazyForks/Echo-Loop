@@ -293,7 +293,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('默认布局讲解工具栏固定在正文滚动区上方，不随内容滚动', (tester) async {
+  testWidgets('默认布局讲解工具栏与正文位于同一滚动区', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();
     when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
@@ -314,7 +314,7 @@ void main() {
     expect(scrollView, findsOneWidget);
     expect(
       find.ancestor(of: find.text('Analysis'), matching: scrollView),
-      findsNothing,
+      findsOneWidget,
     );
   });
 
