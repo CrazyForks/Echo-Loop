@@ -15,6 +15,7 @@ class _FakePlayback extends PronunciationPlaybackController {
   Future<void> play(
     PronunciationClip clip, {
     required String fallbackText,
+    String? fallbackKey,
   }) async {}
 }
 

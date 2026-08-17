@@ -659,7 +659,10 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     // 收藏列表始终逐句播放，切换单句循环开关不应打断它。
     // 播放状态流回调可能晚于底层 play；切换循环时以 MediaEngine 的 backend 真值
     // 判断是否需要接管，避免 provider state 尚未回写而丢掉用户的设置变更。
-    if (_engine.isPlaying && wasSentenceDriven != willUseSentenceDriven) {
+    // provider 状态先于底层 transport 更新；切换发生在 play/区间播放建立期间时，
+    // 仅检查 backend 会漏掉这次接管，导致设置变更要等下一次手动播放才生效。
+    if ((state.isPlaying || _engine.isPlaying) &&
+        wasSentenceDriven != willUseSentenceDriven) {
       if (willUseSentenceDriven) {
         // 用户开启单句循环时明确要求立即从当前句句首重播。
         _launchSentenceDriven(
@@ -854,12 +857,18 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     bool resetWholeLoops = false,
   }) async {
     final gen = ++_playbackGen;
+    final wasSentenceDriven = _activeSentenceDrivenPlayback;
     _activeSentenceDrivenPlayback = false;
     _awaitingReplayFromStart = false;
     if (resetWholeLoops) {
       state = state.copyWith(wholeLoopsDone: 0, sentenceRepeatsDone: 0);
     }
     _playbackSessionId = _engine.newSession();
+    if (wasSentenceDriven) {
+      // 区间播放可能仍在等待结束；先取消其迟到的 pause/完成回调，避免切换到整篇
+      // 播放后旧协程把新的播放状态改回暂停。
+      await _engine.cancelActiveRange(reason: 'switch-to-whole-playback');
+    }
     AppLogger.log(
       'MediaPlayback',
       'start whole: gen=$gen session=$_playbackSessionId',

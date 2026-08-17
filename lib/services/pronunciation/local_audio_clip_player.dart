@@ -17,6 +17,34 @@ abstract interface class PronunciationPlayerBackend {
   Future<void> dispose();
 }
 
+/// native media backend 不可用时的降级实现（例如未打包 Mpv 的单测环境）。
+///
+/// 该后端不伪造播放成功，只让调用方收到失败结果并继续既有回退链路。
+class UnavailablePronunciationPlayerBackend
+    implements PronunciationPlayerBackend {
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get errors =>
+      Stream<String>.value('native backend unavailable');
+
+  @override
+  Stream<Duration> get positions => const Stream<Duration>.empty();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  Future<void> open(String filePath, {Duration start = Duration.zero}) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 /// 基于 media_kit 的无画面音轨播放后端。
 ///
 /// 未附加 [VideoController] 时，media_kit 原生播放器会禁用视频轨解码；
@@ -59,7 +87,20 @@ class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
 /// 前台 [MediaKitPlayerBackend] 和媒体呈现宿主，而不是此服务。
 class LocalAudioClipPlayer {
   LocalAudioClipPlayer({PronunciationPlayerBackend? backend})
-    : _backend = backend ?? MediaKitPronunciationPlayerBackend();
+    : _backend = backend ?? _createDefaultBackend();
+
+  static PronunciationPlayerBackend _createDefaultBackend() {
+    try {
+      return MediaKitPronunciationPlayerBackend();
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'PronunciationPlayer',
+        'native backend unavailable; using failed-playback fallback: '
+            '$error\n$stackTrace',
+      );
+      return UnavailablePronunciationPlayerBackend();
+    }
+  }
 
   final PronunciationPlayerBackend _backend;
   int _sessionId = 0;

@@ -469,7 +469,7 @@ void main() {
   test('播放中开启单句循环会立即从当前句句首接管', () async {
     final controller = await loadController();
     unawaited(controller.play());
-    await Future<void>.delayed(Duration.zero);
+    await waitUntil(() => backend.playCalls == 1);
     backend.emitPosition(const Duration(seconds: 65));
     await Future<void>.delayed(Duration.zero);
 
@@ -484,9 +484,8 @@ void main() {
           ),
     );
 
-    await waitUntil(
-      () => backend.seekCalls.last == const Duration(seconds: 60),
-    );
+    await waitUntil(() => backend.playCalls == 2);
+    expect(backend.seekCalls.last, const Duration(seconds: 60));
     final state = container.read(mediaPlaybackProvider);
     expect(state.currentFullIndex, 1);
     expect(state.sentenceRepeatsDone, 0);
