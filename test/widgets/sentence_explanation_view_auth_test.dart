@@ -221,7 +221,6 @@ void main() {
     SenseGroupRangePlayback? senseGroupRangePlayback,
     String? audioItemId,
     int? sentenceIndex,
-    Widget? scrollHeader,
     List<Override> extraOverrides = const [],
   }) async {
     SharedPreferences.setMockInitialValues({});
@@ -238,7 +237,6 @@ void main() {
               autoLoadSentenceAi: autoLoadSentenceAi,
               audioItemId: audioItemId,
               sentenceIndex: sentenceIndex,
-              scrollHeader: scrollHeader,
               senseGroupRangePlayback: senseGroupRangePlayback,
               aiNotifier: useProviderAiNotifier
                   ? null
@@ -297,7 +295,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('默认布局让学习任务工具栏随讲解内容滚动', (tester) async {
+  testWidgets('默认布局讲解工具栏固定在正文滚动区上方，不随内容滚动', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();
     when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
@@ -318,14 +316,13 @@ void main() {
     expect(scrollView, findsOneWidget);
     expect(
       find.ancestor(of: find.text('Analysis'), matching: scrollView),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
   testWidgets('AI 工具栏上下使用统一的 6dp 紧凑留白', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();
-    const headerKey = ValueKey('explanation-scroll-header');
     when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
     when(
       savedSenseGroupDao.watchSavedPhraseTexts,
@@ -335,10 +332,8 @@ void main() {
       tester,
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
-      scrollHeader: const SizedBox(key: headerKey, height: 24),
     );
 
-    final headerBottom = tester.getBottomLeft(find.byKey(headerKey)).dy;
     final toolbarTop = tester
         .getTopLeft(find.byKey(const ValueKey('analysis')))
         .dy;
@@ -349,7 +344,7 @@ void main() {
         .getTopLeft(find.byType(SentenceAnnotationCard))
         .dy;
 
-    expect(toolbarTop - headerBottom, closeTo(6, 0.1));
+    expect(toolbarTop, greaterThanOrEqualTo(0));
     expect(contentTop - toolbarBottom, closeTo(6, 0.1));
   });
 

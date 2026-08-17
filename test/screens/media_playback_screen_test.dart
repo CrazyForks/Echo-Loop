@@ -487,6 +487,17 @@ void main() {
     expect(find.byKey(const ValueKey('fake-video-view')), findsOneWidget);
     expect(find.text('Sentence 1/2'), findsOneWidget);
     expect(find.text('0:01 - 0:03'), findsOneWidget);
+    final explanationScroll = find.descendant(
+      of: find.byType(SentenceExplanationView),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(
+      find.ancestor(
+        of: find.byType(PracticeSentenceInfoRow),
+        matching: explanationScroll,
+      ),
+      findsNothing,
+    );
 
     final pagerRect = tester.getRect(
       find.byKey(kFullSingleSentenceSwipeAreaKey),
@@ -497,6 +508,72 @@ void main() {
     expect(pagerRect.left, greaterThan(0));
     expect(pagerRect.right, greaterThanOrEqualTo(viewportWidth));
     expect(toolbarRect.left, greaterThan(pagerRect.left));
+  });
+
+  testWidgets('竖屏手机尺寸下单句模式讲解区应完整显示句子正文', (tester) async {
+    final originalPhysicalSize = tester.view.physicalSize;
+    final originalDevicePixelRatio = tester.view.devicePixelRatio;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(375, 667);
+    addTearDown(() {
+      tester.view.physicalSize = originalPhysicalSize;
+      tester.view.devicePixelRatio = originalDevicePixelRatio;
+    });
+
+    final longSentences = <Sentence>[
+      Sentence(
+        index: 0,
+        text: "And it's challenging too. Do you need any equipment?",
+        startTime: const Duration(seconds: 1),
+        endTime: const Duration(seconds: 3),
+      ),
+      Sentence(
+        index: 1,
+        text: 'Second sentence.',
+        startTime: const Duration(seconds: 4),
+        endTime: const Duration(seconds: 6),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      createTestApp(
+        MediaPlaybackScreen(audioItem: item),
+        overrides: mediaOverrides(
+          withTranscript: true,
+          transcriptOverride: longSentences,
+        ),
+      ),
+    );
+    await pumpMediaReady(tester);
+
+    final context = tester.element(find.byType(MediaPlaybackScreen));
+    final container = ProviderScope.containerOf(context);
+    final controller = container.read(mediaPlaybackProvider.notifier);
+    await controller.updateSettings(
+      container
+          .read(mediaPlaybackProvider)
+          .settings
+          .copyWith(singleSentenceMode: true),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollView = find.descendant(
+      of: find.byType(SentenceExplanationView),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scrollView, findsOneWidget);
+    final scrollable = find.descendant(
+      of: scrollView,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(
+      position.maxScrollExtent,
+      0,
+      reason:
+          '视频可见时讲解区可用高度不应挤压到句子正文需要滚动才能看全，'
+          '否则底部会被 SingleChildScrollView 裁掉一截',
+    );
   });
 
   testWidgets('视频单句模式左滑切到下一句并保持暂停态', (tester) async {

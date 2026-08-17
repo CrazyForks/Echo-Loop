@@ -46,7 +46,7 @@ class FreePlayerSentenceActions {
 
 /// 音频与视频随心听共用的单句分页器。
 ///
-/// 仅负责随心听的列表位置映射和左右分页；讲解展示统一由
+/// 仅负责随心听的列表位置映射、左右分页和宿主布局；讲解展示统一由
 /// [SentenceExplanationView] 管理。程序化分页期间会屏蔽回调，避免自动推进或
 /// 循环回卷反向重启播放。
 class FreePlayerSentencePager extends StatefulWidget {
@@ -178,40 +178,47 @@ class _FreePlayerSentencePagerState extends State<FreePlayerSentencePager> {
     required int position,
     required bool isActivePage,
   }) {
-    return SentenceExplanationView(
-      key: ValueKey(sentence.index),
-      text: sentence.text,
-      audioItemId: widget.audioItem.id,
-      sentenceIndex: sentence.index,
-      sentenceStartMs: sentence.startTime.inMilliseconds,
-      sentenceEndMs: sentence.endTime.inMilliseconds,
-      contentHorizontalPadding: AppSpacing.m,
-      scrollHeader: PracticeSentenceInfoRow(
-        progressText: AppLocalizations.of(
-          context,
-        )!.intensiveListenProgress(position + 1, widget.sentences.length),
-        durationText: AppLocalizations.of(context)!.sentenceDuration(
-          (sentence.duration.inMilliseconds / 1000).toStringAsFixed(1),
-        ),
-        timestampText:
-            '${SubtitleParser.formatDuration(sentence.startTime)} - '
-            '${SubtitleParser.formatDuration(sentence.endTime)}',
-        trailing: BookmarkToggleRow(
-          isDifficult: widget.bookmarkedSentenceIndices.contains(
-            sentence.index,
+    // 信息行属于分页器宿主，固定在讲解滚动区上方；讲解组件只滚动工具栏和正文。
+    return Column(
+      children: [
+        PracticeSentenceInfoRow(
+          progressText: AppLocalizations.of(
+            context,
+          )!.intensiveListenProgress(position + 1, widget.sentences.length),
+          durationText: AppLocalizations.of(context)!.sentenceDuration(
+            (sentence.duration.inMilliseconds / 1000).toStringAsFixed(1),
           ),
-          onTap: () => widget.actions.onBookmarkToggle(sentence.index),
+          timestampText:
+              '${SubtitleParser.formatDuration(sentence.startTime)} - '
+              '${SubtitleParser.formatDuration(sentence.endTime)}',
+          trailing: BookmarkToggleRow(
+            isDifficult: widget.bookmarkedSentenceIndices.contains(
+              sentence.index,
+            ),
+            onTap: () => widget.actions.onBookmarkToggle(sentence.index),
+          ),
         ),
-      ),
-      isExplanationVisible: isActivePage,
-      explanationContext: const SentenceExplanationContext(
-        source: 'freePlayer',
-      ),
-      onStopMainPlayer: widget.actions.onStopMainPlayer,
-      senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
-      onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
-      enableGuide: isActivePage,
-      showTranscript: widget.showTranscript,
+        Expanded(
+          child: SentenceExplanationView(
+            key: ValueKey(sentence.index),
+            text: sentence.text,
+            audioItemId: widget.audioItem.id,
+            sentenceIndex: sentence.index,
+            sentenceStartMs: sentence.startTime.inMilliseconds,
+            sentenceEndMs: sentence.endTime.inMilliseconds,
+            contentHorizontalPadding: AppSpacing.m,
+            isExplanationVisible: isActivePage,
+            explanationContext: const SentenceExplanationContext(
+              source: 'freePlayer',
+            ),
+            onStopMainPlayer: widget.actions.onStopMainPlayer,
+            senseGroupRangePlayback: widget.actions.senseGroupRangePlayback,
+            onToolbarButtonTapped: widget.actions.onToolbarButtonTapped,
+            enableGuide: isActivePage,
+            showTranscript: widget.showTranscript,
+          ),
+        ),
+      ],
     );
   }
 }

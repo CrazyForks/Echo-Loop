@@ -717,7 +717,7 @@ void main() {
         await _disposeTree(tester);
       });
 
-      testWidgets('句子信息和难句标记随讲解内容滚动', (tester) async {
+      testWidgets('句子信息、难句标记和讲解工具栏固定在正文滚动区上方', (tester) async {
         final item = createTestAudioItem();
         final sentences = createTestSentences(count: 3);
 
@@ -746,18 +746,18 @@ void main() {
             of: find.byType(PracticeSentenceInfoRow),
             matching: scrollView,
           ),
-          findsOneWidget,
+          findsNothing,
         );
         expect(
           find.ancestor(
             of: find.byType(BookmarkToggleRow),
             matching: scrollView,
           ),
-          findsOneWidget,
+          findsNothing,
         );
         expect(
           find.ancestor(of: find.text('Analysis'), matching: scrollView),
-          findsOneWidget,
+          findsNothing,
         );
         await _disposeTree(tester);
       });

@@ -123,12 +123,6 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
   final SentenceExplanationContext? explanationContext;
   final bool showTranscript;
 
-  /// 位于讲解工具栏之前、且随讲解内容一起滚动的宿主元信息。
-  ///
-  /// 随心听将句次、时间和收藏操作置于此处，避免固定信息行额外压缩
-  /// 小屏设备上的讲解可视区。
-  final Widget? scrollHeader;
-
   const SentenceExplanationView({
     super.key,
     this.text,
@@ -150,7 +144,6 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
     this.isExplanationVisible = false,
     this.explanationContext,
     this.showTranscript = true,
-    this.scrollHeader,
   });
 
   @override
@@ -1008,7 +1001,6 @@ class _SentenceExplanationViewState
           child: _TranscriptVisibilityMask(
             showTranscript: widget.showTranscript,
             child: _AnnotationContentLayout(
-              scrollHeader: widget.scrollHeader,
               toolbar: Padding(
                 // 紧凑工具栏与相邻信息/正文统一保留 6dp，正文自己的顶部留白
                 // 继续负责维持首行文本的可读起点。
@@ -1218,26 +1210,34 @@ class _SentenceExplanationViewState
   }
 }
 
-/// 讲解工具栏与正文属于同一个滚动容器，确保页面滚动行为一致。
+/// 工具栏固定在正文滚动区上方，不随内容滚动。
+///
+/// 工具栏高度会因 [SentenceAnnotationCard] 首帧挂载延迟、翻译/解析/意群异步
+/// 加载而反复变化；若与正文共用同一滚动位置，一旦滚动残留非 0 偏移，工具栏
+/// 作为最靠上的元素会被裁切（见 CLAUDE.md 7.13/7.28 同类滚动位置踩坑）。
+/// 工具栏本身不需要滚动展示，故拆出滚动区域即可从根源避免。
 class _AnnotationContentLayout extends StatelessWidget {
   const _AnnotationContentLayout({
-    this.scrollHeader,
     required this.toolbar,
     required this.content,
   });
 
-  final Widget? scrollHeader;
   final Widget toolbar;
   final Widget content;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: AppSpacing.l),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [if (scrollHeader != null) scrollHeader!, toolbar, content],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        toolbar,
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.l),
+            child: content,
+          ),
+        ),
+      ],
     );
   }
 }
