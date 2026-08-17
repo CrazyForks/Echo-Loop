@@ -3,6 +3,8 @@
 > 最后更新：2026-08-17（收敛句子讲解 AI 自动加载）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 优化最近完成条目的媒体图标：使用淡主色圆角图标容器、主色完成勾选徽标与更均衡的间距，避免覆盖媒体主体图标；补充图标尺寸与徽标布局回归断言。**完成时间**: 2026-08-17
+
 - [x] 修复随心听首/末句时上一句/下一句按钮仍可点击：`ListeningPracticeState` /
   `MediaPlaybackState`（音频用 `PlayerScreen`、视频用 `MediaPlaybackScreen`，两条
   播放链路各自维护状态）均新增 `isFirstSentence`/`isLastSentence` 计算属性（按

@@ -713,8 +713,18 @@ void main() {
     // 相对时间出现在最近完成区段中
     expect(find.text('2h ago'), findsOneWidget);
     expect(find.text('30m ago'), findsOneWidget);
-    // 完成图标出现在卡片中
-    expect(find.byIcon(Icons.check_circle), findsAtLeast(2));
+    // 媒体图标与「合集」item 同款圆环风格，不再叠加对钩徽标，避免被误认为整个
+    // 音频已学完；完成状态改由左侧绿色条传达。
+    final mediaIcon = tester.widget<SizedBox>(
+      find.byKey(const ValueKey('recent_completion_media_icon')).first,
+    );
+    expect(mediaIcon.width, 36);
+    expect(mediaIcon.height, 36);
+    final accentBars = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((c) => c.color == LearningProgressIcon.completedColor)
+        .toList();
+    expect(accentBars.length, 2);
   });
 
   testWidgets('无最近完成记录时不显示折叠区', (tester) async {

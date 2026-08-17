@@ -699,6 +699,15 @@ class _RecentCompletionTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final audioItems = ref.watch(audioLibraryProvider).audioItems;
+    final progress = ref
+        .watch(learningProgressNotifierProvider)
+        .progressMap[completion.audioId];
+    final isVideo =
+        audioItems
+            .where((item) => item.id == completion.audioId)
+            .firstOrNull
+            ?.isVideo ??
+        false;
     final stage = LearningStage.fromKey(completion.stage);
     final subStage = SubStageType.fromKey(completion.subStage);
     final stageLabel = _stageSubStageLabel(l10n, stage, subStage);
@@ -714,37 +723,29 @@ class _RecentCompletionTile extends ConsumerWidget {
         child: IntrinsicHeight(
           child: Row(
             children: [
-              // 左侧色条（使用 outline 色表示已完成）
-              Container(width: 4, color: theme.colorScheme.outlineVariant),
+              // 左侧绿色条标记本条子步骤已完成（不用对钩，避免误认为整个音频已学完）。
+              Container(
+                width: 4,
+                color: LearningProgressIcon.completedColor,
+              ),
               // 内容区
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, AppSpacing.m, 12),
+                  padding: const EdgeInsets.fromLTRB(12, 10, AppSpacing.m, 10),
                   child: Row(
                     children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          MediaTypeIcon(
-                            isVideo:
-                                audioItems
-                                    .where(
-                                      (item) => item.id == completion.audioId,
-                                    )
-                                    .firstOrNull
-                                    ?.isVideo ??
-                                false,
-                            size: 36,
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                          Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ],
+                      SizedBox(
+                        key: const ValueKey('recent_completion_media_icon'),
+                        width: 36,
+                        height: 36,
+                        child: LearningProgressIcon(
+                          progress: progress,
+                          isVideo: isVideo,
+                          size: 36,
+                          iconSize: 18,
+                        ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
