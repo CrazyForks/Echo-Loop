@@ -41,6 +41,7 @@ import 'package:echo_loop/services/speech_permission_service.dart';
 import 'package:echo_loop/services/transcription_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
+import 'package:echo_loop/widgets/common/playback_controls.dart';
 import 'package:echo_loop/widgets/practice/sentence_annotation_card.dart';
 import 'package:echo_loop/widgets/practice/practice_normal_mode_view.dart';
 import 'package:echo_loop/widgets/common/recording_button.dart';
@@ -525,14 +526,15 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
       expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
 
-      // 按钮始终可用（opacity > 0.15）
-      final checkIcon = find.byIcon(Icons.check_circle_rounded);
-      final opacity = tester.widget<AnimatedOpacity>(
-        find
-            .ancestor(of: checkIcon, matching: find.byType(AnimatedOpacity))
-            .first,
+      // 完成按钮在末句时仍可操作。
+      final completeButton = tester.widget<PlaybackNavButton>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is PlaybackNavButton &&
+              widget.icon == Icons.check_circle_rounded,
+        ),
       );
-      expect(opacity.opacity, greaterThan(0.15));
+      expect(completeButton.enabled, isTrue);
     });
 
     testWidgets('偷看时显示文本', (tester) async {

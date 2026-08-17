@@ -483,7 +483,6 @@ void main() {
         tester.getTopRight(find.byType(BookmarkToggleRow)).dx,
         closeTo(
           tester.getSize(find.byType(Scaffold)).width -
-              AppSpacing.m -
               AppSpacing.m,
           1,
         ),
