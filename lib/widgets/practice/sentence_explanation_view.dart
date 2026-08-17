@@ -105,11 +105,6 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
   /// 回收销毁时其注册回调会落在已 unmount 的 State 上而崩溃。
   final bool enableGuide;
 
-  /// 是否在进入视图时自动加载句子翻译和解析。
-  ///
-  /// 仅讲解详情页启用；未登录时不会自动触发，避免冷启动直接弹登录。
-  final bool autoLoadSentenceAi;
-
   /// 工具栏与句子正文的横向内边距；解析内容面板仍保持满宽，由自身处理内边距。
   final double contentHorizontalPadding;
 
@@ -119,7 +114,6 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
   /// 调用方流程阶段，仅用于诊断日志，不参与调度。
   final String? diagnosticFlowPhase;
 
-  final bool isExplanationVisible;
   final SentenceExplanationContext? explanationContext;
   final bool showTranscript;
 
@@ -137,11 +131,9 @@ class SentenceExplanationView extends ConsumerStatefulWidget {
     this.onTimingsChanged,
     this.onToolbarButtonTapped,
     this.enableGuide = true,
-    this.autoLoadSentenceAi = false,
     this.contentHorizontalPadding = 0,
     this.diagnosticSource,
     this.diagnosticFlowPhase,
-    this.isExplanationVisible = false,
     this.explanationContext,
     this.showTranscript = true,
   });
@@ -919,10 +911,10 @@ class _SentenceExplanationViewState
         .watch(supabaseSessionProvider)
         .valueOrNull
         ?.accessToken;
+    // 讲解视图自包含：是否自动请求只由认证状态和用户 AI 设置决定，
+    // 宿主无需额外传入“启用自动加载”的开关。
     final shouldAutoLoadSentenceAi =
-        (widget.autoLoadSentenceAi || widget.isExplanationVisible) &&
-        accessToken != null &&
-        accessToken.isNotEmpty;
+        accessToken != null && accessToken.isNotEmpty;
     final willStartAutoLoad =
         shouldAutoLoadSentenceAi &&
         (autoShowAiAnalysis ||
@@ -1175,7 +1167,6 @@ class _SentenceExplanationViewState
     required bool translationContextReady,
     required bool willLoad,
   }) {
-    if (!widget.autoLoadSentenceAi && !widget.isExplanationVisible) return;
     final reason = !hasAccessToken
         ? 'missingAuth'
         : !autoShowAiTranslation &&

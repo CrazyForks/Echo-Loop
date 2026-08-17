@@ -211,7 +211,6 @@ void main() {
     required SavedSenseGroupDao savedSenseGroupDao,
     SentenceAiNotifier? aiNotifier,
     bool signedIn = false,
-    bool autoLoadSentenceAi = false,
     bool autoShowAiExplanation = true,
     bool autoShowAiAnalysis = true,
     bool autoShowAiTranslation = true,
@@ -234,7 +233,6 @@ void main() {
             final content = SentenceExplanationView(
               text: 'Hello world.',
               enableGuide: false,
-              autoLoadSentenceAi: autoLoadSentenceAi,
               audioItemId: audioItemId,
               sentenceIndex: sentenceIndex,
               senseGroupRangePlayback: senseGroupRangePlayback,
@@ -366,7 +364,6 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
       useProviderAiNotifier: true,
-      autoLoadSentenceAi: true,
       autoShowAiAnalysis: false,
       extraOverrides: [
         sentenceAiNotifierProvider.overrideWithValue(aiNotifier),
@@ -630,6 +627,7 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
+      autoShowAiExplanation: false,
       aiNotifier: _RecordingSentenceAiNotifier(
         cacheDao: cacheDao,
         apiClient: _NoopSentenceAiApiClient(),
@@ -691,6 +689,7 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
+      autoShowAiExplanation: false,
       aiNotifier: _RecordingSentenceAiNotifier(
         cacheDao: cacheDao,
         apiClient: _NoopSentenceAiApiClient(),
@@ -753,6 +752,7 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
+      autoShowAiExplanation: false,
       aiNotifier: _TwoGroupSentenceAiNotifier(
         cacheDao: cacheDao,
         apiClient: _NoopSentenceAiApiClient(),
@@ -800,7 +800,6 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
-      autoLoadSentenceAi: true,
       aiNotifier: aiNotifier,
     );
 
@@ -835,7 +834,6 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
-      autoLoadSentenceAi: true,
       aiNotifier: aiNotifier,
     );
     await tester.pumpAndSettle();
@@ -862,7 +860,6 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
-      autoLoadSentenceAi: true,
       autoShowAiExplanation: false,
       aiNotifier: aiNotifier,
     );
@@ -890,7 +887,6 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
-      autoLoadSentenceAi: true,
       autoShowAiAnalysis: false,
       autoShowAiTranslation: false,
       autoShowAiSenseGroups: true,
@@ -920,7 +916,6 @@ void main() {
       cacheDao: cacheDao,
       savedSenseGroupDao: savedSenseGroupDao,
       signedIn: true,
-      autoLoadSentenceAi: true,
       autoShowAiExplanation: false,
       aiNotifier: aiNotifier,
     );
@@ -954,7 +949,6 @@ void main() {
       savedSenseGroupDao: savedSenseGroupDao,
       aiNotifier: aiNotifier,
       signedIn: true,
-      autoLoadSentenceAi: true,
       audioItemId: 'audio-1',
       sentenceIndex: 1,
       extraOverrides: [

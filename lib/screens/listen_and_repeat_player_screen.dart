@@ -697,7 +697,6 @@ class _ListenAndRepeatPlayerScreenState
                                                       ?.referenceSegments
                                                 : null,
                                             enableGuide: false,
-                                            autoLoadSentenceAi: isActive,
                                             onStopMainPlayer:
                                                 ctrl.enterWaitingForUser,
                                             onToolbarButtonTapped: () {

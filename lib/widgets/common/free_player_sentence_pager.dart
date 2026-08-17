@@ -207,7 +207,6 @@ class _FreePlayerSentencePagerState extends State<FreePlayerSentencePager> {
             sentenceStartMs: sentence.startTime.inMilliseconds,
             sentenceEndMs: sentence.endTime.inMilliseconds,
             contentHorizontalPadding: AppSpacing.m,
-            isExplanationVisible: isActivePage,
             explanationContext: const SentenceExplanationContext(
               source: 'freePlayer',
             ),

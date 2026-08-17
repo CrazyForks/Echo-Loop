@@ -775,7 +775,6 @@ class _IntensiveListenPlayerScreenState
                                                     .onAnnotationUserInteraction();
                                               },
                                               enableGuide: false,
-                                              autoLoadSentenceAi: isActivePage,
                                             ),
                                           )
                                         : PracticeNormalModeView(

@@ -436,7 +436,6 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                         sentenceIndex: args.sentenceIndex,
                         sentenceStartMs: args.startTimeMs,
                         sentenceEndMs: args.endTimeMs,
-                        autoLoadSentenceAi: true,
                         onStopMainPlayer: () {
                           final rangePlayback = args.rangePlayback;
                           if (rangePlayback != null) {
