@@ -277,9 +277,7 @@ class ListeningPractice extends _$ListeningPractice {
   // ===========================================================================
 
   /// 当前播放列表：全文模式=全部句子；收藏模式=收藏句子。
-  List<Sentence> get _playable => state.playlistMode == PlaylistMode.bookmarks
-      ? state.bookmarkedSentences
-      : state.sentences;
+  List<Sentence> get _playable => state.playableSentences;
 
   /// 是否使用句级 clip 驱动。
   ///
@@ -291,20 +289,7 @@ class ListeningPractice extends _$ListeningPractice {
       state.settings.loopSentence;
 
   /// 当前句在播放列表中的序号（0-based）。列表为空返回 null。
-  int? get _currentPos {
-    final playable = _playable;
-    if (playable.isEmpty) return null;
-    if (state.playlistMode == PlaylistMode.bookmarks) {
-      final ci = state.currentBookmarkIndex;
-      if (ci == null) return 0;
-      final p = playable.indexWhere((s) => s.index == ci);
-      return p == -1 ? 0 : p;
-    } else {
-      final ci = state.currentFullIndex;
-      if (ci == null || ci < 0 || ci >= playable.length) return 0;
-      return ci;
-    }
-  }
+  int? get _currentPos => state.currentPlayablePosition;
 
   // ===========================================================================
   // 引擎事件监听

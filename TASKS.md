@@ -3,6 +3,16 @@
 > 最后更新：2026-08-17（收敛句子讲解 AI 自动加载）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 修复随心听首/末句时上一句/下一句按钮仍可点击：`ListeningPracticeState` /
+  `MediaPlaybackState`（音频用 `PlayerScreen`、视频用 `MediaPlaybackScreen`，两条
+  播放链路各自维护状态）均新增 `isFirstSentence`/`isLastSentence` 计算属性（按
+  `playlistMode` 取全文/收藏播放列表位置判定），两个 provider 内部 `_playable`/
+  `_currentPos` 改为委托给对应 state getter 消除重复；`lib/widgets/playback_controls.dart`
+  与 `media_playback_screen.dart` 的上一句/下一句按钮到达边界时 `onPressed` 传
+  `null`，与精听/盲听/跟读等其它任务使用的 `common/playback_controls.dart` 禁用
+  行为保持一致。补充两条 state 的边界 getter 单测与两个控制栏的按钮禁用回归测试。
+  **完成时间**: 2026-08-17
+
 - [x] 升级应用版本号至 `1.0.30`。**完成时间**: 2026-08-17
 
 - [x] 收敛句子讲解 AI 自动加载：删除 `SentenceExplanationView` 的宿主级

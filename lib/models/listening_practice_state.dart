@@ -69,6 +69,35 @@ class ListeningPracticeState {
   bool get hasAudio => currentAudioItem != null;
   bool get hasSentences => sentences.isNotEmpty;
 
+  /// 当前生效播放列表：全文模式=全部句子；收藏模式=收藏句子。
+  List<Sentence> get playableSentences =>
+      playlistMode == PlaylistMode.bookmarks ? bookmarkedSentences : sentences;
+
+  /// 当前句在 [playableSentences] 中的序号（0-based）。列表为空返回 null。
+  int? get currentPlayablePosition {
+    final playable = playableSentences;
+    if (playable.isEmpty) return null;
+    if (playlistMode == PlaylistMode.bookmarks) {
+      final ci = currentBookmarkIndex;
+      if (ci == null) return 0;
+      final p = playable.indexWhere((s) => s.index == ci);
+      return p == -1 ? 0 : p;
+    }
+    final ci = currentFullIndex;
+    if (ci == null || ci < 0 || ci >= playable.length) return 0;
+    return ci;
+  }
+
+  /// 是否已在播放列表第一句（驱动"上一句"按钮禁用态）。
+  bool get isFirstSentence => (currentPlayablePosition ?? 0) <= 0;
+
+  /// 是否已在播放列表最后一句（驱动"下一句"按钮禁用态）。
+  bool get isLastSentence {
+    final playable = playableSentences;
+    if (playable.isEmpty) return true;
+    return (currentPlayablePosition ?? 0) >= playable.length - 1;
+  }
+
   ListeningPracticeState copyWith({
     AudioItem? currentAudioItem,
     bool clearCurrentAudioItem = false,

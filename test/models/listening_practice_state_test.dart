@@ -224,5 +224,65 @@ void main() {
         expect(state.hasSentences, isFalse);
       });
     });
+
+    group('isFirstSentence / isLastSentence', () {
+      test('全文模式：第一句', () {
+        final state = ListeningPracticeState(
+          sentences: createSentences(3),
+          currentFullIndex: 0,
+        );
+        expect(state.isFirstSentence, isTrue);
+        expect(state.isLastSentence, isFalse);
+      });
+
+      test('全文模式：中间句', () {
+        final state = ListeningPracticeState(
+          sentences: createSentences(3),
+          currentFullIndex: 1,
+        );
+        expect(state.isFirstSentence, isFalse);
+        expect(state.isLastSentence, isFalse);
+      });
+
+      test('全文模式：最后一句', () {
+        final state = ListeningPracticeState(
+          sentences: createSentences(3),
+          currentFullIndex: 2,
+        );
+        expect(state.isFirstSentence, isFalse);
+        expect(state.isLastSentence, isTrue);
+      });
+
+      test('收藏模式：按收藏句子位置判定首/末句', () {
+        final sentences = createSentences(5);
+        final first = ListeningPracticeState(
+          sentences: sentences,
+          bookmarkedIndices: const {1, 3},
+          currentBookmarkIndex: 1,
+          playlistMode: PlaylistMode.bookmarks,
+        );
+        expect(first.isFirstSentence, isTrue);
+        expect(first.isLastSentence, isFalse);
+
+        final last = first.copyWith(currentBookmarkIndex: 3);
+        expect(last.isFirstSentence, isFalse);
+        expect(last.isLastSentence, isTrue);
+      });
+
+      test('无句子时首末句均为 true', () {
+        const state = ListeningPracticeState();
+        expect(state.isFirstSentence, isTrue);
+        expect(state.isLastSentence, isTrue);
+      });
+
+      test('收藏模式无收藏句时首末句均为 true', () {
+        final state = ListeningPracticeState(
+          sentences: createSentences(3),
+          playlistMode: PlaylistMode.bookmarks,
+        );
+        expect(state.isFirstSentence, isTrue);
+        expect(state.isLastSentence, isTrue);
+      });
+    });
   });
 }

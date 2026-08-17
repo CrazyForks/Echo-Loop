@@ -837,12 +837,17 @@ class _MediaControls extends ConsumerWidget {
             children: [
               _navButton(
                 Icons.skip_previous,
-                () => controller.previousSentence(),
+                state.isFirstSentence
+                    ? null
+                    : () => controller.previousSentence(),
               ),
               const SizedBox(width: _mainControlGap),
               _playPauseButton(context, controller),
               const SizedBox(width: _mainControlGap),
-              _navButton(Icons.skip_next, () => controller.nextSentence()),
+              _navButton(
+                Icons.skip_next,
+                state.isLastSentence ? null : () => controller.nextSentence(),
+              ),
             ],
           ),
         ],
@@ -923,7 +928,7 @@ class _MediaControls extends ConsumerWidget {
     );
   }
 
-  static Widget _navButton(IconData icon, VoidCallback onPressed) {
+  static Widget _navButton(IconData icon, VoidCallback? onPressed) {
     return SizedBox.square(
       dimension: _controlButtonSize,
       child: IconButton(icon: Icon(icon), iconSize: 32, onPressed: onPressed),

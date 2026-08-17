@@ -83,27 +83,13 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     return const MediaPlaybackState();
   }
 
-  List<Sentence> get _playable => state.playlistMode == PlaylistMode.bookmarks
-      ? state.bookmarkedSentences
-      : state.sentences;
+  List<Sentence> get _playable => state.playableSentences;
 
   bool get _usesSentenceDrivenPlayback =>
       state.playlistMode == PlaylistMode.bookmarks ||
       state.settings.loopSentence;
 
-  int? get _currentPos {
-    final playable = _playable;
-    if (playable.isEmpty) return null;
-    if (state.playlistMode == PlaylistMode.bookmarks) {
-      final index = state.currentBookmarkIndex;
-      if (index == null) return 0;
-      final pos = playable.indexWhere((s) => s.index == index);
-      return pos < 0 ? 0 : pos;
-    }
-    final index = state.currentFullIndex;
-    if (index == null || index < 0 || index >= playable.length) return 0;
-    return index;
-  }
+  int? get _currentPos => state.currentPlayablePosition;
 
   /// 准备随心听媒体及其业务数据。
   ///

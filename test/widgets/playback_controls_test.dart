@@ -237,8 +237,15 @@ void main() {
         expect(forward.onPressed, isNotNull);
       });
 
-      testWidgets('有句子时上一句/下一句按钮启用', (tester) async {
-        await tester.pumpWidget(buildControls());
+      testWidgets('有句子且不在首末句时上一句/下一句按钮启用', (tester) async {
+        await tester.pumpWidget(
+          buildControls(
+            state: ListeningPracticeState(
+              sentences: createTestSentences(count: 3),
+              currentFullIndex: 1,
+            ),
+          ),
+        );
         await tester.pumpAndSettle();
 
         final prevButton = tester.widget<IconButton>(
@@ -250,6 +257,50 @@ void main() {
           find.widgetWithIcon(IconButton, Icons.skip_next),
         );
         expect(nextButton.onPressed, isNotNull);
+      });
+
+      testWidgets('第一句时上一句按钮禁用，下一句按钮启用', (tester) async {
+        await tester.pumpWidget(
+          buildControls(
+            state: ListeningPracticeState(
+              sentences: createTestSentences(count: 3),
+              currentFullIndex: 0,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final prevButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.skip_previous),
+        );
+        expect(prevButton.onPressed, isNull);
+
+        final nextButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.skip_next),
+        );
+        expect(nextButton.onPressed, isNotNull);
+      });
+
+      testWidgets('最后一句时下一句按钮禁用，上一句按钮启用', (tester) async {
+        await tester.pumpWidget(
+          buildControls(
+            state: ListeningPracticeState(
+              sentences: createTestSentences(count: 3),
+              currentFullIndex: 2,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final prevButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.skip_previous),
+        );
+        expect(prevButton.onPressed, isNotNull);
+
+        final nextButton = tester.widget<IconButton>(
+          find.widgetWithIcon(IconButton, Icons.skip_next),
+        );
+        expect(nextButton.onPressed, isNull);
       });
 
       testWidgets('点击循环按钮弹出悬浮循环设置浮层', (tester) async {

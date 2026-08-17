@@ -124,14 +124,18 @@ class PlaybackControls extends ConsumerWidget {
               children: [
                 _buildNavButton(
                   icon: Icons.skip_previous,
-                  onPressed: () => controller.previousSentence(),
+                  onPressed: playerState.isFirstSentence
+                      ? null
+                      : () => controller.previousSentence(),
                 ),
                 const SizedBox(width: _mainControlGap),
                 _buildPlayPauseButton(context, playerState, controller),
                 const SizedBox(width: _mainControlGap),
                 _buildNavButton(
                   icon: Icons.skip_next,
-                  onPressed: () => controller.nextSentence(),
+                  onPressed: playerState.isLastSentence
+                      ? null
+                      : () => controller.nextSentence(),
                 ),
               ],
             ),
@@ -193,7 +197,9 @@ class PlaybackControls extends ConsumerWidget {
           _buildNavButton(
             icon: Icons.skip_previous,
             iconSize: 28,
-            onPressed: () => controller.previousSentence(),
+            onPressed: playerState.isFirstSentence
+                ? null
+                : () => controller.previousSentence(),
           ),
           const SizedBox(width: _mainControlGap),
           _buildPlayPauseButton(context, playerState, controller),
@@ -201,7 +207,9 @@ class PlaybackControls extends ConsumerWidget {
           _buildNavButton(
             icon: Icons.skip_next,
             iconSize: 28,
-            onPressed: () => controller.nextSentence(),
+            onPressed: playerState.isLastSentence
+                ? null
+                : () => controller.nextSentence(),
           ),
           const SizedBox(width: 16),
           _buildToggleButton(
@@ -241,7 +249,7 @@ class PlaybackControls extends ConsumerWidget {
 
   Widget _buildNavButton({
     required IconData icon,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     double iconSize = 32,
   }) {
     return SizedBox.square(

@@ -608,6 +608,53 @@ void main() {
     expect(backend.seekCalls.last, const Duration(seconds: 4));
   });
 
+  testWidgets('第一句时上一句按钮禁用，下一句按钮启用', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        MediaPlaybackScreen(audioItem: item),
+        overrides: mediaOverrides(withTranscript: true),
+      ),
+    );
+    await pumpMediaReady(tester);
+
+    final prevButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.skip_previous),
+    );
+    expect(prevButton.onPressed, isNull);
+
+    final nextButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.skip_next),
+    );
+    expect(nextButton.onPressed, isNotNull);
+  });
+
+  testWidgets('最后一句时下一句按钮禁用，上一句按钮启用', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        MediaPlaybackScreen(audioItem: item),
+        overrides: mediaOverrides(withTranscript: true),
+      ),
+    );
+    await pumpMediaReady(tester);
+
+    final context = tester.element(find.byType(MediaPlaybackScreen));
+    final container = ProviderScope.containerOf(context);
+    await container
+        .read(mediaPlaybackProvider.notifier)
+        .selectFullSentence(1, autoPlay: false);
+    await tester.pumpAndSettle();
+
+    final prevButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.skip_previous),
+    );
+    expect(prevButton.onPressed, isNotNull);
+
+    final nextButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.skip_next),
+    );
+    expect(nextButton.onPressed, isNull);
+  });
+
   testWidgets('空收藏点击保持全文和播放位置，且 Snackbar 不堆叠', (tester) async {
     await tester.pumpWidget(
       createTestApp(
