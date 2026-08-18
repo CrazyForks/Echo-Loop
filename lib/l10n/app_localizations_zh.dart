@@ -746,7 +746,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newCollectionOptionTitle => '新建合集';
 
   @override
-  String get newCollectionOptionDescription => '手动添加音频或练习材料';
+  String get newCollectionOptionDescription => '添加音频或视频';
 
   @override
   String get collectionName => '合集名称';
@@ -826,7 +826,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discoverEntryTitleA => '发现资源';
 
   @override
-  String get discoverEntrySubtitleA => '播客 · 托福 · 雅思 · 专四专八，教材...';
+  String get discoverEntrySubtitleA => '播客、托福、雅思、四六级、口译...';
 
   @override
   String get officialCollectionEmpty => '该合集暂无音频';
@@ -852,7 +852,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get collectionNameExists => '已存在同名合集';
 
   @override
-  String get addAudioToCollection => '添加音频';
+  String get addAudioToCollection => '添加音频或视频';
 
   @override
   String get removeFromCollection => '从合集中移除';
@@ -904,10 +904,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeFromCollectionBatchHint => '仅从当前合集移除，音频文件保留。';
 
   @override
-  String get emptyCollection => '合集中还没有音频';
-
-  @override
-  String get tapToAddAudio => '点击 + 添加音频文件';
+  String get emptyCollection => '合集暂无内容';
 
   @override
   String get renameAudio => '重命名';

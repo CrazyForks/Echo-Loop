@@ -70,10 +70,12 @@ void main() {
     required List<AudioItem> items,
     _SpyCollectionList? collectionList,
     _SpyAudioLibrary? audioLibrary,
+    Locale locale = const Locale('en'),
   }) async {
     await tester.pumpWidget(
       createTestScreen(
         const CollectionDetailScreen(collectionId: 'c1'),
+        locale: locale,
         overrides: [
           audioLibraryProvider.overrideWith(
             () =>
@@ -95,6 +97,31 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('空合集展示音视频导入入口并移除旧提示', (tester) async {
+    await pumpScreen(
+      tester,
+      collection: userCollection(),
+      items: const [],
+    );
+
+    expect(find.byIcon(Icons.perm_media_outlined), findsOneWidget);
+    expect(find.text('This collection has no content yet'), findsOneWidget);
+    expect(find.text('Add Audio or Video'), findsOneWidget);
+    expect(find.text('Tap + to add audio files'), findsNothing);
+  });
+
+  testWidgets('空合集在中文环境使用音视频文案', (tester) async {
+    await pumpScreen(
+      tester,
+      collection: userCollection(),
+      items: const [],
+      locale: const Locale('zh'),
+    );
+
+    expect(find.text('合集暂无内容'), findsOneWidget);
+    expect(find.text('添加音频或视频'), findsOneWidget);
+  });
 
   testWidgets('长按进入多选并选中该项，全选后可再取消全选', (tester) async {
     await pumpScreen(

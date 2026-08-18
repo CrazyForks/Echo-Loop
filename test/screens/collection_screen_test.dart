@@ -176,7 +176,7 @@ void main() {
         );
         expect(find.text('New Collection'), findsOneWidget);
         expect(
-          find.text('Add audio manually'),
+          find.text('Add audio or video'),
           findsOneWidget,
         );
         expect(find.text('Subscribe Podcast'), findsOneWidget);

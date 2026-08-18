@@ -546,19 +546,12 @@ class _CollectionEmptyState extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.library_music_outlined,
+            Icons.perm_media_outlined,
             size: 64,
             color: theme.colorScheme.outline,
           ),
           const SizedBox(height: AppSpacing.m),
           Text(l10n.emptyCollection, style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.s),
-          Text(
-            l10n.tapToAddAudio,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
           const SizedBox(height: AppSpacing.l),
           FilledButton.icon(
             onPressed: onAdd,

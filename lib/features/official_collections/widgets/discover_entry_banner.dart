@@ -9,7 +9,7 @@ import '../../../providers/collection_provider.dart';
 
 /// 合集列表顶部固定的「发现资源」入口条。
 ///
-/// 不滚动、永远可见，点击进入 `/discover`。文案固定为「发现资源 / 播客·托福·雅思·专四专八，教材...」，
+/// 不滚动、永远可见，点击进入 `/discover`。文案固定为「发现资源 / 播客、托福、雅思、四六级、口译...」，
 /// 副标题直接列出代表性合集类型，便于用户一眼看出"里面是什么"。
 class DiscoverEntryBanner extends ConsumerWidget {
   /// 点击回调；默认 `context.push('/discover')`。测试可注入 mock。

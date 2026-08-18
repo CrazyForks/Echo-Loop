@@ -769,7 +769,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newCollectionOptionTitle => 'New Collection';
 
   @override
-  String get newCollectionOptionDescription => 'Add audio manually';
+  String get newCollectionOptionDescription => 'Add audio or video';
 
   @override
   String get collectionName => 'Collection Name';
@@ -850,7 +850,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoverEntrySubtitleA =>
-      'Podcasts · TOEFL · IELTS · TEM(4/8), textbook audio files...';
+      'Podcasts, TOEFL, IELTS, CET-4/6, Interpreting...';
 
   @override
   String get officialCollectionEmpty => 'This collection has no audio yet';
@@ -877,7 +877,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'A collection with this name already exists';
 
   @override
-  String get addAudioToCollection => 'Add Audio';
+  String get addAudioToCollection => 'Add Audio or Video';
 
   @override
   String get removeFromCollection => 'Remove from Collection';
@@ -933,10 +933,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only remove from this collection; the audio files are kept.';
 
   @override
-  String get emptyCollection => 'No audio in this collection';
-
-  @override
-  String get tapToAddAudio => 'Tap + to add audio files';
+  String get emptyCollection => 'This collection has no content yet';
 
   @override
   String get renameAudio => 'Rename';

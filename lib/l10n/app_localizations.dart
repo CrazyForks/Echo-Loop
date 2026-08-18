@@ -1457,7 +1457,7 @@ abstract class AppLocalizations {
   /// No description provided for @newCollectionOptionDescription.
   ///
   /// In en, this message translates to:
-  /// **'Add audio manually'**
+  /// **'Add audio or video'**
   String get newCollectionOptionDescription;
 
   /// No description provided for @collectionName.
@@ -1601,7 +1601,7 @@ abstract class AppLocalizations {
   /// No description provided for @discoverEntrySubtitleA.
   ///
   /// In en, this message translates to:
-  /// **'Podcasts · TOEFL · IELTS · TEM(4/8), textbook audio files...'**
+  /// **'Podcasts, TOEFL, IELTS, CET-4/6, Interpreting...'**
   String get discoverEntrySubtitleA;
 
   /// No description provided for @officialCollectionEmpty.
@@ -1649,7 +1649,7 @@ abstract class AppLocalizations {
   /// No description provided for @addAudioToCollection.
   ///
   /// In en, this message translates to:
-  /// **'Add Audio'**
+  /// **'Add Audio or Video'**
   String get addAudioToCollection;
 
   /// No description provided for @removeFromCollection.
@@ -1733,14 +1733,8 @@ abstract class AppLocalizations {
   /// No description provided for @emptyCollection.
   ///
   /// In en, this message translates to:
-  /// **'No audio in this collection'**
+  /// **'This collection has no content yet'**
   String get emptyCollection;
-
-  /// No description provided for @tapToAddAudio.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap + to add audio files'**
-  String get tapToAddAudio;
 
   /// No description provided for @renameAudio.
   ///

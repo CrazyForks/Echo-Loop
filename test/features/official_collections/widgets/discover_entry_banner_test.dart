@@ -42,12 +42,12 @@ Widget _host({required List<Collection> collections, VoidCallback? onTap}) {
 }
 
 void main() {
-  testWidgets('入口卡片：固定显示「发现资源 / 播客·托福·…」', (tester) async {
+  testWidgets('入口卡片：固定显示「发现资源 / 播客、托福、…」', (tester) async {
     await tester.pumpWidget(_host(collections: const []));
     await tester.pumpAndSettle();
 
     expect(find.text('发现资源'), findsOneWidget);
-    expect(find.text('播客 · 托福 · 雅思 · 专四专八，教材...'), findsOneWidget);
+    expect(find.text('播客、托福、雅思、四六级、口译...'), findsOneWidget);
     // 旧 B 态文案不应再出现
     expect(find.text('看看新上架'), findsNothing);
   });
