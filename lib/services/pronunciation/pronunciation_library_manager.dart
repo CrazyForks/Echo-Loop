@@ -14,10 +14,10 @@ import '../reliable_http_downloader.dart';
 import 'pronunciation_repository.dart';
 
 const pronunciationLibraryUrl =
-    'https://cdn.echo-loop.top/dictionary/pronunciation-v1.zip';
+    'https://cdn.echo-loop.top/dictionary/pronunciation-v2.zip';
 const pronunciationLibrarySha256 =
-    'e96d1f26575b8568b5215f413dbffa952c4d7fada9e17df2810f038959cd09b5';
-const pronunciationLibraryVersion = 'v1';
+    'db1bf8c8ec953f48ed05e22f8254cd8385f3c26f0acb630f73aedf14bbb6a1ca';
+const pronunciationLibraryVersion = 'v2';
 
 const _pendingInstallFileName = '_pending_install.json';
 const _downloadPhase = 'downloading';
@@ -121,7 +121,27 @@ class PronunciationLibraryManager {
   }
 
   Future<PronunciationLibraryPaths?> installedPaths() async {
-    return _validatedPathsForDirectory(Directory(await _versionDir()));
+    final paths = await _validatedPathsForDirectory(
+      Directory(await _versionDir()),
+    );
+    if (paths != null) await _removeLegacyV1();
+    return paths;
+  }
+
+  /// v2 已确认可用后清理不再使用的 v1 资源，避免长期占用磁盘空间。
+  Future<void> _removeLegacyV1() async {
+    final legacy = Directory(p.join(await _root(), 'v1'));
+    if (!legacy.existsSync()) return;
+    try {
+      await legacy.delete(recursive: true);
+      AppLogger.log('Pronunciation', 'removed legacy v1 library');
+    } catch (error, stackTrace) {
+      // 清理失败不应让已可用的 v2 发音库降级为失败状态。
+      AppLogger.log(
+        'Pronunciation',
+        'failed to remove legacy v1 library: $error\n$stackTrace',
+      );
+    }
   }
 
   Future<PronunciationLibraryPaths?> _validatedPathsForDirectory(
@@ -231,6 +251,7 @@ class PronunciationLibraryManager {
       if (previous.existsSync()) await previous.delete(recursive: true);
       await _deleteIfExists(await _pendingInstallFile());
       await _deleteIfExists(archive);
+      await _removeLegacyV1();
       return PronunciationLibraryPaths(
         database: p.join(target.path, 'pronunciation.sqlite'),
         audioDirectory: p.join(target.path, 'audio'),

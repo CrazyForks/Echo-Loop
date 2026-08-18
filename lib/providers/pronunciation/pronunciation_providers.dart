@@ -269,7 +269,7 @@ class PronunciationPlaybackController
       }
       completedAnyClip |= result == AudioPlaybackResult.completed;
       if (index < clips.length - 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 200));
       }
     }
     if (sessionId != _sessionId) return;

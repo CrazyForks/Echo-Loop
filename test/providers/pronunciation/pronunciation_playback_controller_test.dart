@@ -102,7 +102,7 @@ ProviderContainer _container({
 
 void main() {
   test(
-    'plays all local word pronunciations in order with a short pause',
+    'plays all local word pronunciations in order with a 200ms pause',
     () async {
       final backend = _FakeBackend();
       final tts = _FakeTtsController();
@@ -117,7 +117,7 @@ void main() {
       expect(backend.openedPaths, _clips.map((clip) => clip.absolutePath));
       expect(
         stopwatch.elapsed,
-        greaterThanOrEqualTo(const Duration(milliseconds: 50)),
+        greaterThanOrEqualTo(const Duration(milliseconds: 200)),
       );
       expect(tts.spoken, isEmpty);
     },

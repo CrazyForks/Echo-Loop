@@ -79,6 +79,8 @@ void main() {
         downloader,
         sha256: digest,
       );
+      Directory(p.join(support.path, 'pronunciation', 'v1'))
+        ..createSync(recursive: true);
 
       final paths = await manager.downloadAndInstall();
 
@@ -88,6 +90,10 @@ void main() {
         isTrue,
       );
       expect(await manager.installedPaths(), isNotNull);
+      expect(
+        Directory(p.join(support.path, 'pronunciation', 'v1')).existsSync(),
+        isFalse,
+      );
       expect(downloader.calls.single.allowResume, isTrue);
       manager.dispose();
     },
@@ -104,10 +110,10 @@ void main() {
     final root = Directory(p.join(support.path, 'pronunciation'))
       ..createSync(recursive: true);
     File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
-      '{"version":"v1","phase":"downloading"}',
+      '{"version":"v2","phase":"downloading"}',
     );
-    File(p.join(root.path, '_dl_v1.zip.part')).writeAsBytesSync([1, 2, 3]);
-    File(p.join(root.path, '_dl_v1.zip.part.meta.json')).writeAsStringSync(
+    File(p.join(root.path, '_dl_v2.zip.part')).writeAsBytesSync([1, 2, 3]);
+    File(p.join(root.path, '_dl_v2.zip.part.meta.json')).writeAsStringSync(
       '{"identityKey":"$digest","downloadedBytes":3}',
     );
 
@@ -117,7 +123,7 @@ void main() {
 
     expect(first.calls.single.allowResume, isTrue);
     expect(await manager.hasPendingInstall(), isFalse);
-    expect(File(p.join(root.path, '_dl_v1.zip.part')).existsSync(), isFalse);
+    expect(File(p.join(root.path, '_dl_v2.zip.part')).existsSync(), isFalse);
     manager.dispose();
   });
 
@@ -132,9 +138,9 @@ void main() {
     final root = Directory(p.join(support.path, 'pronunciation'))
       ..createSync(recursive: true);
     File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
-      '{"version":"v1","phase":"installing"}',
+      '{"version":"v2","phase":"installing"}',
     );
-    File(p.join(root.path, '_dl_v1.zip')).writeAsBytesSync(zip);
+    File(p.join(root.path, '_dl_v2.zip')).writeAsBytesSync(zip);
 
     await manager.recoverInterruptedInstall();
     await manager.downloadAndInstall();
@@ -153,12 +159,12 @@ void main() {
     );
     final root = Directory(p.join(support.path, 'pronunciation'))
       ..createSync(recursive: true);
-    final previous = Directory(p.join(root.path, 'v1.previous'))
+    final previous = Directory(p.join(root.path, 'v2.previous'))
       ..createSync();
     _writeInstalledLibrary(previous, source, digest);
-    Directory(p.join(root.path, 'v1')).createSync();
+    Directory(p.join(root.path, 'v2')).createSync();
     File(p.join(root.path, '_pending_install.json')).writeAsStringSync(
-      '{"version":"v1","phase":"replacing"}',
+      '{"version":"v2","phase":"replacing"}',
     );
 
     await manager.recoverInterruptedInstall();
@@ -216,12 +222,13 @@ List<int> _validArchive(Directory source) {
       id INTEGER PRIMARY KEY,
       word TEXT NOT NULL COLLATE NOCASE,
       locale TEXT NOT NULL,
-      audio_filename TEXT NOT NULL
+      audio_filename TEXT NOT NULL,
+      "order" INTEGER NOT NULL
     )
   ''');
   database.execute(
-    "INSERT INTO pronunciation_audio (word, locale, audio_filename) "
-    "VALUES ('read', 'us', 'read_us.opus')",
+    "INSERT INTO pronunciation_audio (word, locale, audio_filename, \"order\") "
+    "VALUES ('read', 'us', 'read_us.opus', 1)",
   );
   database.dispose();
   final dbBytes = dbFile.readAsBytesSync();
@@ -238,6 +245,6 @@ void _writeInstalledLibrary(Directory target, Directory source, String digest) {
   final audio = Directory(p.join(target.path, 'audio'))..createSync();
   File(p.join(audio.path, 'read_us.opus')).writeAsBytesSync([1, 2, 3]);
   File(p.join(target.path, 'install.json')).writeAsStringSync(
-    '{"version":"v1","sha256":"$digest"}',
+    '{"version":"v2","sha256":"$digest"}',
   );
 }

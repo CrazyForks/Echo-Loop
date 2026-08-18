@@ -28,9 +28,11 @@ class PronunciationRepository {
         RegExp(r'\s').hasMatch(word)) {
       return const [];
     }
+    // 发音包维护的 order 是多发音的权威顺序；文件名用途只用于展示 badge。
     final rows = database.select(
       'SELECT word, locale, audio_filename FROM pronunciation_audio '
-      "WHERE word = ? COLLATE NOCASE AND locale = 'us'",
+      "WHERE word = ? COLLATE NOCASE AND locale = 'us' "
+      'ORDER BY "order" ASC, audio_filename ASC',
       [word],
     );
     final clips = <PronunciationClip>[];
@@ -47,14 +49,6 @@ class PronunciationRepository {
         ),
       );
     }
-    clips.sort((a, b) {
-      final byReason = pronunciationReasonOrder(
-        a.reason,
-      ).compareTo(pronunciationReasonOrder(b.reason));
-      return byReason != 0
-          ? byReason
-          : a.audioFilename.compareTo(b.audioFilename);
-    });
     return clips;
   }
 
@@ -74,7 +68,7 @@ void validatePronunciationDatabase(String databasePath) {
   try {
     final columns = database.select('PRAGMA table_info(pronunciation_audio)');
     final names = columns.map((row) => row['name'] as String).toSet();
-    if (!names.containsAll({'word', 'locale', 'audio_filename'})) {
+    if (!names.containsAll({'word', 'locale', 'audio_filename', 'order'})) {
       throw StateError('Pronunciation database schema is invalid');
     }
     final count =

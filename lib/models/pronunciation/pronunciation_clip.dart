@@ -44,15 +44,3 @@ PronunciationReason? pronunciationReasonFromFilename(String filename) {
   }
   return null;
 }
-
-/// 发音用途的稳定展示顺序。
-int pronunciationReasonOrder(PronunciationReason? reason) => switch (reason) {
-  null => 0,
-  PronunciationReason.noun => 1,
-  PronunciationReason.adjective => 2,
-  PronunciationReason.nounAdjective => 3,
-  PronunciationReason.verb => 4,
-  PronunciationReason.pastTense => 5,
-  PronunciationReason.presentTense => 6,
-  PronunciationReason.interjection => 7,
-};

@@ -20,7 +20,7 @@ void main() {
     expect(pronunciationReasonFromFilename('run_us.opus'), isNull);
   });
 
-  test('单词查询返回排序后的本地音频，短语跳过查询', () {
+  test('单词查询按数据库 order 返回本地音频，短语跳过查询', () {
     final temp = Directory.systemTemp.createTempSync(
       'pronunciation_repository_',
     );
@@ -28,20 +28,20 @@ void main() {
     final path = p.join(temp.path, 'pronunciation.sqlite');
     final fileDb = sqlite3.open(path);
     fileDb.execute(
-      'CREATE TABLE pronunciation_audio (id INTEGER PRIMARY KEY, word TEXT NOT NULL COLLATE NOCASE, locale TEXT NOT NULL, audio_filename TEXT NOT NULL)',
+      'CREATE TABLE pronunciation_audio (id INTEGER PRIMARY KEY, word TEXT NOT NULL COLLATE NOCASE, locale TEXT NOT NULL, audio_filename TEXT NOT NULL, "order" INTEGER NOT NULL)',
     );
     fileDb.execute(
-      "INSERT INTO pronunciation_audio (word, locale, audio_filename) VALUES ('read', 'us', 'read_us_v_present.opus')",
+      "INSERT INTO pronunciation_audio (word, locale, audio_filename, \"order\") VALUES ('read', 'us', 'read_us_v_present.opus', 1)",
     );
     fileDb.execute(
-      "INSERT INTO pronunciation_audio (word, locale, audio_filename) VALUES ('read', 'us', 'read_us_v_past.opus')",
+      "INSERT INTO pronunciation_audio (word, locale, audio_filename, \"order\") VALUES ('read', 'us', 'read_us_v_past.opus', 2)",
     );
     fileDb.dispose();
     repository.open(path, '/audio');
     final clips = repository.lookupSingleWord('READ');
     expect(clips.map((clip) => clip.reason), [
-      PronunciationReason.pastTense,
       PronunciationReason.presentTense,
+      PronunciationReason.pastTense,
     ]);
     expect(repository.lookupSingleWord('read aloud'), isEmpty);
     repository.close();
