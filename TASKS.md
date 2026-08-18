@@ -1,6 +1,157 @@
 # Echo Loop 任务清单
 
-> 最后更新：2026-08-18（完成百度网盘退出后的一次性强制登录）
+> 最后更新：2026-08-18（统一词汇默认发音链路）
+> 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
+
+- [x] 统一查词弹窗、收藏词汇列表与收藏词汇复习正面的默认发音链路：三处均调用
+  `PronunciationPlaybackController.speak()`，单词命中多条离线发音时只播放按数据库
+  `order` 稳定排序后的第一条；查词弹窗的多个发音 badge 仍支持逐条试听。移除复习
+  正面对多发音的自动顺序播放分支，并更新 provider 回归测试。**完成时间**: 2026-08-18
+
+- [x] 收藏词汇复习中单个单词命中多条离线发音时，将相邻音频的顺序播放间隔由
+  50ms 调整为 200ms，并更新播放时序回归测试。**完成时间**: 2026-08-18
+
+- [x] 离线发音库多发音排序改为以 `pronunciation_audio.order` 为唯一主顺序，
+  最小值优先；同值按音频文件名稳定排序。查词面板的发音 badge、收藏词汇复习的默认
+  发音和多发音顺序播放均复用该共享查询结果。安装校验要求新列存在，避免开发期替换的
+  发音包与应用查询契约不一致；补充数据库排序与安装 schema 回归测试。
+  **完成时间**: 2026-08-18
+
+- [x] 离线发音资源升级到 `pronunciation-v2.zip`：使用本地已验证的平铺归档，更新下载
+  地址、实测 SHA-256 和安装版本目录；安装事务、恢复及替换回归同步验证 v2 文件名。
+  v2 安装成功或启动校验通过后自动删除旧 `v1` 目录，删除失败仅记录日志不影响 v2 使用。
+  **完成时间**: 2026-08-18
+
+- [x] 收藏词汇复习背面补齐取消收藏入口：在单词/意群标题行末尾加入轻量“取消收藏”
+  与书签操作。机制与收藏句复习完全一致：先中断播放，再软删除收藏记录，归档 active
+  FSRS 调度快照，最后由通用控制器移除当前卡并进入下一张；任何持久化失败都保留当前卡并
+  提示重试。覆盖单词、意群、归档、队列推进、失败保留与背面入口 widget 回归。
+  **完成时间**: 2026-08-18
+
+- [x] 修复收藏句/词汇复习评分 operationId 跨会话冲突：
+  `ScheduledFlashcardController` 不再提供会话内递增 ID 默认值，改为强制由
+  调用方注入 UUID `MemoryIdGenerator`；同一未知结果提交仍复用原 ID，不同用户
+  评分动作必定生成新 ID。两个复习入口均接入生产 UUID provider，重复/过期操作 ID
+  被确定性拒绝后清空待提交 ID 以允许下一次用户动作重试；评分和控制器日志保留真实
+  异常类型，不再统一打印“rating failed or conflicted”。补充跨会话 ID、旧开发期
+  `scheduled-flashcard-1` 事件兼容和操作 ID 拒绝恢复回归。既有开发数据库无需迁移
+  或手动 SQL：失败评分在 SQLite 事务校验阶段回滚，新 UUID 与历史事件不冲突。
+  **完成时间**: 2026-08-18
+
+- [x] 收藏词汇复习正面仅在单个单词命中多条离线发音时按稳定顺序全部播放，
+  相邻条目间隔 50ms；词组和意群继续走既有 TTS 路径，不进入多发音编排。
+  序列可被翻面、切卡、退出、后台或新播放请求中断；本地音频单条失败继续后续条目，
+  全部失败才回退一次 TTS。补充播放控制器及单词/词组入口回归测试。
+  **完成时间**: 2026-08-18
+
+- [x] 将收藏复习设置弹窗最大高度限制为屏幕高度的 90%，避免弹窗占满屏幕，内容仍可滚动。
+  **完成时间**: 2026-08-18
+
+- [x] 将收藏复习自动播放偏好统一为两个公共设置“自动播放正面”和“自动播放背面”，
+  两项默认开启并由收藏句/词汇复习共同读取；正面控制进入及换卡后的当前卡播放，
+  背面控制收藏句原音或词汇来源例句播放。兼容旧版词汇专属背面播放字段，移除词汇
+  专属设置项并补充模型、Provider 与设置面板回归测试。**完成时间**: 2026-08-18
+
+- [x] 收藏词汇复习背面在本地词典命中多条发音时，复用词典弹窗的发音 badge 组展示
+  不同词性/时态发音，并支持逐条播放；多发音时隐藏标题右侧重复的总发音按钮，单条
+  发音保持原有展示。**完成时间**: 2026-08-18
+
+- [x] 实现收藏词汇复习真实背面：单词按本地词典精确命中展示音标、柯林斯评级、
+  标签和释义；多词与意群不展示本地词典。全部类型均展示可播放的来源例句与可跳转的
+  来源材料，播放复用收藏词汇列表的离线发音/TTS 及原音区间/TTS 回退链路。AI 查词默认
+  折叠，点击后在页内复用既有流式结果视图与持久化缓存。共享设置新增“翻面自动播放
+  来源例句”（默认开启，兼容旧配置）；切卡、退出和后台均中断过期播放。补充设置兼容、
+  词汇背面入口、provider 与 screen 回归。**完成时间**: 2026-08-17
+
+- [x] 收藏复习设置面板视觉重设计：新增通用分组卡片 `SettingsSectionCard`
+  （`lib/widgets/common/`）和 `AppTheme.settingsSectionBackground`/
+  `AppTextStyles.sectionHeader` 主题 token，将原先纯靠间距区分的平铺布局
+  改为「全局设置 / 句子复习设置 / 词汇复习设置」三张分组卡片，AI 讲解子开关组
+  加左侧竖线容器表达父子从属关系，每日目标行改用现成的 `SettingLabeledRow`。
+  `ExpansionTile` 类型与两个 Key 保持不变，`favorites_screen_test.dart` 零改动；
+  新增 `settings_section_card_test.dart`。本次仅改收藏复习这一个 sheet，其余
+  7+ 个同类学习任务设置弹窗（retell/difficult_practice 等）暂不动，后续可迁移
+  复用新组件。首版走查后修复三处问题：`sectionHeader` 改用 `onSurface` 而非
+  `primary`（避免"复习顺序"静态标签和可折叠 ExpansionTile 标题一样是蓝色，
+  造成"哪些能点"语义混淆），`ExpansionTile` 显式设 `iconColor`/`collapsedIconColor`
+  为 `onSurfaceVariant`（覆盖 M3 展开态默认把箭头染主色的行为）；AI 讲解 3 个
+  子开关的缩进容器改用只加左侧 `Padding`（原来左右都加 margin 导致子开关比
+  上方开关的开关轨道整体左移，右边缘对不齐），子开关 `contentPadding` 同步调整
+  为左 8/右 16，使其右边缘与所有其它开关严格对齐。用临时 widget test 截图
+  自检（验证后已删除，未提交）确认对齐与配色一致后清理。**完成时间**: 2026-08-15
+
+- [x] 收敛共享短音频播放契约：移除重复持有会话和跨层停止职责的
+  `LocalAudioPlaybackController`；`LocalAudioClipPlayer` 返回 `completed` / `cancelled` /
+  `failed` 三态并发布透明播放 key 状态。来源句与离线发音仅在 `failed` 时回退 TTS，
+  被抢占时直接退出。补充三态、状态流和来源句抢占回归测试。
+  **完成时间**: 2026-08-16
+
+- [x] 收藏 Tab 右上角增加复习设置入口，复用收藏句/词汇复习共享设置面板，句子和词汇
+  设置分区初始均折叠；补充收藏页入口与面板回归测试。**完成时间**: 2026-08-15
+
+- [x] 修复收藏词汇复习未应用“显示下次复习时间”设置：词汇背面与收藏句复习共用
+  `formatNextReviewTimeDetail`，统一按共享 `FavoriteReviewSettings` 判断开关并格式化 Again / Good /
+  Easy 三档的调度器 `dueAt` 预览。补充共享显示逻辑、词汇开启与关闭状态的 widget 回归测试。
+  **完成时间**: 2026-08-15
+
+- [x] 收藏词汇复习补齐 AI 助教与共享设置入口，并拆分每日预算：词汇复习 AppBar
+  增加复用句子聊天链路的 AI 助教入口与设置按钮，打开前均中断当前发音；共享设置面板
+  顶部统一管理复习顺序和下次复习时间，底部按当前任务默认展开句子或词汇折叠区。每日
+  目标拆为独立的句子/词汇目标，旧单一目标自动迁移到句子目标，词汇默认不限；队列入队
+  统计按各自 namespace 隔离，单词与意群继续共用词汇预算。补充模型迁移、跨类型预算隔离
+  及两个页面设置面板回归测试。**完成时间**: 2026-08-15
+
+- [x] 统一收藏句/词汇复习调度并补齐词汇 FSRS 评分流：新增内容无关的
+  `FavoriteReviewDeckSource` 与共享 `FavoriteReviewSettings`，句子、单词、意群的
+  ensure/restore、到期筛选、排序和每日新卡预算统一由同一实现处理；三类 namespace
+  共用当日预算，句子与词汇仍保留各自入口，未来混合队列仅需组合内容适配项。既有句子
+  设置页的调度项迁入共享设置，AI 自动讲解偏好仍保持句子专属。词汇反面仅显示当前
+  `displayText`，接入与收藏句相同的 again/good/easy 三档预览、评分提交和自动推进，
+  不加载词典、例句或 AI 内容。补充跨句子/词汇预算、词汇预览评分推进和最简背面评分栏
+  回归；相关 deck source/provider/screen/widget 测试及 `flutter analyze` 通过。
+  **完成时间**: 2026-08-15
+
+- [x] 统一收藏复习调度 namespace 命名：集中定义 `saved_sentence`、
+  `saved_word_or_phrase`、`saved_sense_group`，分别表示收藏句、普通单词或多词表达、
+  意群入口收藏的语义片段；收藏复习的共享每日新卡预算、调度身份、取消收藏归档和
+  v49→v50 队列回填全部改用新命名。未提升 schema 版本；当前开发数据库的
+  `memory_schedules` 与 `memory_review_queue_entries` 由交付 SQL 手动更新。补充
+  namespace 断言、迁移和调度回归测试。**完成时间**: 2026-08-15
+
+- [x] 收藏词汇（单词+意群）复习接入通用调度引擎——本步仅正面：与收藏句复用完全同一套机制
+  （`ScheduledFlashcardController<FlashcardItem>` + `MemorySchedulerFlashcardRatingPort`，零改动
+  直接复用）。数据库 v49→v50：`saved_words`、`saved_sense_groups` 各新增不可变 `memorySubjectId`
+  UUID 列并回填存量行；收藏句专属的 `bookmark_review_queue_entries` 泛化为带 `namespace` 列的
+  `memory_review_queue_entries`，单词或多词表达（`saved_word_or_phrase`）与意群（`saved_sense_group`）共用同一个每日新卡
+  预算，`FavoriteSentenceDeckSource` 同步改用新表名。`FlashcardItem` 密封类新增
+  `memorySubjectId`/`namespace` getter，避免另造内容模型；新增 `FavoriteVocabularyDeckSource`
+  （到期过滤/ensure-restore/排序/每日上限逻辑照抄 `FavoriteSentenceDeckSource`）与
+  `FavoriteVocabularyReview` provider——正面重播调用 `pronunciationPlaybackProvider`（离线发音库
+  优先、回退 TTS），与收藏词汇列表 `SpeakButton` 完全同一条播放链路，区别于收藏句用的前台音频
+  引擎；翻到背面本步只做状态流转占位，不取评分预览。新增 `FavoriteVocabularyReviewScreen`（上下
+  等高两区：上区点按重播、下区点按翻至占位反面），路由 `/favorite-vocabulary-review`；收藏页
+  "词汇复习"悬浮按钮直接指向新机制，旧 `/flashcard`（`FlashcardScreen`/`FlashcardNotifier`）保留
+  但不再被引用，下线是后续任务。顺带修复一处预置的 v48→v49 迁移潜在崩溃：`bookmarks` 表不存在时
+  仍执行回填 UPDATE 会抛 `no such table`（原迁移测试因此从未真正跑通）。补充
+  `v49_to_v50_migration_test.dart`、`favorite_vocabulary_deck_source_test.dart`（6 项，矩阵对齐
+  收藏句）、`favorite_vocabulary_review_test.dart`、`favorite_vocabulary_review_screen_test.dart`；
+  收藏句相关回归（`favorite_sentence_deck_source_test.dart`、`bookmark_review_test.dart`、
+  `bookmark_review_screen_test.dart`、`scheduled_flashcard` 全套）及 `flutter analyze` 全部通过，
+  全量 `flutter test` 前后对比 stash 基线 `-121` 降至 `-109`（无新增回归，多出的失败数全部被本次
+  新增测试和顺带修复抵消）。**反面真实内容、评分、翻译、跟读、取消收藏均未实现，留待后续任务**。
+  **完成时间**: 2026-08-15
+
+- [x] 收藏句复习 retrofit 到通用调度会话引擎：`bookmark_review_provider.dart` 内部改为委托
+  `ScheduledFlashcardController<BookmarkSentence>`（`lib/features/scheduled_flashcard/`），到期
+  过滤/ensure-restore/排序/每日新卡上限逻辑迁入新增 `FavoriteSentenceDeckSource`；评分提交复用
+  `MemorySchedulerFlashcardRatingPort`，具备幂等 operationId 和乐观锁冲突自动重试（重构前没有的
+  健壮性）；`BookmarkReviewState` 对外形状保持不变，`bookmark_review_screen.dart` 零改动。已确认
+  跟读补练（follow-up）永久不再需要，通用引擎同步去掉 `F` 泛型、`followUp`/`advancing` 阶段及相关
+  方法，新增 `removeCurrent()`（跳过当前卡但不评分，供"取消收藏"使用）。收藏词汇复习本次不涉及，
+  留待后续任务。补充 `favorite_sentence_deck_source_test.dart`（到期过滤/排序/每日上限）及
+  `scheduled_flashcard_test.dart` 的 `removeCurrent()` 覆盖；既有 `bookmark_review_test.dart`、
+  `bookmark_review_screen_test.dart` 共 28 项测试未改一行断言，全部通过。**完成时间**: 2026-08-15
+
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
 - [x] 优化百度网盘导入账户入口：右上角退出按钮改为账户头像，点击展示百度用户名、网盘昵称、会员状态和用户 ID；新增无需确认的“断开百度网盘连接”操作，并补充中英文本地化与 widget 回归测试。**完成时间**: 2026-08-18

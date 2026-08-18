@@ -182,12 +182,8 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       state = state.copyWith(
         playbackState: FavoriteVocabularyReviewPlaybackState.playing,
       );
-      final text = card.displayText.trim();
-      if (text.isNotEmpty && !RegExp(r'\s').hasMatch(text)) {
-        await player.speakAllSingleWordPronunciations(text, key: card.dbKey);
-      } else {
-        await player.speak(card.displayText, key: card.dbKey);
-      }
+      // 与查词弹窗和收藏词汇列表共用同一默认朗读入口：多发音时播稳定排序后的第一条。
+      await player.speak(card.displayText, key: card.dbKey);
       if (!_isCurrent(generation, card)) return;
       state = state.copyWith(
         playbackState: FavoriteVocabularyReviewPlaybackState.idle,

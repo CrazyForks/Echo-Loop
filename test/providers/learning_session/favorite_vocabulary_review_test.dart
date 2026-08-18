@@ -1,5 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
+import 'package:echo_loop/database/daos/saved_word_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
@@ -17,7 +18,6 @@ class _FakePronunciationPlaybackController
     extends PronunciationPlaybackController {
   int stops = 0;
   final spoken = <String>[];
-  final singleWordSequences = <String>[];
 
   @override
   PronunciationPlaybackState build() => const PronunciationPlaybackState();
@@ -25,14 +25,6 @@ class _FakePronunciationPlaybackController
   @override
   Future<void> speak(String text, {String? key}) async {
     spoken.add(text);
-  }
-
-  @override
-  Future<void> speakAllSingleWordPronunciations(
-    String word, {
-    String? key,
-  }) async {
-    singleWordSequences.add(word);
   }
 
   @override
@@ -51,7 +43,7 @@ class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
       FavoriteReviewSettings(autoPlayFront: autoPlayFront);
 }
 
-class _FailingSavedWordDao extends db.SavedWordDao {
+class _FailingSavedWordDao extends SavedWordDao {
   _FailingSavedWordDao(super.database);
 
   @override
@@ -62,19 +54,6 @@ db.SavedWord _word(String subjectId, String text) => db.SavedWord(
   id: subjectId.hashCode,
   word: text,
   memorySubjectId: subjectId,
-  practiceCount: 0,
-  totalStudyMs: 0,
-  viewedBack: false,
-  createdAt: DateTime.utc(2026, 1, 1),
-  updatedAt: DateTime.utc(2026, 1, 1),
-  syncStatus: 0,
-);
-
-db.SavedSenseGroup _phrase(String subjectId, String text) => db.SavedSenseGroup(
-  id: subjectId.hashCode,
-  phraseText: text,
-  memorySubjectId: subjectId,
-  displayText: text,
   practiceCount: 0,
   totalStudyMs: 0,
   viewedBack: false,
@@ -117,7 +96,7 @@ void main() {
   });
 
   test(
-    'replayCurrent plays all local pronunciations for a single-word card',
+    'replayCurrent uses the shared speech path for a single-word card',
     () async {
       final notifier = container.read(
         favoriteVocabularyReviewProvider.notifier,
@@ -129,8 +108,7 @@ void main() {
 
       await notifier.replayCurrent();
 
-      expect(fakePlayback.singleWordSequences, [card.displayText]);
-      expect(fakePlayback.spoken, isEmpty);
+      expect(fakePlayback.spoken, [card.displayText]);
       expect(
         container.read(favoriteVocabularyReviewProvider).playbackState,
         FavoriteVocabularyReviewPlaybackState.idle,
@@ -149,7 +127,6 @@ void main() {
       await notifier.replayCurrent();
 
       expect(fakePlayback.spoken, ['hello world']);
-      expect(fakePlayback.singleWordSequences, isEmpty);
     },
   );
 
@@ -239,8 +216,9 @@ void main() {
         isFalse,
       );
       final subjectId = first.memorySubjectId;
-      if (subjectId == null)
+      if (subjectId == null) {
         fail('saved sense group must have a memory subject ID');
+      }
       final schedule = await container
           .read(memorySchedulerProvider)
           .getSchedule(
