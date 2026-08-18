@@ -268,6 +268,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
       );
       try {
         await rangePlayback.play(
+          widget.args.audioItemId,
           Duration(milliseconds: widget.args.startTimeMs),
           Duration(milliseconds: widget.args.endTimeMs),
         );

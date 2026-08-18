@@ -585,14 +585,19 @@ class _SentenceExplanationViewState
     final timing = timings[index];
     final generation = ++_sgPlaybackGeneration;
     final rangePlayback = widget.senseGroupRangePlayback;
+    final audioItemId = widget.audioItemId;
 
     setState(() {
       _playingSenseGroupIndex = index;
       _playedSenseGroupIndices.add(index);
     });
 
-    if (rangePlayback != null) {
-      await rangePlayback.play(timing.start, timing.end);
+    if (rangePlayback != null && audioItemId != null) {
+      await rangePlayback.play(
+        audioItemId,
+        timing.start,
+        timing.end,
+      );
     } else {
       final engine = ref.read(audioEngineProvider.notifier);
       final sessionId = engine.newSession();

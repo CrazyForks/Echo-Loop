@@ -25,7 +25,7 @@ import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/services/dictionary/dictionary_source.dart';
 import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
-import 'package:echo_loop/widgets/practice/annotation_content_view.dart';
+import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
 import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
 import 'package:dio/dio.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -289,7 +289,7 @@ void main() {
       await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
       await tester.pump();
 
-      final annotation = find.byType(AnnotationContentView);
+      final annotation = find.byType(SentenceExplanationView);
       expect(annotation, findsOneWidget);
       final container = ProviderScope.containerOf(tester.element(annotation));
       expect(

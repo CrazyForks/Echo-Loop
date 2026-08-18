@@ -14,7 +14,6 @@ import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart
 import '../l10n/app_localizations.dart';
 import '../models/bookmark_sentence.dart';
 import '../providers/audio_engine/foreground_audio_engine_provider.dart';
-import '../providers/bookmark_review_settings_provider.dart';
 import '../providers/favorite_review_settings_provider.dart';
 import '../providers/audio_engine/foreground_sense_group_range_playback.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
@@ -24,7 +23,7 @@ import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
-import '../widgets/practice/annotation_content_view.dart';
+import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 
 class BookmarkReviewScreen extends ConsumerStatefulWidget {
@@ -488,7 +487,6 @@ class _ReviewAnswer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final settings = ref.watch(bookmarkReviewSettingsProvider);
     final actions = [
       FlashcardRatingAction(
         rating: MemoryRating.again,
@@ -530,19 +528,15 @@ class _ReviewAnswer extends ConsumerWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
-            child: AnnotationContentView(
+            child: SentenceExplanationView(
               text: card.sentence.text,
               aiNotifier: ref.read(sentenceAiNotifierProvider),
               audioItemId: card.audioItemId,
               sentenceIndex: card.originalSentenceIndex,
               sentenceStartMs: card.sentence.startTime.inMilliseconds,
               sentenceEndMs: card.sentence.endTime.inMilliseconds,
-              autoLoadSentenceAi: true,
-              autoShowOptions: AnnotationAutoShowOptions(
-                enabled: settings.autoShowAiExplanation,
-                analysis: settings.autoShowAiAnalysis,
-                translation: settings.autoShowAiTranslation,
-                senseGroups: settings.autoShowAiSenseGroups,
+              senseGroupRangePlayback: ref.read(
+                senseGroupRangePlaybackProvider,
               ),
               enableGuide: false,
             ),
