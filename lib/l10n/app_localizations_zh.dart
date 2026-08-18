@@ -4285,6 +4285,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get baiduNetdiskLogoutConfirm => '退出登录';
 
   @override
+  String get baiduNetdiskAccountTooltip => '百度网盘账户';
+
+  @override
+  String get baiduNetdiskAccountTitle => '百度网盘账户';
+
+  @override
+  String get baiduNetdiskUsername => '百度用户名';
+
+  @override
+  String get baiduNetdiskNetdiskName => '网盘昵称';
+
+  @override
+  String get baiduNetdiskMembership => '会员状态';
+
+  @override
+  String get baiduNetdiskUserId => '用户 ID';
+
+  @override
+  String get baiduNetdiskUnavailable => '未提供';
+
+  @override
+  String get baiduNetdiskDisconnect => '断开百度网盘连接';
+
+  @override
   String get baiduNetdiskNoSupportedAudio => '此文件夹中没有支持的素材文件。';
 
   @override

@@ -13,6 +13,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/baidu_credential_bundle.dart';
 
 const _baiduCredentialStorageKey = 'baidu_netdisk_credential_v1';
+const _baiduForceLoginOnceStorageKey = 'baidu_force_login_once';
 
 /// Credential 存储错误类型。
 enum BaiduCredentialStoreErrorKind {
@@ -64,6 +65,15 @@ abstract interface class BaiduCredentialStore {
 
   /// 清除 credential。
   Future<void> clear();
+
+  /// 读取退出后待消费的一次性强制登录标志。
+  Future<bool> readForceLoginOnce();
+
+  /// 写入退出后待消费的一次性强制登录标志。
+  Future<void> writeForceLoginOnce();
+
+  /// 清除已经消费的一次性强制登录标志。
+  Future<void> clearForceLoginOnce();
 }
 
 /// 基于 flutter_secure_storage 的实现。
@@ -113,6 +123,31 @@ class SecureBaiduCredentialStore implements BaiduCredentialStore {
   Future<void> clear() async {
     await _guardStorage(
       () => _storage.delete(key: _baiduCredentialStorageKey),
+      fallbackKind: BaiduCredentialStoreErrorKind.deleteFailed,
+    );
+  }
+
+  @override
+  Future<bool> readForceLoginOnce() async {
+    final raw = await _guardStorage(
+      () => _storage.read(key: _baiduForceLoginOnceStorageKey),
+      fallbackKind: BaiduCredentialStoreErrorKind.readFailed,
+    );
+    return raw == 'true';
+  }
+
+  @override
+  Future<void> writeForceLoginOnce() {
+    return _guardStorage(
+      () => _storage.write(key: _baiduForceLoginOnceStorageKey, value: 'true'),
+      fallbackKind: BaiduCredentialStoreErrorKind.writeFailed,
+    );
+  }
+
+  @override
+  Future<void> clearForceLoginOnce() {
+    return _guardStorage(
+      () => _storage.delete(key: _baiduForceLoginOnceStorageKey),
       fallbackKind: BaiduCredentialStoreErrorKind.deleteFailed,
     );
   }

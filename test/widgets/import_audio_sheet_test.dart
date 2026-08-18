@@ -8,6 +8,7 @@ import 'package:echo_loop/features/baidu_netdisk/data/baidu_netdisk_import_servi
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_credential_bundle.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session_status.dart';
+import 'package:echo_loop/features/baidu_netdisk/models/baidu_account_profile.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/cloud_drive_models.dart';
 import 'package:echo_loop/features/baidu_netdisk/providers/baidu_netdisk_providers.dart';
 import 'package:echo_loop/features/remote_config/remote_config.dart';
@@ -68,6 +69,14 @@ class _TokenCredentialRepository implements BaiduCredentialRepository {
   }
 
   @override
+  Future<void> consumeForceLoginOnce() async {}
+
+  @override
+  Future<void> disconnect() async {
+    cleared = true;
+  }
+
+  @override
   Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) {
     throw UnimplementedError();
   }
@@ -93,6 +102,10 @@ class _NoTokenCredentialRepository extends _TokenCredentialRepository {
 }
 
 class _PendingBaiduNetdiskApi implements BaiduNetdiskApi {
+  @override
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  }) async => const BaiduAccountProfile(uk: 1);
   final Completer<CloudDriveListPage> _listCompleter =
       Completer<CloudDriveListPage>();
 
@@ -163,7 +176,17 @@ class _RecordingFilePicker extends FilePicker {
 }
 
 class _StaticBaiduNetdiskApi implements BaiduNetdiskApi {
-  _StaticBaiduNetdiskApi(this.pages);
+  _StaticBaiduNetdiskApi(
+    this.pages, {
+    this.profile = const BaiduAccountProfile(uk: 1),
+  });
+
+  final BaiduAccountProfile profile;
+
+  @override
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  }) async => profile;
 
   final Map<String, List<CloudDriveEntry>> pages;
   final requestedDirs = <String>[];
@@ -1000,11 +1023,13 @@ void main() {
     expect(find.text('2026/7/18 · 4.0 KB'), findsOneWidget);
     expect(find.text('2026/7/16 · 2.0 KB'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '全选'), findsNothing);
-    expect(find.byIcon(Icons.logout), findsOneWidget);
+    expect(find.byKey(const ValueKey('baidu-account-button')), findsOneWidget);
     expect(find.byType(Checkbox), findsNWidgets(4));
     final titleCenterY = tester.getCenter(find.text('全部文件')).dy;
-    final logoutCenterY = tester.getCenter(find.byIcon(Icons.logout)).dy;
-    expect((logoutCenterY - titleCenterY).abs(), lessThan(24));
+    final avatarCenterY = tester
+        .getCenter(find.byKey(const ValueKey('baidu-account-button')))
+        .dy;
+    expect((avatarCenterY - titleCenterY).abs(), lessThan(24));
 
     final notesTile = find.ancestor(
       of: find.text('notes.txt'),
@@ -1019,13 +1044,13 @@ void main() {
     await tester.tap(find.text('lesson.srt'));
     await tester.pump();
 
-    expect(find.byIcon(Icons.logout), findsNothing);
+    expect(find.byKey(const ValueKey('baidu-account-button')), findsNothing);
     expect(find.widgetWithText(TextButton, '全选'), findsOneWidget);
 
     await tester.tap(find.text('lesson.mp3'));
     await tester.pump();
 
-    expect(find.byIcon(Icons.logout), findsNothing);
+    expect(find.byKey(const ValueKey('baidu-account-button')), findsNothing);
     expect(find.widgetWithText(TextButton, '全选'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '全选'));
@@ -1572,7 +1597,7 @@ void main() {
     expect(api.requestedDirs, ['/', '/Folder', '/']);
   });
 
-  testWidgets('百度网盘退出登录确认后清除授权并关闭弹窗', (tester) async {
+  testWidgets('百度网盘账户弹窗展示资料并可直接断开连接', (tester) async {
     final credentialRepository = _TokenCredentialRepository();
     await tester.pumpWidget(
       _buildApp(
@@ -1581,7 +1606,16 @@ void main() {
             credentialRepository,
           ),
           baiduNetdiskApiProvider.overrideWithValue(
-            _StaticBaiduNetdiskApi(const {'/': <CloudDriveEntry>[]}),
+            _StaticBaiduNetdiskApi(
+              const {'/': <CloudDriveEntry>[]},
+              profile: BaiduAccountProfile(
+                uk: 925415873,
+                baiduName: 'rgbbook',
+                netdiskName: 'Echo User',
+                vipType: 0,
+                avatarUrl: 'https://example.com/avatar.jpg',
+              ),
+            ),
           ),
         ],
       ),
@@ -1593,16 +1627,70 @@ void main() {
     await tester.tap(find.text('Baidu Netdisk'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Sign out of Baidu Netdisk'));
+    await tester.tap(find.byKey(const ValueKey('baidu-account-button')));
     await tester.pumpAndSettle();
-    expect(find.text('Sign out of Baidu Netdisk?'), findsOneWidget);
+    final headerButtonSize = tester.getSize(
+      find.byKey(const ValueKey('baidu-account-button')),
+    );
+    final headerAvatarSize = tester.getSize(
+      find.byKey(const ValueKey('baidu-header-avatar')),
+    );
+    final dialogAvatarSize = tester.getSize(
+      find.byKey(const ValueKey('baidu-dialog-avatar')),
+    );
+    expect(headerButtonSize, headerAvatarSize);
+    expect(headerAvatarSize.width, headerAvatarSize.height);
+    expect(dialogAvatarSize.width, dialogAvatarSize.height);
+    expect(dialogAvatarSize.width, greaterThan(headerAvatarSize.width));
+    expect(find.text('Baidu username'), findsOneWidget);
+    expect(find.text('rgbbook'), findsOneWidget);
+    expect(find.text('Netdisk nickname'), findsOneWidget);
+    expect(find.text('Echo User'), findsOneWidget);
+    expect(find.text('Membership'), findsOneWidget);
+    expect(find.text('free'), findsOneWidget);
+    expect(find.text('User ID'), findsNothing);
+    expect(find.text('925415873'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign Out'));
+    await tester.tap(find.text('Disconnect Baidu Netdisk'));
     await tester.pumpAndSettle();
 
     expect(credentialRepository.cleared, isTrue);
     expect(find.text('Open Import'), findsOneWidget);
     expect(find.text('All Files'), findsNothing);
+  });
+
+  testWidgets('百度网盘账户弹窗未提供昵称时隐藏昵称行', (tester) async {
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          baiduCredentialRepositoryProvider.overrideWithValue(
+            _TokenCredentialRepository(),
+          ),
+          baiduNetdiskApiProvider.overrideWithValue(
+            _StaticBaiduNetdiskApi(
+              const {'/': <CloudDriveEntry>[]},
+              profile: const BaiduAccountProfile(
+                uk: 925415873,
+                baiduName: 'rgbbook',
+                vipType: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    await tester.tap(find.text('Open Import'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Import from Cloud Storage'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Baidu Netdisk'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('baidu-account-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Netdisk nickname'), findsNothing);
+    expect(find.text('Not provided'), findsNothing);
   });
 
   testWidgets('链接入口显示 URL 表单且空输入禁用提交', (tester) async {
@@ -1759,10 +1847,7 @@ void main() {
     await tester.tap(find.text('Paste Link'));
     await tester.pump();
 
-    expect(
-      find.text('Clipboard does not have a valid link'),
-      findsOneWidget,
-    );
+    expect(find.text('Clipboard does not have a valid link'), findsOneWidget);
   });
 
   testWidgets('链接导入页可返回导入方式选择页', (tester) async {

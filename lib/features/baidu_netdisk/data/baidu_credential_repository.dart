@@ -27,6 +27,9 @@ abstract interface class BaiduCredentialRepository {
   /// 创建 OAuth 会话。
   Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform);
 
+  /// 消费本次 OAuth 已完成或已取消的一次性强制登录标志。
+  Future<void> consumeForceLoginOnce();
+
   /// 查询 OAuth 状态。
   Future<BaiduOAuthSessionStatus> fetchStatus(BaiduOAuthSession session);
 
@@ -41,6 +44,9 @@ abstract interface class BaiduCredentialRepository {
 
   /// 清除本地凭证。
   Future<void> clearCredential();
+
+  /// 断开用户主动退出的百度网盘连接，并标记下一次授权强制登录。
+  Future<void> disconnect();
 }
 
 /// 默认百度凭证仓库实现。
@@ -61,8 +67,16 @@ class DefaultBaiduCredentialRepository implements BaiduCredentialRepository {
   Future<BaiduCredentialBundle>? _refreshInFlight;
 
   @override
-  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) {
-    return _api.createSession(platform);
+  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) async {
+    return _api.createSession(
+      platform,
+      forceLogin: await _store.readForceLoginOnce(),
+    );
+  }
+
+  @override
+  Future<void> consumeForceLoginOnce() {
+    return _store.clearForceLoginOnce();
   }
 
   @override
@@ -97,8 +111,14 @@ class DefaultBaiduCredentialRepository implements BaiduCredentialRepository {
   }
 
   @override
-  Future<void> clearCredential() {
-    return _store.clear();
+  Future<void> clearCredential() async {
+    await _store.clear();
+  }
+
+  @override
+  Future<void> disconnect() async {
+    await _store.clear();
+    await _store.writeForceLoginOnce();
   }
 
   Future<BaiduCredentialBundle> _refreshSingleFlight(String refreshToken) {

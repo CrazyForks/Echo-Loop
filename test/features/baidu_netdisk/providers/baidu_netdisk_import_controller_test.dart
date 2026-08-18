@@ -8,6 +8,7 @@ import 'package:echo_loop/features/baidu_netdisk/data/baidu_netdisk_import_servi
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_credential_bundle.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session_status.dart';
+import 'package:echo_loop/features/baidu_netdisk/models/baidu_account_profile.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/cloud_drive_models.dart';
 import 'package:echo_loop/features/baidu_netdisk/providers/baidu_netdisk_import_controller.dart';
 import 'package:echo_loop/features/baidu_netdisk/services/baidu_oauth_launcher.dart';
@@ -23,6 +24,8 @@ class _FakeCredentialRepository implements BaiduCredentialRepository {
 
   String? accessToken;
   bool cleared = false;
+  int consumedForceLoginCount = 0;
+  BaiduOAuthSessionStatus? authorizationStatus;
 
   @override
   Future<void> clearCredential() async {
@@ -31,13 +34,32 @@ class _FakeCredentialRepository implements BaiduCredentialRepository {
   }
 
   @override
-  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) {
-    throw UnimplementedError();
+  Future<void> consumeForceLoginOnce() async {
+    consumedForceLoginCount++;
   }
 
   @override
-  Future<BaiduOAuthSessionStatus> fetchStatus(BaiduOAuthSession session) {
-    throw UnimplementedError();
+  Future<void> disconnect() async {
+    cleared = true;
+    accessToken = null;
+  }
+
+  @override
+  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) async {
+    return BaiduOAuthSession(
+      sessionId: 'sid',
+      pollToken: 'poll',
+      authorizationUri: Uri.parse('https://openapi.baidu.com/oauth'),
+      expiresAt: DateTime.utc(2026, 8, 18, 12, 10),
+      pollInterval: Duration.zero,
+    );
+  }
+
+  @override
+  Future<BaiduOAuthSessionStatus> fetchStatus(BaiduOAuthSession session) async {
+    final status = authorizationStatus;
+    if (status == null) throw StateError('未设置 OAuth 授权状态');
+    return status;
   }
 
   @override
@@ -51,6 +73,16 @@ class _FakeCredentialRepository implements BaiduCredentialRepository {
 }
 
 class _FakeBaiduNetdiskApi implements BaiduNetdiskApi {
+  int profileFetchCount = 0;
+
+  @override
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  }) async {
+    profileFetchCount++;
+    return const BaiduAccountProfile(uk: 1);
+  }
+
   List<CloudDriveEntry> entries = const <CloudDriveEntry>[];
   String? lastDir;
 
@@ -405,6 +437,36 @@ void main() {
       );
     });
 
+    test('授权取消时消费一次性强制登录标志', () async {
+      credentialRepository.accessToken = null;
+      credentialRepository.authorizationStatus = const BaiduOAuthSessionStatus(
+        phase: BaiduOAuthSessionPhase.canceled,
+      );
+
+      await controller.authorizeAndLoad();
+
+      expect(credentialRepository.consumedForceLoginCount, 1);
+      expect(
+        controller.state.phase,
+        BaiduNetdiskImportPhase.authorizationRequired,
+      );
+    });
+
+    test('授权失败时保留一次性强制登录标志', () async {
+      credentialRepository.accessToken = null;
+      credentialRepository.authorizationStatus = const BaiduOAuthSessionStatus(
+        phase: BaiduOAuthSessionPhase.failed,
+      );
+
+      await controller.authorizeAndLoad();
+
+      expect(credentialRepository.consumedForceLoginCount, 0);
+      expect(
+        controller.state.phase,
+        BaiduNetdiskImportPhase.authorizationRequired,
+      );
+    });
+
     test('加载目录时保留目录、音频和非音频文件', () async {
       api.entries = const [folder, audio, text];
 
@@ -413,6 +475,13 @@ void main() {
       expect(controller.state.phase, BaiduNetdiskImportPhase.ready);
       expect(controller.state.entries, [folder, audio, text]);
       expect(api.lastDir, '/');
+    });
+
+    test('已有凭据进入导入时后台刷新账户资料', () async {
+      await controller.loadInitial();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(api.profileFetchCount, 1);
     });
 
     test('只能选择支持的素材和字幕文件', () async {

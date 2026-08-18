@@ -7886,6 +7886,54 @@ abstract class AppLocalizations {
   /// **'Sign Out'**
   String get baiduNetdiskLogoutConfirm;
 
+  /// No description provided for @baiduNetdiskAccountTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Baidu Netdisk account'**
+  String get baiduNetdiskAccountTooltip;
+
+  /// No description provided for @baiduNetdiskAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Baidu Netdisk account'**
+  String get baiduNetdiskAccountTitle;
+
+  /// No description provided for @baiduNetdiskUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Baidu username'**
+  String get baiduNetdiskUsername;
+
+  /// No description provided for @baiduNetdiskNetdiskName.
+  ///
+  /// In en, this message translates to:
+  /// **'Netdisk nickname'**
+  String get baiduNetdiskNetdiskName;
+
+  /// No description provided for @baiduNetdiskMembership.
+  ///
+  /// In en, this message translates to:
+  /// **'Membership'**
+  String get baiduNetdiskMembership;
+
+  /// No description provided for @baiduNetdiskUserId.
+  ///
+  /// In en, this message translates to:
+  /// **'User ID'**
+  String get baiduNetdiskUserId;
+
+  /// No description provided for @baiduNetdiskUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get baiduNetdiskUnavailable;
+
+  /// No description provided for @baiduNetdiskDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect Baidu Netdisk'**
+  String get baiduNetdiskDisconnect;
+
   /// No description provided for @baiduNetdiskNoSupportedAudio.
   ///
   /// In en, this message translates to:

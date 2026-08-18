@@ -4498,6 +4498,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get baiduNetdiskLogoutConfirm => 'Sign Out';
 
   @override
+  String get baiduNetdiskAccountTooltip => 'Baidu Netdisk account';
+
+  @override
+  String get baiduNetdiskAccountTitle => 'Baidu Netdisk account';
+
+  @override
+  String get baiduNetdiskUsername => 'Baidu username';
+
+  @override
+  String get baiduNetdiskNetdiskName => 'Netdisk nickname';
+
+  @override
+  String get baiduNetdiskMembership => 'Membership';
+
+  @override
+  String get baiduNetdiskUserId => 'User ID';
+
+  @override
+  String get baiduNetdiskUnavailable => 'Not provided';
+
+  @override
+  String get baiduNetdiskDisconnect => 'Disconnect Baidu Netdisk';
+
+  @override
   String get baiduNetdiskNoSupportedAudio =>
       'No supported media files found in this folder.';
 

@@ -62,6 +62,39 @@ void main() {
   });
 
   group('DefaultBaiduCredentialRepository', () {
+    test('主动断开清除凭据并标记下一次授权强制登录', () async {
+      when(() => store.clear()).thenAnswer((_) async {});
+      when(() => store.writeForceLoginOnce()).thenAnswer((_) async {});
+
+      await repository.disconnect();
+
+      verifyInOrder([() => store.clear(), () => store.writeForceLoginOnce()]);
+    });
+
+    test('创建会话时读取一次性标志，并在授权终态后消费', () async {
+      when(() => store.readForceLoginOnce()).thenAnswer((_) async => true);
+      when(
+        () => api.createSession(BaiduNetdiskPlatform.android, forceLogin: true),
+      ).thenAnswer((_) async => session());
+      when(() => store.clearForceLoginOnce()).thenAnswer((_) async {});
+
+      await repository.createSession(BaiduNetdiskPlatform.android);
+      await repository.consumeForceLoginOnce();
+
+      verify(
+        () => api.createSession(BaiduNetdiskPlatform.android, forceLogin: true),
+      ).called(1);
+      verify(() => store.clearForceLoginOnce()).called(1);
+    });
+
+    test('普通清除凭据不设置强制登录标志', () async {
+      when(() => store.clear()).thenAnswer((_) async {});
+
+      await repository.clearCredential();
+
+      verifyNever(() => store.writeForceLoginOnce());
+    });
+
     test(
       'persistCompletedSession 先写 secure storage，成功后再 acknowledge',
       () async {

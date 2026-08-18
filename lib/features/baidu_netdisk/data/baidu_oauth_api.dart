@@ -16,7 +16,10 @@ import '../../baidu_netdisk/models/baidu_oauth_session_status.dart';
 /// 百度 OAuth API 抽象，便于 Controller 与测试注入。
 abstract interface class BaiduOAuthApi {
   /// 创建授权会话。
-  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform);
+  Future<BaiduOAuthSession> createSession(
+    BaiduNetdiskPlatform platform, {
+    required bool forceLogin,
+  });
 
   /// 查询授权状态。
   Future<BaiduOAuthSessionStatus> fetchStatus({
@@ -50,10 +53,16 @@ class BackendBaiduOAuthApi implements BaiduOAuthApi {
   final Dio _dio;
 
   @override
-  Future<BaiduOAuthSession> createSession(BaiduNetdiskPlatform platform) async {
+  Future<BaiduOAuthSession> createSession(
+    BaiduNetdiskPlatform platform, {
+    required bool forceLogin,
+  }) async {
     final response = await _postJson(
       '/api/v1/netdisk/baidu/oauth/session',
-      data: <String, Object?>{'platform': platform.wireName},
+      data: <String, Object?>{
+        'platform': platform.wireName,
+        if (forceLogin) 'forceLogin': true,
+      },
     );
     return BaiduOAuthSession.fromJson(response);
   }

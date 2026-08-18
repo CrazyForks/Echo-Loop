@@ -63,6 +63,49 @@ void main() {
   );
 
   group('DefaultBaiduNetdiskApi', () {
+    test('fetchAccountProfile 调用 uinfo 并解析账号资料', () async {
+      final profileDio = _MockDio();
+      api = DefaultBaiduNetdiskApi(
+        metadataDio: metadataDio,
+        profileDio: profileDio,
+        downloader: downloader,
+      );
+      when(
+        () => profileDio.get<Object?>(
+          '/rest/2.0/xpan/nas',
+          queryParameters: any(named: 'queryParameters'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => jsonResponse({
+          'errno': 0,
+          'uk': 4165472688,
+          'baidu_name': 'account-name',
+          'netdisk_name': '网盘昵称',
+          'avatar_url': 'https://example.invalid/avatar',
+        }),
+      );
+
+      final profile = await api.fetchAccountProfile(
+        accessToken: 'access-token',
+      );
+
+      expect(profile.uk, 4165472688);
+      expect(profile.baiduName, 'account-name');
+      expect(profile.netdiskName, '网盘昵称');
+      final query =
+          verify(
+                () => profileDio.get<Object?>(
+                  '/rest/2.0/xpan/nas',
+                  queryParameters: captureAny(named: 'queryParameters'),
+                  options: any(named: 'options'),
+                ),
+              ).captured.single
+              as Map<String, Object?>;
+      expect(query['method'], 'uinfo');
+      expect(query['access_token'], 'access-token');
+    });
+
     test('listDirectory 调用百度列表接口并解析目录/文件', () async {
       when(
         () => metadataDio.get<Object?>(

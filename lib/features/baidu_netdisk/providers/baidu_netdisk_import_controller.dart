@@ -11,6 +11,7 @@ import '../../../analytics/models/event_names.dart';
 import '../../../models/audio_item.dart';
 import '../../../providers/audio_library_provider.dart';
 import '../../../providers/collection_provider.dart';
+import '../../../services/app_logger.dart';
 import '../../audio_import/audio_import_models.dart';
 import '../../audio_import/subtitle_pairing.dart';
 import '../data/baidu_credential_repository.dart';
@@ -18,6 +19,7 @@ import '../data/baidu_netdisk_api.dart';
 import '../data/baidu_netdisk_import_service.dart';
 import '../models/baidu_oauth_session.dart';
 import '../models/baidu_oauth_session_status.dart';
+import '../models/baidu_account_profile.dart';
 import '../models/cloud_drive_models.dart';
 import '../services/baidu_oauth_launcher.dart';
 import 'baidu_netdisk_providers.dart';
@@ -71,6 +73,9 @@ class BaiduNetdiskImportState {
     this.importSpeedBytesPerSecond,
     this.importingIndex = 0,
     this.importTotal = 0,
+    this.accountProfile,
+    this.accountProfileLoading = false,
+    this.accountProfileFailed = false,
   });
 
   /// 初始状态。
@@ -128,6 +133,15 @@ class BaiduNetdiskImportState {
   /// 本批次音频总数。
   final int importTotal;
 
+  /// 当前授权账户资料。
+  final BaiduAccountProfile? accountProfile;
+
+  /// 是否正在获取账户资料。
+  final bool accountProfileLoading;
+
+  /// 最近一次账户资料获取是否失败。
+  final bool accountProfileFailed;
+
   /// 是否忙碌。
   bool get isBusy =>
       phase == BaiduNetdiskImportPhase.authorizing ||
@@ -181,6 +195,9 @@ class BaiduNetdiskImportState {
     Object? importSpeedBytesPerSecond = _sentinel,
     int? importingIndex,
     int? importTotal,
+    Object? accountProfile = _sentinel,
+    bool? accountProfileLoading,
+    bool? accountProfileFailed,
   }) {
     return BaiduNetdiskImportState(
       phase: phase ?? this.phase,
@@ -214,6 +231,12 @@ class BaiduNetdiskImportState {
           : importSpeedBytesPerSecond as double?,
       importingIndex: importingIndex ?? this.importingIndex,
       importTotal: importTotal ?? this.importTotal,
+      accountProfile: identical(accountProfile, _sentinel)
+          ? this.accountProfile
+          : accountProfile as BaiduAccountProfile?,
+      accountProfileLoading:
+          accountProfileLoading ?? this.accountProfileLoading,
+      accountProfileFailed: accountProfileFailed ?? this.accountProfileFailed,
     );
   }
 }
@@ -299,7 +322,22 @@ class BaiduNetdiskImportController
   }
 
   /// 初始化并加载根目录；无凭证时进入授权态。
-  Future<void> loadInitial() => loadDirectory('/');
+  Future<void> loadInitial() async {
+    if (state.isBusy) return;
+    final accessToken = await _credentialRepository.getValidAccessToken();
+    if (accessToken == null) {
+      state = state.copyWith(
+        phase: BaiduNetdiskImportPhase.authorizationRequired,
+        currentPath: '/',
+        errorMessage: null,
+      );
+      return;
+    }
+    _sessionId++;
+    final sid = _sessionId;
+    _loadAccountProfile(accessToken: accessToken, sid: sid);
+    await _loadDirectoryWithToken(path: '/', accessToken: accessToken);
+  }
 
   /// 加载指定目录。
   Future<void> loadDirectory(String path) async {
@@ -342,12 +380,21 @@ class BaiduNetdiskImportController
               session: session,
               credential: credential,
             );
+            await _credentialRepository.consumeForceLoginOnce();
+            _loadAccountProfile(accessToken: credential.accessToken, sid: sid);
             await _loadDirectoryWithToken(
               path: state.currentPath,
               accessToken: credential.accessToken,
             );
             return;
           case BaiduOAuthSessionPhase.canceled:
+            await _credentialRepository.consumeForceLoginOnce();
+            state = state.copyWith(
+              phase: BaiduNetdiskImportPhase.authorizationRequired,
+              errorMessage:
+                  status.error?.message ?? 'Baidu authorization failed.',
+            );
+            return;
           case BaiduOAuthSessionPhase.failed:
             state = state.copyWith(
               phase: BaiduNetdiskImportPhase.authorizationRequired,
@@ -364,6 +411,44 @@ class BaiduNetdiskImportController
         errorMessage: _messageForError(error),
       );
     }
+  }
+
+  /// 异步记录授权账户资料；资料失败不影响目录加载。
+  void _loadAccountProfile({required String accessToken, required int sid}) {
+    state = state.copyWith(
+      accountProfileLoading: true,
+      accountProfileFailed: false,
+    );
+    _api
+        .fetchAccountProfile(accessToken: accessToken)
+        .then((profile) {
+          if (!mounted || sid != _sessionId) return;
+          state = state.copyWith(
+            accountProfile: profile,
+            accountProfileLoading: false,
+            accountProfileFailed: false,
+          );
+          AppLogger.log(
+            'BAIDU-NETDISK',
+            '授权用户: uk=${profile.uk} '
+                'baidu_name=${profile.baiduName ?? "(empty)"} '
+                'netdisk_name=${profile.netdiskName ?? "(empty)"} '
+                'vip_type=${profile.vipType ?? "(unknown)"} '
+                'membership=${profile.membershipLabel} '
+                'avatar_url=${profile.avatarUrl ?? "(empty)"}',
+          );
+        })
+        .catchError((Object error) {
+          if (!mounted || sid != _sessionId) return;
+          state = state.copyWith(
+            accountProfileLoading: false,
+            accountProfileFailed: true,
+          );
+          AppLogger.log(
+            'BAIDU-NETDISK',
+            '授权用户资料获取失败: type=${error.runtimeType}',
+          );
+        });
   }
 
   /// 切换文件选择。
@@ -555,7 +640,9 @@ class BaiduNetdiskImportController
       _analytics?.track(Events.cloudImportResult, {
         EventParams.result: outcome.wasCanceled
             ? 'cancelled'
-            : outcome.failures.isEmpty ? 'completed' : 'partial_failure',
+            : outcome.failures.isEmpty
+            ? 'completed'
+            : 'partial_failure',
         EventParams.source: 'baidu_netdisk',
         EventParams.selectedCount: entries.length,
         EventParams.addedCount: outcome.added.length,

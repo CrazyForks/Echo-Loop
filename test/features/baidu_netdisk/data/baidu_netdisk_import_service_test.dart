@@ -10,6 +10,7 @@ import 'package:echo_loop/features/baidu_netdisk/data/baidu_netdisk_import_servi
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_credential_bundle.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/baidu_oauth_session_status.dart';
+import 'package:echo_loop/features/baidu_netdisk/models/baidu_account_profile.dart';
 import 'package:echo_loop/features/baidu_netdisk/models/cloud_drive_models.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
@@ -24,6 +25,14 @@ class _FakeCredentialRepository implements BaiduCredentialRepository {
 
   @override
   Future<void> clearCredential() async {
+    accessToken = null;
+  }
+
+  @override
+  Future<void> consumeForceLoginOnce() async {}
+
+  @override
+  Future<void> disconnect() async {
     accessToken = null;
   }
 
@@ -48,6 +57,11 @@ class _FakeCredentialRepository implements BaiduCredentialRepository {
 }
 
 class _FakeBaiduNetdiskApi implements BaiduNetdiskApi {
+  @override
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  }) async => const BaiduAccountProfile(uk: 1);
+
   int fetchDownloadLinkCalls = 0;
   int downloadCalls = 0;
   String? lastAccessToken;

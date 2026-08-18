@@ -9,9 +9,15 @@ import 'package:dio/dio.dart';
 import '../../../services/api_log_interceptor.dart';
 import '../../../services/reliable_http_downloader.dart';
 import '../models/cloud_drive_models.dart';
+import '../models/baidu_account_profile.dart';
 
 /// 百度网盘文件 API 抽象。
 abstract interface class BaiduNetdiskApi {
+  /// 获取当前授权账户资料。
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  });
+
   /// 列出目录。
   Future<CloudDriveListPage> listDirectory({
     required String accessToken,
@@ -44,17 +50,23 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
   /// 构造默认实现。
   DefaultBaiduNetdiskApi({
     Dio? metadataDio,
+    Dio? profileDio,
     Dio? downloadDio,
     ReliableHttpDownloader? downloader,
   }) : _metadataDio = metadataDio ?? _createMetadataDio(),
+       _profileDio = profileDio ?? _createProfileDio(),
        _downloader =
            downloader ??
            DioReliableHttpDownloader(dio: downloadDio ?? _createDownloadDio());
 
   final Dio _metadataDio;
+  final Dio _profileDio;
   final ReliableHttpDownloader _downloader;
 
-  static Dio _createMetadataDio() {
+  static Dio _createBaiduDio({
+    required bool enableLogging,
+    String logTag = 'BAIDU-NETDISK',
+  }) {
     final dio = Dio(
       BaseOptions(
         baseUrl: 'https://pan.baidu.com',
@@ -63,9 +75,13 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
         headers: const {'User-Agent': _baiduUserAgent},
       ),
     );
-    dio.interceptors.add(ApiLogInterceptor(tag: 'BAIDU-NETDISK'));
+    if (enableLogging) {
+      dio.interceptors.add(ApiLogInterceptor(tag: logTag));
+    }
     return dio;
   }
+
+  static Dio _createMetadataDio() => _createBaiduDio(enableLogging: true);
 
   static Dio _createDownloadDio() {
     final dio = Dio(
@@ -79,6 +95,23 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     return dio;
   }
 
+  static Dio _createProfileDio() => _createBaiduDio(enableLogging: false);
+
+  @override
+  Future<BaiduAccountProfile> fetchAccountProfile({
+    required String accessToken,
+  }) async {
+    final data = await _getJson(
+      _profileDio,
+      '/rest/2.0/xpan/nas',
+      queryParameters: <String, Object?>{
+        'method': 'uinfo',
+        'access_token': accessToken,
+      },
+    );
+    return BaiduAccountProfile.fromBaiduJson(data);
+  }
+
   @override
   Future<CloudDriveListPage> listDirectory({
     required String accessToken,
@@ -88,6 +121,7 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
   }) async {
     final normalizedLimit = limit.clamp(1, 1000);
     final data = await _getJson(
+      _metadataDio,
       '/rest/2.0/xpan/file',
       queryParameters: <String, Object?>{
         'method': 'list',
@@ -125,6 +159,7 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
     required int fsId,
   }) async {
     final data = await _getJson(
+      _metadataDio,
       '/rest/2.0/xpan/multimedia',
       queryParameters: <String, Object?>{
         'method': 'filemetas',
@@ -190,11 +225,12 @@ class DefaultBaiduNetdiskApi implements BaiduNetdiskApi {
   }
 
   Future<Map<dynamic, dynamic>> _getJson(
+    Dio dio,
     String path, {
     required Map<String, Object?> queryParameters,
   }) async {
     try {
-      final response = await _metadataDio.get<Object?>(
+      final response = await dio.get<Object?>(
         path,
         queryParameters: queryParameters,
         options: Options(validateStatus: (_) => true),

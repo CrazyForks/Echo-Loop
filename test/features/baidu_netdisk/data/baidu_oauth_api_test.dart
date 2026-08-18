@@ -39,7 +39,10 @@ void main() {
         }),
       );
 
-      final session = await api.createSession(BaiduNetdiskPlatform.ios);
+      final session = await api.createSession(
+        BaiduNetdiskPlatform.ios,
+        forceLogin: false,
+      );
 
       expect(session.sessionId, 'sid');
       final captured =
@@ -51,6 +54,36 @@ void main() {
               ).captured.single
               as Map;
       expect(captured['platform'], 'ios');
+      expect(captured.containsKey('forceLogin'), isFalse);
+    });
+
+    test('createSession 在主动退出后的下一次授权提交 forceLogin', () async {
+      when(
+        () => dio.post<Object?>(
+          '/api/v1/netdisk/baidu/oauth/session',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer(
+        (_) async => response({
+          'sessionId': 'sid',
+          'pollToken': 'poll',
+          'authorizationUrl': 'https://openapi.baidu.com/oauth/2.0/authorize',
+          'expiresAt': '2026-07-18T12:00:00Z',
+          'pollIntervalSeconds': 2,
+        }),
+      );
+
+      await api.createSession(BaiduNetdiskPlatform.android, forceLogin: true);
+
+      final captured =
+          verify(
+                () => dio.post<Object?>(
+                  '/api/v1/netdisk/baidu/oauth/session',
+                  data: captureAny(named: 'data'),
+                ),
+              ).captured.single
+              as Map;
+      expect(captured, {'platform': 'android', 'forceLogin': true});
     });
 
     test('status 提交 sessionId 和 pollToken', () async {

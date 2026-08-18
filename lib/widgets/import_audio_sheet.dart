@@ -7,6 +7,7 @@ import '../features/audio_import/audio_import_models.dart';
 import '../features/audio_import/audio_import_provider.dart';
 import '../features/audio_import/subtitle_pairing.dart';
 import '../features/baidu_netdisk/models/cloud_drive_models.dart';
+import '../features/baidu_netdisk/models/baidu_account_profile.dart';
 import '../features/baidu_netdisk/providers/baidu_netdisk_import_controller.dart';
 import '../features/baidu_netdisk/providers/baidu_netdisk_providers.dart';
 import '../features/remote_config/remote_config.dart';
@@ -164,10 +165,29 @@ class _ImportAudioFlowSheetState extends ConsumerState<ImportAudioFlowSheet> {
       BaiduNetdiskImportPhase.loading => false,
     };
     if (!canLogout) return null;
-    return _HeaderIconButton(
-      icon: Icons.logout,
-      tooltip: l10n.baiduNetdiskLogoutTooltip,
-      onPressed: busy ? null : _confirmBaiduLogout,
+    return _BaiduAvatarButton(
+      profile: state.accountProfile,
+      loading: state.accountProfileLoading,
+      onPressed: busy ? null : _showBaiduAccountDialog,
+    );
+  }
+
+  Future<void> _showBaiduAccountDialog() async {
+    final state = ref.read(baiduNetdiskImportControllerProvider);
+    final l10n = AppLocalizations.of(context)!;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _BaiduAccountDialog(
+        profile: state.accountProfile,
+        loading: state.accountProfileLoading,
+        onDisconnect: () async {
+          await ref.read(baiduCredentialRepositoryProvider).disconnect();
+          if (!dialogContext.mounted) return;
+          Navigator.pop(dialogContext);
+          if (mounted) Navigator.pop(context);
+        },
+        l10n: l10n,
+      ),
     );
   }
 
@@ -283,33 +303,6 @@ class _ImportAudioFlowSheetState extends ConsumerState<ImportAudioFlowSheet> {
       return;
     }
     _goBackToSource();
-  }
-
-  Future<void> _confirmBaiduLogout() async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(l10n.baiduNetdiskLogoutTitle),
-          content: Text(l10n.baiduNetdiskLogoutMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(l10n.baiduNetdiskLogoutConfirm),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) return;
-    await ref.read(baiduCredentialRepositoryProvider).clearCredential();
-    if (!mounted) return;
-    Navigator.pop(context);
   }
 
   /// 切到独立完成页。
@@ -468,9 +461,9 @@ class _HeaderIconButton extends StatelessWidget {
       tooltip: tooltip,
       icon: Icon(icon, size: 22),
       style: IconButton.styleFrom(
-        fixedSize: const Size(40, 40),
-        minimumSize: const Size(40, 40),
-        maximumSize: const Size(40, 40),
+        fixedSize: const Size(30, 30),
+        minimumSize: const Size(30, 30),
+        maximumSize: const Size(30, 30),
         shape: const CircleBorder(),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         padding: EdgeInsets.zero,
@@ -480,6 +473,152 @@ class _HeaderIconButton extends StatelessWidget {
         highlightColor: colorScheme.surfaceContainerHighest.withValues(
           alpha: 0.52,
         ),
+      ),
+    );
+  }
+}
+
+class _BaiduAvatarButton extends StatelessWidget {
+  const _BaiduAvatarButton({
+    this.profile,
+    required this.loading,
+    this.onPressed,
+  });
+
+  final BaiduAccountProfile? profile;
+  final bool loading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const ValueKey('baidu-account-button'),
+      tooltip: AppLocalizations.of(context)!.baiduNetdiskAccountTooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        fixedSize: const Size(40, 40),
+        minimumSize: const Size(40, 40),
+        maximumSize: const Size(40, 40),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: _BaiduAvatar(
+        profile: profile,
+        loading: loading,
+        diameter: 40,
+        avatarKey: const ValueKey('baidu-header-avatar'),
+      ),
+    );
+  }
+}
+
+/// 以固定正方形边界裁切百度账户头像，防止图片被拉伸为椭圆。
+class _BaiduAvatar extends StatelessWidget {
+  const _BaiduAvatar({
+    required this.profile,
+    required this.loading,
+    required this.diameter,
+    this.avatarKey,
+  });
+
+  final BaiduAccountProfile? profile;
+  final bool loading;
+  final double diameter;
+  final Key? avatarKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = profile?.avatarUrl;
+    return SizedBox.square(
+      key: avatarKey,
+      dimension: diameter,
+      child: ClipOval(
+        child: avatarUrl == null
+            ? const ColoredBox(
+                color: Colors.transparent,
+                child: Icon(Icons.account_circle_outlined),
+              )
+            : Image.network(
+                avatarUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.account_circle_outlined),
+                loadingBuilder: loading
+                    ? (_, _, _) => const Icon(Icons.account_circle_outlined)
+                    : null,
+              ),
+      ),
+    );
+  }
+}
+
+class _BaiduAccountDialog extends StatelessWidget {
+  const _BaiduAccountDialog({
+    required this.profile,
+    required this.loading,
+    required this.onDisconnect,
+    required this.l10n,
+  });
+
+  final BaiduAccountProfile? profile;
+  final bool loading;
+  final VoidCallback? onDisconnect;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final value = profile;
+    return AlertDialog(
+      title: Text(l10n.baiduNetdiskAccountTitle),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _BaiduAvatar(
+              profile: value,
+              loading: loading,
+              diameter: 72,
+              avatarKey: const ValueKey('baidu-dialog-avatar'),
+            ),
+            const SizedBox(height: AppSpacing.m),
+            _accountRow(
+              context,
+              l10n.baiduNetdiskUsername,
+              value?.baiduName ?? l10n.baiduNetdiskUnavailable,
+            ),
+            if (value?.netdiskName case final netdiskName?
+                when netdiskName.trim().isNotEmpty)
+              _accountRow(context, l10n.baiduNetdiskNetdiskName, netdiskName),
+            _accountRow(
+              context,
+              l10n.baiduNetdiskMembership,
+              value?.membershipLabel ?? l10n.baiduNetdiskUnavailable,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: onDisconnect,
+          style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
+          child: Text(l10n.baiduNetdiskDisconnect),
+        ),
+      ],
+    );
+  }
+
+  Widget _accountRow(BuildContext context, String label, String value) {
+    final style = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text(label, style: style.bodySmall)),
+          Expanded(child: Text(value, textAlign: TextAlign.end)),
+        ],
       ),
     );
   }

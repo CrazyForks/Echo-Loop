@@ -108,5 +108,37 @@ void main() {
 
       verify(() => storage.delete(key: any(named: 'key'))).called(1);
     });
+
+    test('一次性强制登录标志可写入、读取并清除', () async {
+      final values = <String, String>{};
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((invocation) async {
+        final key = invocation.namedArguments[const Symbol('key')];
+        final value = invocation.namedArguments[const Symbol('value')];
+        if (key is String && value is String) values[key] = value;
+      });
+      when(() => storage.read(key: any(named: 'key'))).thenAnswer((
+        invocation,
+      ) async {
+        final key = invocation.namedArguments[const Symbol('key')];
+        return key is String ? values[key] : null;
+      });
+      when(() => storage.delete(key: any(named: 'key'))).thenAnswer((
+        invocation,
+      ) async {
+        final key = invocation.namedArguments[const Symbol('key')];
+        if (key is String) values.remove(key);
+      });
+
+      expect(await store.readForceLoginOnce(), isFalse);
+      await store.writeForceLoginOnce();
+      expect(await store.readForceLoginOnce(), isTrue);
+      await store.clearForceLoginOnce();
+      expect(await store.readForceLoginOnce(), isFalse);
+    });
   });
 }
