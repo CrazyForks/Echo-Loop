@@ -110,6 +110,11 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   }
 
   @override
+  Future<void> removeCurrentVocabulary() async {
+    state = const FavoriteVocabularyReviewState();
+  }
+
+  @override
   Future<void> disposeSession() async {}
 }
 
@@ -262,6 +267,33 @@ void main() {
     expect(find.text('过去式'), findsOneWidget);
     expect(find.text('一般现在时'), findsOneWidget);
   });
+
+  testWidgets(
+    'back has a trailing unsave action that removes the current card',
+    (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+      );
+      await tester.pump();
+
+      final action = find.byKey(const Key('favorite-vocabulary-review-unsave'));
+      expect(action, findsOneWidget);
+      expect(
+        find.descendant(of: action, matching: find.text('取消收藏')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: action, matching: find.byIcon(Icons.bookmark)),
+        findsOneWidget,
+      );
+
+      await tester.tap(action);
+      await tester.pump();
+      expect(find.text('本次复习已没有收藏词汇。'), findsOneWidget);
+    },
+  );
 
   testWidgets('settings opens the shared sheet with vocabulary controls', (
     tester,

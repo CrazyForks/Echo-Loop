@@ -86,6 +86,23 @@ class _FavoriteVocabularyReviewScreenState
     );
   }
 
+  Future<void> _removeCurrent() async {
+    await ref
+        .read(favoriteVocabularyReviewProvider.notifier)
+        .removeCurrentVocabulary();
+    if (!mounted) return;
+    final error = ref.read(favoriteVocabularyReviewProvider).removeError;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.bookmarkReviewUnsaveFailed,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(favoriteVocabularyReviewProvider);
@@ -148,8 +165,10 @@ class _FavoriteVocabularyReviewScreenState
                                 ),
                               ),
                               isSubmitting: state.isSubmittingRating,
+                              isRemoving: state.isRemoving,
                               onRating: (rating) =>
                                   unawaited(player.selectRating(rating)),
+                              onRemove: () => unawaited(_removeCurrent()),
                             ),
                     ),
                   ],
@@ -353,14 +372,18 @@ class _VocabularyBack extends ConsumerStatefulWidget {
     required this.preview,
     required this.showNextReviewTime,
     required this.isSubmitting,
+    required this.isRemoving,
     required this.onRating,
+    required this.onRemove,
   });
 
   final FlashcardItem card;
   final MemoryRatingPreviewSet? preview;
   final bool showNextReviewTime;
   final bool isSubmitting;
+  final bool isRemoving;
   final ValueChanged<MemoryRating> onRating;
+  final VoidCallback onRemove;
 
   @override
   ConsumerState<_VocabularyBack> createState() => _VocabularyBackState();
@@ -448,6 +471,10 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                         ),
                         icon: const Icon(Icons.volume_up_outlined),
                       ),
+                    _VocabularyUnsaveAction(
+                      isRemoving: widget.isRemoving,
+                      onRemove: widget.onRemove,
+                    ),
                   ],
                 ),
                 if (_isSingleWord) ...[
@@ -560,6 +587,64 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 收藏词汇背面标题行的轻量取消收藏操作，语义与收藏句复习保持一致。
+class _VocabularyUnsaveAction extends StatelessWidget {
+  const _VocabularyUnsaveAction({
+    required this.isRemoving,
+    required this.onRemove,
+  });
+
+  final bool isRemoving;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    return Semantics(
+      key: const Key('favorite-vocabulary-review-unsave'),
+      button: true,
+      enabled: !isRemoving,
+      label: l10n.bookmarkReviewUnsave,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isRemoving ? null : onRemove,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.s),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.bookmarkReviewUnsave,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                if (isRemoving)
+                  const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  const Icon(
+                    Icons.bookmark,
+                    size: 22,
+                    color: AppTheme.bookmarkColor,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

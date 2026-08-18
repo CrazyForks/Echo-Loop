@@ -19,7 +19,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../database/app_database.dart';
 import '../../database/providers.dart';
 import '../../features/memory_scheduler/domain/memory_rating.dart';
+import '../../features/memory_scheduler/domain/memory_scheduler_commands.dart';
 import '../../features/memory_scheduler/domain/memory_scheduler_results.dart';
+import '../../features/memory_scheduler/domain/memory_schedule.dart';
+import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
@@ -45,7 +48,9 @@ class FavoriteVocabularyReviewState {
     this.currentIndex = 0,
     this.face = FavoriteVocabularyReviewFace.front,
     this.playbackState = FavoriteVocabularyReviewPlaybackState.idle,
+    this.isRemoving = false,
     this.mediaError,
+    this.removeError,
     this.preview,
     this.isSubmittingRating = false,
   });
@@ -54,7 +59,9 @@ class FavoriteVocabularyReviewState {
   final int currentIndex;
   final FavoriteVocabularyReviewFace face;
   final FavoriteVocabularyReviewPlaybackState playbackState;
+  final bool isRemoving;
   final String? mediaError;
+  final String? removeError;
   final MemoryRatingPreviewSet? preview;
   final bool isSubmittingRating;
 
@@ -70,8 +77,11 @@ class FavoriteVocabularyReviewState {
     int? currentIndex,
     FavoriteVocabularyReviewFace? face,
     FavoriteVocabularyReviewPlaybackState? playbackState,
+    bool? isRemoving,
     String? mediaError,
     bool clearMediaError = false,
+    String? removeError,
+    bool clearRemoveError = false,
     MemoryRatingPreviewSet? preview,
     bool clearPreview = false,
     bool? isSubmittingRating,
@@ -80,7 +90,9 @@ class FavoriteVocabularyReviewState {
     currentIndex: currentIndex ?? this.currentIndex,
     face: face ?? this.face,
     playbackState: playbackState ?? this.playbackState,
+    isRemoving: isRemoving ?? this.isRemoving,
     mediaError: clearMediaError ? null : mediaError ?? this.mediaError,
+    removeError: clearRemoveError ? null : removeError ?? this.removeError,
     preview: clearPreview ? null : preview ?? this.preview,
     isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
   );
@@ -170,7 +182,12 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       state = state.copyWith(
         playbackState: FavoriteVocabularyReviewPlaybackState.playing,
       );
-      await player.speak(card.displayText, key: card.dbKey);
+      final text = card.displayText.trim();
+      if (text.isNotEmpty && !RegExp(r'\s').hasMatch(text)) {
+        await player.speakAllSingleWordPronunciations(text, key: card.dbKey);
+      } else {
+        await player.speak(card.displayText, key: card.dbKey);
+      }
       if (!_isCurrent(generation, card)) return;
       state = state.copyWith(
         playbackState: FavoriteVocabularyReviewPlaybackState.idle,
@@ -292,6 +309,60 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         'rating submission failed error=${controller.state.error}',
       );
       state = state.copyWith(isSubmittingRating: false);
+    }
+  }
+
+  /// 取消收藏并归档当前调度卡，成功后移除当前卡并进入下一张。
+  ///
+  /// 此流程与收藏句复习保持一致：先停止媒体，再软删除收藏记录，归档仍 active
+  /// 的 FSRS 调度快照，最后由通用控制器推进队列；任一持久化步骤失败均保留当前卡。
+  Future<void> removeCurrentVocabulary() async {
+    final controller = _controller;
+    final card = state.currentCard;
+    if (controller == null || card == null || state.isRemoving) return;
+    await interruptPlayback();
+    state = state.copyWith(isRemoving: true, clearRemoveError: true);
+    try {
+      switch (card) {
+        case FlashcardWordItem():
+          await ref.read(savedWordDaoProvider).removeWord(card.dbKey);
+        case FlashcardPhraseItem():
+          await ref
+              .read(savedSenseGroupDaoProvider)
+              .removeSenseGroup(card.dbKey);
+      }
+      final subjectId = card.memorySubjectId;
+      if (subjectId != null) {
+        final scheduler = ref.read(memorySchedulerProvider);
+        final schedule = await scheduler.getSchedule(
+          MemorySubjectRef(namespace: card.namespace, subjectId: subjectId),
+        );
+        if (schedule != null &&
+            schedule.status == MemoryScheduleStatus.active) {
+          await scheduler.archive(
+            ArchiveMemoryScheduleCommand(
+              subject: schedule.subject,
+              archivedAt: DateTime.now().toUtc(),
+              expectedRevision: schedule.revision,
+            ),
+          );
+        }
+      }
+      if (!identical(_controller, controller)) return;
+      controller.removeCurrent();
+      state = FavoriteVocabularyReviewState(
+        cards: controller.state.deck
+            .map((card) => card.content)
+            .toList(growable: false),
+        currentIndex: controller.state.currentIndex,
+      );
+      if (controller.state.current != null) unawaited(startCurrentCard());
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'FavoriteVocabularyReview',
+        'unsave failed error=$error\n$stackTrace',
+      );
+      state = state.copyWith(isRemoving: false, removeError: 'unsave_failed');
     }
   }
 

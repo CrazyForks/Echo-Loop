@@ -226,6 +226,61 @@ class PronunciationPlaybackController
         .speak(text, key: key ?? text);
   }
 
+  /// 顺序播放单个单词命中的全部离线发音。
+  ///
+  /// 词组不会进入此入口，仍由 [speak] 保持原有的单条离线发音或 TTS 语义。
+  /// 本地音频单条失败时继续尝试后续条目；只有全部失败才回退一次 TTS。
+  Future<void> speakAllSingleWordPronunciations(
+    String word, {
+    String? key,
+  }) async {
+    final trimmedWord = word.trim();
+    if (trimmedWord.isEmpty || RegExp(r'\s').hasMatch(trimmedWord)) {
+      await speak(word, key: key);
+      return;
+    }
+    final clips = ref.read(pronunciationClipsProvider(trimmedWord));
+    if (clips.length <= 1) {
+      await speak(trimmedWord, key: key);
+      return;
+    }
+
+    final sessionId = ++_sessionId;
+    await ref.read(ttsControllerProvider.notifier).stop();
+    final LocalAudioClipPlayer player;
+    final currentPlayer = _player;
+    if (currentPlayer != null) {
+      player = currentPlayer;
+    } else {
+      player = ref.read(shortAudioPlayerProvider);
+      _player = player;
+    }
+    var completedAnyClip = false;
+    for (var index = 0; index < clips.length; index++) {
+      if (sessionId != _sessionId) return;
+      final clip = clips[index];
+      state = PronunciationPlaybackState(playingKey: clip.playbackKey);
+      final result = await player.playFile(
+        clip.absolutePath,
+        playbackKey: clip.playbackKey,
+      );
+      if (sessionId != _sessionId || result == AudioPlaybackResult.cancelled) {
+        return;
+      }
+      completedAnyClip |= result == AudioPlaybackResult.completed;
+      if (index < clips.length - 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+    if (sessionId != _sessionId) return;
+    state = const PronunciationPlaybackState();
+    if (!completedAnyClip) {
+      await ref
+          .read(ttsControllerProvider.notifier)
+          .speak(trimmedWord, key: key ?? trimmedWord);
+    }
+  }
+
   Future<void> play(
     PronunciationClip clip, {
     required String fallbackText,

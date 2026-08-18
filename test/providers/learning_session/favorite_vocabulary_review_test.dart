@@ -4,6 +4,10 @@ import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
 import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_schedule.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_subject_ref.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_namespaces.dart';
+import 'package:echo_loop/features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +17,7 @@ class _FakePronunciationPlaybackController
     extends PronunciationPlaybackController {
   int stops = 0;
   final spoken = <String>[];
+  final singleWordSequences = <String>[];
 
   @override
   PronunciationPlaybackState build() => const PronunciationPlaybackState();
@@ -20,6 +25,14 @@ class _FakePronunciationPlaybackController
   @override
   Future<void> speak(String text, {String? key}) async {
     spoken.add(text);
+  }
+
+  @override
+  Future<void> speakAllSingleWordPronunciations(
+    String word, {
+    String? key,
+  }) async {
+    singleWordSequences.add(word);
   }
 
   @override
@@ -38,10 +51,30 @@ class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
       FavoriteReviewSettings(autoPlayFront: autoPlayFront);
 }
 
+class _FailingSavedWordDao extends db.SavedWordDao {
+  _FailingSavedWordDao(super.database);
+
+  @override
+  Future<void> removeWord(String word) => throw StateError('remove failed');
+}
+
 db.SavedWord _word(String subjectId, String text) => db.SavedWord(
   id: subjectId.hashCode,
   word: text,
   memorySubjectId: subjectId,
+  practiceCount: 0,
+  totalStudyMs: 0,
+  viewedBack: false,
+  createdAt: DateTime.utc(2026, 1, 1),
+  updatedAt: DateTime.utc(2026, 1, 1),
+  syncStatus: 0,
+);
+
+db.SavedSenseGroup _phrase(String subjectId, String text) => db.SavedSenseGroup(
+  id: subjectId.hashCode,
+  phraseText: text,
+  memorySubjectId: subjectId,
+  displayText: text,
   practiceCount: 0,
   totalStudyMs: 0,
   viewedBack: false,
@@ -84,7 +117,7 @@ void main() {
   });
 
   test(
-    'replayCurrent speaks the current card via pronunciation provider',
+    'replayCurrent plays all local pronunciations for a single-word card',
     () async {
       final notifier = container.read(
         favoriteVocabularyReviewProvider.notifier,
@@ -96,11 +129,27 @@ void main() {
 
       await notifier.replayCurrent();
 
-      expect(fakePlayback.spoken, [card.displayText]);
+      expect(fakePlayback.singleWordSequences, [card.displayText]);
+      expect(fakePlayback.spoken, isEmpty);
       expect(
         container.read(favoriteVocabularyReviewProvider).playbackState,
         FavoriteVocabularyReviewPlaybackState.idle,
       );
+    },
+  );
+
+  test(
+    'replayCurrent keeps multi-word cards on the existing speech path',
+    () async {
+      final notifier = container.read(
+        favoriteVocabularyReviewProvider.notifier,
+      );
+      await notifier.initialize([_word('w1', 'hello world')], []);
+
+      await notifier.replayCurrent();
+
+      expect(fakePlayback.spoken, ['hello world']);
+      expect(fakePlayback.singleWordSequences, isEmpty);
     },
   );
 
@@ -142,5 +191,87 @@ void main() {
     final advanced = container.read(favoriteVocabularyReviewProvider);
     expect(advanced.face, FavoriteVocabularyReviewFace.front);
     expect(advanced.currentCard?.displayText, 'banana');
+  });
+
+  test('unsaving a word archives its schedule and advances the deck', () async {
+    final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
+    await database.savedWordDao.saveWord(word: 'apple');
+    final first = (await database.savedWordDao.getAll()).single;
+    await notifier.initialize([first, _word('w2', 'banana')], []);
+
+    await notifier.removeCurrentVocabulary();
+
+    final state = container.read(favoriteVocabularyReviewProvider);
+    expect(state.currentCard?.displayText, 'banana');
+    expect(await database.savedWordDao.isWordSaved(first.word), isFalse);
+    final subjectId = first.memorySubjectId;
+    if (subjectId == null) fail('saved word must have a memory subject ID');
+    final schedule = await container
+        .read(memorySchedulerProvider)
+        .getSchedule(
+          MemorySubjectRef(
+            namespace: state.cards.first.namespace,
+            subjectId: subjectId,
+          ),
+        );
+    expect(schedule?.status, MemoryScheduleStatus.archived);
+  });
+
+  test(
+    'unsaving a sense group archives its schedule and completes the deck',
+    () async {
+      final notifier = container.read(
+        favoriteVocabularyReviewProvider.notifier,
+      );
+      await database.savedSenseGroupDao.saveSenseGroup(
+        phraseText: 'on the table',
+        displayText: 'on the table',
+      );
+      final first = (await database.savedSenseGroupDao.watchAll().first).single;
+      await notifier.initialize([], [first]);
+
+      await notifier.removeCurrentVocabulary();
+
+      final state = container.read(favoriteVocabularyReviewProvider);
+      expect(state.currentCard, isNull);
+      expect(
+        await database.savedSenseGroupDao.isSenseGroupSaved(first.phraseText),
+        isFalse,
+      );
+      final subjectId = first.memorySubjectId;
+      if (subjectId == null)
+        fail('saved sense group must have a memory subject ID');
+      final schedule = await container
+          .read(memorySchedulerProvider)
+          .getSchedule(
+            MemorySubjectRef(
+              namespace: kSavedSenseGroupNamespace,
+              subjectId: subjectId,
+            ),
+          );
+      expect(schedule?.status, MemoryScheduleStatus.archived);
+    },
+  );
+
+  test('failed unsave keeps the current card and exposes an error', () async {
+    final failingContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        pronunciationPlaybackProvider.overrideWith(() => fakePlayback),
+        savedWordDaoProvider.overrideWithValue(_FailingSavedWordDao(database)),
+      ],
+    );
+    addTearDown(failingContainer.dispose);
+    final notifier = failingContainer.read(
+      favoriteVocabularyReviewProvider.notifier,
+    );
+    await notifier.initialize([_word('w1', 'apple')], []);
+
+    await notifier.removeCurrentVocabulary();
+
+    final state = failingContainer.read(favoriteVocabularyReviewProvider);
+    expect(state.currentCard?.displayText, 'apple');
+    expect(state.isRemoving, isFalse);
+    expect(state.removeError, 'unsave_failed');
   });
 }
