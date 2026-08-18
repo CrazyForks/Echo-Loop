@@ -210,6 +210,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Review settings'), findsOneWidget);
+      final sheetRenderObject = tester.renderObject<RenderBox>(
+        find.byType(BottomSheet),
+      );
+      expect(
+        sheetRenderObject.size.height,
+        lessThanOrEqualTo(
+          tester.view.physicalSize.height / tester.view.devicePixelRatio * 0.9,
+        ),
+      );
       expect(
         find.byKey(const Key('favorite-review-settings-sentence-section')),
         findsOneWidget,
@@ -550,17 +559,27 @@ void main() {
 
   group('FavoritesScreen - source audio layout', () {
     testWidgets('long labels stay within a narrow row', (tester) async {
-      await tester.pumpWidget(const Directionality(
-        textDirection: TextDirection.ltr,
-        child: SizedBox(
-          width: 120,
-          child: Row(children: [
-            Icon(Icons.headphones, size: 12),
-            SizedBox(width: 4),
-            Expanded(child: Text('From: exceptionally long audio lesson', maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ]),
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 120,
+            child: Row(
+              children: [
+                Icon(Icons.headphones, size: 12),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'From: exceptionally long audio lesson',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ));
+      );
       expect(tester.takeException(), isNull);
     });
   });
