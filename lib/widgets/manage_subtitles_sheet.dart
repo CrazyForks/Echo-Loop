@@ -599,7 +599,12 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       'timeout' => l10n.transcriptionErrorTimeout,
       'server' => l10n.transcriptionErrorServer,
       'compression' => l10n.transcriptionErrorCompression,
-      'fileTooLarge' => l10n.transcriptionErrorCompressedFileTooLarge,
+      'fileTooLarge' => l10n.transcriptionErrorFileTooLarge(25),
+      'compressedFileTooLarge' => l10n.transcriptionErrorCompressedFileTooLarge,
+      'audioNotFound' => l10n.transcriptionErrorAudioNotFound,
+      'audioExpired' => l10n.transcriptionErrorAudioExpired,
+      'requestInvalid' => l10n.transcriptionErrorRequestInvalid,
+      'apiDeprecated' => l10n.transcriptionErrorApiDeprecated,
       _ => l10n.transcriptionErrorUnknown,
     };
   }

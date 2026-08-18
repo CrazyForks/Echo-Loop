@@ -614,6 +614,80 @@ void main() {
       container.dispose();
     });
 
+    for (final (backendCode, expectedMessage) in [
+      ('file_too_large', 'fileTooLarge'),
+      ('audio_not_found', 'audioNotFound'),
+      ('audio_expired', 'audioExpired'),
+      ('missing_fields', 'requestInvalid'),
+      ('api_deprecated', 'apiDeprecated'),
+    ]) {
+      test('提交返回 $backendCode 时保留可本地化错误码', () async {
+        final audioItem = _testAudioItem(audioSha256: 'abc123');
+
+        when(
+          () => mockFileOps.computeSha256(any()),
+        ).thenAnswer((_) async => 'abc123');
+        when(
+          () => mockFileOps.getFileSize(any()),
+        ).thenAnswer((_) async => 1024);
+        when(
+          () => mockApi.getUploadUrl(
+            sha256: any(named: 'sha256'),
+            mimeType: any(named: 'mimeType'),
+            fileSize: any(named: 'fileSize'),
+            accessToken: any(named: 'accessToken'),
+          ),
+        ).thenAnswer((_) async => const UploadUrlResponse(audioExists: true));
+        when(
+          () => mockApi.submitTranscription(
+            sha256: any(named: 'sha256'),
+            fileName: any(named: 'fileName'),
+            objectName: any(named: 'objectName'),
+            publicUrl: any(named: 'publicUrl'),
+            mimeType: any(named: 'mimeType'),
+            fileSize: any(named: 'fileSize'),
+            language: any(named: 'language'),
+            accessToken: any(named: 'accessToken'),
+          ),
+        ).thenThrow(
+          DioException(
+            requestOptions: RequestOptions(
+              path: '/api/v2/user-audio/submit-transcription',
+            ),
+            response: Response(
+              requestOptions: RequestOptions(
+                path: '/api/v2/user-audio/submit-transcription',
+              ),
+              statusCode: 400,
+              data: {'code': backendCode},
+            ),
+          ),
+        );
+
+        final container = _createContainer(
+          mockApi: mockApi,
+          mockFileOps: mockFileOps,
+          database: database,
+          audioItems: [audioItem],
+        );
+        final notifier = container.read(
+          transcriptionTaskManagerProvider.notifier,
+        );
+
+        await notifier.startTranscription(
+          audioItem,
+          'en',
+          accessToken: 'token',
+        );
+
+        final state = notifier.getTaskState('test-audio-1');
+        expect(state, isA<TranscriptionFailed>());
+        expect((state as TranscriptionFailed).message, expectedMessage);
+
+        container.dispose();
+      });
+    }
+
     test('提交转录时使用 AudioItem.name 作为后端文件名', () async {
       final audioItem = _testAudioItem(
         name: 'Original Lecture.mp3',

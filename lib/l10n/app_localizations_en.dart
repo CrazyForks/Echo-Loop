@@ -2199,6 +2199,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Compressed file still exceeds 25MB';
 
   @override
+  String get transcriptionErrorAudioNotFound =>
+      'Uploaded audio was not found. Please retry.';
+
+  @override
+  String get transcriptionErrorAudioExpired =>
+      'Uploaded audio has expired. Please retry.';
+
+  @override
+  String get transcriptionErrorRequestInvalid =>
+      'The transcription request was invalid. Please update the app and retry.';
+
+  @override
+  String get transcriptionErrorApiDeprecated =>
+      'This app version is no longer supported. Please update the app.';
+
+  @override
   String get transcriptionEmptyResult => 'No speech detected';
 
   @override

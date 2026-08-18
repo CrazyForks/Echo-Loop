@@ -262,7 +262,7 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
         if (fileSize > maxUploadBytes) {
           _updateState(
             audioId,
-            const TranscriptionFailed(message: 'fileTooLarge'),
+            const TranscriptionFailed(message: 'compressedFileTooLarge'),
           );
           return;
         }
@@ -410,6 +410,20 @@ class TranscriptionTaskManager extends _$TranscriptionTaskManager {
 
   /// 将 DioException 转换为简短的错误码
   String _userFriendlyError(DioException e) {
+    final responseData = e.response?.data;
+    final backendCode = responseData is Map ? responseData['code'] : null;
+    if (backendCode is String) {
+      final localizedCode = switch (backendCode) {
+        'file_too_large' => 'fileTooLarge',
+        'audio_not_found' => 'audioNotFound',
+        'audio_expired' => 'audioExpired',
+        'missing_fields' => 'requestInvalid',
+        'api_deprecated' => 'apiDeprecated',
+        _ => null,
+      };
+      if (localizedCode != null) return localizedCode;
+    }
+
     return switch (e.type) {
       DioExceptionType.connectionError ||
       DioExceptionType.connectionTimeout => 'connection',

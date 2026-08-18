@@ -404,6 +404,30 @@ void main() {
         expect(find.byType(ManageSubtitlesSheet), findsOneWidget);
       });
 
+      testWidgets('服务端文件超限时显示本地化的 25MB 提示', (tester) async {
+        final item = createTestAudioItem(transcriptPath: null);
+        final manager = _ManualTranscriptionTaskManager();
+        await tester.pumpWidget(
+          buildSheet(
+            item,
+            extraOverrides: [
+              transcriptionTaskManagerProvider.overrideWith(() => manager),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+        manager.emit(
+          item.id,
+          const TranscriptionFailed(message: 'fileTooLarge'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('File too large (max 25MB)'), findsOneWidget);
+      });
+
       testWidgets('AI 转录读取远程时长限制并在弹窗内显示错误提示', (tester) async {
         final item = createTestAudioItem(
           totalDuration: 2 * 60,
@@ -540,9 +564,7 @@ void main() {
         await tester.tap(find.text('Local Upload'));
         await tester.pumpAndSettle();
 
-        await tester.tap(
-          find.widgetWithText(FilledButton, 'Upload Subtitles'),
-        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Upload Subtitles'));
         await tester.pumpAndSettle();
 
         final logLines = AppLogger.instance.entries.map((e) => e.toString());

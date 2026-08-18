@@ -3872,6 +3872,30 @@ abstract class AppLocalizations {
   /// **'Compressed file still exceeds 25MB'**
   String get transcriptionErrorCompressedFileTooLarge;
 
+  /// No description provided for @transcriptionErrorAudioNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded audio was not found. Please retry.'**
+  String get transcriptionErrorAudioNotFound;
+
+  /// No description provided for @transcriptionErrorAudioExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded audio has expired. Please retry.'**
+  String get transcriptionErrorAudioExpired;
+
+  /// No description provided for @transcriptionErrorRequestInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The transcription request was invalid. Please update the app and retry.'**
+  String get transcriptionErrorRequestInvalid;
+
+  /// No description provided for @transcriptionErrorApiDeprecated.
+  ///
+  /// In en, this message translates to:
+  /// **'This app version is no longer supported. Please update the app.'**
+  String get transcriptionErrorApiDeprecated;
+
   /// No description provided for @transcriptionEmptyResult.
   ///
   /// In en, this message translates to:

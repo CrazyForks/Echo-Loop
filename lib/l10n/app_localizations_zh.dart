@@ -2103,6 +2103,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get transcriptionErrorCompressedFileTooLarge => '压缩后文件仍超过 25MB';
 
   @override
+  String get transcriptionErrorAudioNotFound => '未找到已上传的音频，请重试。';
+
+  @override
+  String get transcriptionErrorAudioExpired => '已上传的音频已过期，请重试。';
+
+  @override
+  String get transcriptionErrorRequestInvalid => '转录请求无效，请更新应用后重试。';
+
+  @override
+  String get transcriptionErrorApiDeprecated => '当前应用版本已不再受支持，请更新应用。';
+
+  @override
   String get transcriptionEmptyResult => '未检测到语音';
 
   @override
