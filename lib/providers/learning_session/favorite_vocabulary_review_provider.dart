@@ -146,7 +146,12 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     );
   }
 
-  Future<void> startCurrentCard() => replayCurrent();
+  /// 仅在共享偏好开启时自动播放正面；手动重播不受该偏好影响。
+  Future<void> startCurrentCard() async {
+    if (ref.read(favoriteReviewSettingsProvider).autoPlayFront) {
+      await replayCurrent();
+    }
+  }
 
   /// 立即废弃旧播放，重新朗读当前词汇（离线发音库优先，回退 TTS）。
   Future<void> replayCurrent() async {
@@ -213,9 +218,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     if (state.currentCard == card &&
         state.face == FavoriteVocabularyReviewFace.back) {
       state = state.copyWith(preview: controller.state.preview);
-      if (ref
-          .read(favoriteReviewSettingsProvider)
-          .autoPlayVocabularySourceSentence) {
+      if (ref.read(favoriteReviewSettingsProvider).autoPlayBack) {
         unawaited(playSourceSentence());
       }
     }

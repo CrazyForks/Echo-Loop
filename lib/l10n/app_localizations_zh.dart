@@ -2445,6 +2445,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewShowNextReviewTime => '显示下次复习时间';
 
   @override
+  String get favoriteReviewAutoPlayFront => '自动播放正面';
+
+  @override
+  String get favoriteReviewAutoPlayBack => '自动播放背面';
+
+  @override
   String get bookmarkReviewDailyGoal => '每日复习目标';
 
   @override

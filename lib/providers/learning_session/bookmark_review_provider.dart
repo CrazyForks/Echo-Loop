@@ -157,7 +157,12 @@ class BookmarkReview extends _$BookmarkReview {
     });
   }
 
-  Future<void> startCurrentCard() => replayCurrent();
+  /// 仅在共享偏好开启时自动播放正面；手动重播不受该偏好影响。
+  Future<void> startCurrentCard() async {
+    if (ref.read(favoriteReviewSettingsProvider).autoPlayFront) {
+      await replayCurrent();
+    }
+  }
 
   /// 立即废弃旧播放，再从当前句起点播放。
   Future<void> replayCurrent() async {
@@ -223,6 +228,9 @@ class BookmarkReview extends _$BookmarkReview {
     if (!identical(_controller, controller)) return;
     if (state.currentCard == card && state.face == BookmarkReviewFace.back) {
       state = state.copyWith(preview: controller.state.preview);
+      if (ref.read(favoriteReviewSettingsProvider).autoPlayBack) {
+        unawaited(replayCurrent());
+      }
     }
   }
 

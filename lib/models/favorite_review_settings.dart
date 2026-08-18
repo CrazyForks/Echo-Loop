@@ -10,7 +10,8 @@ enum FavoriteReviewOrder { smart, dueAt, random }
 class FavoriteReviewSettings {
   const FavoriteReviewSettings({
     this.showNextReviewTime = false,
-    this.autoPlayVocabularySourceSentence = true,
+    this.autoPlayFront = true,
+    this.autoPlayBack = true,
     this.sentenceDailyReviewGoal,
     this.vocabularyDailyReviewGoal,
     this.order = FavoriteReviewOrder.smart,
@@ -18,8 +19,11 @@ class FavoriteReviewSettings {
 
   final bool showNextReviewTime;
 
-  /// 词汇复习翻到背面时是否自动播放来源例句。
-  final bool autoPlayVocabularySourceSentence;
+  /// 进入或切换到正面时是否自动播放当前卡片的音频。
+  final bool autoPlayFront;
+
+  /// 翻到背面时是否自动播放当前卡片对应的音频。
+  final bool autoPlayBack;
 
   /// 收藏句的每日复习目标；为空时不限制。
   final int? sentenceDailyReviewGoal;
@@ -46,7 +50,8 @@ class FavoriteReviewSettings {
 
   FavoriteReviewSettings copyWith({
     bool? showNextReviewTime,
-    bool? autoPlayVocabularySourceSentence,
+    bool? autoPlayFront,
+    bool? autoPlayBack,
     int? sentenceDailyReviewGoal,
     bool clearSentenceDailyReviewGoal = false,
     int? vocabularyDailyReviewGoal,
@@ -54,9 +59,8 @@ class FavoriteReviewSettings {
     FavoriteReviewOrder? order,
   }) => FavoriteReviewSettings(
     showNextReviewTime: showNextReviewTime ?? this.showNextReviewTime,
-    autoPlayVocabularySourceSentence:
-        autoPlayVocabularySourceSentence ??
-        this.autoPlayVocabularySourceSentence,
+    autoPlayFront: autoPlayFront ?? this.autoPlayFront,
+    autoPlayBack: autoPlayBack ?? this.autoPlayBack,
     sentenceDailyReviewGoal: clearSentenceDailyReviewGoal
         ? null
         : sentenceDailyReviewGoal ?? this.sentenceDailyReviewGoal,
@@ -68,7 +72,8 @@ class FavoriteReviewSettings {
 
   Map<String, dynamic> toJson() => {
     'showNextReviewTime': showNextReviewTime,
-    'autoPlayVocabularySourceSentence': autoPlayVocabularySourceSentence,
+    'autoPlayFront': autoPlayFront,
+    'autoPlayBack': autoPlayBack,
     'sentenceDailyReviewGoal': sentenceDailyReviewGoal,
     'vocabularyDailyReviewGoal': vocabularyDailyReviewGoal,
     'order': order.name,
@@ -84,9 +89,14 @@ class FavoriteReviewSettings {
       showNextReviewTime: json['showNextReviewTime'] is bool
           ? json['showNextReviewTime'] == true
           : false,
-      // 旧版没有此字段时保持旧闪卡的默认体验：翻面即播放来源句。
-      autoPlayVocabularySourceSentence:
-          json['autoPlayVocabularySourceSentence'] is bool
+      // 旧版正面固定自动播放；缺少新字段时保持这一默认体验。
+      autoPlayFront: json['autoPlayFront'] is bool
+          ? json['autoPlayFront'] == true
+          : true,
+      // 词汇旧字段只控制背面播放，迁移为所有收藏复习共用的背面偏好。
+      autoPlayBack: json['autoPlayBack'] is bool
+          ? json['autoPlayBack'] == true
+          : json['autoPlayVocabularySourceSentence'] is bool
           ? json['autoPlayVocabularySourceSentence'] == true
           : true,
       sentenceDailyReviewGoal:

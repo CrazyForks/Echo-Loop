@@ -86,6 +86,21 @@ class _BookmarkReviewSettingsSheetState
                       settings.copyWith(showNextReviewTime: value),
                     ),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.favoriteReviewAutoPlayFront),
+                    value: settings.autoPlayFront,
+                    onChanged: (value) => notifier.update(
+                      settings.copyWith(autoPlayFront: value),
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.favoriteReviewAutoPlayBack),
+                    value: settings.autoPlayBack,
+                    onChanged: (value) =>
+                        notifier.update(settings.copyWith(autoPlayBack: value)),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
                     child: Text(
@@ -236,16 +251,6 @@ class _BookmarkReviewSettingsSheetState
                                 : settings.copyWith(
                                     vocabularyDailyReviewGoal: goal,
                                   ),
-                          ),
-                        ),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('翻面自动播放来源例句'),
-                          value: settings.autoPlayVocabularySourceSentence,
-                          onChanged: (value) => notifier.update(
-                            settings.copyWith(
-                              autoPlayVocabularySourceSentence: value,
-                            ),
                           ),
                         ),
                       ],

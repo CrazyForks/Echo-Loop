@@ -2554,6 +2554,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewShowNextReviewTime => 'Show next review time';
 
   @override
+  String get favoriteReviewAutoPlayFront => 'Auto-play front';
+
+  @override
+  String get favoriteReviewAutoPlayBack => 'Auto-play back';
+
+  @override
   String get bookmarkReviewDailyGoal => 'Daily review goal';
 
   @override

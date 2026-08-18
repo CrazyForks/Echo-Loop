@@ -1076,6 +1076,8 @@
   "bookmarkReviewSettingsPlaceholderBody": "更多复习控制将在后续版本中开放。",
   "bookmarkReviewSettingsTitle": "复习设置",
   "bookmarkReviewShowNextReviewTime": "显示下次复习时间",
+  "favoriteReviewAutoPlayFront": "自动播放正面",
+  "favoriteReviewAutoPlayBack": "自动播放背面",
   "bookmarkReviewDailyGoal": "每日复习目标",
   "favoriteReviewSentenceSettings": "收藏句子复习",
   "favoriteReviewVocabularySettings": "收藏词汇复习",

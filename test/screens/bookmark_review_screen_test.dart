@@ -482,6 +482,9 @@ void main() {
     await tester.tap(find.byKey(const Key('bookmark-review-settings')));
     await tester.pumpAndSettle();
     expect(find.text('显示下次复习时间'), findsOneWidget);
+    expect(find.text('自动播放正面'), findsOneWidget);
+    expect(find.text('自动播放背面'), findsOneWidget);
+    expect(find.text('翻面自动播放来源例句'), findsNothing);
     expect(find.text('收藏句子复习'), findsOneWidget);
     expect(find.text('每日句子复习目标'), findsOneWidget);
     expect(find.text('收藏词汇复习'), findsOneWidget);
@@ -526,7 +529,7 @@ void main() {
               ),
             )
             .contentPadding,
-        const EdgeInsets.only(left: AppSpacing.l),
+        const EdgeInsets.only(left: AppSpacing.s),
       );
     }
   });
@@ -609,13 +612,22 @@ void main() {
       );
       expect(find.text('不限制'), findsOneWidget);
 
-      final aiSwitches = tester.widgetList<Switch>(find.byType(Switch));
-      expect(aiSwitches.elementAt(1).value, isTrue);
-      expect(aiSwitches.elementAt(2).value, isFalse);
-      expect(aiSwitches.elementAt(3).value, isTrue);
-      expect(aiSwitches.elementAt(4).value, isFalse);
+      Switch switchFor(String title) => tester.widget<Switch>(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text(title),
+            matching: find.byType(SwitchListTile),
+          ),
+          matching: find.byType(Switch),
+        ),
+      );
 
-      aiSwitches.elementAt(1).onChanged!(false);
+      expect(switchFor('自动显示 AI 讲解').value, isTrue);
+      expect(switchFor('AI 解析').value, isFalse);
+      expect(switchFor('AI 翻译').value, isTrue);
+      expect(switchFor('AI 意群分割').value, isFalse);
+
+      switchFor('自动显示 AI 讲解').onChanged!(false);
       await tester.pump();
       expect(find.text('AI 解析'), findsNothing);
       expect(find.text('AI 翻译'), findsNothing);

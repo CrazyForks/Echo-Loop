@@ -4,9 +4,11 @@ import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/models/audio_engine_state.dart';
+import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
+import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +56,22 @@ class _FakeForegroundEngine extends ForegroundAudioEngine {
   }
 }
 
+class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
+  _TestFavoriteReviewSettings({
+    required this.autoPlayFront,
+    required this.autoPlayBack,
+  });
+
+  final bool autoPlayFront;
+  final bool autoPlayBack;
+
+  @override
+  FavoriteReviewSettings build() => FavoriteReviewSettings(
+    autoPlayFront: autoPlayFront,
+    autoPlayBack: autoPlayBack,
+  );
+}
+
 BookmarkWithAudio _bookmark(int id) => BookmarkWithAudio(
   bookmark: db.Bookmark(
     id: id,
@@ -70,22 +88,42 @@ BookmarkWithAudio _bookmark(int id) => BookmarkWithAudio(
   audioName: 'Material',
 );
 
-ProviderContainer _container(_TestBookmarkDao dao, db.AppDatabase database) =>
-    ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        bookmarkDaoProvider.overrideWithValue(dao),
-        foregroundAudioEngineProvider.overrideWith(_FakeForegroundEngine.new),
-        audioEngineProvider.overrideWith(TestAudioEngine.new),
-        analyticsOverride(),
-      ],
-    );
+ProviderContainer _container(
+  _TestBookmarkDao dao,
+  db.AppDatabase database, {
+  bool autoPlayFront = false,
+  bool autoPlayBack = false,
+}) => ProviderContainer(
+  overrides: [
+    appDatabaseProvider.overrideWithValue(database),
+    bookmarkDaoProvider.overrideWithValue(dao),
+    foregroundAudioEngineProvider.overrideWith(_FakeForegroundEngine.new),
+    audioEngineProvider.overrideWith(TestAudioEngine.new),
+    favoriteReviewSettingsProvider.overrideWith(
+      () => _TestFavoriteReviewSettings(
+        autoPlayFront: autoPlayFront,
+        autoPlayBack: autoPlayBack,
+      ),
+    ),
+    analyticsOverride(),
+  ],
+);
 
 ({ProviderContainer container, db.AppDatabase database}) _testScope(
-  _TestBookmarkDao dao,
-) {
+  _TestBookmarkDao dao, {
+  bool autoPlayFront = false,
+  bool autoPlayBack = false,
+}) {
   final database = db.AppDatabase(NativeDatabase.memory());
-  return (container: _container(dao, database), database: database);
+  return (
+    container: _container(
+      dao,
+      database,
+      autoPlayFront: autoPlayFront,
+      autoPlayBack: autoPlayBack,
+    ),
+    database: database,
+  );
 }
 
 void main() {
@@ -131,6 +169,53 @@ void main() {
           .stops,
       greaterThan(0),
     );
+  });
+
+  test('shared auto-play settings control sentence front and back', () async {
+    final disabled = _testScope(
+      _TestBookmarkDao(),
+      autoPlayFront: false,
+      autoPlayBack: false,
+    );
+    addTearDown(() async {
+      disabled.container.dispose();
+      await disabled.database.close();
+    });
+    final disabledNotifier = disabled.container.read(
+      bookmarkReviewProvider.notifier,
+    );
+    await disabledNotifier.initialize([_bookmark(1)]);
+    await disabledNotifier.startCurrentCard();
+    await disabledNotifier.revealBack();
+    final disabledEngine =
+        disabled.container.read(foregroundAudioEngineProvider.notifier)
+            as _FakeForegroundEngine;
+    expect(disabledEngine.rangePlays, 0);
+
+    final enabled = _testScope(
+      _TestBookmarkDao(),
+      autoPlayFront: true,
+      autoPlayBack: true,
+    );
+    addTearDown(() async {
+      enabled.container.dispose();
+      await enabled.database.close();
+    });
+    final enabledNotifier = enabled.container.read(
+      bookmarkReviewProvider.notifier,
+    );
+    await enabledNotifier.initialize([_bookmark(1)]);
+    unawaited(enabledNotifier.startCurrentCard());
+    await Future<void>.delayed(Duration.zero);
+    final enabledEngine =
+        enabled.container.read(foregroundAudioEngineProvider.notifier)
+            as _FakeForegroundEngine;
+    expect(enabledEngine.rangePlays, 1);
+    await enabledNotifier.interruptPlayback();
+    await enabledNotifier.revealBack();
+    await Future<void>.delayed(Duration.zero);
+    expect(enabledEngine.rangePlays, 2);
+    await enabledNotifier.interruptPlayback();
   });
 
   test('back can play and stop the current sentence', () async {

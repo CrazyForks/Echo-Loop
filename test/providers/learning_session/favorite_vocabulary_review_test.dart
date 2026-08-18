@@ -3,6 +3,8 @@ import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
+import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
+import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +26,16 @@ class _FakePronunciationPlaybackController
   Future<void> stop() async {
     stops++;
   }
+}
+
+class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
+  _TestFavoriteReviewSettings(this.autoPlayFront);
+
+  final bool autoPlayFront;
+
+  @override
+  FavoriteReviewSettings build() =>
+      FavoriteReviewSettings(autoPlayFront: autoPlayFront);
 }
 
 db.SavedWord _word(String subjectId, String text) => db.SavedWord(
@@ -91,6 +103,25 @@ void main() {
       );
     },
   );
+
+  test('shared front auto-play setting controls vocabulary playback', () async {
+    final disabledContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        pronunciationPlaybackProvider.overrideWith(() => fakePlayback),
+        favoriteReviewSettingsProvider.overrideWith(
+          () => _TestFavoriteReviewSettings(false),
+        ),
+      ],
+    );
+    addTearDown(disabledContainer.dispose);
+    final notifier = disabledContainer.read(
+      favoriteVocabularyReviewProvider.notifier,
+    );
+    await notifier.initialize([_word('w1', 'apple')], []);
+    await notifier.startCurrentCard();
+    expect(fakePlayback.spoken, isEmpty);
+  });
 
   test('revealBack fetches ratings and submitting advances the deck', () async {
     final notifier = container.read(favoriteVocabularyReviewProvider.notifier);

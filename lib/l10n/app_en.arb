@@ -1393,6 +1393,8 @@
   "bookmarkReviewSettingsPlaceholderBody": "More review controls will be available in a future update.",
   "bookmarkReviewSettingsTitle": "Review settings",
   "bookmarkReviewShowNextReviewTime": "Show next review time",
+  "favoriteReviewAutoPlayFront": "Auto-play front",
+  "favoriteReviewAutoPlayBack": "Auto-play back",
   "bookmarkReviewDailyGoal": "Daily review goal",
   "favoriteReviewSentenceSettings": "Saved sentence review",
   "favoriteReviewVocabularySettings": "Saved vocabulary review",

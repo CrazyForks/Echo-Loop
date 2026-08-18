@@ -21,12 +21,27 @@ void main() {
     );
   });
 
-  test('旧设置缺少来源句自动播放字段时默认开启', () {
+  test('正反面自动播放默认开启，兼容旧词汇背面偏好', () {
+    final defaults = FavoriteReviewSettings.fromJson(const {});
+    expect(defaults.autoPlayFront, isTrue);
+    expect(defaults.autoPlayBack, isTrue);
+
+    final migrated = FavoriteReviewSettings.fromJson(const {
+      'autoPlayVocabularySourceSentence': false,
+    });
+    expect(migrated.autoPlayFront, isTrue);
+    expect(migrated.autoPlayBack, isFalse);
+  });
+
+  test('两个自动播放设置都能序列化和恢复', () {
+    const settings = FavoriteReviewSettings(
+      autoPlayFront: false,
+      autoPlayBack: false,
+    );
+
     expect(
-      FavoriteReviewSettings.fromJson(
-        const {},
-      ).autoPlayVocabularySourceSentence,
-      isTrue,
+      FavoriteReviewSettings.fromJson(settings.toJson()).toJson(),
+      settings.toJson(),
     );
   });
 }

@@ -4460,6 +4460,18 @@ abstract class AppLocalizations {
   /// **'Show next review time'**
   String get bookmarkReviewShowNextReviewTime;
 
+  /// No description provided for @favoriteReviewAutoPlayFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-play front'**
+  String get favoriteReviewAutoPlayFront;
+
+  /// No description provided for @favoriteReviewAutoPlayBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-play back'**
+  String get favoriteReviewAutoPlayBack;
+
   /// No description provided for @bookmarkReviewDailyGoal.
   ///
   /// In en, this message translates to:
