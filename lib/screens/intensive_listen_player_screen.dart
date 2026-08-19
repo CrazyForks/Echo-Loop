@@ -532,7 +532,9 @@ class _IntensiveListenPlayerScreenState
           );
       await ref
           .read(learningProgressNotifierProvider.notifier)
-          .completeCurrentSubStage(widget.audioItemId);
+          .completeIntensiveListenAndAutoCompleteShadowingIfNoDifficult(
+            widget.audioItemId,
+          );
     } catch (e) {
       debugPrint('精听完成处理出错: $e');
     }
