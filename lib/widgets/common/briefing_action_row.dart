@@ -20,6 +20,9 @@ class BriefingActionRow extends StatelessWidget {
   /// 点击开始的回调（导航/弹窗关闭由调用方在回调内处理）
   final VoidCallback onStart;
 
+  /// 是否允许开始当前练习，用于入口内容为空时保留原因文案但禁止操作。
+  final bool isStartEnabled;
+
   /// 跳过按钮文案，与 [onSkip] 同时提供时才显示跳过按钮
   final String? skipLabel;
 
@@ -30,6 +33,7 @@ class BriefingActionRow extends StatelessWidget {
     super.key,
     required this.startLabel,
     required this.onStart,
+    this.isStartEnabled = true,
     this.startIcon = Icons.play_arrow,
     this.skipLabel,
     this.onSkip,
@@ -40,7 +44,7 @@ class BriefingActionRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     final startButton = FilledButton.icon(
-      onPressed: onStart,
+      onPressed: isStartEnabled ? onStart : null,
       icon: Icon(startIcon),
       label: Text(startLabel),
     );

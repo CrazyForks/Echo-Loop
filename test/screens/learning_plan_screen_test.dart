@@ -90,6 +90,18 @@ class _ReviewBookmarkDao implements BookmarkDao {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
+class _EmptyBookmarkDao implements BookmarkDao {
+  @override
+  Future<Set<int>> getBookmarkedIndices(String audioItemId) async => <int>{};
+
+  @override
+  Stream<List<Bookmark>> watchByAudioId(String audioItemId) =>
+      Stream.value(const <Bookmark>[]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -666,9 +678,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Learning progress has been reset'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('learning_plan_more_menu')));
+      expect(find.text('Start practicing'), findsOneWidget);
+      // 重置成功 SnackBar 位于底部，会暂时遮挡固定的开始学习按钮。
+      final planContext = tester.element(find.byType(LearningPlanScreen));
+      ScaffoldMessenger.of(planContext).hideCurrentSnackBar();
       await tester.pumpAndSettle();
-      expect(find.text('Reset Progress'), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'Start practicing'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start Practicing'), findsOneWidget);
     });
 
     testWidgets('显示进度卡片（0%，未开始）', (tester) async {
@@ -2118,6 +2135,32 @@ void main() {
         AppLocalizations.of(context)!.listenAndRepeatBriefingDifficultCount(0),
         '0 saved sentences',
       );
+    });
+
+    testWidgets('逐句精听零收藏时不显示难句数，仍显示已练习遍数', (tester) async {
+      final progressState = LearningProgressState(
+        progressMap: {
+          'test-1': LearningProgress(
+            audioItemId: 'test-1',
+            currentStage: LearningStage.firstLearn,
+            currentSubStage: SubStageType.intensiveListen,
+            intensiveListenPassCount: 2,
+            updatedAt: DateTime(2026, 5, 1),
+          ),
+        },
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          progressState: progressState,
+          extraOverrides: [
+            bookmarkDaoProvider.overrideWithValue(_EmptyBookmarkDao()),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('0 challenging sentences'), findsNothing);
+      expect(find.textContaining('Practiced 2x'), findsOneWidget);
     });
 
     // ====== 听前预热卡（「首次学习」上方） ======

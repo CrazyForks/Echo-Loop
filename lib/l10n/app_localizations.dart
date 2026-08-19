@@ -2894,6 +2894,12 @@ abstract class AppLocalizations {
   /// **'Saved Only'**
   String get listenAndRepeatScopeDifficultOnly;
 
+  /// No description provided for @listenAndRepeatNoSavedSentencesNoNeed.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved sentences'**
+  String get listenAndRepeatNoSavedSentencesNoNeed;
+
   /// No description provided for @listenAndRepeatBriefingSentenceCount.
   ///
   /// In en, this message translates to:

@@ -897,6 +897,7 @@
   "listenAndRepeatScopeLabel": "Repeat Scope",
   "listenAndRepeatScopeFullText": "Full Text",
   "listenAndRepeatScopeDifficultOnly": "Saved Only",
+  "listenAndRepeatNoSavedSentencesNoNeed": "No saved sentences",
   "listenAndRepeatBriefingSentenceCount": "{count} sentences",
   "@listenAndRepeatBriefingSentenceCount": {
     "placeholders": {

@@ -1612,6 +1612,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get listenAndRepeatScopeDifficultOnly => 'Saved Only';
 
   @override
+  String get listenAndRepeatNoSavedSentencesNoNeed => 'No saved sentences';
+
+  @override
   String listenAndRepeatBriefingSentenceCount(int count) {
     return '$count sentences';
   }

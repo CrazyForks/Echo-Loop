@@ -446,6 +446,30 @@ class LearningProgressNotifier extends _$LearningProgressNotifier {
     await _autoSkipRetellIfEnabled(audioItemId);
   }
 
+  /// 完成逐句精听，并在没有收藏句时自动完成随后的难句跟读。
+  ///
+  /// 仅供精听完成流程调用，避免普通步骤推进意外改变跟读断点或进度语义。
+  Future<void> completeIntensiveListenAndAutoCompleteShadowingIfNoDifficult(
+    String audioItemId,
+  ) async {
+    await completeCurrentSubStage(audioItemId);
+    await _autoCompleteShadowingIfNoDifficult(audioItemId);
+  }
+
+  /// 当前步骤为难句跟读且没有收藏句时，写入真实完成记录并推进。
+  ///
+  /// 这与手动跳过不同：用户已经完成精听，跟读只是因没有内容而自动完成。
+  Future<void> _autoCompleteShadowingIfNoDifficult(String audioItemId) async {
+    final progress = state.progressMap[audioItemId];
+    if (progress == null || progress.isCompleted) return;
+    if (progress.currentSubStage != SubStageType.listenAndRepeat) return;
+    final bookmarks = await ref
+        .read(bookmarkDaoProvider)
+        .getBookmarkedIndices(audioItemId);
+    if (bookmarks.isNotEmpty) return;
+    await completeCurrentSubStage(audioItemId);
+  }
+
   /// 用户跳过当前子阶段（手动按钮 / 自动跳过策略）。
   ///
   /// - **不**写 stage_completions
@@ -809,6 +833,15 @@ class LearningProgressNotifier extends _$LearningProgressNotifier {
   /// 所以"重置进度"场景下必须显式删除，否则子步骤完成态会残留在 UI 上。
   Future<void> deleteProgress(String audioItemId) async {
     await deleteProgressMany({audioItemId});
+  }
+
+  /// 重置学习进度并立即创建当前计划的首步进度。
+  ///
+  /// 用户停留在学习计划页时，必须同步回填内存状态，避免页面暂时回退到
+  /// 空进度的默认分发，从而错误打开非首个子步骤。
+  Future<LearningProgress> resetProgress(String audioItemId) async {
+    await deleteProgress(audioItemId);
+    return ensureProgress(audioItemId);
   }
 
   /// 批量删除指定音频的学习进度。

@@ -155,6 +155,10 @@ class _ListenAndRepeatBriefingSheetState
       l10n.listenAndRepeatBriefingDifficultCount(_selectedSentenceCount),
   };
 
+  /// 仅收藏范围没有内容时，明确禁用开始操作；全文范围仍可正常练习。
+  bool get _canStartPractice =>
+      _scope == ListenAndRepeatScope.fullText || widget.difficultCount > 0;
+
   /// 格式化预估时长
   String _formatEstimatedDuration(AppLocalizations l10n, Duration duration) {
     final minutes = (duration.inSeconds / 60).ceil();
@@ -371,7 +375,10 @@ class _ListenAndRepeatBriefingSheetState
 
           // 开始练习按钮（+ 可选跳过）
           BriefingActionRow(
-            startLabel: l10n.startPractice,
+            startLabel: _canStartPractice
+                ? l10n.startPractice
+                : l10n.listenAndRepeatNoSavedSentencesNoNeed,
+            isStartEnabled: _canStartPractice,
             onStart: () {
               Navigator.of(context).pop();
               widget.onStartPractice(_playbackSpeed, _pause, _scope);

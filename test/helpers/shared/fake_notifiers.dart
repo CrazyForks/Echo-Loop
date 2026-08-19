@@ -782,6 +782,12 @@ class FakeLearningProgressNotifier extends LearningProgressNotifier {
   }
 
   @override
+  Future<LearningProgress> resetProgress(String audioItemId) async {
+    await deleteProgress(audioItemId);
+    return ensureProgress(audioItemId);
+  }
+
+  @override
   Future<void> deleteProgressMany(
     Set<String> audioItemIds, {
     bool deleteFromDb = true,
@@ -790,7 +796,16 @@ class FakeLearningProgressNotifier extends LearningProgressNotifier {
     for (final audioItemId in audioItemIds) {
       newMap.remove(audioItemId);
     }
-    state = state.copyWith(progressMap: newMap);
+    final newCompletions = Map<String, Set<String>>.from(
+      state.completionsByAudio,
+    );
+    for (final audioItemId in audioItemIds) {
+      newCompletions.remove(audioItemId);
+    }
+    state = state.copyWith(
+      progressMap: newMap,
+      completionsByAudio: newCompletions,
+    );
   }
 
   @override

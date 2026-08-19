@@ -742,7 +742,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
 
     await ref
         .read(learningProgressNotifierProvider.notifier)
-        .deleteProgress(audioItem.id);
+        .resetProgress(audioItem.id);
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
@@ -2667,7 +2667,9 @@ class _FirstStudySection extends ConsumerWidget {
     // 实时查询书签数量（难句数）
     final bookmarkCount =
         ref.watch(_bookmarkCountProvider(audioItemId)).valueOrNull ?? 0;
-    parts.add(l10n.difficultSentenceCount(bookmarkCount));
+    if (bookmarkCount > 0) {
+      parts.add(l10n.difficultSentenceCount(bookmarkCount));
+    }
 
     // 精听总完成遍数
     if (progress?.intensiveListenPassCount case final count? when count > 0) {
@@ -4297,7 +4299,7 @@ class _BottomButton extends ConsumerWidget {
     if (confirm == true) {
       await ref
           .read(learningProgressNotifierProvider.notifier)
-          .deleteProgress(audioItemId);
+          .resetProgress(audioItemId);
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,

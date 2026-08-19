@@ -259,6 +259,63 @@ void main() {
       expect(after.lastStageCompletedAt, isNull);
     });
 
+    test('精听完成后无难句自动完成跟读并推进到盲听', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final progress = LearningProgress(
+        audioItemId: 'a1',
+        currentStage: LearningStage.firstLearn,
+        currentSubStage: SubStageType.intensiveListen,
+        currentStageStartedAt: now,
+        updatedAt: now,
+      );
+      final container = createContainer(
+        LearningProgressState(progressMap: {'a1': progress}),
+        nowGetter: () => now,
+      );
+
+      await notifier(
+        container,
+      ).completeIntensiveListenAndAutoCompleteShadowingIfNoDifficult('a1');
+
+      final after = readProgress(container, 'a1')!;
+      expect(after.currentSubStage, SubStageType.blindListen);
+      expect(
+        container
+            .read(learningProgressNotifierProvider)
+            .completionsByAudio['a1'],
+        containsAll(<String>[
+          'firstLearn:intensiveListen',
+          'firstLearn:listenAndRepeat',
+        ]),
+      );
+      expect(after.skippedSubStageKeys, isEmpty);
+    });
+
+    test('精听完成后有难句时停留在跟读', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final progress = LearningProgress(
+        audioItemId: 'a1',
+        currentStage: LearningStage.firstLearn,
+        currentSubStage: SubStageType.intensiveListen,
+        currentStageStartedAt: now,
+        updatedAt: now,
+      );
+      final container = createContainer(
+        LearningProgressState(progressMap: {'a1': progress}),
+        nowGetter: () => now,
+        bookmarks: const {0},
+      );
+
+      await notifier(
+        container,
+      ).completeIntensiveListenAndAutoCompleteShadowingIfNoDifficult('a1');
+
+      expect(
+        readProgress(container, 'a1')!.currentSubStage,
+        SubStageType.listenAndRepeat,
+      );
+    });
+
     test(
       '首次学习最后一步 retell → review0.reviewDifficultPractice，设置 firstLearnCompletedAt',
       () async {
@@ -1933,6 +1990,36 @@ void main() {
       verify(
         () => mockStageCompletionDao.deleteByAudioId('nonexistent'),
       ).called(1);
+    });
+
+    test('resetProgress 删除旧状态后立即创建逐句精听首步', () async {
+      final existing = LearningProgress(
+        audioItemId: 'a1',
+        currentStage: LearningStage.review1,
+        currentSubStage: SubStageType.blindListen,
+        updatedAt: DateTime(2026, 3, 1),
+      );
+      final container = createContainer(
+        LearningProgressState(
+          progressMap: {'a1': existing},
+          completionsByAudio: const {
+            'a1': {'firstLearn:intensiveListen', 'firstLearn:retell'},
+          },
+        ),
+      );
+
+      final reset = await notifier(container).resetProgress('a1');
+
+      expect(reset.currentStage, LearningStage.firstLearn);
+      expect(reset.currentSubStage, SubStageType.intensiveListen);
+      expect(readProgress(container, 'a1'), same(reset));
+      expect(
+        container.read(learningProgressNotifierProvider).completionsFor('a1'),
+        isEmpty,
+      );
+      verify(() => mockDao.deleteByAudioId('a1')).called(1);
+      verify(() => mockStageCompletionDao.deleteByAudioId('a1')).called(1);
+      verify(() => mockDao.upsert(any())).called(1);
     });
   });
 

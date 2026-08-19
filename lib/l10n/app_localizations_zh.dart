@@ -1558,6 +1558,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get listenAndRepeatScopeDifficultOnly => '仅收藏';
 
   @override
+  String get listenAndRepeatNoSavedSentencesNoNeed => '没有收藏句';
+
+  @override
   String listenAndRepeatBriefingSentenceCount(int count) {
     return '$count 句';
   }

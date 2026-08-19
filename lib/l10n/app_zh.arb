@@ -683,6 +683,7 @@
   "listenAndRepeatScopeLabel": "跟读范围",
   "listenAndRepeatScopeFullText": "全文",
   "listenAndRepeatScopeDifficultOnly": "仅收藏",
+  "listenAndRepeatNoSavedSentencesNoNeed": "没有收藏句",
   "listenAndRepeatBriefingSentenceCount": "{count} 句",
   "@listenAndRepeatBriefingSentenceCount": {
     "placeholders": {

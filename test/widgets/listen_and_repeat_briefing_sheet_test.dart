@@ -249,4 +249,50 @@ void main() {
     expect(find.text('12 sentences'), findsOneWidget);
     expect(find.text('Est. 5 min'), findsOneWidget);
   });
+
+  testWidgets('仅收藏且无收藏句时禁用开始按钮，切换全文后恢复', (tester) async {
+    var startCount = 0;
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showListenAndRepeatBriefingSheet(
+              context: context,
+              difficultCount: 0,
+              fullTextCount: 12,
+              playCount: 3,
+              difficultEstimatedDuration: Duration.zero,
+              fullTextEstimatedDuration: const Duration(minutes: 5),
+              onStartPractice: (_, _, _) => startCount++,
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final disabledButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'No saved sentences'),
+    );
+    expect(disabledButton.onPressed, isNull);
+    await tester.tap(find.text('No saved sentences'));
+    await tester.pumpAndSettle();
+    expect(startCount, 0);
+
+    await tester.tap(find.byType(DropdownButton<ListenAndRepeatScope>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Full Text').last);
+    await tester.pumpAndSettle();
+
+    final enabledButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Start Practicing'),
+    );
+    expect(enabledButton.onPressed, isNotNull);
+    await tester.tap(find.text('Start Practicing'));
+    await tester.pumpAndSettle();
+    expect(startCount, 1);
+  });
 }

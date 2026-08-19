@@ -1159,7 +1159,7 @@ class AudioListTile extends ConsumerWidget {
     if (confirm == true) {
       await ref
           .read(learningProgressNotifierProvider.notifier)
-          .deleteProgress(audioItem.id);
+          .resetProgress(audioItem.id);
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
