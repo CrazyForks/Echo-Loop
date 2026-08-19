@@ -174,17 +174,10 @@ Each piece of material is split into 1 first-pass session + 7 spaced reviews. In
 
 Practice English alongside other committed learners: share methods, give feedback, and be the first to hear about new features.
 
-<table>
-  <tr>
-    <td valign="middle" align="center" width="140">
-      <img src="assets/qr/wechat-group.jpg" alt="WeChat group QR code" width="110" /><br/>
-      <sub>Scan to join WeChat group</sub>
-    </td>
-    <td valign="middle">
-      <p><sub>If the QR code expires or the group hits the 200-member cap, add WeChat <code>echo-loop-app</code> first and the admin will invite you in.</sub></p>
-    </td>
-  </tr>
-</table>
+- [Join the QQ group](https://qm.qq.com/q/qmyXIv341q): Share learning methods and resources with other committed learners.
+- [Contact us on WeChat](https://i.postimg.cc/P5tVpPTV/echo-loop-wecom.jpg): Scan the QR code to contact Echo Loop.
+- [Follow us on Bilibili](https://space.bilibili.com/509449049/upload/video): Get English-learning content and feature updates.
+- [Follow us on Xiaohongshu](https://xhslink.cn/m/4zOdGUcDH4N): Get practical tips, feature updates, and English-learning content.
 
 ---
 
