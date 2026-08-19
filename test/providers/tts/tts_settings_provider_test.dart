@@ -25,11 +25,11 @@ void main() {
   }
 
   group('TtsSettings.fromPrefsSync', () {
-    test('SP 缺失 → 默认平台 TTS + 美音', () async {
+    test('SP 缺失 → 默认 Echo Loop AI Advanced + 美音', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final s = TtsSettings.fromPrefsSync(prefs);
-      expect(s.engine, TtsEngineKind.platform);
+      expect(s.engine, TtsEngineKind.echoLoop);
       expect(s.accent, TtsAccent.us);
       expect(s.languageTag, 'en-US');
     });
@@ -52,8 +52,34 @@ void main() {
       });
       final prefs = await SharedPreferences.getInstance();
       final s = TtsSettings.fromPrefsSync(prefs);
-      expect(s.engine, TtsEngineKind.platform);
+      expect(s.engine, TtsEngineKind.echoLoop);
       expect(s.accent, TtsAccent.us);
+    });
+
+    test('Android 历史系统语音偏好迁移为 Echo Loop AI Advanced', () async {
+      SharedPreferences.setMockInitialValues({
+        TtsSettingsKeys.engine: TtsEngineKind.platform.name,
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      await migrateAndroidPlatformTtsToEchoLoop(prefs);
+
+      expect(
+        prefs.getString(TtsSettingsKeys.engine),
+        TtsEngineKind.echoLoop.name,
+      );
+      expect(TtsSettings.fromPrefsSync(prefs).engine, TtsEngineKind.echoLoop);
+    });
+
+    test('Android TTS migration keeps a non-platform preference unchanged', () async {
+      SharedPreferences.setMockInitialValues({
+        TtsSettingsKeys.engine: TtsEngineKind.piper.name,
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      await migrateAndroidPlatformTtsToEchoLoop(prefs);
+
+      expect(prefs.getString(TtsSettingsKeys.engine), TtsEngineKind.piper.name);
     });
   });
 
@@ -88,12 +114,13 @@ void main() {
       expect(saved.getString(TtsSettingsKeys.accent), TtsAccent.uk.name);
     });
 
-    test('setEngine(echoLoop) 持久化 echoLoop（不再回退）', () async {
+    test('setEngine(echoLoop) 从其他引擎切换时持久化', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final c = makeContainer(prefs);
       addTearDown(c.dispose);
 
+      await c.read(ttsSettingsProvider.notifier).setEngine(TtsEngineKind.platform);
       await c
           .read(ttsSettingsProvider.notifier)
           .setEngine(TtsEngineKind.echoLoop);
@@ -178,7 +205,7 @@ void main() {
         kokoroVariant: KokoroModelVariant.int8,
       );
       expect(i8.toSpeechConfig().modelTag, 'int8');
-      const plat = TtsSettings();
+      const plat = TtsSettings(engine: TtsEngineKind.platform);
       expect(plat.toSpeechConfig().modelTag, isNull);
     });
 

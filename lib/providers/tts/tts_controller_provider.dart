@@ -24,6 +24,7 @@ import '../../services/tts/platform_tts_engine.dart';
 import '../../services/tts/tts_cache_store.dart';
 import '../../services/tts/tts_coordinator.dart';
 import '../../services/tts/tts_engine.dart';
+import '../../widgets/tts/tts_model_download_prompt_dialog.dart';
 import '../short_audio_player_provider.dart';
 import 'kokoro_model_provider.dart';
 import 'piper_model_provider.dart';
@@ -261,6 +262,7 @@ class TtsController extends Notifier<TtsControllerState> {
   ///
   /// fire-and-forget 调用方无需 await；连续调用由协调器打断重播。
   Future<void> speak(String text, {String? key}) async {
+    if (!await ensureTtsModelReadyForPlayback(ref)) return;
     final k = key ?? text;
     final token = ++_speakingToken;
     state = _stateWithSpeaking(k);

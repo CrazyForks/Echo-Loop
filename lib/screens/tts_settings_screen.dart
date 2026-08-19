@@ -32,6 +32,9 @@ class TtsSettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<TtsSettingsScreen> createState() => _TtsSettingsScreenState();
 }
 
+/// Android 固定使用本地 TTS，设置页不提供系统语音入口。
+bool showPlatformTtsEngine(bool isAndroid) => !isAndroid;
+
 class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
   /// 缓存的 TTS 控制器（供 dispose 时取消预热——dispose 中不可用 ref）。
   TtsController? _controller;
@@ -117,6 +120,7 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
     final settings = ref.watch(ttsSettingsProvider);
     final isEchoLoop = settings.engine == TtsEngineKind.echoLoop;
     final isPiper = settings.engine == TtsEngineKind.piper;
+    final showPlatformEngine = showPlatformTtsEngine(Platform.isAndroid);
     // 任一已下载模型（Advanced/Kokoro 变体 或 Balanced/Piper 音色）即提供管理入口
     //（删除回收空间），不限当前引擎。
     final models = ref.watch(kokoroModelProvider);
@@ -158,20 +162,22 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
               onChanged: _onEngineChanged,
               child: Column(
                 children: [
-                  RadioListTile<TtsEngineKind>(
-                    title: Text(platformSpeechEngineName(l10n)),
-                    subtitle: Text(
-                      l10n.ttsEnginePlatformDescription,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.6,
+                  if (showPlatformEngine) ...[
+                    RadioListTile<TtsEngineKind>(
+                      title: Text(platformSpeechEngineName(l10n)),
+                      subtitle: Text(
+                        l10n.ttsEnginePlatformDescription,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
+                      value: TtsEngineKind.platform,
+                      selected: settings.engine == TtsEngineKind.platform,
                     ),
-                    value: TtsEngineKind.platform,
-                    selected: settings.engine == TtsEngineKind.platform,
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                  ],
                   RadioListTile<TtsEngineKind>(
                     title: Text(l10n.ttsEnginePiper),
                     subtitle: Text(

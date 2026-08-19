@@ -123,7 +123,10 @@ void main() {
     test('选平台 TTS → 不触发下载', () async {
       SharedPreferences.setMockInitialValues({});
       final notifier = _CountingKokoroNotifier(KokoroModelsState.initial());
-      final c = makeContainer(const TtsSettings(), notifier);
+      final c = makeContainer(
+        const TtsSettings(engine: TtsEngineKind.platform),
+        notifier,
+      );
       addTearDown(c.dispose);
 
       c.read(ttsControllerProvider);

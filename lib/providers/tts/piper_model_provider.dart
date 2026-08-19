@@ -155,7 +155,10 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
   /// 确保某音色就绪：未就绪且未在下载则触发下载。
   Future<void> ensureDownloaded(String voiceId) async {
     final s = state.of(voiceId);
-    if (s.isReady || s.isDownloading || _cancellingVoiceIds.contains(voiceId)) {
+    if (s.isReady ||
+        s.isDownloading ||
+        s.downloadStatus == AsrModelDownloadStatus.failed ||
+        _cancellingVoiceIds.contains(voiceId)) {
       return;
     }
     await _download(voiceId);

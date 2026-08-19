@@ -168,6 +168,22 @@ void main() {
     );
   });
 
+  test('下载失败后 ensureDownloaded 不隐式重试', () async {
+    final manager = _FakeManager(shouldFail: true);
+    final c = _container((_) => manager);
+    addTearDown(c.dispose);
+    final notifier = c.read(piperModelProvider.notifier);
+
+    await notifier.ensureDownloaded(_us);
+    await notifier.ensureDownloaded(_us);
+
+    expect(manager.downloadCount, 1);
+    expect(
+      c.read(piperModelProvider).of(_us).downloadStatus,
+      AsrModelDownloadStatus.failed,
+    );
+  });
+
   test('取消 → notDownloaded + 无错误', () async {
     final c = _container((_) => _FakeManager(shouldCancel: true));
     addTearDown(c.dispose);

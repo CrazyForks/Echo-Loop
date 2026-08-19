@@ -149,7 +149,10 @@ class KokoroModelNotifier extends Notifier<KokoroModelsState> {
   /// 确保某变体就绪：未就绪且未在下载则触发下载。
   Future<void> ensureDownloaded(KokoroModelVariant variant) async {
     final s = state.of(variant);
-    if (s.isReady || s.isDownloading || _cancellingVariants.contains(variant)) {
+    if (s.isReady ||
+        s.isDownloading ||
+        s.downloadStatus == AsrModelDownloadStatus.failed ||
+        _cancellingVariants.contains(variant)) {
       return;
     }
     await _download(variant);

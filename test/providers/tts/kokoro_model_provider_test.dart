@@ -174,6 +174,22 @@ void main() {
     expect(s.isReady, isFalse);
   });
 
+  test('下载失败后 ensureDownloaded 不隐式重试', () async {
+    final manager = _FakeManager(shouldFail: true);
+    final c = _container(manager);
+    addTearDown(c.dispose);
+    final notifier = c.read(kokoroModelProvider.notifier);
+
+    await notifier.ensureDownloaded(_fp32);
+    await notifier.ensureDownloaded(_fp32);
+
+    expect(manager.downloadCount, 1);
+    expect(
+      c.read(kokoroModelProvider).of(_fp32).downloadStatus,
+      AsrModelDownloadStatus.failed,
+    );
+  });
+
   test('存储空间不足（errno 28）→ downloadError=insufficientStorage', () async {
     final c = _container(
       _FakeManager(

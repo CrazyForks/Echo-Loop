@@ -125,6 +125,11 @@ void main() async {
   // 清理历史 SP key（开发期数据卫生，幂等无副作用）。
   await cleanupLegacyLearningSettingsKeys(prefs);
 
+  // Android 不再提供系统语音入口；先迁移历史偏好，再同步预读。
+  if (!kIsWeb && Platform.isAndroid) {
+    await migrateAndroidPlatformTtsToEchoLoop(prefs);
+  }
+
   // 语音合成设置（引擎/口音）同步预读：闪卡翻面等同步发音路径需立即拿到口音，
   // 避免异步 hydrate 前先用默认美音发声。
   final initialTtsSettings = TtsSettings.fromPrefsSync(prefs);

@@ -102,7 +102,7 @@ void main() {
     localSizeBytes: 1024,
   );
 
-  testWidgets('渲染引擎与口音两组单选，Echo Loop 现为可选项', (tester) async {
+  testWidgets('默认渲染 Advanced 高质量模型配置', (tester) async {
     await tester.pumpWidget(_wrap(const TtsSettings()));
     await tester.pumpAndSettle();
 
@@ -112,8 +112,13 @@ void main() {
     expect(find.text('Echo Loop AI (Balanced)'), findsOneWidget);
     expect(find.text('Echo Loop AI (Advanced)'), findsOneWidget);
     expect(find.textContaining('Best sound quality'), findsOneWidget);
-    expect(find.text('American'), findsOneWidget);
-    expect(find.text('British'), findsOneWidget);
+    expect(find.text('High quality'), findsOneWidget);
+    expect(find.text('Recommended'), findsOneWidget);
+  });
+
+  test('Android 不显示系统语音入口，其他平台保留', () {
+    expect(showPlatformTtsEngine(true), isFalse);
+    expect(showPlatformTtsEngine(false), isTrue);
   });
 
   testWidgets('选 Echo Loop → engine 更新为 echoLoop 且触发 ensureDownloaded', (
