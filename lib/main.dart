@@ -17,6 +17,7 @@ import 'database/providers.dart';
 import 'database/migration/sp_to_drift_migration.dart';
 import 'providers/package_info_provider.dart';
 import 'providers/dictionary_provider.dart';
+import 'providers/download_provider.dart';
 import 'providers/pronunciation/pronunciation_providers.dart';
 import 'providers/settings_provider.dart';
 import 'router/app_router.dart';
@@ -428,6 +429,10 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
   @override
   void initState() {
     super.initState();
+    // 下载注册表由各资源模块提供；首帧后静默启动，不影响应用启动体验。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(startRegisteredDownloads(ref));
+    });
 
     WidgetsBinding.instance.addObserver(this);
 
