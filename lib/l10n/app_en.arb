@@ -895,6 +895,15 @@
   "exitListenAndRepeatMessage": "Your progress will be saved. You can continue where you left off.",
   "listenAndRepeatBriefingTitle": "Listen & Repeat",
   "listenAndRepeatBriefingTip": "Listen first, then repeat during the pause. By default, each saved sentence will be played three times.",
+  "listenAndRepeatScopeLabel": "Repeat Scope",
+  "listenAndRepeatScopeFullText": "Full Text",
+  "listenAndRepeatScopeDifficultOnly": "Saved Only",
+  "listenAndRepeatBriefingSentenceCount": "{count} sentences",
+  "@listenAndRepeatBriefingSentenceCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "listenAndRepeatBriefingDifficultCount": "{count} saved sentences",
   "@listenAndRepeatBriefingDifficultCount": {
     "placeholders": {

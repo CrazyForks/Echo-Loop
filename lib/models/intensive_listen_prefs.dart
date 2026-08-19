@@ -15,6 +15,12 @@ library;
 import '../utils/playback_speed.dart';
 import 'intensive_listen_settings.dart';
 
+/// 难句跟读入口的句子范围。
+///
+/// 该值只存于 `listenAndRepeat:*` 槽位；不属于播放器运行时设置，
+/// 因此不会进入 [IntensiveListenSettings] 或任务页设置面板。
+enum ListenAndRepeatScope { fullText, difficultOnly }
+
 /// 逐句精听用户偏好覆盖(不可变,全字段可空)。
 ///
 /// 字段对应 [IntensiveListenSettings] 的可改项;`null` = 用默认值。
@@ -37,6 +43,9 @@ class IntensiveListenPrefs {
   /// 每句循环次数覆盖(`null`=1)。
   final int? repeatCount;
 
+  /// 难句跟读入口范围覆盖（`null`=默认仅难句）。
+  final ListenAndRepeatScope? listenAndRepeatScope;
+
   const IntensiveListenPrefs({
     this.playbackSpeed,
     this.pauseMode,
@@ -44,6 +53,7 @@ class IntensiveListenPrefs {
     this.pauseMultiplier,
     this.controlMode,
     this.repeatCount,
+    this.listenAndRepeatScope,
   });
 
   /// 空偏好(用户未改动任何字段)。
@@ -53,7 +63,8 @@ class IntensiveListenPrefs {
       fixedPauseSeconds = null,
       pauseMultiplier = null,
       controlMode = null,
-      repeatCount = null;
+      repeatCount = null,
+      listenAndRepeatScope = null;
 
   /// 把偏好叠加到默认值,得到本次会话生效的完整 [IntensiveListenSettings]。
   ///
@@ -82,6 +93,7 @@ class IntensiveListenPrefs {
     double? pauseMultiplier,
     ShadowingControlMode? controlMode,
     int? repeatCount,
+    ListenAndRepeatScope? listenAndRepeatScope,
   }) => IntensiveListenPrefs(
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     pauseMode: pauseMode ?? this.pauseMode,
@@ -89,6 +101,7 @@ class IntensiveListenPrefs {
     pauseMultiplier: pauseMultiplier ?? this.pauseMultiplier,
     controlMode: controlMode ?? this.controlMode,
     repeatCount: repeatCount ?? this.repeatCount,
+    listenAndRepeatScope: listenAndRepeatScope ?? this.listenAndRepeatScope,
   );
 
   /// 序列化为稀疏 JSON(只写非空字段:缺省即「用默认」)。
@@ -99,6 +112,8 @@ class IntensiveListenPrefs {
     if (pauseMultiplier != null) 'pauseMultiplier': pauseMultiplier,
     if (controlMode != null) 'controlMode': controlMode!.name,
     if (repeatCount != null) 'repeatCount': repeatCount,
+    if (listenAndRepeatScope != null)
+      'listenAndRepeatScope': listenAndRepeatScope!.name,
   };
 
   /// 防御性解析:字段缺失/类型错/越档一律视作未设(`null`),回退各自默认。
@@ -110,6 +125,9 @@ class IntensiveListenPrefs {
         pauseMultiplier: _parsePauseMultiplier(json['pauseMultiplier']),
         controlMode: _parseControlMode(json['controlMode']),
         repeatCount: _parseRepeatCount(json['repeatCount']),
+        listenAndRepeatScope: _parseListenAndRepeatScope(
+          json['listenAndRepeatScope'],
+        ),
       );
 
   /// 速度:归一化到统一档位;非 num 视作未设。
@@ -149,6 +167,11 @@ class IntensiveListenPrefs {
     return raw > 10 ? 10 : raw;
   }
 
+  static ListenAndRepeatScope? _parseListenAndRepeatScope(dynamic raw) =>
+      raw is String
+      ? ListenAndRepeatScope.values.where((e) => e.name == raw).firstOrNull
+      : null;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -159,7 +182,8 @@ class IntensiveListenPrefs {
           fixedPauseSeconds == other.fixedPauseSeconds &&
           pauseMultiplier == other.pauseMultiplier &&
           controlMode == other.controlMode &&
-          repeatCount == other.repeatCount;
+          repeatCount == other.repeatCount &&
+          listenAndRepeatScope == other.listenAndRepeatScope;
 
   @override
   int get hashCode => Object.hash(
@@ -169,5 +193,6 @@ class IntensiveListenPrefs {
     pauseMultiplier,
     controlMode,
     repeatCount,
+    listenAndRepeatScope,
   );
 }

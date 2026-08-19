@@ -12,6 +12,7 @@ import 'package:echo_loop/models/audio_engine_state.dart';
 import 'package:echo_loop/models/audio_item.dart' as model;
 import 'package:echo_loop/models/media_engine_state.dart';
 import 'package:echo_loop/models/media_load_result.dart';
+import 'package:echo_loop/models/intensive_listen_prefs.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/models/sentence_playback_result.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
@@ -637,6 +638,46 @@ void main() {
       await initializedController.toggleCurrentBookmark();
       verify(() => bookmarkDao.removeBookmark('test-audio', 0)).called(1);
       verifyNever(() => bookmarkDao.addBookmark(any()));
+    });
+
+    test('全文范围在无书签时仍使用全部字幕句子', () async {
+      final bookmarkDao = _MockBookmarkDao();
+      when(
+        () => bookmarkDao.getBookmarkedIndices('test-audio'),
+      ).thenAnswer((_) async => <int>{});
+      final fullTextContainer = ProviderContainer(
+        overrides: [
+          foregroundAudioEngineProvider.overrideWith(
+            () => _InstantAudioEngine(),
+          ),
+          audioEngineProvider.overrideWith(TestAudioEngine.new),
+          bookmarkDaoProvider.overrideWithValue(bookmarkDao),
+          learningProgressNotifierProvider.overrideWith(
+            TestLearningProgressNotifier.new,
+          ),
+          listeningPracticeProvider.overrideWith(TestListeningPractice.new),
+          studyTimeServiceProvider.overrideWithValue(FakeStudyTimeService()),
+          speechRecordingControllerProvider.overrideWith(
+            TestSpeechRecordingController.new,
+          ),
+          analyticsOverride(),
+        ],
+      );
+      addTearDown(fullTextContainer.dispose);
+
+      await fullTextContainer
+          .read(listenAndRepeatControllerProvider.notifier)
+          .initialize(
+            audioItemId: 'test-audio',
+            allSentences: createTestSentences(count: 2),
+            isFreePlay: false,
+            scope: ListenAndRepeatScope.fullText,
+            usesMediaEngine: true,
+          );
+
+      final state = fullTextContainer.read(listenAndRepeatControllerProvider);
+      expect(state.totalSentences, 2);
+      expect(state.sentenceIndex, 0);
     });
 
     test('切句后旧回调被丢弃', () async {

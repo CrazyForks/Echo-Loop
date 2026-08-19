@@ -22,8 +22,8 @@ class SettingLabeledRow extends StatelessWidget {
   /// 右侧值控件。
   final Widget trailing;
 
-  /// 右侧值区固定宽度。
-  final double trailingWidth;
+  /// 右侧值区固定宽度；为 null 时按值控件内容自适应。
+  final double? trailingWidth;
 
   /// 标签和值区之间的水平间距。
   final double spacing;
@@ -35,10 +35,13 @@ class SettingLabeledRow extends StatelessWidget {
       children: [
         Expanded(child: label),
         SizedBox(width: spacing),
-        SizedBox(
-          width: trailingWidth,
-          child: Align(alignment: Alignment.centerRight, child: trailing),
-        ),
+        if (trailingWidth == null)
+          Align(alignment: Alignment.centerRight, child: trailing)
+        else
+          SizedBox(
+            width: trailingWidth,
+            child: Align(alignment: Alignment.centerRight, child: trailing),
+          ),
       ],
     );
   }

@@ -1607,6 +1607,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Listen first, then repeat during the pause. By default, each saved sentence will be played three times.';
 
   @override
+  String get listenAndRepeatScopeLabel => 'Repeat Scope';
+
+  @override
+  String get listenAndRepeatScopeFullText => 'Full Text';
+
+  @override
+  String get listenAndRepeatScopeDifficultOnly => 'Saved Only';
+
+  @override
+  String listenAndRepeatBriefingSentenceCount(int count) {
+    return '$count sentences';
+  }
+
+  @override
   String listenAndRepeatBriefingDifficultCount(int count) {
     return '$count saved sentences';
   }

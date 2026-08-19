@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/widgets/listen_and_repeat/listen_and_repeat_briefing_sheet.dart';
 import 'package:echo_loop/widgets/common/briefing_action_row.dart';
+import 'package:echo_loop/models/intensive_listen_prefs.dart';
 
 import '../helpers/test_app.dart';
 
@@ -23,8 +24,11 @@ void main() {
             onPressed: () => showListenAndRepeatBriefingSheet(
               context: context,
               difficultCount: 5,
+              fullTextCount: 12,
               playCount: 3,
-              onStartPractice: (_, _) {},
+              difficultEstimatedDuration: const Duration(minutes: 2),
+              fullTextEstimatedDuration: const Duration(minutes: 5),
+              onStartPractice: (_, _, _) {},
             ),
             child: const Text('Open'),
           ),
@@ -47,8 +51,11 @@ void main() {
               showListenAndRepeatBriefingSheet(
                 context: context,
                 difficultCount: 5,
+                fullTextCount: 12,
                 playCount: 3,
-                onStartPractice: (_, _) {},
+                difficultEstimatedDuration: const Duration(minutes: 2),
+                fullTextEstimatedDuration: const Duration(minutes: 5),
+                onStartPractice: (_, _, _) {},
               );
             },
             child: const Text('Open'),
@@ -73,6 +80,61 @@ void main() {
     );
   });
 
+  testWidgets('跟读范围位于提示与句间停顿之间，并复用设置下拉样式', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showListenAndRepeatBriefingSheet(
+              context: context,
+              difficultCount: 5,
+              fullTextCount: 12,
+              playCount: 3,
+              difficultEstimatedDuration: const Duration(minutes: 2),
+              fullTextEstimatedDuration: const Duration(minutes: 5),
+              onStartPractice: (_, _, _) {},
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    final tip = find.text(
+      'Listen first, then repeat during the pause. By default, each saved sentence will be played three times.',
+    );
+    final scopeLabel = find.text('Repeat Scope');
+    final pauseLabel = find.text('Pause between sentences');
+    expect(
+      tester.getTopLeft(tip).dy,
+      lessThan(tester.getTopLeft(scopeLabel).dy),
+    );
+    expect(
+      tester.getTopLeft(scopeLabel).dy,
+      lessThan(tester.getTopLeft(pauseLabel).dy),
+    );
+
+    final scopeDropdown = tester.widget<DropdownButton<ListenAndRepeatScope>>(
+      find.byType(DropdownButton<ListenAndRepeatScope>),
+    );
+    final speedDropdown = tester.widget<DropdownButton<double>>(
+      find.byType(DropdownButton<double>),
+    );
+    expect(scopeDropdown.padding, speedDropdown.padding);
+    expect(scopeDropdown.borderRadius, speedDropdown.borderRadius);
+    expect(scopeDropdown.elevation, speedDropdown.elevation);
+    expect(scopeDropdown.isDense, speedDropdown.isDense);
+    expect(scopeDropdown.alignment, AlignmentDirectional.center);
+    expect(scopeDropdown.isExpanded, isFalse);
+    expect(
+      tester.getSize(find.byType(DropdownButton<ListenAndRepeatScope>)).width,
+      isNot(144),
+    );
+  });
+
   testWidgets('入口面板按 defaultPlaybackSpeed 初始化下拉值', (tester) async {
     await tester.pumpWidget(
       createTestApp(
@@ -82,9 +144,12 @@ void main() {
               showListenAndRepeatBriefingSheet(
                 context: context,
                 difficultCount: 5,
+                fullTextCount: 12,
                 playCount: 3,
+                difficultEstimatedDuration: const Duration(minutes: 2),
+                fullTextEstimatedDuration: const Duration(minutes: 5),
                 defaultPlaybackSpeed: 0.9,
-                onStartPractice: (_, _) {},
+                onStartPractice: (_, _, _) {},
               );
             },
             child: const Text('Open'),
@@ -101,6 +166,7 @@ void main() {
 
   testWidgets('选择速度后随开始练习回调透出', (tester) async {
     double? selectedSpeed;
+    ListenAndRepeatScope? selectedScope;
     await tester.pumpWidget(
       createTestApp(
         Builder(
@@ -109,9 +175,13 @@ void main() {
               showListenAndRepeatBriefingSheet(
                 context: context,
                 difficultCount: 5,
+                fullTextCount: 12,
                 playCount: 3,
-                onStartPractice: (speed, _) {
+                difficultEstimatedDuration: const Duration(minutes: 2),
+                fullTextEstimatedDuration: const Duration(minutes: 5),
+                onStartPractice: (speed, _, scope) {
                   selectedSpeed = speed;
+                  selectedScope = scope;
                 },
               );
             },
@@ -139,5 +209,44 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(selectedSpeed, 1.5);
+    expect(selectedScope, ListenAndRepeatScope.difficultOnly);
+  });
+
+  testWidgets('切换范围立即更新统计并回调范围', (tester) async {
+    ListenAndRepeatScope? changedScope;
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showListenAndRepeatBriefingSheet(
+              context: context,
+              difficultCount: 5,
+              fullTextCount: 12,
+              playCount: 3,
+              difficultEstimatedDuration: const Duration(minutes: 2),
+              fullTextEstimatedDuration: const Duration(minutes: 5),
+              onScopeChanged: (scope) => changedScope = scope,
+              onStartPractice: (_, _, _) {},
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Saved Only'), findsOneWidget);
+    expect(find.text('5 saved sentences'), findsOneWidget);
+    expect(find.text('Est. 2 min'), findsOneWidget);
+
+    await tester.tap(find.byType(DropdownButton<ListenAndRepeatScope>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Full Text').last);
+    await tester.pumpAndSettle();
+
+    expect(changedScope, ListenAndRepeatScope.fullText);
+    expect(find.text('12 sentences'), findsOneWidget);
+    expect(find.text('Est. 5 min'), findsOneWidget);
   });
 }

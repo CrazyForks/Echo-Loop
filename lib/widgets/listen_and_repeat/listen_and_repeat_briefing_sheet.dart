@@ -10,6 +10,7 @@ import '../common/pause_choice_dropdown.dart';
 import '../common/setting_labeled_row.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/intensive_listen_settings.dart';
+import '../../models/intensive_listen_prefs.dart' show ListenAndRepeatScope;
 import '../../models/stage_settings_overrides.dart' show BriefingPauseChoice;
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
@@ -25,14 +26,22 @@ import '../common/learning_briefing_sheet_content.dart';
 Future<void> showListenAndRepeatBriefingSheet({
   required BuildContext context,
   required int difficultCount,
+  required int fullTextCount,
   required int playCount,
-  Duration? estimatedDuration,
+  required Duration? difficultEstimatedDuration,
+  required Duration? fullTextEstimatedDuration,
+  ListenAndRepeatScope defaultScope = ListenAndRepeatScope.difficultOnly,
   double defaultPlaybackSpeed = 1.0,
   BriefingPauseChoice defaultPause = const BriefingPauseChoice.smart(),
-  required void Function(double playbackSpeed, BriefingPauseChoice pause)
+  required void Function(
+    double playbackSpeed,
+    BriefingPauseChoice pause,
+    ListenAndRepeatScope scope,
+  )
   onStartPractice,
   void Function(double playbackSpeed, BriefingPauseChoice pause)?
   onSelectionChanged,
+  void Function(ListenAndRepeatScope scope)? onScopeChanged,
   VoidCallback? onSkip,
 }) {
   return showModalBottomSheet(
@@ -43,12 +52,16 @@ Future<void> showListenAndRepeatBriefingSheet({
     ),
     builder: (context) => ListenAndRepeatBriefingSheet(
       difficultCount: difficultCount,
+      fullTextCount: fullTextCount,
       playCount: playCount,
-      estimatedDuration: estimatedDuration,
+      difficultEstimatedDuration: difficultEstimatedDuration,
+      fullTextEstimatedDuration: fullTextEstimatedDuration,
+      defaultScope: defaultScope,
       defaultPlaybackSpeed: defaultPlaybackSpeed,
       defaultPause: defaultPause,
       onStartPractice: onStartPractice,
       onSelectionChanged: onSelectionChanged,
+      onScopeChanged: onScopeChanged,
       onSkip: onSkip,
     ),
   );
@@ -58,11 +71,20 @@ class ListenAndRepeatBriefingSheet extends StatefulWidget {
   /// 难句总数
   final int difficultCount;
 
+  /// 全文句子总数。
+  final int fullTextCount;
+
   /// 每句播放遍数
   final int playCount;
 
   /// 预估练习时长
-  final Duration? estimatedDuration;
+  final Duration? difficultEstimatedDuration;
+
+  /// 全文范围下的预估练习时长。
+  final Duration? fullTextEstimatedDuration;
+
+  /// 已记忆的入口跟读范围。
+  final ListenAndRepeatScope defaultScope;
 
   /// 默认播放速度
   final double defaultPlaybackSpeed;
@@ -71,12 +93,19 @@ class ListenAndRepeatBriefingSheet extends StatefulWidget {
   final BriefingPauseChoice defaultPause;
 
   /// 开始练习回调（带回最终选定的速度 + 句间停顿）
-  final void Function(double playbackSpeed, BriefingPauseChoice pause)
+  final void Function(
+    double playbackSpeed,
+    BriefingPauseChoice pause,
+    ListenAndRepeatScope scope,
+  )
   onStartPractice;
 
   /// 用户改动速度/停顿时即时回调(改完即记,与 🔧 面板一致,不必等「开始练习」)。
   final void Function(double playbackSpeed, BriefingPauseChoice pause)?
   onSelectionChanged;
+
+  /// 用户切换范围时立即回调，用于持久化范围和清理当前入口断点。
+  final void Function(ListenAndRepeatScope scope)? onScopeChanged;
 
   /// 跳过当前任务回调，提供时显示「跳过」按钮
   final VoidCallback? onSkip;
@@ -84,12 +113,16 @@ class ListenAndRepeatBriefingSheet extends StatefulWidget {
   const ListenAndRepeatBriefingSheet({
     super.key,
     required this.difficultCount,
+    required this.fullTextCount,
     required this.playCount,
-    this.estimatedDuration,
+    this.difficultEstimatedDuration,
+    this.fullTextEstimatedDuration,
+    this.defaultScope = ListenAndRepeatScope.difficultOnly,
     this.defaultPlaybackSpeed = 1.0,
     this.defaultPause = const BriefingPauseChoice.smart(),
     required this.onStartPractice,
     this.onSelectionChanged,
+    this.onScopeChanged,
     this.onSkip,
   });
 
@@ -102,6 +135,25 @@ class _ListenAndRepeatBriefingSheetState
     extends State<ListenAndRepeatBriefingSheet> {
   late double _playbackSpeed = widget.defaultPlaybackSpeed;
   late BriefingPauseChoice _pause = widget.defaultPause;
+  late ListenAndRepeatScope _scope = widget.defaultScope;
+
+  int get _selectedSentenceCount => switch (_scope) {
+    ListenAndRepeatScope.fullText => widget.fullTextCount,
+    ListenAndRepeatScope.difficultOnly => widget.difficultCount,
+  };
+
+  Duration? get _selectedEstimatedDuration => switch (_scope) {
+    ListenAndRepeatScope.fullText => widget.fullTextEstimatedDuration,
+    ListenAndRepeatScope.difficultOnly => widget.difficultEstimatedDuration,
+  };
+
+  String _selectedSentenceCountLabel(AppLocalizations l10n) => switch (_scope) {
+    ListenAndRepeatScope.fullText => l10n.listenAndRepeatBriefingSentenceCount(
+      _selectedSentenceCount,
+    ),
+    ListenAndRepeatScope.difficultOnly =>
+      l10n.listenAndRepeatBriefingDifficultCount(_selectedSentenceCount),
+  };
 
   /// 格式化预估时长
   String _formatEstimatedDuration(AppLocalizations l10n, Duration duration) {
@@ -179,6 +231,41 @@ class _ListenAndRepeatBriefingSheetState
           ),
           const SizedBox(height: AppSpacing.m),
 
+          // 跟读范围只在入口选择，不进入任务内设置面板。
+          // 与下方的句间停顿、播放速度复用相同的设置行和下拉框样式。
+          SettingLabeledRow(
+            trailingWidth: null,
+            label: Text(
+              l10n.listenAndRepeatScopeLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: AppDropdown<ListenAndRepeatScope>(
+              value: _scope,
+              isDense: true,
+              alignment: AlignmentDirectional.center,
+              items: [
+                DropdownMenuItem(
+                  value: ListenAndRepeatScope.fullText,
+                  child: Center(child: Text(l10n.listenAndRepeatScopeFullText)),
+                ),
+                DropdownMenuItem(
+                  value: ListenAndRepeatScope.difficultOnly,
+                  child: Center(
+                    child: Text(l10n.listenAndRepeatScopeDifficultOnly),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null || value == _scope) return;
+                setState(() => _scope = value);
+                widget.onScopeChanged?.call(value);
+              },
+            ),
+          ),
+          const SizedBox(height: AppSpacing.m),
+
           // 句间停顿（分组:自动 / 固定间隔 / 句长倍数,与 🔧 面板一致）
           SettingLabeledRow(
             label: Text(
@@ -235,9 +322,7 @@ class _ListenAndRepeatBriefingSheetState
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                l10n.listenAndRepeatBriefingDifficultCount(
-                  widget.difficultCount,
-                ),
+                _selectedSentenceCountLabel(l10n),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -257,7 +342,7 @@ class _ListenAndRepeatBriefingSheetState
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              if (widget.estimatedDuration != null) ...[
+              if (_selectedEstimatedDuration != null) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),
                   child: Text(
@@ -274,7 +359,7 @@ class _ListenAndRepeatBriefingSheetState
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _formatEstimatedDuration(l10n, widget.estimatedDuration!),
+                  _formatEstimatedDuration(l10n, _selectedEstimatedDuration!),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -289,7 +374,7 @@ class _ListenAndRepeatBriefingSheetState
             startLabel: l10n.startPractice,
             onStart: () {
               Navigator.of(context).pop();
-              widget.onStartPractice(_playbackSpeed, _pause);
+              widget.onStartPractice(_playbackSpeed, _pause, _scope);
             },
             skipLabel: widget.onSkip != null ? l10n.retellSkip : null,
             onSkip: widget.onSkip == null

@@ -1552,6 +1552,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get listenAndRepeatBriefingTip => '先听原句，在停顿期间跟读。';
 
   @override
+  String get listenAndRepeatScopeLabel => '跟读范围';
+
+  @override
+  String get listenAndRepeatScopeFullText => '全文';
+
+  @override
+  String get listenAndRepeatScopeDifficultOnly => '仅收藏';
+
+  @override
+  String listenAndRepeatBriefingSentenceCount(int count) {
+    return '$count 句';
+  }
+
+  @override
   String listenAndRepeatBriefingDifficultCount(int count) {
     return '$count 个难句';
   }

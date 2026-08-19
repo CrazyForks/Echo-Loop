@@ -129,6 +129,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     required String audioItemId,
     required List<Sentence> allSentences,
     required bool isFreePlay,
+    ListenAndRepeatScope scope = ListenAndRepeatScope.difficultOnly,
     double smartSpeed = 1.0,
     LearningStage? stage,
     SentencePlaybackDriver? playbackDriver,
@@ -159,9 +160,13 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       allSentences,
       bookmarkedIndices,
     );
-    final difficultSentences = sessionSentences
-        .where((s) => bookmarkedIndices.contains(s.index))
-        .toList();
+    final practiceSentences = switch (scope) {
+      ListenAndRepeatScope.fullText => sessionSentences,
+      ListenAndRepeatScope.difficultOnly =>
+        sessionSentences
+            .where((s) => bookmarkedIndices.contains(s.index))
+            .toList(),
+    };
 
     // 从 DB 读断点
     final progress = await ref
@@ -233,7 +238,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     );
 
     await prepareSession(
-      sentences: difficultSentences,
+      sentences: practiceSentences,
       config: config,
       startIndex: startIndex,
       isFreePlay: isFreePlay,
@@ -246,7 +251,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     );
     ref.read(analyticsServiceProvider).track(Events.listenRepeatStart, {
       ...ref.audioEventParams(audioItemId),
-      EventParams.totalSentences: difficultSentences.length,
+      EventParams.totalSentences: practiceSentences.length,
     });
   }
 
@@ -255,6 +260,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     required AudioItem mediaItem,
     required List<Sentence> allSentences,
     required bool isFreePlay,
+    ListenAndRepeatScope scope = ListenAndRepeatScope.difficultOnly,
     double smartSpeed = 1.0,
     LearningStage? stage,
   }) async {
@@ -319,6 +325,7 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
       audioItemId: mediaItem.id,
       allSentences: allSentences,
       isFreePlay: isFreePlay,
+      scope: scope,
       smartSpeed: smartSpeed,
       stage: stage,
       playbackDriver: MediaSentencePlaybackDriver(mediaEngine),

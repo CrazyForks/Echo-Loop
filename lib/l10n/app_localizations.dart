@@ -2882,6 +2882,30 @@ abstract class AppLocalizations {
   /// **'Listen first, then repeat during the pause. By default, each saved sentence will be played three times.'**
   String get listenAndRepeatBriefingTip;
 
+  /// No description provided for @listenAndRepeatScopeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat Scope'**
+  String get listenAndRepeatScopeLabel;
+
+  /// No description provided for @listenAndRepeatScopeFullText.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Text'**
+  String get listenAndRepeatScopeFullText;
+
+  /// No description provided for @listenAndRepeatScopeDifficultOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved Only'**
+  String get listenAndRepeatScopeDifficultOnly;
+
+  /// No description provided for @listenAndRepeatBriefingSentenceCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} sentences'**
+  String listenAndRepeatBriefingSentenceCount(int count);
+
   /// No description provided for @listenAndRepeatBriefingDifficultCount.
   ///
   /// In en, this message translates to:

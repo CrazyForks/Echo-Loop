@@ -84,6 +84,16 @@ class IntensiveListenPrefsNotifier
 
   Future<void> setRepeatCount(String slot, int value) =>
       updateSlot(slot, prefsFor(slot).copyWith(repeatCount: value));
+
+  /// 读取难句跟读入口范围；缺省时保持既有“仅难句”行为。
+  ListenAndRepeatScope listenAndRepeatScopeFor(String slot) =>
+      prefsFor(slot).listenAndRepeatScope ?? ListenAndRepeatScope.difficultOnly;
+
+  /// 记录难句跟读入口范围，不参与 [IntensiveListenSettings] 的解析。
+  Future<void> setListenAndRepeatScope(
+    String slot,
+    ListenAndRepeatScope value,
+  ) => updateSlot(slot, prefsFor(slot).copyWith(listenAndRepeatScope: value));
 }
 
 /// 把 [old]→[next] 的设置改动按槽位写入偏好(只写**真正变化**的字段)。

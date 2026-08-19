@@ -1446,23 +1446,6 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     );
     if (!context.mounted) return;
 
-    if (difficultIndices.isEmpty) {
-      // 无难句 → 自动完成跟读，回到计划页让用户自行决定下一步。
-      // 不自动打开复述引导：复述是开麦说话的任务，强推会打扰；且开启
-      // 自动跳过复述时位置已推过复述，硬编码打开会指向错误子步骤。
-      await ref
-          .read(learningProgressNotifierProvider.notifier)
-          .completeCurrentSubStage(widget.audioItemId);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.listenAndRepeatNoDifficultSentences),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
     final progress = ref
         .read(learningProgressNotifierProvider)
         .progressMap[widget.audioItemId];
@@ -1490,15 +1473,44 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     final slot = stageSlotKey(StageSettingsSlots.listenAndRepeat, stage);
     final prefs = ref.read(intensiveListenPrefsProvider.notifier);
     final defaults = prefs.resolve(slot, smartSpeed: smartSpeed);
+    final defaultScope = prefs.listenAndRepeatScopeFor(slot);
+    final fullTextDuration = sentences.fold<Duration>(
+      Duration.zero,
+      (sum, sentence) => sum + sentence.duration,
+    );
     showListenAndRepeatBriefingSheet(
       context: context,
       difficultCount: difficultIndices.length,
+      fullTextCount: sentences.length,
       playCount: playCount,
-      estimatedDuration: repeatEstimate,
+      difficultEstimatedDuration: repeatEstimate,
+      fullTextEstimatedDuration: fullTextDuration * playCount * 2,
+      defaultScope: defaultScope,
       defaultPlaybackSpeed: defaults.playbackSpeed,
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
-      onStartPractice: (playbackSpeed, pause) async {
+      onScopeChanged: (scope) {
+        prefs.setListenAndRepeatScope(slot, scope);
+        ref
+            .read(learningProgressNotifierProvider.notifier)
+            .saveShadowingSentenceIndex(
+              widget.audioItemId,
+              null,
+              isFreePlay: false,
+            );
+      },
+      onStartPractice: (playbackSpeed, pause, scope) async {
+        if (scope == ListenAndRepeatScope.difficultOnly &&
+            difficultIndices.isEmpty) {
+          await ref
+              .read(learningProgressNotifierProvider.notifier)
+              .completeCurrentSubStage(widget.audioItemId);
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.listenAndRepeatNoDifficultSentences)),
+          );
+          return;
+        }
         final controller = ref.read(listenAndRepeatControllerProvider.notifier);
         if (audioItem.isVideo) {
           if (!context.mounted) return;
@@ -1513,6 +1525,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
                 mediaItem: audioItem,
                 allSentences: sentences,
                 isFreePlay: false,
+                scope: scope,
                 smartSpeed: smartSpeed,
                 stage: stage,
               ),
@@ -1527,6 +1540,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               audioItemId: widget.audioItemId,
               allSentences: sentences,
               isFreePlay: false,
+              scope: scope,
               smartSpeed: smartSpeed,
               stage: stage,
             );
@@ -2897,17 +2911,6 @@ class _FirstStudySection extends ConsumerWidget {
       dao: bookmarkDao,
     );
     if (!context.mounted) return;
-    if (difficultIndices.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.listenAndRepeatNoDifficultSentences,
-          ),
-        ),
-      );
-      return;
-    }
-
     // 按当前难句书签数实时重算难度（难句跟读入口最关键：用户练熟取消收藏后
     // 比例下降 → 难度降低 → 速度回升），同时用于跟读遍数 playCount。
     final liveDifficulty = await ref
@@ -2933,15 +2936,36 @@ class _FirstStudySection extends ConsumerWidget {
     );
     final prefs = ref.read(intensiveListenPrefsProvider.notifier);
     final defaults = prefs.resolve(slot, smartSpeed: smartSpeed);
+    final defaultScope = prefs.listenAndRepeatScopeFor(slot);
+    final fullTextDuration = sentences.fold<Duration>(
+      Duration.zero,
+      (sum, sentence) => sum + sentence.duration,
+    );
     showListenAndRepeatBriefingSheet(
       context: context,
       difficultCount: difficultIndices.length,
+      fullTextCount: sentences.length,
       playCount: playCount,
-      estimatedDuration: repeatEstimate,
+      difficultEstimatedDuration: repeatEstimate,
+      fullTextEstimatedDuration: fullTextDuration * playCount * 2,
+      defaultScope: defaultScope,
       defaultPlaybackSpeed: defaults.playbackSpeed,
       defaultPause: intensivePauseChoiceFromSettings(defaults),
       onSelectionChanged: intensivePrefsRecorder(prefs, slot, defaults),
-      onStartPractice: (playbackSpeed, pause) async {
+      onScopeChanged: (scope) {
+        prefs.setListenAndRepeatScope(slot, scope);
+        ref
+            .read(learningProgressNotifierProvider.notifier)
+            .saveShadowingSentenceIndex(audioItemId, null, isFreePlay: true);
+      },
+      onStartPractice: (playbackSpeed, pause, scope) async {
+        if (scope == ListenAndRepeatScope.difficultOnly &&
+            difficultIndices.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.listenAndRepeatNoDifficultSentences)),
+          );
+          return;
+        }
         final controller = ref.read(listenAndRepeatControllerProvider.notifier);
         if (audioItem.isVideo) {
           if (!context.mounted) return;
@@ -2954,6 +2978,7 @@ class _FirstStudySection extends ConsumerWidget {
                   mediaItem: audioItem,
                   allSentences: sentences,
                   isFreePlay: true,
+                  scope: scope,
                   smartSpeed: smartSpeed,
                 );
                 if (result == MediaLoadResult.ready) {
@@ -2977,6 +3002,7 @@ class _FirstStudySection extends ConsumerWidget {
               audioItemId: audioItemId,
               allSentences: sentences,
               isFreePlay: true,
+              scope: scope,
               smartSpeed: smartSpeed,
             );
         // 补做语义：跳过的难句跟读完成后回收为已完成

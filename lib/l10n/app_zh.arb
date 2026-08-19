@@ -681,6 +681,15 @@
   "exitListenAndRepeatMessage": "进度已保存，下次可从断点继续。",
   "listenAndRepeatBriefingTitle": "难句跟读",
   "listenAndRepeatBriefingTip": "先听原句，在停顿期间跟读。",
+  "listenAndRepeatScopeLabel": "跟读范围",
+  "listenAndRepeatScopeFullText": "全文",
+  "listenAndRepeatScopeDifficultOnly": "仅收藏",
+  "listenAndRepeatBriefingSentenceCount": "{count} 句",
+  "@listenAndRepeatBriefingSentenceCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "listenAndRepeatBriefingDifficultCount": "{count} 个难句",
   "@listenAndRepeatBriefingDifficultCount": {
     "placeholders": {
