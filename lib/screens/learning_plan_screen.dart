@@ -1507,7 +1507,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               .completeCurrentSubStage(widget.audioItemId);
           if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.listenAndRepeatNoDifficultSentences)),
+            SnackBar(content: Text(l10n.difficultSentenceCount(0))),
           );
           return;
         }
@@ -2604,15 +2604,8 @@ class _FirstStudySection extends ConsumerWidget {
                   subtitle = _buildIntensiveListenSubtitle(ref, l10n);
                 }
               } else if (subStage == SubStageType.listenAndRepeat) {
-                // 跟读：已完成且无难句时显示自动完成提示
-                final bookmarkCount =
-                    ref
-                        .watch(_bookmarkCountProvider(audioItemId))
-                        .valueOrNull ??
-                    0;
-                if (isCompleted && bookmarkCount == 0) {
-                  subtitle = l10n.listenAndRepeatNoDifficultSentences;
-                } else if (isCompleted || isCurrent) {
+                // 跟读：统一显示难句数量和已练习遍数，零难句也保留练习记录。
+                if (isCompleted || isCurrent) {
                   subtitle = _buildShadowingSubtitle(ref, l10n);
                 }
               } else if (subStage == SubStageType.retell) {
@@ -2636,24 +2629,7 @@ class _FirstStudySection extends ConsumerWidget {
                 onTap = () => _startFreePlayIntensiveListen(context, ref);
               } else if (canFreePlay &&
                   subStage == SubStageType.listenAndRepeat) {
-                // 无难句自动完成的跟读步骤：点击只显示提示
-                final bookmarkCount =
-                    ref
-                        .watch(_bookmarkCountProvider(audioItemId))
-                        .valueOrNull ??
-                    0;
-                if (bookmarkCount == 0) {
-                  onTap = () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n.listenAndRepeatNoDifficultSentences),
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  };
-                } else {
-                  onTap = () => _startFreePlayListenAndRepeat(context, ref);
-                }
+                onTap = () => _startFreePlayListenAndRepeat(context, ref);
               } else if (canFreePlay && subStage == SubStageType.retell) {
                 onTap = () => _startFreePlayRetell(context, ref);
               }
@@ -2691,9 +2667,7 @@ class _FirstStudySection extends ConsumerWidget {
     // 实时查询书签数量（难句数）
     final bookmarkCount =
         ref.watch(_bookmarkCountProvider(audioItemId)).valueOrNull ?? 0;
-    if (bookmarkCount > 0) {
-      parts.add(l10n.difficultSentenceCount(bookmarkCount));
-    }
+    parts.add(l10n.difficultSentenceCount(bookmarkCount));
 
     // 精听总完成遍数
     if (progress?.intensiveListenPassCount case final count? when count > 0) {
@@ -2710,9 +2684,7 @@ class _FirstStudySection extends ConsumerWidget {
     // 实时查询书签数量（难句数）
     final bookmarkCount =
         ref.watch(_bookmarkCountProvider(audioItemId)).valueOrNull ?? 0;
-    if (bookmarkCount > 0) {
-      parts.add(l10n.difficultSentenceCount(bookmarkCount));
-    }
+    parts.add(l10n.listenAndRepeatBriefingDifficultCount(bookmarkCount));
 
     // 跟读总完成遍数
     if (progress?.shadowingPassCount case final count? when count > 0) {
@@ -2962,7 +2934,7 @@ class _FirstStudySection extends ConsumerWidget {
         if (scope == ListenAndRepeatScope.difficultOnly &&
             difficultIndices.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.listenAndRepeatNoDifficultSentences)),
+            SnackBar(content: Text(l10n.difficultSentenceCount(0))),
           );
           return;
         }

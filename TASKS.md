@@ -3,6 +3,8 @@
 > 最后更新：2026-08-19（更新 README 社群渠道）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 
+- [x] 无难句时难句跟读状态复用跟读数量文案并显示“0 个难句 / 0 saved sentences”，保留已有练习遍数并统一零收藏入口链路。**完成时间**: 2026-08-19
+
 - [x] 难句跟读入口新增可记忆的“跟读范围”（全文 / 仅难句）：范围存入既有
   `intensive_listen_prefs_v2` 的 `listenAndRepeat:firstLearn` 槽位，但不进入
   `IntensiveListenSettings` 或任务页设置面板。学习计划和自由练习入口均按范围动态更新

@@ -2852,12 +2852,6 @@ abstract class AppLocalizations {
   /// **'Listen & Repeat Complete'**
   String get listenAndRepeatCompleteTitle;
 
-  /// No description provided for @listenAndRepeatNoDifficultSentences.
-  ///
-  /// In en, this message translates to:
-  /// **'No saved sentences, no Listen & Repeat needed'**
-  String get listenAndRepeatNoDifficultSentences;
-
   /// No description provided for @exitListenAndRepeatTitle.
   ///
   /// In en, this message translates to:

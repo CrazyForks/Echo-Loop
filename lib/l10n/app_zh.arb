@@ -676,7 +676,6 @@
   "listenAndRepeatRecognitionError": "识别错误",
   "listenAndRepeatRecordingOnly": "录音",
   "listenAndRepeatCompleteTitle": "跟读完成",
-  "listenAndRepeatNoDifficultSentences": "没有难句，无需跟读",
   "exitListenAndRepeatTitle": "退出跟读？",
   "exitListenAndRepeatMessage": "进度已保存，下次可从断点继续。",
   "listenAndRepeatBriefingTitle": "难句跟读",

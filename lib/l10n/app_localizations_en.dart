@@ -1589,10 +1589,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get listenAndRepeatCompleteTitle => 'Listen & Repeat Complete';
 
   @override
-  String get listenAndRepeatNoDifficultSentences =>
-      'No saved sentences, no Listen & Repeat needed';
-
-  @override
   String get exitListenAndRepeatTitle => 'Exit Listen & Repeat?';
 
   @override

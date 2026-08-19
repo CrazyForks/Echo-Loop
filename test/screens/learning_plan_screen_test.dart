@@ -2109,6 +2109,17 @@ void main() {
       expect(find.textContaining('1x'), findsWidgets);
     });
 
+    testWidgets('无难句时跟读状态复用 saved sentences 数量文案', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(LearningPlanScreen));
+      expect(
+        AppLocalizations.of(context)!.listenAndRepeatBriefingDifficultCount(0),
+        '0 saved sentences',
+      );
+    });
+
     // ====== 听前预热卡（「首次学习」上方） ======
 
     testWidgets('未开始且有字幕时显示听前预热卡', (tester) async {

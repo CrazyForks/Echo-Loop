@@ -890,7 +890,6 @@
   "listenAndRepeatRecognitionError": "Recognition error",
   "listenAndRepeatRecordingOnly": "Recording",
   "listenAndRepeatCompleteTitle": "Listen & Repeat Complete",
-  "listenAndRepeatNoDifficultSentences": "No saved sentences, no Listen & Repeat needed",
   "exitListenAndRepeatTitle": "Exit Listen & Repeat?",
   "exitListenAndRepeatMessage": "Your progress will be saved. You can continue where you left off.",
   "listenAndRepeatBriefingTitle": "Listen & Repeat",

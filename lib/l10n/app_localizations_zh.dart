@@ -1537,9 +1537,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get listenAndRepeatCompleteTitle => '跟读完成';
 
   @override
-  String get listenAndRepeatNoDifficultSentences => '没有难句，无需跟读';
-
-  @override
   String get exitListenAndRepeatTitle => '退出跟读？';
 
   @override
