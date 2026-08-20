@@ -35,8 +35,7 @@ class _TestBookmarkDao implements BookmarkDao {
 }
 
 class _FakeShortAudioPlayer extends LocalAudioClipPlayer {
-  _FakeShortAudioPlayer()
-    : super(backend: UnavailablePronunciationPlayerBackend());
+  _FakeShortAudioPlayer() : super(backend: UnavailableAudioClipPlayerBackend());
 
   int stops = 0;
   int rangePlays = 0;

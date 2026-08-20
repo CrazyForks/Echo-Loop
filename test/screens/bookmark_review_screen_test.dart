@@ -44,7 +44,7 @@ class _NoopSentenceAiApiClient extends SentenceAiApiClient {
 }
 
 /// 页面测试不加载原生 media_kit，发音按钮使用无副作用的短音频后端。
-class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+class _NoopShortAudioBackend implements AudioClipPlayerBackend {
   @override
   Stream<void> get completed => const Stream<void>.empty();
 

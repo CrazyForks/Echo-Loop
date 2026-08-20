@@ -190,25 +190,23 @@ final pronunciationClipsProvider =
       return repository.lookupSingleWord(normalizeWord(word));
     });
 
-class PronunciationPlaybackState {
-  const PronunciationPlaybackState({this.playingKey});
+class TextPlaybackState {
+  const TextPlaybackState({this.playingKey});
   final String? playingKey;
 }
 
-final pronunciationPlaybackProvider =
-    NotifierProvider<
-      PronunciationPlaybackController,
-      PronunciationPlaybackState
-    >(PronunciationPlaybackController.new);
+final textPlaybackProvider =
+    NotifierProvider<TextPlaybackController, TextPlaybackState>(
+      TextPlaybackController.new,
+    );
 
-class PronunciationPlaybackController
-    extends Notifier<PronunciationPlaybackState> {
+class TextPlaybackController extends Notifier<TextPlaybackState> {
   int _sessionId = 0;
   LocalAudioClipPlayer? _player;
 
   @override
-  PronunciationPlaybackState build() {
-    return const PronunciationPlaybackState();
+  TextPlaybackState build() {
+    return const TextPlaybackState();
   }
 
   /// 统一朗读文本：单个单词优先离线 Opus，未命中、多词或本地播放失败时回退 TTS。
@@ -259,7 +257,7 @@ class PronunciationPlaybackController
     for (var index = 0; index < clips.length; index++) {
       if (sessionId != _sessionId) return;
       final clip = clips[index];
-      state = PronunciationPlaybackState(playingKey: clip.playbackKey);
+      state = TextPlaybackState(playingKey: clip.playbackKey);
       final result = await player.playFile(
         clip.absolutePath,
         playbackKey: clip.playbackKey,
@@ -273,7 +271,7 @@ class PronunciationPlaybackController
       }
     }
     if (sessionId != _sessionId) return;
-    state = const PronunciationPlaybackState();
+    state = const TextPlaybackState();
     if (!completedAnyClip) {
       await ref
           .read(ttsControllerProvider.notifier)
@@ -287,7 +285,7 @@ class PronunciationPlaybackController
     String? fallbackKey,
   }) async {
     final sessionId = ++_sessionId;
-    state = PronunciationPlaybackState(playingKey: clip.playbackKey);
+    state = TextPlaybackState(playingKey: clip.playbackKey);
     await ref.read(ttsControllerProvider.notifier).stop();
     final LocalAudioClipPlayer player;
     final currentPlayer = _player;
@@ -302,7 +300,7 @@ class PronunciationPlaybackController
       playbackKey: clip.playbackKey,
     );
     if (sessionId != _sessionId) return;
-    state = const PronunciationPlaybackState();
+    state = const TextPlaybackState();
     if (result == AudioPlaybackResult.failed) {
       await ref
           .read(ttsControllerProvider.notifier)
@@ -313,6 +311,6 @@ class PronunciationPlaybackController
   Future<void> stop() async {
     _sessionId++;
     await _player?.stop();
-    state = const PronunciationPlaybackState();
+    state = const TextPlaybackState();
   }
 }

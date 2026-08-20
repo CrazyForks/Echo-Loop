@@ -607,9 +607,8 @@ class _ExampleView extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 6, left: 2),
       child: InkWell(
-        onTap: () => ref
-            .read(pronunciationPlaybackProvider.notifier)
-            .speak(example.sentence),
+        onTap: () =>
+            ref.read(textPlaybackProvider.notifier).speak(example.sentence),
         borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.only(left: 10),

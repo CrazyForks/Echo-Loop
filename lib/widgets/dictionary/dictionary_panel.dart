@@ -73,7 +73,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   TtsController? _ttsController;
 
   /// 本地发音控制器缓存，供 dispose 阶段停止短音频。
-  PronunciationPlaybackController? _pronunciationController;
+  TextPlaybackController? _textPlaybackController;
 
   /// 当前单词及其离线发音命中状态的预热签名，避免 build 重复调度。
   String? _headwordPrewarmSignature;
@@ -140,7 +140,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       // 用户调整过的面板高度保留（连续查词不跳动）。
       _ttsController?.cancelTextsPrewarm();
       _ttsController?.stop();
-      _pronunciationController?.stop();
+      _textPlaybackController?.stop();
       _headwordPrewarmSignature = null;
     }
   }
@@ -152,7 +152,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     _ttsController?.cancelTextsPrewarm();
     // 面板关闭即停止正在朗读的单词/例句，避免离开后声音继续播到尾。
     _ttsController?.stop();
-    _pronunciationController?.stop();
+    _textPlaybackController?.stop();
     // 会话结束：清除粘滞源，下次打开面板恢复默认词典。
     // dispose 处于 widget 树 finalize 流程，禁止同步改 provider（Riverpod
     // 断言），推迟到微任务执行。
@@ -303,7 +303,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
 
     // 缓存 TTS 控制器与会话粘滞源供 dispose 使用（dispose 内不可用 ref，§7.14）。
     _ttsController = ref.read(ttsControllerProvider.notifier);
-    _pronunciationController = ref.read(pronunciationPlaybackProvider.notifier);
+    _textPlaybackController = ref.read(textPlaybackProvider.notifier);
     _sessionSource = ref.read(dictionarySessionSourceProvider.notifier);
     final hasLocalClip = pronunciationClips.isNotEmpty;
     _scheduleHeadwordPrewarm(hasLocalClip);
@@ -339,7 +339,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     ref.listen<String?>(
       ttsControllerProvider.select((ttsState) => ttsState.speakingKey),
       (previous, next) {
-        if (next != null) _pronunciationController?.stop();
+        if (next != null) _textPlaybackController?.stop();
       },
     );
 

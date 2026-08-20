@@ -89,7 +89,7 @@ class _FakePathProvider extends PathProviderPlatform
   Future<String?> getApplicationCachePath() async => rootPath;
 }
 
-class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+class _NoopShortAudioBackend implements AudioClipPlayerBackend {
   @override
   Stream<void> get completed => const Stream<void>.empty();
   @override
@@ -287,12 +287,7 @@ void main() {
 
       expect(engine.synthTexts, ['run', 'I run.', 'She runs.']);
       final logs = AppLogger.instance.entries.map((entry) => entry.message);
-      expect(
-        logs,
-        contains(
-          '增量文本预热处理完成：批次=0 请求数=3 新提交=1 跳过=2 当前已提交=3',
-        ),
-      );
+      expect(logs, contains('增量文本预热处理完成：批次=0 请求数=3 新提交=1 跳过=2 当前已提交=3'));
     });
 
     test('cancelTextsPrewarm 清空 seen-set → 切词后同一文本可再次预热', () async {

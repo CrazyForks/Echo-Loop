@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 
-class _FakeBackend implements PronunciationPlayerBackend {
+class _FakeBackend implements AudioClipPlayerBackend {
   bool completeOnOpen = false;
   String? errorOnOpen;
   final completedController = StreamController<void>.broadcast();

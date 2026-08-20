@@ -7,7 +7,7 @@ import '../app_logger.dart';
 /// 无画面短音频播放器后端，测试可注入 fake。
 ///
 /// 视频文件也仅选择并播放其音轨，不创建视频纹理或提供视频 UI。
-abstract interface class PronunciationPlayerBackend {
+abstract interface class AudioClipPlayerBackend {
   Stream<void> get completed;
   Stream<String> get errors;
   Stream<Duration> get positions;
@@ -20,8 +20,7 @@ abstract interface class PronunciationPlayerBackend {
 /// native media backend 不可用时的降级实现（例如未打包 Mpv 的单测环境）。
 ///
 /// 该后端不伪造播放成功，只让调用方收到失败结果并继续既有回退链路。
-class UnavailablePronunciationPlayerBackend
-    implements PronunciationPlayerBackend {
+class UnavailableAudioClipPlayerBackend implements AudioClipPlayerBackend {
   @override
   Stream<void> get completed => const Stream<void>.empty();
 
@@ -49,8 +48,8 @@ class UnavailablePronunciationPlayerBackend
 ///
 /// 未附加 [VideoController] 时，media_kit 原生播放器会禁用视频轨解码；
 /// 因此此后端可试听视频文件中的音轨，但不能用于需要画面的视频片段。
-class MediaKitPronunciationPlayerBackend implements PronunciationPlayerBackend {
-  MediaKitPronunciationPlayerBackend() : _player = Player();
+class MediaKitAudioClipPlayerBackend implements AudioClipPlayerBackend {
+  MediaKitAudioClipPlayerBackend() : _player = Player();
   final Player _player;
 
   @override
@@ -101,23 +100,23 @@ class LocalAudioClipPlaybackState {
 /// 只播放其音轨，且可在后台继续播放；需要视频画面、全屏或字幕 UI 时，应使用
 /// 前台 [MediaKitPlayerBackend] 和媒体呈现宿主，而不是此服务。
 class LocalAudioClipPlayer {
-  LocalAudioClipPlayer({PronunciationPlayerBackend? backend})
+  LocalAudioClipPlayer({AudioClipPlayerBackend? backend})
     : _backend = backend ?? _createDefaultBackend();
 
-  static PronunciationPlayerBackend _createDefaultBackend() {
+  static AudioClipPlayerBackend _createDefaultBackend() {
     try {
-      return MediaKitPronunciationPlayerBackend();
+      return MediaKitAudioClipPlayerBackend();
     } catch (error, stackTrace) {
       AppLogger.log(
-        'PronunciationPlayer',
+        'AudioClipPlayer',
         'native backend unavailable; using failed-playback fallback: '
             '$error\n$stackTrace',
       );
-      return UnavailablePronunciationPlayerBackend();
+      return UnavailableAudioClipPlayerBackend();
     }
   }
 
-  final PronunciationPlayerBackend _backend;
+  final AudioClipPlayerBackend _backend;
   int _sessionId = 0;
   _PlaybackCompletion? _activePlayback;
   LocalAudioClipPlaybackState _state = const LocalAudioClipPlaybackState();
@@ -138,10 +137,7 @@ class LocalAudioClipPlayer {
     try {
       await _backend.stop();
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
-      AppLogger.log(
-        'PronunciationPlayer',
-        '▶ open sid=$sessionId path=$filePath',
-      );
+      AppLogger.log('AudioClipPlayer', '▶ open sid=$sessionId path=$filePath');
       _watchCompletion(completion, sessionId);
       await _backend.open(filePath);
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
@@ -152,7 +148,7 @@ class LocalAudioClipPlayer {
           : AudioPlaybackResult.cancelled;
       completion.finish(result);
       AppLogger.log(
-        'PronunciationPlayer',
+        'AudioClipPlayer',
         'play failed path=$filePath error=$error\n$stackTrace',
       );
       return result;
@@ -189,7 +185,7 @@ class LocalAudioClipPlayer {
       await _backend.stop();
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       AppLogger.log(
-        'PronunciationPlayer',
+        'AudioClipPlayer',
         '▶ open range sid=$sessionId path=$filePath '
             'start=${start.inMilliseconds} end=${end.inMilliseconds}',
       );
@@ -214,7 +210,7 @@ class LocalAudioClipPlayer {
           : AudioPlaybackResult.cancelled;
       completion.finish(result);
       AppLogger.log(
-        'PronunciationPlayer',
+        'AudioClipPlayer',
         'range play failed path=$filePath error=$error\n$stackTrace',
       );
       return result;
@@ -249,7 +245,7 @@ class LocalAudioClipPlayer {
       (_) => finish(AudioPlaybackResult.completed),
     );
     errorSub = _backend.errors.listen((message) {
-      AppLogger.log('PronunciationPlayer', '播放解码失败: $message');
+      AppLogger.log('AudioClipPlayer', '播放解码失败: $message');
       finish(AudioPlaybackResult.failed);
     });
     unawaited(

@@ -8,9 +8,9 @@ import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/widgets/dictionary/pronunciation_controls.dart';
 
-class _FakePlayback extends PronunciationPlaybackController {
+class _FakePlayback extends TextPlaybackController {
   @override
-  PronunciationPlaybackState build() => const PronunciationPlaybackState();
+  TextPlaybackState build() => const TextPlaybackState();
   @override
   Future<void> play(
     PronunciationClip clip, {
@@ -20,7 +20,7 @@ class _FakePlayback extends PronunciationPlaybackController {
 }
 
 Widget _wrap(Widget child) => ProviderScope(
-  overrides: [pronunciationPlaybackProvider.overrideWith(_FakePlayback.new)],
+  overrides: [textPlaybackProvider.overrideWith(_FakePlayback.new)],
   child: MaterialApp(
     locale: const Locale('en'),
     supportedLocales: const [Locale('en'), Locale('zh')],

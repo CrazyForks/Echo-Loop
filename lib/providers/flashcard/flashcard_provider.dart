@@ -331,9 +331,7 @@ class FlashcardNotifier extends _$FlashcardNotifier {
         playedOriginal = await _playPhraseAudio(item);
       }
       if (!playedOriginal) {
-        await ref
-            .read(pronunciationPlaybackProvider.notifier)
-            .speak(item.displayText);
+        await ref.read(textPlaybackProvider.notifier).speak(item.displayText);
       }
 
       _inputStopwatch.stop();
@@ -668,7 +666,7 @@ class FlashcardNotifier extends _$FlashcardNotifier {
       playedOriginal = await _playPhraseAudio(item);
     }
     if (!playedOriginal) {
-      await ref.read(pronunciationPlaybackProvider.notifier).speak(word);
+      await ref.read(textPlaybackProvider.notifier).speak(word);
     }
 
     _inputStopwatch.stop();

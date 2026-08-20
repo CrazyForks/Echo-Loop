@@ -27,11 +27,11 @@ class FakeTtsController extends TtsController {
 }
 
 /// 记录统一入口是否优先把单词交给离线发音控制器。
-class FakePronunciationPlayback extends PronunciationPlaybackController {
+class FakePronunciationPlayback extends TextPlaybackController {
   final List<PronunciationClip> calls = [];
 
   @override
-  PronunciationPlaybackState build() => const PronunciationPlaybackState();
+  TextPlaybackState build() => const TextPlaybackState();
 
   @override
   Future<void> play(
@@ -66,7 +66,7 @@ Widget _wrap(
             : const [],
       ),
       if (pronunciationPlayback != null)
-        pronunciationPlaybackProvider.overrideWith(() => pronunciationPlayback),
+        textPlaybackProvider.overrideWith(() => pronunciationPlayback),
     ],
     child: MaterialApp(home: Scaffold(body: child)),
   );

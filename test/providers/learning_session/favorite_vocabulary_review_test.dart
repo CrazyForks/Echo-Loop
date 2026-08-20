@@ -14,13 +14,12 @@ import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakePronunciationPlaybackController
-    extends PronunciationPlaybackController {
+class _FakeTextPlaybackController extends TextPlaybackController {
   int stops = 0;
   final spoken = <String>[];
 
   @override
-  PronunciationPlaybackState build() => const PronunciationPlaybackState();
+  TextPlaybackState build() => const TextPlaybackState();
 
   @override
   Future<void> speak(String text, {String? key}) async {
@@ -65,15 +64,15 @@ db.SavedWord _word(String subjectId, String text) => db.SavedWord(
 void main() {
   late db.AppDatabase database;
   late ProviderContainer container;
-  late _FakePronunciationPlaybackController fakePlayback;
+  late _FakeTextPlaybackController fakePlayback;
 
   setUp(() {
     database = db.AppDatabase(NativeDatabase.memory());
-    fakePlayback = _FakePronunciationPlaybackController();
+    fakePlayback = _FakeTextPlaybackController();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
-        pronunciationPlaybackProvider.overrideWith(() => fakePlayback),
+        textPlaybackProvider.overrideWith(() => fakePlayback),
       ],
     );
   });
@@ -134,7 +133,7 @@ void main() {
     final disabledContainer = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
-        pronunciationPlaybackProvider.overrideWith(() => fakePlayback),
+        textPlaybackProvider.overrideWith(() => fakePlayback),
         favoriteReviewSettingsProvider.overrideWith(
           () => _TestFavoriteReviewSettings(false),
         ),
@@ -235,7 +234,7 @@ void main() {
     final failingContainer = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
-        pronunciationPlaybackProvider.overrideWith(() => fakePlayback),
+        textPlaybackProvider.overrideWith(() => fakePlayback),
         savedWordDaoProvider.overrideWithValue(_FailingSavedWordDao(database)),
       ],
     );

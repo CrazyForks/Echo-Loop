@@ -1,5 +1,10 @@
 # Echo Loop 任务清单
 
+- [x] 将通用文本短句播放入口从 `PronunciationPlaybackController` 重命名为
+  `TextPlaybackController`，Provider/State 同步改为通用命名；本地短音频播放器后端统一改为
+  `AudioClipPlayerBackend` 体系并更新全部生产与测试引用，保留离线发音资源库命名不变。
+  **完成时间**: 2026-08-20
+
 > 最后更新：2026-08-20（统一收藏句复习音频播放）
 > 当前焦点：Android 结束录音闪退（离线 ASR / Silero VAD）
 

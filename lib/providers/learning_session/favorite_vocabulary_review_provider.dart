@@ -3,7 +3,7 @@
 /// 会话状态机复用通用调度引擎 `ScheduledFlashcardController<FlashcardItem>`
 /// （`lib/features/scheduled_flashcard/`），机制与 `BookmarkReview`
 /// （收藏句复习）完全一致；区别只在于：
-/// - 正面重播调用的是词汇收藏列表同款的 `pronunciationPlaybackProvider`
+/// - 正面重播调用的是词汇收藏列表同款的 `textPlaybackProvider`
 ///   （离线发音库优先，回退 TTS），不是收藏句用的前台音频引擎；
 /// - 本步翻到背面只做状态流转（`face` 置为 back），不取 preview、不接评分，
 ///   反面内容留待后续任务。
@@ -107,7 +107,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
 
   @override
   FavoriteVocabularyReviewState build() {
-    final playback = ref.read(pronunciationPlaybackProvider.notifier);
+    final playback = ref.read(textPlaybackProvider.notifier);
     _lifecycleListener = AppLifecycleListener(
       onStateChange: (value) {
         if (value == AppLifecycleState.paused ||
@@ -132,7 +132,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     List<SavedSenseGroup> phrases,
   ) async {
     _generation++;
-    unawaited(ref.read(pronunciationPlaybackProvider.notifier).stop());
+    unawaited(ref.read(textPlaybackProvider.notifier).stop());
 
     _controller?.dispose();
     final scheduler = ref.read(memorySchedulerProvider);
@@ -170,7 +170,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     final card = state.currentCard;
     if (card == null) return;
     final generation = ++_generation;
-    final player = ref.read(pronunciationPlaybackProvider.notifier);
+    final player = ref.read(textPlaybackProvider.notifier);
     await player.stop();
     if (!_isCurrent(generation, card)) return;
     state = state.copyWith(
@@ -369,7 +369,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         playbackState: FavoriteVocabularyReviewPlaybackState.idle,
       );
     }
-    await ref.read(pronunciationPlaybackProvider.notifier).stop();
+    await ref.read(textPlaybackProvider.notifier).stop();
     if (_hasSourcePlayback) {
       _hasSourcePlayback = false;
       await ref.read(shortAudioPlayerProvider).stop();

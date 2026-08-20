@@ -301,9 +301,7 @@ class _ExampleView extends ConsumerWidget {
       child: InkWell(
         onTap: sentence.isEmpty
             ? null
-            : () => ref
-                  .read(pronunciationPlaybackProvider.notifier)
-                  .speak(sentence),
+            : () => ref.read(textPlaybackProvider.notifier).speak(sentence),
         borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.only(left: 10),

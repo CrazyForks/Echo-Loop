@@ -58,7 +58,7 @@ class SpeakButton extends ConsumerWidget {
       ttsControllerProvider.select((s) => s.speakingKey),
     );
     final localPlayingKey = ref.watch(
-      pronunciationPlaybackProvider.select((s) => s.playingKey),
+      textPlaybackProvider.select((s) => s.playingKey),
     );
     final localClips = ref.watch(pronunciationClipsProvider(text));
     final localPlaybackKey = localClips.isEmpty
@@ -80,9 +80,7 @@ class SpeakButton extends ConsumerWidget {
       iconSize: size,
       onPressed: text.trim().isEmpty
           ? null
-          : () => ref
-                .read(pronunciationPlaybackProvider.notifier)
-                .speak(text, key: key),
+          : () => ref.read(textPlaybackProvider.notifier).speak(text, key: key),
       icon: Icon(icon, color: iconColor),
     );
   }

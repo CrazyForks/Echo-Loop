@@ -8,7 +8,7 @@ import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeBackend implements PronunciationPlayerBackend {
+class _FakeBackend implements AudioClipPlayerBackend {
   _FakeBackend({this.completeOnOpen = true, this.failOnOpen = false});
 
   final bool completeOnOpen;
@@ -111,7 +111,7 @@ void main() {
 
       final stopwatch = Stopwatch()..start();
       await container
-          .read(pronunciationPlaybackProvider.notifier)
+          .read(textPlaybackProvider.notifier)
           .speakAllSingleWordPronunciations('read');
 
       expect(backend.openedPaths, _clips.map((clip) => clip.absolutePath));
@@ -130,7 +130,7 @@ void main() {
     addTearDown(container.dispose);
 
     await container
-        .read(pronunciationPlaybackProvider.notifier)
+        .read(textPlaybackProvider.notifier)
         .speakAllSingleWordPronunciations('hello world');
 
     expect(backend.openedPaths, isEmpty);
@@ -144,7 +144,7 @@ void main() {
     addTearDown(container.dispose);
 
     await container
-        .read(pronunciationPlaybackProvider.notifier)
+        .read(textPlaybackProvider.notifier)
         .speakAllSingleWordPronunciations('read');
 
     expect(backend.openedPaths, _clips.map((clip) => clip.absolutePath));
@@ -156,7 +156,7 @@ void main() {
     final tts = _FakeTtsController();
     final container = _container(backend: backend, tts: tts);
     addTearDown(container.dispose);
-    final playback = container.read(pronunciationPlaybackProvider.notifier);
+    final playback = container.read(textPlaybackProvider.notifier);
 
     final sequence = playback.speakAllSingleWordPronunciations('read');
     await Future<void>.delayed(Duration.zero);

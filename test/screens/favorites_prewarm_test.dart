@@ -120,11 +120,11 @@ class _RecordingTtsController extends TtsController {
 }
 
 /// 记录收藏卡片是否把命中的单词交给离线发音控制器，而非直接调用 TTS。
-class _RecordingPronunciationPlayback extends PronunciationPlaybackController {
+class _RecordingPronunciationPlayback extends TextPlaybackController {
   final List<PronunciationClip> playedClips = [];
 
   @override
-  PronunciationPlaybackState build() => const PronunciationPlaybackState();
+  TextPlaybackState build() => const TextPlaybackState();
 
   @override
   Future<void> play(
@@ -157,7 +157,7 @@ class _RecordingShortAudioPlayer extends LocalAudioClipPlayer {
   }
 }
 
-class _NoopShortAudioBackend implements PronunciationPlayerBackend {
+class _NoopShortAudioBackend implements AudioClipPlayerBackend {
   @override
   Stream<void> get completed => const Stream<void>.empty();
 
@@ -355,7 +355,7 @@ void main() {
           ),
         ),
         ttsControllerProvider.overrideWith(() => rec),
-        pronunciationPlaybackProvider.overrideWith(() => pronunciationPlayback),
+        textPlaybackProvider.overrideWith(() => pronunciationPlayback),
       ],
       child: MaterialApp.router(
         locale: const Locale('en'),

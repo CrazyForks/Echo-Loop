@@ -19,7 +19,7 @@ class LocalPronunciationIconButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = ref.watch(
-      pronunciationPlaybackProvider.select(
+      textPlaybackProvider.select(
         (state) => state.playingKey == clip.playbackKey,
       ),
     );
@@ -28,7 +28,7 @@ class LocalPronunciationIconButton extends ConsumerWidget {
       visualDensity: VisualDensity.compact,
       tooltip: AppLocalizations.of(context)!.pronunciationPlay,
       onPressed: () => ref
-          .read(pronunciationPlaybackProvider.notifier)
+          .read(textPlaybackProvider.notifier)
           .play(clip, fallbackText: fallbackText),
       icon: Icon(
         Icons.volume_up,
@@ -54,7 +54,7 @@ class PronunciationBadgeGroup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playingKey = ref.watch(
-      pronunciationPlaybackProvider.select((state) => state.playingKey),
+      textPlaybackProvider.select((state) => state.playingKey),
     );
     return Wrap(
       key: const Key('dict_pronunciation_badges'),
@@ -75,7 +75,7 @@ class PronunciationBadgeGroup extends ConsumerWidget {
               _reasonLabel(AppLocalizations.of(context)!, clip.reason),
             ),
             onPressed: () => ref
-                .read(pronunciationPlaybackProvider.notifier)
+                .read(textPlaybackProvider.notifier)
                 .play(clip, fallbackText: fallbackText),
           ),
       ],
