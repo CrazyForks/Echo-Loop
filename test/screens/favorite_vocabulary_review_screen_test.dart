@@ -27,7 +27,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-SavedWord _word(String text, {required String memorySubjectId}) => SavedWord(
+SavedWord _word(
+  String text, {
+  required String memorySubjectId,
+  String? sentenceText,
+}) => SavedWord(
   id: memorySubjectId.hashCode,
   word: text,
   memorySubjectId: memorySubjectId,
@@ -36,6 +40,7 @@ SavedWord _word(String text, {required String memorySubjectId}) => SavedWord(
   viewedBack: false,
   createdAt: DateTime.utc(2026, 1, 1),
   updatedAt: DateTime.utc(2026, 1, 1),
+  sentenceText: sentenceText,
   syncStatus: 0,
 );
 
@@ -73,12 +78,22 @@ class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
 }
 
 class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
+  _TestFavoriteVocabularyReview({this.withSource = false});
+
+  final bool withSource;
+
   @override
   FavoriteVocabularyReviewState build() {
     final now = DateTime.now().toUtc();
     return FavoriteVocabularyReviewState(
       cards: [
-        FlashcardWordItem(savedWord: _word('apple', memorySubjectId: 'w-1')),
+        FlashcardWordItem(
+          savedWord: _word(
+            'apple',
+            memorySubjectId: 'w-1',
+            sentenceText: withSource ? 'I ate an apple this morning.' : null,
+          ),
+        ),
       ],
       preview: MemoryRatingPreviewSet(
         scheduleId: 'test-schedule',
@@ -143,11 +158,12 @@ late SharedPreferences _sharedPreferences;
 Widget _app({
   bool showNextReviewTime = false,
   bool autoShowAiLookup = false,
+  bool withSource = false,
   List<PronunciationClip> pronunciationClips = const [],
 }) => ProviderScope(
   overrides: [
     favoriteVocabularyReviewProvider.overrideWith(
-      _TestFavoriteVocabularyReview.new,
+      () => _TestFavoriteVocabularyReview(withSource: withSource),
     ),
     favoriteReviewSettingsProvider.overrideWith(
       () => _TestFavoriteReviewSettings(
@@ -263,7 +279,56 @@ void main() {
       find.byKey(const Key('favorite-vocabulary-review-ai-toggle')),
       findsOneWidget,
     );
-    expect(find.text('收起 AI 查词'), findsOneWidget);
+    expect(find.text('AI 查词'), findsOneWidget);
+    expect(find.text('查看智能释义与例句'), findsNothing);
+  });
+
+  testWidgets('来源句子、来源材料和 AI 查词入口使用分组内容层级', (tester) async {
+    await tester.pumpWidget(_app(withSource: true));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    expect(find.text('来源句子'), findsOneWidget);
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-source')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('favorite-vocabulary-review-source')),
+        matching: find.byIcon(Icons.chevron_right_rounded),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-ai-toggle')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('背面内容与进度条及评分栏左右对齐', (tester) async {
+    await tester.pumpWidget(_app(withSource: true));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    final progress = tester.getTopLeft(
+      find.byKey(const Key('favorite-vocabulary-review-progress')),
+    );
+    final source = tester.getTopLeft(
+      find.byKey(const Key('favorite-vocabulary-review-source')),
+    );
+    final ratingBar = tester.getTopLeft(
+      find.byKey(const Key('favorite-vocabulary-review-rating-bar')),
+    );
+
+    expect(source.dx, progress.dx);
+    expect(ratingBar.dx, progress.dx);
   });
 
   testWidgets('multiple pronunciations keep badges and hide title playback', (

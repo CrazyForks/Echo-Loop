@@ -456,9 +456,9 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.l,
               AppSpacing.m,
-              AppSpacing.l,
+              AppSpacing.m,
+              AppSpacing.m,
               AppSpacing.s,
             ),
             child: Column(
@@ -499,44 +499,20 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                 if (card.sentenceText?.trim() case final String sentenceText
                     when sentenceText.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.m),
-                  const Divider(),
-                  const SizedBox(height: AppSpacing.s),
-                  InkWell(
-                    key: const Key('favorite-vocabulary-review-source'),
-                    onTap: _playSource,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.play_circle_outline, size: 20),
-                          const SizedBox(width: AppSpacing.s),
-                          Expanded(
-                            child: Text(
-                              sentenceText,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _SourceSentenceCard(
+                    sentenceText: sentenceText,
+                    onPlay: _playSource,
                   ),
                 ],
                 if (card.audioItemId case final String audioItemId) ...[
-                  const SizedBox(height: AppSpacing.s),
+                  const SizedBox(height: AppSpacing.xs),
                   _SourceMaterialLink(audioItemId: audioItemId),
                 ],
                 const SizedBox(height: AppSpacing.m),
-                OutlinedButton.icon(
+                _AiLookupToggle(
                   key: const Key('favorite-vocabulary-review-ai-toggle'),
-                  onPressed: () => setState(() => _showAi = !_showAi),
-                  icon: Icon(
-                    _showAi
-                        ? Icons.keyboard_arrow_up
-                        : Icons.auto_awesome_outlined,
-                  ),
-                  label: Text(_showAi ? '收起 AI 查词' : '显示 AI 查词'),
+                  expanded: _showAi,
+                  onTap: () => setState(() => _showAi = !_showAi),
                 ),
                 if (_showAi) ...[
                   const SizedBox(height: AppSpacing.s),
@@ -564,6 +540,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.m),
             child: FlashcardRatingActionBar(
+              key: const Key('favorite-vocabulary-review-rating-bar'),
               actions: [
                 FlashcardRatingAction(
                   rating: MemoryRating.again,
@@ -602,6 +579,156 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 来源句卡片：把可播放句子与学习语境标签组合成一个明确的内容入口。
+class _SourceSentenceCard extends StatelessWidget {
+  const _SourceSentenceCard({required this.sentenceText, required this.onPlay});
+
+  final String sentenceText;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      button: true,
+      label: '播放来源句子',
+      child: Material(
+        color: colors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: const Key('favorite-vocabulary-review-source'),
+          onTap: onPlay,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s,
+              10,
+              AppSpacing.s,
+              12,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '来源句子',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.play_arrow_rounded,
+                            size: 18,
+                            color: colors.primary,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        sentenceText,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontSize: 16,
+                          height: 1.35,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// AI 查词主入口：以整行卡片表达可展开内容，而不是普通次级按钮。
+class _AiLookupToggle extends StatelessWidget {
+  const _AiLookupToggle({
+    super.key,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      button: true,
+      toggled: expanded,
+      label: expanded ? '收起 AI 查词' : '显示 AI 查词',
+      child: Material(
+        color: colors.primaryContainer.withValues(alpha: 0.55),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.primary.withValues(alpha: 0.35)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.m,
+              vertical: 9,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  expanded ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+                  color: colors.primary,
+                  size: 22,
+                ),
+                const SizedBox(width: AppSpacing.s),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI 查词',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  color: colors.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -730,32 +857,55 @@ class _SourceMaterialLink extends ConsumerWidget {
     future: ref.read(audioItemDaoProvider).getById(audioItemId),
     builder: (context, snapshot) {
       final title = snapshot.data?.name ?? '来源材料';
-      return InkWell(
-        key: const Key('favorite-vocabulary-review-source-material'),
-        onTap: () => context.push(AppRoutes.audioLearningPlan(audioItemId)),
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              Icon(
-                Icons.headphones_outlined,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.s),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+      final theme = Theme.of(context);
+      final colors = theme.colorScheme;
+      return Semantics(
+        button: true,
+        label: '打开来源材料 $title',
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('favorite-vocabulary-review-source-material'),
+              onTap: () =>
+                  context.push(AppRoutes.audioLearningPlan(audioItemId)),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: 6,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.headphones_rounded,
+                      size: 16,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ],
                 ),
               ),
-              const Icon(Icons.chevron_right, size: 18),
-            ],
+            ),
           ),
         ),
       );
