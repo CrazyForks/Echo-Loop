@@ -31,6 +31,7 @@ void main() {
     });
     expect(migrated.autoPlayFront, isTrue);
     expect(migrated.autoPlayBack, isFalse);
+    expect(defaults.autoShowAiLookup, isFalse);
   });
 
   test('两个自动播放设置都能序列化和恢复', () {
@@ -42,6 +43,15 @@ void main() {
     expect(
       FavoriteReviewSettings.fromJson(settings.toJson()).toJson(),
       settings.toJson(),
+    );
+  });
+
+  test('自动显示 AI 查词设置能序列化和恢复', () {
+    const settings = FavoriteReviewSettings(autoShowAiLookup: true);
+
+    expect(
+      FavoriteReviewSettings.fromJson(settings.toJson()).autoShowAiLookup,
+      isTrue,
     );
   });
 }

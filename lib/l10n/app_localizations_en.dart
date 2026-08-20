@@ -4196,7 +4196,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-show cached translation, analysis and sense groups';
 
   @override
-  String get autoShowAiExplanationToggle => 'Auto-show AI explanations';
+  String get autoShowAiExplanationToggle => 'Auto-show AI explanation';
 
   @override
   String get autoShowAiExplanationSubtitle =>

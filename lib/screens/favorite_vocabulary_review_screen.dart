@@ -164,6 +164,11 @@ class _FavoriteVocabularyReviewScreenState
                                   (settings) => settings.showNextReviewTime,
                                 ),
                               ),
+                              autoShowAiLookup: ref.watch(
+                                favoriteReviewSettingsProvider.select(
+                                  (settings) => settings.autoShowAiLookup,
+                                ),
+                              ),
                               isSubmitting: state.isSubmittingRating,
                               isRemoving: state.isRemoving,
                               onRating: (rating) =>
@@ -371,6 +376,7 @@ class _VocabularyBack extends ConsumerStatefulWidget {
     required this.card,
     required this.preview,
     required this.showNextReviewTime,
+    required this.autoShowAiLookup,
     required this.isSubmitting,
     required this.isRemoving,
     required this.onRating,
@@ -380,6 +386,7 @@ class _VocabularyBack extends ConsumerStatefulWidget {
   final FlashcardItem card;
   final MemoryRatingPreviewSet? preview;
   final bool showNextReviewTime;
+  final bool autoShowAiLookup;
   final bool isSubmitting;
   final bool isRemoving;
   final ValueChanged<MemoryRating> onRating;
@@ -390,7 +397,15 @@ class _VocabularyBack extends ConsumerStatefulWidget {
 }
 
 class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
-  bool _showAi = false;
+  late bool _showAi = widget.autoShowAiLookup;
+
+  @override
+  void didUpdateWidget(covariant _VocabularyBack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.autoShowAiLookup != widget.autoShowAiLookup) {
+      _showAi = widget.autoShowAiLookup;
+    }
+  }
 
   bool get _isSingleWord =>
       !widget.card.displayText.trim().contains(RegExp(r'\s')) &&

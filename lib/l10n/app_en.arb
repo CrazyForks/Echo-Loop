@@ -2172,7 +2172,7 @@
   "autoSkipRetellSubtitle": "Auto-skip retelling tasks in your learning plan",
   "autoExpandCachedAnnotationToggle": "Auto-expand Sentence Analysis",
   "autoExpandCachedAnnotationSubtitle": "Auto-show cached translation, analysis and sense groups",
-  "autoShowAiExplanationToggle": "Auto-show AI explanations",
+  "autoShowAiExplanationToggle": "Auto-show AI explanation",
   "autoShowAiExplanationSubtitle": "Automatically show selected AI help when you enter sentence explanations",
   "autoShowAiAnalysisToggle": "AI Analysis",
   "autoShowAiTranslationToggle": "AI Translation",

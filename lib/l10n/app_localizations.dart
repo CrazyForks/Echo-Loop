@@ -7325,7 +7325,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoShowAiExplanationToggle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-show AI explanations'**
+  /// **'Auto-show AI explanation'**
   String get autoShowAiExplanationToggle;
 
   /// No description provided for @autoShowAiExplanationSubtitle.

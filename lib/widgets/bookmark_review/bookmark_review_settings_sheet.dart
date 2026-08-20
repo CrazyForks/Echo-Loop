@@ -253,6 +253,14 @@ class _BookmarkReviewSettingsSheetState
                                   ),
                           ),
                         ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(l10n.autoShowAiExplanationToggle),
+                          value: settings.autoShowAiLookup,
+                          onChanged: (value) => notifier.update(
+                            settings.copyWith(autoShowAiLookup: value),
+                          ),
+                        ),
                       ],
                     ),
                 ],

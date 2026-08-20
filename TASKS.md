@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 收藏词汇复习设置新增“自动显示 AI 查词”开关：偏好纳入共享收藏复习设置并持久化，词汇复习翻面时按开关自动展开 AI 查词；默认关闭，补充模型与页面回归测试。**完成时间**: 2026-08-21
+
 - [x] 将通用文本短句播放入口从 `PronunciationPlaybackController` 重命名为
   `TextPlaybackController`，Provider/State 同步改为通用命名；本地短音频播放器后端统一改为
   `AudioClipPlayerBackend` 体系并更新全部生产与测试引用，保留离线发音资源库命名不变。

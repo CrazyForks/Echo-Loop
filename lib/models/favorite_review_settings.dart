@@ -12,6 +12,7 @@ class FavoriteReviewSettings {
     this.showNextReviewTime = false,
     this.autoPlayFront = true,
     this.autoPlayBack = true,
+    this.autoShowAiLookup = false,
     this.sentenceDailyReviewGoal,
     this.vocabularyDailyReviewGoal,
     this.order = FavoriteReviewOrder.smart,
@@ -24,6 +25,9 @@ class FavoriteReviewSettings {
 
   /// 翻到背面时是否自动播放当前卡片对应的音频。
   final bool autoPlayBack;
+
+  /// 收藏词汇翻面时是否自动展示 AI 查词结果。
+  final bool autoShowAiLookup;
 
   /// 收藏句的每日复习目标；为空时不限制。
   final int? sentenceDailyReviewGoal;
@@ -52,6 +56,7 @@ class FavoriteReviewSettings {
     bool? showNextReviewTime,
     bool? autoPlayFront,
     bool? autoPlayBack,
+    bool? autoShowAiLookup,
     int? sentenceDailyReviewGoal,
     bool clearSentenceDailyReviewGoal = false,
     int? vocabularyDailyReviewGoal,
@@ -61,6 +66,7 @@ class FavoriteReviewSettings {
     showNextReviewTime: showNextReviewTime ?? this.showNextReviewTime,
     autoPlayFront: autoPlayFront ?? this.autoPlayFront,
     autoPlayBack: autoPlayBack ?? this.autoPlayBack,
+    autoShowAiLookup: autoShowAiLookup ?? this.autoShowAiLookup,
     sentenceDailyReviewGoal: clearSentenceDailyReviewGoal
         ? null
         : sentenceDailyReviewGoal ?? this.sentenceDailyReviewGoal,
@@ -74,6 +80,7 @@ class FavoriteReviewSettings {
     'showNextReviewTime': showNextReviewTime,
     'autoPlayFront': autoPlayFront,
     'autoPlayBack': autoPlayBack,
+    'autoShowAiLookup': autoShowAiLookup,
     'sentenceDailyReviewGoal': sentenceDailyReviewGoal,
     'vocabularyDailyReviewGoal': vocabularyDailyReviewGoal,
     'order': order.name,
@@ -99,6 +106,9 @@ class FavoriteReviewSettings {
           : json['autoPlayVocabularySourceSentence'] is bool
           ? json['autoPlayVocabularySourceSentence'] == true
           : true,
+      autoShowAiLookup: json['autoShowAiLookup'] is bool
+          ? json['autoShowAiLookup'] == true
+          : false,
       sentenceDailyReviewGoal:
           rawSentenceGoal is int &&
               dailyReviewGoalOptions.contains(rawSentenceGoal)

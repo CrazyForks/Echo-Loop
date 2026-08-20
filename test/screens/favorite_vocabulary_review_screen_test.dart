@@ -11,6 +11,7 @@ import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
 import 'package:echo_loop/providers/dictionary/dictionary_registry.dart';
 import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
+import 'package:echo_loop/providers/learning_settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/screens/favorite_vocabulary_review_screen.dart';
@@ -24,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 SavedWord _word(String text, {required String memorySubjectId}) => SavedWord(
   id: memorySubjectId.hashCode,
@@ -55,13 +57,19 @@ MemoryRatingPreview _preview(MemoryRating rating, DateTime dueAt) =>
     );
 
 class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
-  _TestFavoriteReviewSettings(this.showNextReviewTime);
+  _TestFavoriteReviewSettings(
+    this.showNextReviewTime, {
+    this.autoShowAiLookup = false,
+  });
 
   final bool showNextReviewTime;
+  final bool autoShowAiLookup;
 
   @override
-  FavoriteReviewSettings build() =>
-      FavoriteReviewSettings(showNextReviewTime: showNextReviewTime);
+  FavoriteReviewSettings build() => FavoriteReviewSettings(
+    showNextReviewTime: showNextReviewTime,
+    autoShowAiLookup: autoShowAiLookup,
+  );
 }
 
 class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
@@ -130,8 +138,11 @@ class _TestLocalDictionarySource extends LocalDictionarySource {
   );
 }
 
+late SharedPreferences _sharedPreferences;
+
 Widget _app({
   bool showNextReviewTime = false,
+  bool autoShowAiLookup = false,
   List<PronunciationClip> pronunciationClips = const [],
 }) => ProviderScope(
   overrides: [
@@ -139,8 +150,12 @@ Widget _app({
       _TestFavoriteVocabularyReview.new,
     ),
     favoriteReviewSettingsProvider.overrideWith(
-      () => _TestFavoriteReviewSettings(showNextReviewTime),
+      () => _TestFavoriteReviewSettings(
+        showNextReviewTime,
+        autoShowAiLookup: autoShowAiLookup,
+      ),
     ),
+    sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
     localDictionarySourceProvider.overrideWithValue(
       _TestLocalDictionarySource(),
     ),
@@ -161,7 +176,11 @@ Widget _app({
 );
 
 void main() {
-  setUpAll(initTimeago);
+  setUpAll(() async {
+    initTimeago();
+    SharedPreferences.setMockInitialValues({});
+    _sharedPreferences = await SharedPreferences.getInstance();
+  });
 
   testWidgets('front shows title, progress bar and equal listen/reveal split', (
     tester,
@@ -230,6 +249,21 @@ void main() {
     expect(find.text('9分钟后'), findsOneWidget);
     expect(find.text('3小时后'), findsOneWidget);
     expect(find.text('16天后'), findsOneWidget);
+  });
+
+  testWidgets('自动显示 AI 查词开启时翻面自动展示 AI 结果', (tester) async {
+    await tester.pumpWidget(_app(autoShowAiLookup: true));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-ai-toggle')),
+      findsOneWidget,
+    );
+    expect(find.text('收起 AI 查词'), findsOneWidget);
   });
 
   testWidgets('multiple pronunciations keep badges and hide title playback', (
@@ -310,6 +344,7 @@ void main() {
     expect(find.text('复习顺序'), findsOneWidget);
     expect(find.text('收藏词汇复习'), findsNWidgets(2));
     expect(find.text('每日词汇复习目标'), findsOneWidget);
+    expect(find.text('自动显示 AI 讲解'), findsOneWidget);
     expect(find.text('收藏句子复习'), findsOneWidget);
     expect(find.text('每日句子复习目标'), findsNothing);
   });
