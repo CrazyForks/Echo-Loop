@@ -1,8 +1,8 @@
 import '../../database/daos/audio_item_dao.dart';
-import '../../models/audio_item.dart' as model;
 import '../../models/sentence.dart';
 import '../subtitle_parser.dart';
 import 'local_audio_clip_player.dart';
+import 'local_audio_range_player.dart';
 
 /// 收藏词汇与意群共用的来源句播放编排。
 ///
@@ -36,24 +36,7 @@ class SourceSentencePlayer {
           ? null
           : await _audioItemDao.getById(audioItemId);
       if (row != null) {
-        final audioItem = model.AudioItem(
-          id: row.id,
-          name: row.name,
-          audioPath: row.audioPath,
-          transcriptPath: row.transcriptPath,
-          addedDate: row.addedDate,
-          totalDuration: row.totalDuration,
-          sentenceCount: row.sentenceCount,
-          wordCount: row.wordCount,
-          isPinned: row.isPinned,
-          transcriptSource: model.TranscriptSource.fromIndex(
-            row.transcriptSource,
-          ),
-          audioSha256: row.audioSha256,
-          originalAudioSha256: row.originalAudioSha256,
-          transcriptLanguage: row.transcriptLanguage,
-        );
-        final filePath = await audioItem.getFullAudioPath();
+        final filePath = await audioItemFromDatabaseRow(row).getFullAudioPath();
         final range = _resolveStoredRange(sentenceStartMs, sentenceEndMs);
         if (filePath != null && range != null) {
           switch (await _audioClipPlayer.playRangeFile(

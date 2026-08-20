@@ -34,6 +34,9 @@ import '../../services/app_logger.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import 'favorite_sentence_deck_source.dart';
+import '../short_audio_player_provider.dart';
+import '../../services/pronunciation/local_audio_clip_player.dart';
+import '../../services/pronunciation/local_audio_range_player.dart';
 
 part 'bookmark_review_provider.g.dart';
 
@@ -106,7 +109,9 @@ class BookmarkReview extends _$BookmarkReview {
 
   @override
   BookmarkReviewState build() {
+    final audioEngine = ref.read(audioEngineProvider.notifier);
     final foregroundEngine = ref.read(foregroundAudioEngineProvider.notifier);
+    final shortAudioPlayer = ref.read(shortAudioPlayerProvider);
     _lifecycleListener = AppLifecycleListener(
       onStateChange: (value) {
         if (value == AppLifecycleState.paused ||
@@ -120,7 +125,11 @@ class BookmarkReview extends _$BookmarkReview {
       _generation++;
       _lifecycleListener.dispose();
       _controller?.dispose();
-      unawaited(foregroundEngine.stop());
+      unawaited(audioEngine.stop());
+      if (foregroundEngine.isPlaying) {
+        unawaited(foregroundEngine.stop());
+      }
+      unawaited(shortAudioPlayer.stop());
     });
     return const BookmarkReviewState();
   }
@@ -129,7 +138,8 @@ class BookmarkReview extends _$BookmarkReview {
   Future<void> initialize(List<BookmarkWithAudio> bookmarks) async {
     _generation++;
     unawaited(ref.read(audioEngineProvider.notifier).stop());
-    unawaited(ref.read(foregroundAudioEngineProvider.notifier).stop());
+    unawaited(_stopForegroundPlaybackIfActive());
+    unawaited(ref.read(shortAudioPlayerProvider).stop());
 
     _controller?.dispose();
     final scheduler = ref.read(memorySchedulerProvider);
@@ -169,8 +179,9 @@ class BookmarkReview extends _$BookmarkReview {
     final card = state.currentCard;
     if (card == null) return;
     final generation = ++_generation;
-    final engine = ref.read(foregroundAudioEngineProvider.notifier);
-    await engine.stop();
+    final player = ref.read(shortAudioPlayerProvider);
+    await _stopForegroundPlaybackIfActive();
+    await player.stop();
     if (!_isCurrent(generation, card)) return;
     state = state.copyWith(
       playbackState: BookmarkReviewPlaybackState.loading,
@@ -181,14 +192,20 @@ class BookmarkReview extends _$BookmarkReview {
       state = state.copyWith(
         playbackState: BookmarkReviewPlaybackState.playing,
       );
-      await engine.playRangeForAudio(
-        card.audioItemId,
-        card.sentence.startTime,
-        card.sentence.endTime,
-        speed: 1.0,
-      );
+      final result = await _playSentenceRange(player, card);
       if (!_isCurrent(generation, card)) return;
-      state = state.copyWith(playbackState: BookmarkReviewPlaybackState.idle);
+      switch (result) {
+        case AudioPlaybackResult.completed:
+        case AudioPlaybackResult.cancelled:
+          state = state.copyWith(
+            playbackState: BookmarkReviewPlaybackState.idle,
+          );
+        case AudioPlaybackResult.failed:
+          state = state.copyWith(
+            playbackState: BookmarkReviewPlaybackState.failed,
+            mediaError: 'audio_unavailable',
+          );
+      }
     } catch (error, stackTrace) {
       if (!_isCurrent(generation, card)) return;
       AppLogger.log(
@@ -315,7 +332,16 @@ class BookmarkReview extends _$BookmarkReview {
     if (state.playbackState != BookmarkReviewPlaybackState.idle) {
       state = state.copyWith(playbackState: BookmarkReviewPlaybackState.idle);
     }
-    await ref.read(foregroundAudioEngineProvider.notifier).stop();
+    await _stopForegroundPlaybackIfActive();
+    await ref.read(shortAudioPlayerProvider).stop();
+  }
+
+  /// 仅清理确实正在播放的旧 just_audio 会话，避免 media_kit 播放时产生误导日志。
+  Future<void> _stopForegroundPlaybackIfActive() async {
+    final engine = ref.read(foregroundAudioEngineProvider.notifier);
+    if (engine.isPlaying) {
+      await engine.stop();
+    }
   }
 
   Future<void> disposeSession() async {
@@ -338,4 +364,21 @@ class BookmarkReview extends _$BookmarkReview {
 
   bool _isCurrent(int generation, BookmarkSentence card) =>
       generation == _generation && identical(state.currentCard, card);
+
+  /// 复用短音频播放器播放收藏句原始区间；视频文件由 media_kit 只输出音轨。
+  Future<AudioPlaybackResult> _playSentenceRange(
+    LocalAudioClipPlayer player,
+    BookmarkSentence card,
+  ) async {
+    return LocalAudioRangePlayer(
+      audioItemDao: ref.read(audioItemDaoProvider),
+      audioClipPlayer: player,
+    ).play(
+      audioItemId: card.audioItemId,
+      start: card.sentence.startTime,
+      end: card.sentence.endTime,
+      playbackKey:
+          'favorite-sentence-review:${card.audioItemId}:${card.originalSentenceIndex}',
+    );
+  }
 }

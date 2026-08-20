@@ -1,18 +1,21 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/database/providers.dart';
-import 'package:echo_loop/models/audio_engine_state.dart';
 import 'package:echo_loop/models/favorite_review_settings.dart';
-import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
 import 'package:echo_loop/providers/favorite_review_settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
+import 'package:echo_loop/providers/short_audio_player_provider.dart';
+import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
+import 'package:echo_loop/utils/app_data_dir.dart' as app_data_dir;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart' hide isNotNull;
 
 import '../../helpers/mock_providers.dart';
 
@@ -31,28 +34,57 @@ class _TestBookmarkDao implements BookmarkDao {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-class _FakeForegroundEngine extends ForegroundAudioEngine {
+class _FakeShortAudioPlayer extends LocalAudioClipPlayer {
+  _FakeShortAudioPlayer()
+    : super(backend: UnavailablePronunciationPlayerBackend());
+
   int stops = 0;
-  int sessions = 0;
   int rangePlays = 0;
-  Completer<void>? pendingRangePlay;
+  final paths = <String>[];
+  final ranges = <(Duration, Duration)>[];
+  Completer<AudioPlaybackResult>? pendingRangePlay;
+  String? _playingKey;
+
   @override
-  AudioEngineState build() => const AudioEngineState(currentAudioId: 'audio-1');
+  LocalAudioClipPlaybackState get state =>
+      LocalAudioClipPlaybackState(playingKey: _playingKey);
+
   @override
-  Future<void> stop() async => stops++;
-  @override
-  int newSession() => ++sessions;
-  @override
-  Future<void> playClipOnce(Sentence sentence, int sessionId) async {}
-  @override
-  Future<void> playRangeForAudio(
-    String audioItemId,
-    Duration start,
-    Duration end, {
-    required double speed,
+  Future<AudioPlaybackResult> playRangeFile(
+    String filePath, {
+    required Duration start,
+    required Duration end,
+    String? playbackKey,
   }) {
     rangePlays++;
-    return (pendingRangePlay ??= Completer<void>()).future;
+    paths.add(filePath);
+    ranges.add((start, end));
+    _playingKey = playbackKey;
+    return (pendingRangePlay ??= Completer<AudioPlaybackResult>()).future;
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    _playingKey = null;
+    pendingRangePlay?.complete(AudioPlaybackResult.cancelled);
+    pendingRangePlay = null;
+  }
+
+  void completeRange(AudioPlaybackResult result) {
+    _playingKey = null;
+    pendingRangePlay?.complete(result);
+    pendingRangePlay = null;
+  }
+}
+
+class _RecordingForegroundAudioEngine extends TestForegroundAudioEngine {
+  int stopCalls = 0;
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+    await super.stop();
   }
 }
 
@@ -91,14 +123,18 @@ BookmarkWithAudio _bookmark(int id) => BookmarkWithAudio(
 ProviderContainer _container(
   _TestBookmarkDao dao,
   db.AppDatabase database, {
+  required _FakeShortAudioPlayer shortAudioPlayer,
   bool autoPlayFront = false,
   bool autoPlayBack = false,
 }) => ProviderContainer(
   overrides: [
     appDatabaseProvider.overrideWithValue(database),
     bookmarkDaoProvider.overrideWithValue(dao),
-    foregroundAudioEngineProvider.overrideWith(_FakeForegroundEngine.new),
     audioEngineProvider.overrideWith(TestAudioEngine.new),
+    foregroundAudioEngineProvider.overrideWith(
+      _RecordingForegroundAudioEngine.new,
+    ),
+    shortAudioPlayerProvider.overrideWithValue(shortAudioPlayer),
     favoriteReviewSettingsProvider.overrideWith(
       () => _TestFavoriteReviewSettings(
         autoPlayFront: autoPlayFront,
@@ -109,24 +145,61 @@ ProviderContainer _container(
   ],
 );
 
-({ProviderContainer container, db.AppDatabase database}) _testScope(
+({
+  ProviderContainer container,
+  db.AppDatabase database,
+  _FakeShortAudioPlayer player,
+})
+_testScope(
   _TestBookmarkDao dao, {
   bool autoPlayFront = false,
   bool autoPlayBack = false,
 }) {
   final database = db.AppDatabase(NativeDatabase.memory());
+  final player = _FakeShortAudioPlayer();
   return (
     container: _container(
       dao,
       database,
+      shortAudioPlayer: player,
       autoPlayFront: autoPlayFront,
       autoPlayBack: autoPlayBack,
     ),
     database: database,
+    player: player,
   );
 }
 
+Future<void> _addPlayableMedia(db.AppDatabase database) {
+  final now = DateTime.now();
+  return database.audioItemDao.upsert(
+    db.AudioItemsCompanion(
+      id: const Value('audio-1'),
+      name: const Value('Material'),
+      audioPath: const Value('media/test.mp4'),
+      addedDate: Value(now),
+      updatedAt: Value(now),
+    ),
+  );
+}
+
+late Directory _testAppDataDirectory;
+
 void main() {
+  setUpAll(() async {
+    _testAppDataDirectory = await Directory.systemTemp.createTemp(
+      'echo_loop_bookmark_review_test-',
+    );
+    app_data_dir.appDataDirectoryOverride = _testAppDataDirectory;
+  });
+
+  tearDownAll(() async {
+    app_data_dir.appDataDirectoryOverride = null;
+    if (_testAppDataDirectory.existsSync()) {
+      await _testAppDataDirectory.delete(recursive: true);
+    }
+  });
+
   test('initialize filters invalid bookmarks and starts on front', () async {
     final scope = _testScope(_TestBookmarkDao());
     final database = scope.database;
@@ -157,18 +230,55 @@ void main() {
       await scope.database.close();
     });
     final notifier = container.read(bookmarkReviewProvider.notifier);
+    await _addPlayableMedia(scope.database);
     await notifier.initialize([_bookmark(1)]);
     await notifier.revealBack();
     expect(
       container.read(bookmarkReviewProvider).face,
       BookmarkReviewFace.back,
     );
-    expect(
-      (container.read(foregroundAudioEngineProvider.notifier)
-              as _FakeForegroundEngine)
-          .stops,
-      greaterThan(0),
-    );
+    expect(scope.player.stops, greaterThan(0));
+  });
+
+  test(
+    'does not stop foreground engine when no legacy playback is active',
+    () async {
+      final scope = _testScope(_TestBookmarkDao());
+      final container = scope.container;
+      addTearDown(() async {
+        container.dispose();
+        await scope.database.close();
+      });
+      final foreground =
+          container.read(foregroundAudioEngineProvider.notifier)
+              as _RecordingForegroundAudioEngine;
+      final notifier = container.read(bookmarkReviewProvider.notifier);
+
+      await notifier.initialize([_bookmark(1)]);
+      await notifier.revealBack();
+      await notifier.interruptPlayback();
+
+      expect(foreground.stopCalls, 0);
+    },
+  );
+
+  test('stops foreground engine when legacy playback is active', () async {
+    final scope = _testScope(_TestBookmarkDao());
+    final container = scope.container;
+    addTearDown(() async {
+      container.dispose();
+      await scope.database.close();
+    });
+    final foreground =
+        container.read(foregroundAudioEngineProvider.notifier)
+            as _RecordingForegroundAudioEngine;
+    final notifier = container.read(bookmarkReviewProvider.notifier);
+
+    foreground.isPlaying = true;
+    await notifier.interruptPlayback();
+
+    expect(foreground.stopCalls, 1);
+    expect(foreground.isPlaying, isFalse);
   });
 
   test('shared auto-play settings control sentence front and back', () async {
@@ -187,10 +297,7 @@ void main() {
     await disabledNotifier.initialize([_bookmark(1)]);
     await disabledNotifier.startCurrentCard();
     await disabledNotifier.revealBack();
-    final disabledEngine =
-        disabled.container.read(foregroundAudioEngineProvider.notifier)
-            as _FakeForegroundEngine;
-    expect(disabledEngine.rangePlays, 0);
+    expect(disabled.player.rangePlays, 0);
 
     final enabled = _testScope(
       _TestBookmarkDao(),
@@ -204,17 +311,20 @@ void main() {
     final enabledNotifier = enabled.container.read(
       bookmarkReviewProvider.notifier,
     );
+    await _addPlayableMedia(enabled.database);
     await enabledNotifier.initialize([_bookmark(1)]);
     unawaited(enabledNotifier.startCurrentCard());
-    await Future<void>.delayed(Duration.zero);
-    final enabledEngine =
-        enabled.container.read(foregroundAudioEngineProvider.notifier)
-            as _FakeForegroundEngine;
-    expect(enabledEngine.rangePlays, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(enabled.player.rangePlays, 1);
+    expect(enabled.player.paths.single, endsWith('media/test.mp4'));
+    expect(enabled.player.ranges.single, (
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+    ));
     await enabledNotifier.interruptPlayback();
     await enabledNotifier.revealBack();
-    await Future<void>.delayed(Duration.zero);
-    expect(enabledEngine.rangePlays, 2);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(enabled.player.rangePlays, 2);
     await enabledNotifier.interruptPlayback();
   });
 
@@ -226,30 +336,68 @@ void main() {
       await scope.database.close();
     });
     final notifier = container.read(bookmarkReviewProvider.notifier);
+    await _addPlayableMedia(scope.database);
     await notifier.initialize([_bookmark(1)]);
     await notifier.revealBack();
 
     final playback = notifier.toggleCurrentPlayback();
-    await Future<void>.delayed(Duration.zero);
-    final engine =
-        container.read(foregroundAudioEngineProvider.notifier)
-            as _FakeForegroundEngine;
-    expect(engine.rangePlays, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(scope.player.rangePlays, 1);
     expect(
       container.read(bookmarkReviewProvider).playbackState,
       BookmarkReviewPlaybackState.playing,
     );
 
     await notifier.toggleCurrentPlayback();
-    expect(engine.stops, greaterThan(0));
+    expect(scope.player.stops, greaterThan(0));
     expect(
       container.read(bookmarkReviewProvider).playbackState,
       BookmarkReviewPlaybackState.idle,
     );
-    final pendingRangePlay = engine.pendingRangePlay;
-    expect(pendingRangePlay, isNotNull);
-    pendingRangePlay?.complete();
     await playback;
+  });
+
+  test('completed sentence playback returns to idle', () async {
+    final scope = _testScope(_TestBookmarkDao());
+    addTearDown(() async {
+      scope.container.dispose();
+      await scope.database.close();
+    });
+    final notifier = scope.container.read(bookmarkReviewProvider.notifier);
+    await _addPlayableMedia(scope.database);
+    await notifier.initialize([_bookmark(1)]);
+    await notifier.revealBack();
+
+    final playback = notifier.toggleCurrentPlayback();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    scope.player.completeRange(AudioPlaybackResult.completed);
+    await playback;
+
+    expect(
+      scope.container.read(bookmarkReviewProvider).playbackState,
+      BookmarkReviewPlaybackState.idle,
+    );
+  });
+
+  test('failed sentence playback exposes the existing failed state', () async {
+    final scope = _testScope(_TestBookmarkDao());
+    addTearDown(() async {
+      scope.container.dispose();
+      await scope.database.close();
+    });
+    final notifier = scope.container.read(bookmarkReviewProvider.notifier);
+    await _addPlayableMedia(scope.database);
+    await notifier.initialize([_bookmark(1)]);
+    await notifier.revealBack();
+
+    final playback = notifier.toggleCurrentPlayback();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    scope.player.completeRange(AudioPlaybackResult.failed);
+    await playback;
+
+    final state = scope.container.read(bookmarkReviewProvider);
+    expect(state.playbackState, BookmarkReviewPlaybackState.failed);
+    expect(state.mediaError, 'audio_unavailable');
   });
 
   test('successful unsave removes current card and advances', () async {
