@@ -13,7 +13,6 @@ WordTimestamp _word(String text, int startMs, int endMs) {
     word: text,
     startTime: Duration(milliseconds: startMs),
     endTime: Duration(milliseconds: endMs),
-    confidence: 0.99,
   );
 }
 
@@ -236,10 +235,7 @@ void main() {
     });
 
     test('缩写/撇号差异下匹配不上的意群零长度占位、不抛', () {
-      final words = [
-        _word("don't", 0, 200),
-        _word('know', 200, 400),
-      ];
+      final words = [_word("don't", 0, 200), _word('know', 200, 400)];
       // "dont" 归一化后不含撇号，与 "don't" 归一化后一致 → 可匹配；"maybe" 不存在 → 占位
       final chunks = ['dont know', 'maybe'];
 

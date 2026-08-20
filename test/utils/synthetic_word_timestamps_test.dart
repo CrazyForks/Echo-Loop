@@ -22,7 +22,7 @@ void main() {
       expect(words[1].endTime, const Duration(milliseconds: 1542));
       expect(words[2].startTime, const Duration(milliseconds: 1542));
       expect(words[2].endTime, const Duration(milliseconds: 2300));
-      expect(words.every((w) => w.confidence == 0), isTrue);
+      expect(words, hasLength(3));
     });
 
     test('保留词面标点但忽略标点权重', () {

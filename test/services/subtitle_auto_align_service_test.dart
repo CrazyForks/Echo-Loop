@@ -98,13 +98,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 750),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'World',
             startTime: Duration(milliseconds: 1250),
             endTime: Duration(milliseconds: 1750),
-            confidence: 0.9,
           ),
         ],
       );
@@ -158,13 +156,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 750),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'World',
             startTime: Duration(milliseconds: 1050),
             endTime: Duration(milliseconds: 1750),
-            confidence: 0.9,
           ),
         ],
       );
@@ -212,13 +208,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 750),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'World',
             startTime: Duration(milliseconds: 850),
             endTime: Duration(milliseconds: 1750),
-            confidence: 0.9,
           ),
         ],
       );
@@ -249,13 +243,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'world',
             startTime: Duration(milliseconds: 520),
             endTime: Duration(milliseconds: 760),
-            confidence: 0.9,
           ),
         ],
       );
@@ -288,13 +280,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'world',
             startTime: Duration(milliseconds: 520),
             endTime: Duration(milliseconds: 760),
-            confidence: 0.9,
           ),
         ],
       );
@@ -328,13 +318,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'world',
             startTime: Duration(milliseconds: 520),
             endTime: Duration(milliseconds: 760),
-            confidence: 0.9,
           ),
         ],
       );
@@ -369,13 +357,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'world',
             startTime: Duration(milliseconds: 520),
             endTime: Duration(milliseconds: 760),
-            confidence: 0.9,
           ),
         ],
       );
@@ -411,13 +397,11 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
           WordTimestamp(
             word: 'world',
             startTime: Duration(milliseconds: 520),
             endTime: Duration(milliseconds: 760),
-            confidence: 0.9,
           ),
         ],
       );
@@ -455,7 +439,6 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 750),
-            confidence: 0.9,
           ),
         ],
       );
@@ -490,7 +473,6 @@ void main() {
             word: 'Hello',
             startTime: Duration(milliseconds: 250),
             endTime: Duration(milliseconds: 500),
-            confidence: 0.9,
           ),
         ],
       );
@@ -520,7 +502,6 @@ void main() {
         word: 'w',
         startTime: Duration(milliseconds: startMs),
         endTime: Duration(milliseconds: endMs),
-        confidence: 0.9,
       );
     }
 

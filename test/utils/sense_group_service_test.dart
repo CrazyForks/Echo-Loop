@@ -50,7 +50,6 @@ void main() {
           word: 'Cached.',
           startTime: Duration(milliseconds: 100),
           endTime: Duration(milliseconds: 300),
-          confidence: 0,
         ),
       ]);
       final dao = _AudioItemDaoWithRow(

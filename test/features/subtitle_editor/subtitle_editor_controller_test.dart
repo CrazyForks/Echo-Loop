@@ -430,25 +430,21 @@ void main() {
           word: 'I',
           startTime: Duration(milliseconds: 800),
           endTime: Duration(milliseconds: 1100),
-          confidence: 0.9,
         ),
         const WordTimestamp(
           word: 'finished',
           startTime: Duration(milliseconds: 1100),
           endTime: Duration(milliseconds: 2000),
-          confidence: 0.9,
         ),
         const WordTimestamp(
           word: '3',
           startTime: Duration(milliseconds: 2000),
           endTime: Duration(milliseconds: 2500),
-          confidence: 0.9,
         ),
         const WordTimestamp(
           word: 'reports.',
           startTime: Duration(milliseconds: 2500),
           endTime: Duration(milliseconds: 3900),
-          confidence: 0.9,
         ),
       ]);
       final notifier = controller();
@@ -767,19 +763,16 @@ void main() {
               word: 'one',
               startTime: Duration.zero,
               endTime: Duration(seconds: 1),
-              confidence: 1,
             ),
             WordTimestamp(
               word: 'two',
               startTime: Duration(seconds: 1),
               endTime: Duration(seconds: 2),
-              confidence: 1,
             ),
             WordTimestamp(
               word: 'three',
               startTime: Duration(seconds: 2),
               endTime: Duration(seconds: 3),
-              confidence: 1,
             ),
           ]);
     }

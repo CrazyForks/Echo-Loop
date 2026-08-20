@@ -209,7 +209,6 @@ void main() {
           word: 'new',
           startTime: Duration.zero,
           endTime: Duration(milliseconds: 500),
-          confidence: 0.9,
         ),
       ],
     );

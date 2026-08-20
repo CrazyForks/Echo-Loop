@@ -17,14 +17,10 @@ class WordTimestamp {
   /// 结束时间
   final Duration endTime;
 
-  /// 置信度 (0.0 ~ 1.0)
-  final double confidence;
-
   const WordTimestamp({
     required this.word,
     required this.startTime,
     required this.endTime,
-    required this.confidence,
   });
 
   /// 从后端 JSON 创建
@@ -39,7 +35,6 @@ class WordTimestamp {
       endTime: Duration(
         milliseconds: ((json['endTime'] as num) * 1000).round(),
       ),
-      confidence: (json['confidence'] as num).toDouble(),
     );
   }
 
@@ -48,13 +43,11 @@ class WordTimestamp {
     String? word,
     Duration? startTime,
     Duration? endTime,
-    double? confidence,
   }) {
     return WordTimestamp(
       word: word ?? this.word,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
-      confidence: confidence ?? this.confidence,
     );
   }
 
@@ -63,7 +56,6 @@ class WordTimestamp {
     'word': word,
     'startTime': startTime.inMilliseconds / 1000.0,
     'endTime': endTime.inMilliseconds / 1000.0,
-    'confidence': confidence,
   };
 }
 

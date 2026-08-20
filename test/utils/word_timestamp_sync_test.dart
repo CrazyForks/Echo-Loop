@@ -15,7 +15,6 @@ void main() {
     word: text,
     startTime: Duration(milliseconds: startMs),
     endTime: Duration(milliseconds: endMs),
-    confidence: 1.0,
   );
 
   group('syncWordTimestampsToSentenceBounds', () {

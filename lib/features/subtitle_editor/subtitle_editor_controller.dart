@@ -570,12 +570,7 @@ class SubtitleEditorController extends StateNotifier<SubtitleEditorState> {
     if (s > end) s = end;
     if (e > end) e = end;
     if (e < s) e = s;
-    return WordTimestamp(
-      word: text,
-      startTime: s,
-      endTime: e,
-      confidence: word.confidence,
-    );
+    return WordTimestamp(word: text, startTime: s, endTime: e);
   }
 
   /// 按各词字符数比例把句区间切成词级时间（无真实词级数据时使用）。
@@ -603,7 +598,6 @@ class SubtitleEditorController extends StateNotifier<SubtitleEditorState> {
           word: tokens[i],
           startTime: Duration(milliseconds: currentMs),
           endTime: Duration(milliseconds: nextMs),
-          confidence: 0,
         ),
       );
       currentMs = nextMs;

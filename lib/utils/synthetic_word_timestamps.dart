@@ -47,7 +47,6 @@ List<WordTimestamp> _generateForSentence(Sentence sentence) {
             word: token.text,
             startTime: sentence.startTime,
             endTime: sentence.startTime,
-            confidence: 0,
           ),
         )
         .toList();
@@ -73,7 +72,6 @@ List<WordTimestamp> _generateForSentence(Sentence sentence) {
         word: token.text,
         startTime: Duration(milliseconds: currentMs),
         endTime: Duration(milliseconds: nextMs),
-        confidence: 0,
       ),
     );
     currentMs = nextMs;
