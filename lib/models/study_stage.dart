@@ -18,11 +18,11 @@ enum StudyStage {
   /// 难句补练
   reviewDifficultPractice(4),
 
-  /// 句子复习（收藏复习）
-  bookmarkReview(5),
+  /// 收藏句复习
+  savedSentencesReview(5),
 
-  /// 单词复习（闪卡）
-  flashcard(6);
+  /// 收藏词汇复习
+  savedVocabularyReview(6);
 
   const StudyStage(this.value);
 

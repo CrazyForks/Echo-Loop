@@ -27,7 +27,9 @@ import '../../features/memory_scheduler/providers/memory_scheduler_providers.dar
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
 import '../../models/flashcard_item.dart';
+import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
+import '../../services/study_session_timer.dart';
 import '../favorite_review_settings_provider.dart';
 import '../pronunciation/pronunciation_providers.dart';
 import '../short_audio_player_provider.dart';
@@ -103,6 +105,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
   int _generation = 0;
   bool _hasSourcePlayback = false;
   late final AppLifecycleListener _lifecycleListener;
+  StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<FlashcardItem>? _controller;
 
   @override
@@ -122,6 +125,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       _lifecycleListener.dispose();
       _controller?.dispose();
       unawaited(playback.stop());
+      unawaited(_studySessionTimer?.dispose());
     });
     return const FavoriteVocabularyReviewState();
   }
@@ -131,6 +135,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     List<SavedWord> words,
     List<SavedSenseGroup> phrases,
   ) async {
+    await _studySessionTimer?.dispose();
     _generation++;
     unawaited(ref.read(textPlaybackProvider.notifier).stop());
 
@@ -155,6 +160,13 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
           .map((card) => card.content)
           .toList(growable: false),
     );
+    // 每次新建复习快照都创建新的计时会话，避免复用已停止的 timer。
+    _studySessionTimer = StudySessionTimer(
+      studyTimeService: ref.read(studyTimeServiceProvider),
+      stage: StudyStage.savedVocabularyReview,
+      logScope: 'SavedVocabularyReviewTimer',
+    );
+    _studySessionTimer!.start();
   }
 
   /// 仅在共享偏好开启时自动播放正面；手动重播不受该偏好影响。
@@ -378,6 +390,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
 
   Future<void> disposeSession() async {
     await interruptPlayback();
+    await _studySessionTimer?.stop();
     _controller?.dispose();
     _controller = null;
     state = const FavoriteVocabularyReviewState();

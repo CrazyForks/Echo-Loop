@@ -30,7 +30,9 @@ import '../favorite_review_settings_provider.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
 import '../../models/bookmark_sentence.dart';
+import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
+import '../../services/study_session_timer.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import 'favorite_sentence_deck_source.dart';
@@ -105,6 +107,7 @@ class BookmarkReviewState {
 class BookmarkReview extends _$BookmarkReview {
   int _generation = 0;
   late final AppLifecycleListener _lifecycleListener;
+  StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<BookmarkSentence>? _controller;
 
   @override
@@ -130,12 +133,14 @@ class BookmarkReview extends _$BookmarkReview {
         unawaited(foregroundEngine.stop());
       }
       unawaited(shortAudioPlayer.stop());
+      unawaited(_studySessionTimer?.dispose());
     });
     return const BookmarkReviewState();
   }
 
   /// 建立只含 FSRS 到期收藏句的本次复习快照。
   Future<void> initialize(List<BookmarkWithAudio> bookmarks) async {
+    await _studySessionTimer?.dispose();
     _generation++;
     unawaited(ref.read(audioEngineProvider.notifier).stop());
     unawaited(_stopForegroundPlaybackIfActive());
@@ -161,6 +166,13 @@ class BookmarkReview extends _$BookmarkReview {
           .map((card) => card.content)
           .toList(growable: false),
     );
+    // 每次新建复习快照都创建新的计时会话，避免复用已停止的 timer。
+    _studySessionTimer = StudySessionTimer(
+      studyTimeService: ref.read(studyTimeServiceProvider),
+      stage: StudyStage.savedSentencesReview,
+      logScope: 'SavedSentenceReviewTimer',
+    );
+    _studySessionTimer!.start();
     ref.read(analyticsServiceProvider).track(Events.bookmarkReviewStart, {
       EventParams.totalSentencesCount: state.cards.length,
     });
@@ -345,6 +357,7 @@ class BookmarkReview extends _$BookmarkReview {
 
   Future<void> disposeSession() async {
     await interruptPlayback();
+    await _studySessionTimer?.stop();
     if (state.cards.isNotEmpty) {
       ref
           .read(usageTrackerProvider)

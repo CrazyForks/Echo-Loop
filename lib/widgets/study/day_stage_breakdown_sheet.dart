@@ -363,8 +363,8 @@ IconData _stageIcon(StudyStage stage) => switch (stage) {
   StudyStage.listenAndRepeat => Icons.record_voice_over,
   StudyStage.retell => Icons.chat_bubble_outline,
   StudyStage.reviewDifficultPractice => Icons.fitness_center,
-  StudyStage.bookmarkReview => Icons.bookmark,
-  StudyStage.flashcard => Icons.style,
+  StudyStage.savedSentencesReview => Icons.bookmark,
+  StudyStage.savedVocabularyReview => Icons.style,
 };
 
 /// 阶段对应的 i18n 名称
@@ -374,8 +374,8 @@ String _stageName(StudyStage stage, AppLocalizations l10n) => switch (stage) {
   StudyStage.listenAndRepeat => l10n.stageListenAndRepeat,
   StudyStage.retell => l10n.stageRetell,
   StudyStage.reviewDifficultPractice => l10n.stageReviewDifficultPractice,
-  StudyStage.bookmarkReview => l10n.stageBookmarkReview,
-  StudyStage.flashcard => l10n.stageFlashcard,
+  StudyStage.savedSentencesReview => l10n.stageBookmarkReview,
+  StudyStage.savedVocabularyReview => l10n.stageFlashcard,
 };
 
 /// 格式化时长显示

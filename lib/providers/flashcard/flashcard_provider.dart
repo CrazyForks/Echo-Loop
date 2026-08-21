@@ -1085,7 +1085,7 @@ class FlashcardNotifier extends _$FlashcardNotifier {
 
   /// 停止计时并保存已记录的学习时长 + 输入时间
   Future<void> _saveAndRefreshStudyTime() async {
-    const stage = StudyStage.flashcard;
+    const stage = StudyStage.savedVocabularyReview;
     _inputStopwatch.stop();
     final inputSecs = _inputStopwatch.elapsed.inSeconds;
     _inputStopwatch.reset();
