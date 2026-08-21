@@ -10,6 +10,11 @@ abstract final class PostHogEventPolicy {
   static const Set<String> _allowedEvents = <String>{
     Events.screenView,
     Events.learningStart,
+    Events.blindListenComplete,
+    Events.intensiveListenComplete,
+    Events.listenRepeatComplete,
+    Events.retellComplete,
+    Events.difficultPracticeComplete,
     Events.firstLearnComplete,
     Events.audioUpload,
     Events.onboardingSurveyCompleted,
