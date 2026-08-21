@@ -14,6 +14,8 @@ import 'package:echo_loop/features/remote_config/remote_config.dart';
 import 'package:echo_loop/features/remote_config/remote_config_providers.dart';
 import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart';
 import 'package:echo_loop/database/daos/saved_word_dao.dart';
+import 'package:echo_loop/database/daos/saved_sense_group_dao.dart';
+import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/dict_entry.dart';
@@ -112,6 +114,38 @@ class _RecordingSavedWordDao implements SavedWordDao {
     removedWord = word;
     storedWords.remove(word);
     _savedWordsController.add(Set<String>.unmodifiable(storedWords));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 记录查词面板取消收藏时的意群删除，并提供收藏文本流。
+class _RecordingSavedSenseGroupDao implements SavedSenseGroupDao {
+  _RecordingSavedSenseGroupDao([Set<String> initialPhrases = const {}])
+    : storedPhrases = {...initialPhrases};
+
+  final Set<String> storedPhrases;
+  final StreamController<Set<String>> _phrasesController =
+      StreamController<Set<String>>.broadcast();
+
+  String? removedPhrase;
+
+  @override
+  Stream<List<SavedSenseGroup>> watchAll() =>
+      Stream.value(const <SavedSenseGroup>[]);
+
+  @override
+  Stream<Set<String>> watchSavedPhraseTexts() async* {
+    yield Set<String>.unmodifiable(storedPhrases);
+    yield* _phrasesController.stream;
+  }
+
+  @override
+  Future<void> removeSenseGroup(String phraseText) async {
+    removedPhrase = phraseText;
+    storedPhrases.remove(phraseText);
+    _phrasesController.add(Set<String>.unmodifiable(storedPhrases));
   }
 
   @override
@@ -700,6 +734,37 @@ void main() {
       find.byKey(const Key('selection_toolbar_button_Save')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('面板将意群表中的同名多词视为已收藏，取消时清理两类记录', (tester) async {
+    final wordDao = _RecordingSavedWordDao();
+    final senseGroupDao = _RecordingSavedSenseGroupDao({'beta gamma'});
+    await tester.pumpWidget(
+      wrap(
+        overrides: [
+          savedWordDaoProvider.overrideWithValue(wordDao),
+          savedSenseGroupDaoProvider.overrideWithValue(senseGroupDao),
+          usageOverride(),
+          notificationPermissionOverride(),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await longPressSelect(
+      tester,
+      from: wordCenter(tester, 'beta'),
+      to: wordRightEdge(tester, 'gamma'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('dict_panel_bookmark')));
+    await tester.pumpAndSettle();
+
+    expect(wordDao.removedWord, 'beta gamma');
+    expect(senseGroupDao.removedPhrase, 'beta gamma');
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
   });
 
   testWidgets('中文取消收藏在选区操作栏中保持单行', (tester) async {

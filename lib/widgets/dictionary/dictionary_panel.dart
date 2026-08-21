@@ -206,36 +206,39 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       normalizeDictionaryQueryForPrompt(widget.query.word);
 
   Future<void> _toggleSave(String surfaceWord, bool currentlySaved) async {
-    if (widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup) {
-      final notifier = ref.read(savedSenseGroupListProvider.notifier);
-      if (currentlySaved) {
-        await notifier.removeSenseGroup(surfaceWord);
-      } else {
-        await notifier.saveSenseGroup(
-          phraseText: surfaceWord,
-          displayText: _lookupQuery,
-          audioItemId: widget.query.audioItemId,
-          sentenceIndex: widget.query.sentenceIndex,
-          sentenceText: widget.query.sentenceText,
-          sentenceStartMs: widget.query.sentenceStartMs,
-          sentenceEndMs: widget.query.sentenceEndMs,
-        );
-      }
+    // 用户层只有一个收藏状态：取消时清理两类底层记录，避免另一张表的
+    // 同名记录让面板在下一次打开时重新显示为已收藏。
+    if (currentlySaved) {
+      await Future.wait([
+        ref.read(savedWordListProvider.notifier).removeWord(surfaceWord),
+        ref
+            .read(savedSenseGroupListProvider.notifier)
+            .removeSenseGroup(surfaceWord),
+      ]);
       return;
     }
-    final notifier = ref.read(savedWordListProvider.notifier);
-    if (currentlySaved) {
-      await notifier.removeWord(surfaceWord);
-    } else {
-      await notifier.saveWord(
-        word: surfaceWord,
+    if (widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup) {
+      final notifier = ref.read(savedSenseGroupListProvider.notifier);
+      await notifier.saveSenseGroup(
+        phraseText: surfaceWord,
+        displayText: _lookupQuery,
         audioItemId: widget.query.audioItemId,
         sentenceIndex: widget.query.sentenceIndex,
         sentenceText: widget.query.sentenceText,
         sentenceStartMs: widget.query.sentenceStartMs,
         sentenceEndMs: widget.query.sentenceEndMs,
       );
+      return;
     }
+    final notifier = ref.read(savedWordListProvider.notifier);
+    await notifier.saveWord(
+      word: surfaceWord,
+      audioItemId: widget.query.audioItemId,
+      sentenceIndex: widget.query.sentenceIndex,
+      sentenceText: widget.query.sentenceText,
+      sentenceStartMs: widget.query.sentenceStartMs,
+      sentenceEndMs: widget.query.sentenceEndMs,
+    );
   }
 
   /// AI 源未登录时引导登录，登录成功后重试
@@ -557,13 +560,15 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     String savedWord,
     List<PronunciationClip> pronunciationClips,
   ) {
-    // 收藏态单一来源：与正文下划线、选区操作条共用同一个收藏词流，避免
-    // 面板书签与操作条按钮出现「同一个词两种状态」的瞬时分歧。
-    final savedTexts =
-        widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup
-        ? ref.watch(savedSenseGroupTextsProvider).valueOrNull
-        : ref.watch(savedWordTextsProvider).valueOrNull;
-    final isSaved = (savedTexts ?? const <String>{}).contains(savedWord);
+    // 收藏态统一读取两类底层收藏：对用户而言单词与意群没有状态差异，
+    // 任一表命中即显示已收藏，避免多词在来源句查词时漏显收藏状态。
+    final savedWords = ref.watch(savedWordTextsProvider).valueOrNull;
+    final savedSenseGroups = ref
+        .watch(savedSenseGroupTextsProvider)
+        .valueOrNull;
+    final isSaved =
+        (savedWords ?? const <String>{}).contains(savedWord) ||
+        (savedSenseGroups ?? const <String>{}).contains(savedWord);
     return Row(
       children: [
         Expanded(
