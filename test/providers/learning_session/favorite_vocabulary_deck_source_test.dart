@@ -79,7 +79,6 @@ void main() {
     phrases: phrases,
     scheduler: scheduler,
     settings: settings,
-    database: database,
     now: () => now,
   );
 
@@ -174,8 +173,8 @@ void main() {
     expect(due.map((c) => c.subject.subjectId), ['also-new', 'earlier']);
   });
 
-  test('每日新卡上限：单词和意群共用同一个预算', () async {
-    const settings = FavoriteReviewSettings(vocabularyDailyReviewGoal: 1);
+  test('无每日目标时返回所有到期单词和意群', () async {
+    const settings = FavoriteReviewSettings();
     final words = [_word('first', 'a')];
     final phrases = [_phrase('second', 'b')];
 
@@ -184,23 +183,18 @@ void main() {
       phrases: phrases,
       settings: settings,
     ).load();
-    expect(firstLoad, hasLength(1));
-    final admitted = firstLoad.single.subject.subjectId;
+    expect(firstLoad, hasLength(2));
 
     final secondLoad = await source(
       words: words,
       phrases: phrases,
       settings: settings,
     ).load();
-    expect(secondLoad, hasLength(1));
-    expect(secondLoad.single.subject.subjectId, admitted);
+    expect(secondLoad, hasLength(2));
   });
 
-  test('每日新卡上限：句子与词汇预算彼此独立', () async {
-    const settings = FavoriteReviewSettings(
-      sentenceDailyReviewGoal: 1,
-      vocabularyDailyReviewGoal: 1,
-    );
+  test('通用 deck 返回所有到期内容', () async {
+    const settings = FavoriteReviewSettings();
     final sentenceDeck = FavoriteReviewDeckSource<String>(
       items: [
         FavoriteReviewDeckItem(
@@ -214,9 +208,6 @@ void main() {
       ],
       scheduler: scheduler,
       settings: settings,
-      dailyReviewGoal: settings.sentenceDailyReviewGoal,
-      budgetNamespaces: const [kSavedSentenceNamespace],
-      database: database,
       now: () => now,
     );
 

@@ -8,7 +8,6 @@ import '../../models/favorite_review_settings.dart';
 import '../../providers/bookmark_review_settings_provider.dart';
 import '../../providers/favorite_review_settings_provider.dart';
 import '../../theme/app_theme.dart';
-import '../common/setting_labeled_row.dart';
 import '../common/settings_section_card.dart';
 
 enum FavoriteReviewSettingsTask { sentence, vocabulary, favorites }
@@ -151,17 +150,6 @@ class _BookmarkReviewSettingsSheetState
                     children: const [],
                   ),
                   if (_sentenceExpanded) ...[
-                    _DailyGoalSetting(
-                      title: l10n.favoriteReviewSentenceDailyGoal,
-                      goal: settings.sentenceDailyReviewGoal,
-                      onChanged: (goal) => notifier.update(
-                        goal == null
-                            ? settings.copyWith(
-                                clearSentenceDailyReviewGoal: true,
-                              )
-                            : settings.copyWith(sentenceDailyReviewGoal: goal),
-                      ),
-                    ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(l10n.autoShowAiExplanationToggle),
@@ -240,19 +228,6 @@ class _BookmarkReviewSettingsSheetState
                   if (_vocabularyExpanded)
                     Column(
                       children: [
-                        _DailyGoalSetting(
-                          title: l10n.favoriteReviewVocabularyDailyGoal,
-                          goal: settings.vocabularyDailyReviewGoal,
-                          onChanged: (goal) => notifier.update(
-                            goal == null
-                                ? settings.copyWith(
-                                    clearVocabularyDailyReviewGoal: true,
-                                  )
-                                : settings.copyWith(
-                                    vocabularyDailyReviewGoal: goal,
-                                  ),
-                          ),
-                        ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(l10n.autoShowAiExplanationToggle),
@@ -271,75 +246,6 @@ class _BookmarkReviewSettingsSheetState
       ),
     );
   }
-}
-
-class _DailyGoalSetting extends StatelessWidget {
-  const _DailyGoalSetting({
-    required this.title,
-    required this.goal,
-    required this.onChanged,
-  });
-
-  final String title;
-  final int? goal;
-  final ValueChanged<int?> onChanged;
-
-  static const _minimumDailyReviewGoal = 5;
-  static const _maximumDailyReviewGoal = 100;
-  static const _dailyReviewGoalStep = 5;
-  static const _dailyReviewGoalUnlimitedPosition =
-      (_maximumDailyReviewGoal - _minimumDailyReviewGoal) /
-          _dailyReviewGoalStep +
-      1;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        SettingLabeledRow(
-          label: Text(
-            title,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          trailingWidth: 60,
-          trailing: Text(
-            _dailyReviewGoalLabel(AppLocalizations.of(context)!, goal),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Slider(
-          value: _dailyReviewGoalPosition(goal),
-          min: 0,
-          max: _dailyReviewGoalUnlimitedPosition,
-          divisions: _dailyReviewGoalUnlimitedPosition.toInt(),
-          label: _dailyReviewGoalLabel(AppLocalizations.of(context)!, goal),
-          onChanged: (position) =>
-              onChanged(_dailyReviewGoalForPosition(position)),
-        ),
-      ],
-    );
-  }
-
-  /// 将每日目标映射为滑块位置，最右侧保留给“不限”。
-  double _dailyReviewGoalPosition(int? goal) {
-    if (goal == null) return _dailyReviewGoalUnlimitedPosition;
-    return (goal - _minimumDailyReviewGoal) / _dailyReviewGoalStep;
-  }
-
-  /// 将离散滑块位置映射回持久化设置值。
-  int? _dailyReviewGoalForPosition(double position) {
-    final roundedPosition = position.round();
-    if (roundedPosition == _dailyReviewGoalUnlimitedPosition) return null;
-    return _minimumDailyReviewGoal + roundedPosition * _dailyReviewGoalStep;
-  }
-
-  String _dailyReviewGoalLabel(AppLocalizations l10n, int? goal) =>
-      goal == null ? l10n.bookmarkReviewUnlimited : '$goal';
 }
 
 class _AiExplanationSubSwitch extends StatelessWidget {

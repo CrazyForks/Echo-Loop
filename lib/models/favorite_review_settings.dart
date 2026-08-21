@@ -13,8 +13,6 @@ class FavoriteReviewSettings {
     this.autoPlayFront = true,
     this.autoPlayBack = true,
     this.autoShowAiLookup = false,
-    this.sentenceDailyReviewGoal,
-    this.vocabularyDailyReviewGoal,
     this.order = FavoriteReviewOrder.smart,
   });
 
@@ -29,50 +27,19 @@ class FavoriteReviewSettings {
   /// 收藏词汇翻面时是否自动展示 AI 查词结果。
   final bool autoShowAiLookup;
 
-  /// 收藏句的每日复习目标；为空时不限制。
-  final int? sentenceDailyReviewGoal;
-
-  /// 收藏词汇（单词与意群共用）的每日复习目标；为空时不限制。
-  final int? vocabularyDailyReviewGoal;
   final FavoriteReviewOrder order;
-
-  static const dailyReviewGoalOptions = <int?>[
-    null,
-    5,
-    10,
-    15,
-    20,
-    30,
-    40,
-    50,
-    60,
-    70,
-    80,
-    90,
-    100,
-  ];
 
   FavoriteReviewSettings copyWith({
     bool? showNextReviewTime,
     bool? autoPlayFront,
     bool? autoPlayBack,
     bool? autoShowAiLookup,
-    int? sentenceDailyReviewGoal,
-    bool clearSentenceDailyReviewGoal = false,
-    int? vocabularyDailyReviewGoal,
-    bool clearVocabularyDailyReviewGoal = false,
     FavoriteReviewOrder? order,
   }) => FavoriteReviewSettings(
     showNextReviewTime: showNextReviewTime ?? this.showNextReviewTime,
     autoPlayFront: autoPlayFront ?? this.autoPlayFront,
     autoPlayBack: autoPlayBack ?? this.autoPlayBack,
     autoShowAiLookup: autoShowAiLookup ?? this.autoShowAiLookup,
-    sentenceDailyReviewGoal: clearSentenceDailyReviewGoal
-        ? null
-        : sentenceDailyReviewGoal ?? this.sentenceDailyReviewGoal,
-    vocabularyDailyReviewGoal: clearVocabularyDailyReviewGoal
-        ? null
-        : vocabularyDailyReviewGoal ?? this.vocabularyDailyReviewGoal,
     order: order ?? this.order,
   );
 
@@ -81,16 +48,10 @@ class FavoriteReviewSettings {
     'autoPlayFront': autoPlayFront,
     'autoPlayBack': autoPlayBack,
     'autoShowAiLookup': autoShowAiLookup,
-    'sentenceDailyReviewGoal': sentenceDailyReviewGoal,
-    'vocabularyDailyReviewGoal': vocabularyDailyReviewGoal,
     'order': order.name,
   };
 
   factory FavoriteReviewSettings.fromJson(Map<String, dynamic> json) {
-    // 旧版的单一目标只服务于收藏句，升级后保持该语义。
-    final rawSentenceGoal =
-        json['sentenceDailyReviewGoal'] ?? json['dailyReviewGoal'];
-    final rawVocabularyGoal = json['vocabularyDailyReviewGoal'];
     final rawOrder = json['order'];
     return FavoriteReviewSettings(
       showNextReviewTime: json['showNextReviewTime'] is bool
@@ -109,16 +70,6 @@ class FavoriteReviewSettings {
       autoShowAiLookup: json['autoShowAiLookup'] is bool
           ? json['autoShowAiLookup'] == true
           : false,
-      sentenceDailyReviewGoal:
-          rawSentenceGoal is int &&
-              dailyReviewGoalOptions.contains(rawSentenceGoal)
-          ? rawSentenceGoal
-          : null,
-      vocabularyDailyReviewGoal:
-          rawVocabularyGoal is int &&
-              dailyReviewGoalOptions.contains(rawVocabularyGoal)
-          ? rawVocabularyGoal
-          : null,
       order: rawOrder is String
           ? FavoriteReviewOrder.values.firstWhereOrNull(
                   (item) => item.name == rawOrder,

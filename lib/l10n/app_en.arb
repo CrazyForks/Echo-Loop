@@ -1384,6 +1384,16 @@
   "@bookmarkReviewStartCount": {
     "placeholders": { "count": { "type": "int" } }
   },
+  "bookmarkReviewDueCount": "{count} due for review",
+  "@bookmarkReviewDueCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "bookmarkReviewNothingToReview": "Nothing to review",
+  "favoriteVocabularyReviewDueCount": "{count} due for review",
+  "@favoriteVocabularyReviewDueCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "favoriteReviewNothingToReview": "Nothing to review",
   "bookmarkReviewComplete": "Review Complete",
   "bookmarkReviewAgain": "Review Again",
   "bookmarkReviewAudioSkipped": "Audio unavailable, skip this sentence",

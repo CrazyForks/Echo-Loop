@@ -4394,6 +4394,30 @@ abstract class AppLocalizations {
   /// **'Start Review ({count})'**
   String bookmarkReviewStartCount(int count);
 
+  /// No description provided for @bookmarkReviewDueCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} due for review'**
+  String bookmarkReviewDueCount(int count);
+
+  /// No description provided for @bookmarkReviewNothingToReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to review'**
+  String get bookmarkReviewNothingToReview;
+
+  /// No description provided for @favoriteVocabularyReviewDueCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} due for review'**
+  String favoriteVocabularyReviewDueCount(int count);
+
+  /// No description provided for @favoriteReviewNothingToReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to review'**
+  String get favoriteReviewNothingToReview;
+
   /// No description provided for @bookmarkReviewComplete.
   ///
   /// In en, this message translates to:

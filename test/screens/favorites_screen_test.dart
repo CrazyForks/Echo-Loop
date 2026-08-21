@@ -19,6 +19,7 @@ import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
+import 'package:echo_loop/providers/learning_session/favorite_review_due_count_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -149,6 +150,9 @@ void main() {
   Widget createTestWidget({
     Locale locale = const Locale('en'),
     _DeferredBookmarkReview? bookmarkReview,
+    int? sentenceDueCount,
+    int? vocabularyDueCount,
+    Future<int>? vocabularyDueFuture,
   }) {
     final router = GoRouter(
       initialLocation: '/favorites',
@@ -179,6 +183,18 @@ void main() {
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
         if (bookmarkReview != null)
           bookmarkReviewProvider.overrideWith(() => bookmarkReview),
+        if (sentenceDueCount != null)
+          favoriteSentenceDueCountProvider.overrideWith(
+            (ref) async => sentenceDueCount,
+          ),
+        if (vocabularyDueCount != null)
+          favoriteVocabularyDueCountProvider.overrideWith(
+            (ref) async => vocabularyDueCount,
+          ),
+        if (vocabularyDueFuture != null)
+          favoriteVocabularyDueCountProvider.overrideWith(
+            (ref) => vocabularyDueFuture,
+          ),
         sentenceAiNotifierProvider.overrideWithValue(
           SentenceAiNotifier(
             cacheDao: _MockCacheDao(),
@@ -355,7 +371,7 @@ void main() {
     });
 
     testWidgets('显示"开始复习"按钮及句子数', (tester) async {
-      await tester.pumpWidget(createTestWidget());
+      await tester.pumpWidget(createTestWidget(sentenceDueCount: 1));
 
       bookmarkController.add([
         BookmarkWithAudio(
@@ -377,11 +393,37 @@ void main() {
       expect(find.byType(FilledButton), findsAtLeast(1));
       // 哑铃图标（练习按钮）
       expect(find.byIcon(Icons.fitness_center), findsAtLeast(1));
+      expect(find.text('1 due for review'), findsOneWidget);
+    });
+
+    testWidgets('句子无待复习内容时显示空态并禁用按钮', (tester) async {
+      await tester.pumpWidget(createTestWidget(sentenceDueCount: 0));
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3.0,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nothing to review'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed,
+        isNull,
+      );
     });
 
     testWidgets('开始复习等待异步初始化完成后才导航', (tester) async {
       final bookmarkReview = _DeferredBookmarkReview();
-      await tester.pumpWidget(createTestWidget(bookmarkReview: bookmarkReview));
+      await tester.pumpWidget(
+        createTestWidget(bookmarkReview: bookmarkReview, sentenceDueCount: 1),
+      );
       bookmarkController.add([
         BookmarkWithAudio(
           bookmark: _createBookmark(
@@ -512,6 +554,25 @@ void main() {
   });
 
   group('FavoritesScreen — 单词视图', () {
+    testWidgets('切换到词汇 tab 时不回退显示开始复习', (tester) async {
+      final dueCount = Completer<int>();
+      await tester.pumpWidget(
+        createTestWidget(vocabularyDueFuture: dueCount.future),
+      );
+      wordController.add([_createSavedWord(id: 1, word: 'apple')]);
+      await tester.pump();
+
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+
+      expect(find.text('Start Quiz (1)'), findsNothing);
+      expect(find.text('Loading'), findsOneWidget);
+
+      dueCount.complete(2);
+      await tester.pumpAndSettle();
+      expect(find.text('2 due for review'), findsOneWidget);
+    });
+
     testWidgets('无数据时显示单词空状态', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
@@ -541,6 +602,19 @@ void main() {
 
       expect(find.text('apple'), findsOneWidget);
       expect(find.text('banana'), findsOneWidget);
+    });
+
+    testWidgets('词汇复习入口显示待复习数量', (tester) async {
+      await tester.pumpWidget(createTestWidget(vocabularyDueCount: 2));
+      await tester.pump();
+
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      wordController.add([_createSavedWord(id: 1, word: 'apple')]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('2 due for review'), findsOneWidget);
     });
 
     testWidgets('单词项显示单词内容', (tester) async {

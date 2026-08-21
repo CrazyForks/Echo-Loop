@@ -2521,6 +2521,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String bookmarkReviewDueCount(int count) {
+    return '$count due for review';
+  }
+
+  @override
+  String get bookmarkReviewNothingToReview => 'Nothing to review';
+
+  @override
+  String favoriteVocabularyReviewDueCount(int count) {
+    return '$count due for review';
+  }
+
+  @override
+  String get favoriteReviewNothingToReview => 'Nothing to review';
+
+  @override
   String get bookmarkReviewComplete => 'Review Complete';
 
   @override

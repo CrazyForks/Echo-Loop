@@ -148,7 +148,6 @@ class BookmarkReview extends _$BookmarkReview {
         bookmarks: bookmarks,
         scheduler: scheduler,
         settings: ref.read(favoriteReviewSettingsProvider),
-        database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
       operationIdGenerator: ref.read(memoryIdGeneratorProvider),

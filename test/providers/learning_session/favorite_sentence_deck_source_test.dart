@@ -64,7 +64,6 @@ void main() {
     bookmarks: bookmarks,
     scheduler: scheduler,
     settings: settings,
-    database: database,
     now: () => now,
   );
 
@@ -142,17 +141,15 @@ void main() {
     expect(due.map((c) => c.subject.subjectId), ['also-new', 'earlier']);
   });
 
-  test('每日新卡上限：超额的新卡当天保持被排除', () async {
-    final settings = const FavoriteReviewSettings(sentenceDailyReviewGoal: 1);
+  test('无每日目标时重复查询返回所有到期新卡', () async {
+    final settings = const FavoriteReviewSettings();
     final bookmarks = [_bookmark('first', 1), _bookmark('second', 2)];
 
     final firstLoad = await source(bookmarks, settings: settings).load();
-    expect(firstLoad, hasLength(1));
-    final admitted = firstLoad.single.subject.subjectId;
+    expect(firstLoad, hasLength(2));
 
     final secondLoad = await source(bookmarks, settings: settings).load();
-    expect(secondLoad, hasLength(1));
-    expect(secondLoad.single.subject.subjectId, admitted);
+    expect(secondLoad, hasLength(2));
   });
 
   test('随机排序不丢卡也不重复', () async {

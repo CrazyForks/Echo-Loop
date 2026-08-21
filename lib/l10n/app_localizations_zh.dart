@@ -2412,6 +2412,22 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String bookmarkReviewDueCount(int count) {
+    return '待复习 $count 个';
+  }
+
+  @override
+  String get bookmarkReviewNothingToReview => '暂无待复习内容';
+
+  @override
+  String favoriteVocabularyReviewDueCount(int count) {
+    return '待复习 $count 个';
+  }
+
+  @override
+  String get favoriteReviewNothingToReview => '暂无待复习内容';
+
+  @override
   String get bookmarkReviewComplete => '复习完成';
 
   @override

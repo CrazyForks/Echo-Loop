@@ -24,6 +24,7 @@ import '../providers/pronunciation/pronunciation_providers.dart';
 import '../widgets/tts/speak_button.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
 import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
+import '../providers/learning_session/favorite_review_due_count_provider.dart';
 import '../providers/new_user_guide_provider.dart';
 import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
@@ -422,12 +423,20 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
     }).toList();
     if (validBookmarks.isEmpty) return const SizedBox.shrink();
 
+    final dueCountAsync = ref.watch(favoriteSentenceDueCountProvider);
+    final dueCount = dueCountAsync.valueOrNull;
+    final l10n = AppLocalizations.of(context)!;
+
     return _FloatingReviewButton(
       icon: Icons.fitness_center,
       guideStep: guideStep,
-      label: AppLocalizations.of(
-        context,
-      )!.bookmarkReviewStartCount(validBookmarks.length),
+      // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
+      label: dueCount == null
+          ? l10n.downloadLoading
+          : dueCount == 0
+          ? l10n.bookmarkReviewNothingToReview
+          : l10n.bookmarkReviewDueCount(dueCount),
+      enabled: dueCount != null && dueCount > 0,
       onPressed: () async {
         ref
             .read(usageTrackerProvider)
@@ -475,10 +484,18 @@ class _FloatingFlashcardButton extends ConsumerWidget {
     if (totalCount == 0) return const SizedBox.shrink();
 
     final l10n = AppLocalizations.of(context)!;
+    final dueCountAsync = ref.watch(favoriteVocabularyDueCountProvider);
+    final dueCount = dueCountAsync.valueOrNull;
     return _FloatingReviewButton(
       icon: Icons.style_outlined,
       guideStep: guideStep,
-      label: '${l10n.flashcardStartQuiz} ($totalCount)',
+      // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
+      label: dueCount == null
+          ? l10n.downloadLoading
+          : dueCount == 0
+          ? l10n.favoriteReviewNothingToReview
+          : l10n.favoriteVocabularyReviewDueCount(dueCount),
+      enabled: dueCount != null && dueCount > 0,
       onPressed: () async {
         ref
             .read(usageTrackerProvider)
@@ -505,11 +522,13 @@ class _FloatingReviewButton extends StatelessWidget {
 
   /// 新手引导高亮 step，仅包裹按钮区域（不含渐变遮罩）
   final GuideStep? guideStep;
+  final bool enabled;
 
   const _FloatingReviewButton({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.enabled = true,
     this.guideStep,
   });
 
@@ -520,7 +539,7 @@ class _FloatingReviewButton extends StatelessWidget {
     Widget button = SizedBox(
       width: double.infinity,
       child: FilledButton(
-        onPressed: onPressed,
+        onPressed: enabled ? onPressed : null,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

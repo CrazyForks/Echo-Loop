@@ -1,7 +1,6 @@
 /// 收藏句复习的内容适配器。
 library;
 
-import '../../database/app_database.dart';
 import '../../database/daos/bookmark_dao.dart';
 import '../../features/memory_scheduler/application/memory_scheduler.dart';
 import '../../features/memory_scheduler/domain/memory_namespaces.dart';
@@ -19,18 +18,15 @@ final class FavoriteSentenceDeckSource
     required List<BookmarkWithAudio> bookmarks,
     required MemoryScheduler scheduler,
     required FavoriteReviewSettings settings,
-    required AppDatabase database,
     DateTime Function()? now,
   }) : _bookmarks = bookmarks,
        _scheduler = scheduler,
        _settings = settings,
-       _database = database,
        _now = now;
 
   final List<BookmarkWithAudio> _bookmarks;
   final MemoryScheduler _scheduler;
   final FavoriteReviewSettings _settings;
-  final AppDatabase _database;
   final DateTime Function()? _now;
 
   @override
@@ -50,9 +46,6 @@ final class FavoriteSentenceDeckSource
         ],
         scheduler: _scheduler,
         settings: _settings,
-        dailyReviewGoal: _settings.sentenceDailyReviewGoal,
-        budgetNamespaces: const [kSavedSentenceNamespace],
-        database: _database,
         now: _now,
       ).load();
 

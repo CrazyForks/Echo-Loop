@@ -1,13 +1,12 @@
 /// 收藏词汇复习的内容适配器。
 library;
 
-import '../../database/app_database.dart';
 import '../../features/memory_scheduler/application/memory_scheduler.dart';
-import '../../features/memory_scheduler/domain/memory_namespaces.dart';
 import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
 import '../../models/favorite_review_settings.dart';
 import '../../models/flashcard_item.dart';
+import '../../database/app_database.dart';
 import 'favorite_review_deck_source.dart';
 
 /// 把单词和意群转换为共享收藏复习队列的输入项。
@@ -18,20 +17,17 @@ final class FavoriteVocabularyDeckSource
     required List<SavedSenseGroup> phrases,
     required MemoryScheduler scheduler,
     required FavoriteReviewSettings settings,
-    required AppDatabase database,
     DateTime Function()? now,
   }) : _words = words,
        _phrases = phrases,
        _scheduler = scheduler,
        _settings = settings,
-       _database = database,
        _now = now;
 
   final List<SavedWord> _words;
   final List<SavedSenseGroup> _phrases;
   final MemoryScheduler _scheduler;
   final FavoriteReviewSettings _settings;
-  final AppDatabase _database;
   final DateTime Function()? _now;
 
   @override
@@ -51,9 +47,6 @@ final class FavoriteVocabularyDeckSource
         ],
         scheduler: _scheduler,
         settings: _settings,
-        dailyReviewGoal: _settings.vocabularyDailyReviewGoal,
-        budgetNamespaces: kSavedWordAndSenseGroupNamespaces,
-        database: _database,
         now: _now,
       ).load();
 

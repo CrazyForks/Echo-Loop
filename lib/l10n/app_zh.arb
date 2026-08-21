@@ -1130,6 +1130,16 @@
       "words": { "type": "String" }
     }
   },
+  "bookmarkReviewDueCount": "待复习 {count} 个",
+  "@bookmarkReviewDueCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "bookmarkReviewNothingToReview": "暂无待复习内容",
+  "favoriteVocabularyReviewDueCount": "待复习 {count} 个",
+  "@favoriteVocabularyReviewDueCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "favoriteReviewNothingToReview": "暂无待复习内容",
   "speakTimeWords": "说: {time} · {words}词",
   "@speakTimeWords": {
     "placeholders": {

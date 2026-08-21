@@ -1,9 +1,6 @@
 /// 收藏复习共用的调度队列来源。
 library;
 
-import 'package:drift/drift.dart';
-
-import '../../database/app_database.dart' hide MemorySchedule;
 import '../../features/memory_scheduler/application/memory_scheduler.dart';
 import '../../features/memory_scheduler/config/memory_profiles.dart';
 import '../../features/memory_scheduler/domain/memory_schedule.dart';
@@ -31,24 +28,15 @@ final class FavoriteReviewDeckSource<T> implements FlashcardDeckSource<T> {
     required List<FavoriteReviewDeckItem<T>> items,
     required MemoryScheduler scheduler,
     required FavoriteReviewSettings settings,
-    required int? dailyReviewGoal,
-    required List<String> budgetNamespaces,
-    required AppDatabase database,
     DateTime Function()? now,
   }) : _items = items,
        _scheduler = scheduler,
        _settings = settings,
-       _dailyReviewGoal = dailyReviewGoal,
-       _budgetNamespaces = budgetNamespaces,
-       _database = database,
        _now = now ?? DateTime.now;
 
   final List<FavoriteReviewDeckItem<T>> _items;
   final MemoryScheduler _scheduler;
   final FavoriteReviewSettings _settings;
-  final int? _dailyReviewGoal;
-  final List<String> _budgetNamespaces;
-  final AppDatabase _database;
   final DateTime Function() _now;
 
   @override
@@ -81,8 +69,7 @@ final class FavoriteReviewDeckSource<T> implements FlashcardDeckSource<T> {
       return !dueAt.isAfter(now);
     }).toList();
     _sortDue(due, schedules, now);
-    final selected = await _applyDailyGoal(due, now);
-    return selected
+    return due
         .map(
           (item) => ScheduledFlashcard<T>(
             subject: item.subject,
@@ -118,59 +105,6 @@ final class FavoriteReviewDeckSource<T> implements FlashcardDeckSource<T> {
           .compareTo(_scheduler.retrievability(right, now));
       return score != 0 ? score : left.dueAt.compareTo(right.dueAt);
     });
-  }
-
-  Future<List<FavoriteReviewDeckItem<T>>> _applyDailyGoal(
-    List<FavoriteReviewDeckItem<T>> due,
-    DateTime now,
-  ) async {
-    final goal = _dailyReviewGoal;
-    if (goal == null) return due;
-    final local = now.toLocal();
-    final day =
-        '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
-    final placeholders = _budgetNamespaces.map((_) => '?').join(', ');
-    final rows = await _database
-        .customSelect(
-          'SELECT namespace, subject_id FROM memory_review_queue_entries WHERE namespace IN ($placeholders) AND local_date = ?',
-          variables: [
-            for (final namespace in _budgetNamespaces)
-              Variable<String>(namespace),
-            Variable<String>(day),
-          ],
-        )
-        .get();
-    final enrolled = rows
-        .map((row) => '${row.data['namespace']}:${row.data['subject_id']}')
-        .toSet();
-    var remaining = goal - enrolled.length;
-    final result = <FavoriteReviewDeckItem<T>>[];
-    for (final item in due) {
-      final key = _key(item.subject);
-      if (enrolled.contains(key)) {
-        result.add(item);
-        continue;
-      }
-      if (remaining <= 0) continue;
-      final inserted = await _database.customUpdate(
-        'INSERT OR IGNORE INTO memory_review_queue_entries(namespace, subject_id, local_date, enqueued_at) VALUES (?, ?, ?, ?)',
-        variables: [
-          Variable<String>(item.subject.namespace),
-          Variable<String>(item.subject.subjectId),
-          Variable<String>(day),
-          Variable<DateTime>(now),
-        ],
-        updates: {_database.memoryReviewQueueEntries},
-      );
-      if (inserted > 0) {
-        result.add(item);
-        enrolled.add(key);
-        remaining--;
-      } else if (enrolled.contains(key)) {
-        result.add(item);
-      }
-    }
-    return result;
   }
 
   String _key(MemorySubjectRef subject) =>

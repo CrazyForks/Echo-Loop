@@ -2,18 +2,14 @@ import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('旧单一每日目标迁移为句子目标，词汇目标默认不限', () {
+  test('旧每日目标字段被忽略', () {
     final settings = FavoriteReviewSettings.fromJson({'dailyReviewGoal': 20});
 
-    expect(settings.sentenceDailyReviewGoal, 20);
-    expect(settings.vocabularyDailyReviewGoal, isNull);
+    expect(settings.toJson().containsKey('dailyReviewGoal'), isFalse);
   });
 
-  test('两个独立目标都能序列化和恢复', () {
-    const settings = FavoriteReviewSettings(
-      sentenceDailyReviewGoal: 10,
-      vocabularyDailyReviewGoal: 30,
-    );
+  test('复习设置能序列化和恢复', () {
+    const settings = FavoriteReviewSettings(order: FavoriteReviewOrder.dueAt);
 
     expect(
       FavoriteReviewSettings.fromJson(settings.toJson()).toJson(),

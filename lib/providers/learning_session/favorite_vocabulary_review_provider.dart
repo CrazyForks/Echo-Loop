@@ -142,7 +142,6 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         phrases: phrases,
         scheduler: scheduler,
         settings: ref.read(favoriteReviewSettingsProvider),
-        database: ref.read(appDatabaseProvider),
       ),
       ratingPort: MemorySchedulerFlashcardRatingPort(scheduler),
       operationIdGenerator: ref.read(memoryIdGeneratorProvider),
