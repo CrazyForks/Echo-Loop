@@ -831,7 +831,12 @@ class _VocabularyUnsaveAction extends StatelessWidget {
           onTap: isRemoving ? null : onRemove,
           borderRadius: BorderRadius.circular(4),
           child: Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.s),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s,
+              AppSpacing.s,
+              0,
+              AppSpacing.s,
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
