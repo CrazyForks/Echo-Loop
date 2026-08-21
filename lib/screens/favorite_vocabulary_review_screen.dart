@@ -28,6 +28,8 @@ import '../router/app_router.dart';
 import '../widgets/dictionary/ai_dict_result_view.dart';
 import '../widgets/dictionary/local_dict_result_view.dart';
 import '../widgets/dictionary/pronunciation_controls.dart';
+import '../widgets/dictionary/dictionary_panel_host.dart';
+import '../widgets/practice/selectable_sentence_text.dart';
 import '../services/dictionary/dictionary_source.dart';
 import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
@@ -46,6 +48,8 @@ class _FavoriteVocabularyReviewScreenState
     extends ConsumerState<FavoriteVocabularyReviewScreen>
     with WakelockMixin {
   bool _isExiting = false;
+  final GlobalKey<DictionaryPanelHostState> _dictionaryHostKey =
+      GlobalKey<DictionaryPanelHostState>();
 
   @override
   void initState() {
@@ -142,43 +146,47 @@ class _FavoriteVocabularyReviewScreenState
           ),
           body: card == null
               ? _EmptyReview(message: l10n.favoriteVocabularyReviewEmpty)
-              : Column(
-                  children: [
-                    _ReviewProgress(
-                      progress: state.total == 0
-                          ? 0
-                          : state.position / state.total,
-                    ),
-                    Expanded(
-                      child: state.face == FavoriteVocabularyReviewFace.front
-                          ? _VocabularyFront(
-                              playbackState: state.playbackState,
-                              hasError: state.mediaError != null,
-                              onReplay: () => unawaited(player.replayCurrent()),
-                              onReveal: () => unawaited(player.revealBack()),
-                            )
-                          : _VocabularyBack(
-                              key: ValueKey(card.dbKey),
-                              card: card,
-                              preview: state.preview,
-                              showNextReviewTime: ref.watch(
-                                favoriteReviewSettingsProvider.select(
-                                  (settings) => settings.showNextReviewTime,
+              : DictionaryPanelHost(
+                  key: _dictionaryHostKey,
+                  child: Column(
+                    children: [
+                      _ReviewProgress(
+                        progress: state.total == 0
+                            ? 0
+                            : state.position / state.total,
+                      ),
+                      Expanded(
+                        child: state.face == FavoriteVocabularyReviewFace.front
+                            ? _VocabularyFront(
+                                playbackState: state.playbackState,
+                                hasError: state.mediaError != null,
+                                onReplay: () =>
+                                    unawaited(player.replayCurrent()),
+                                onReveal: () => unawaited(player.revealBack()),
+                              )
+                            : _VocabularyBack(
+                                key: ValueKey(card.dbKey),
+                                card: card,
+                                preview: state.preview,
+                                showNextReviewTime: ref.watch(
+                                  favoriteReviewSettingsProvider.select(
+                                    (settings) => settings.showNextReviewTime,
+                                  ),
                                 ),
-                              ),
-                              autoShowAiLookup: ref.watch(
-                                favoriteReviewSettingsProvider.select(
-                                  (settings) => settings.autoShowAiLookup,
+                                autoShowAiLookup: ref.watch(
+                                  favoriteReviewSettingsProvider.select(
+                                    (settings) => settings.autoShowAiLookup,
+                                  ),
                                 ),
+                                isSubmitting: state.isSubmittingRating,
+                                isRemoving: state.isRemoving,
+                                onRating: (rating) =>
+                                    unawaited(player.selectRating(rating)),
+                                onRemove: () => unawaited(_removeCurrent()),
                               ),
-                              isSubmitting: state.isSubmittingRating,
-                              isRemoving: state.isRemoving,
-                              onRating: (rating) =>
-                                  unawaited(player.selectRating(rating)),
-                              onRemove: () => unawaited(_removeCurrent()),
-                            ),
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
         ),
       ),
@@ -493,9 +501,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
           )
         : null;
     // AI 折叠时不创建 TTS 控制器，保持默认关闭开关下的原有惰性行为。
-    _ttsController = _showAi
-        ? ref.read(ttsControllerProvider.notifier)
-        : null;
+    _ttsController = _showAi ? ref.read(ttsControllerProvider.notifier) : null;
     final aiLookupProvider = dictionaryLookupControllerProvider(
       card.displayText,
       preferredSourceId: 'ai',
@@ -569,12 +575,17 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                   const SizedBox(height: AppSpacing.m),
                   _SourceSentenceCard(
                     sentenceText: sentenceText,
+                    audioItemId: card.audioItemId,
+                    sentenceIndex: card.sentenceIndex,
+                    sentenceStartMs: card.sentenceStartMs,
+                    sentenceEndMs: card.sentenceEndMs,
+                    playbackState: ref.watch(
+                      favoriteVocabularyReviewProvider.select(
+                        (state) => state.playbackState,
+                      ),
+                    ),
                     onPlay: _playSource,
                   ),
-                ],
-                if (card.audioItemId case final String audioItemId) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  _SourceMaterialLink(audioItemId: audioItemId),
                 ],
                 const SizedBox(height: AppSpacing.m),
                 _AiLookupToggle(
@@ -658,78 +669,99 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
 
 /// 来源句卡片：把可播放句子与学习语境标签组合成一个明确的内容入口。
 class _SourceSentenceCard extends StatelessWidget {
-  const _SourceSentenceCard({required this.sentenceText, required this.onPlay});
+  const _SourceSentenceCard({
+    required this.sentenceText,
+    required this.audioItemId,
+    required this.sentenceIndex,
+    required this.sentenceStartMs,
+    required this.sentenceEndMs,
+    required this.playbackState,
+    required this.onPlay,
+  });
 
   final String sentenceText;
+  final String? audioItemId;
+  final int? sentenceIndex;
+  final int? sentenceStartMs;
+  final int? sentenceEndMs;
+  final FavoriteVocabularyReviewPlaybackState playbackState;
   final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return Semantics(
-      button: true,
-      label: '播放来源句子',
-      child: Material(
-        color: colors.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: colors.outlineVariant.withValues(alpha: 0.55),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: const Key('favorite-vocabulary-review-source'),
-          onTap: onPlay,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s,
-              10,
-              AppSpacing.s,
-              12,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+    final isPlaying =
+        playbackState == FavoriteVocabularyReviewPlaybackState.playing;
+    final isLoading =
+        playbackState == FavoriteVocabularyReviewPlaybackState.loading;
+    return Material(
+      key: const Key('favorite-vocabulary-review-source'),
+      color: colors.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.55)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.s, 8, AppSpacing.s, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '来源句子',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                          Icon(
-                            Icons.play_arrow_rounded,
-                            size: 18,
-                            color: colors.primary,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        sentenceText,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontSize: 16,
-                          height: 1.35,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '来源句子',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  label: '播放来源句子',
+                  child: IconButton(
+                    key: const Key('favorite-vocabulary-review-source-play'),
+                    tooltip: isPlaying ? '停止播放' : '播放句子',
+                    onPressed: isLoading ? null : onPlay,
+                    icon: Icon(
+                      isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                    ),
+                    color: isPlaying ? colors.error : colors.primary,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 36,
+                    ),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 2),
+            SelectableSentenceText(
+              text: sentenceText,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontSize: 16,
+                height: 1.35,
+                fontWeight: FontWeight.w400,
+              ),
+              origin: DictionaryLookupOrigin(
+                audioItemId: audioItemId,
+                sentenceIndex: sentenceIndex,
+                sentenceText: sentenceText,
+                sentenceStartMs: sentenceStartMs,
+                sentenceEndMs: sentenceEndMs,
+              ),
+            ),
+            if (audioItemId != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              _SourceMaterialLink(audioItemId: audioItemId!),
+            ],
+          ],
         ),
       ),
     );
@@ -952,7 +984,7 @@ class _SourceMaterialLink extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.xs,
-                  vertical: 6,
+                  vertical: 3,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
