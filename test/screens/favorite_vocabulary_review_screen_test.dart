@@ -117,24 +117,28 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   @override
   Future<void> replayCurrent() async {
     state = state.copyWith(
-      playbackState: FavoriteVocabularyReviewPlaybackState.playing,
+      wordPlaybackState: FavoriteVocabularyReviewPlaybackState.playing,
+      sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
     );
   }
 
   @override
   Future<void> interruptPlayback() async {
     state = state.copyWith(
-      playbackState: FavoriteVocabularyReviewPlaybackState.idle,
+      wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
+      sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
     );
   }
 
   @override
   Future<void> playSourceSentence() async {
     state = state.copyWith(
-      playbackState:
-          state.playbackState == FavoriteVocabularyReviewPlaybackState.playing
-          ? FavoriteVocabularyReviewPlaybackState.idle
-          : FavoriteVocabularyReviewPlaybackState.playing,
+      wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
+      sourcePlaybackState:
+          state.sourcePlaybackState ==
+                  FavoriteVocabularyReviewPlaybackState.playing
+              ? FavoriteVocabularyReviewPlaybackState.idle
+              : FavoriteVocabularyReviewPlaybackState.playing,
     );
   }
 
@@ -345,6 +349,29 @@ void main() {
     );
     await tester.pump();
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+  });
+
+  testWidgets('词汇和来源句播放互相抢占但不联动图标状态', (tester) async {
+    await tester.pumpWidget(_app(withSource: true));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-word-speak')),
+    );
+    await tester.pump();
+    expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-source-play')),
+    );
+    await tester.pump();
+    expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
   });
 
   testWidgets('背面内容与进度条及评分栏左右对齐', (tester) async {

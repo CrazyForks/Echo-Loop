@@ -158,7 +158,7 @@ class _FavoriteVocabularyReviewScreenState
                       Expanded(
                         child: state.face == FavoriteVocabularyReviewFace.front
                             ? _VocabularyFront(
-                                playbackState: state.playbackState,
+                                playbackState: state.wordPlaybackState,
                                 hasError: state.mediaError != null,
                                 onReplay: () =>
                                     unawaited(player.replayCurrent()),
@@ -581,7 +581,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                     sentenceEndMs: card.sentenceEndMs,
                     playbackState: ref.watch(
                       favoriteVocabularyReviewProvider.select(
-                        (state) => state.playbackState,
+                        (state) => state.sourcePlaybackState,
                       ),
                     ),
                     onPlay: _playSource,

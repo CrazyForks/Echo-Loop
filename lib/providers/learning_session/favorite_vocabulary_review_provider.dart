@@ -49,7 +49,8 @@ class FavoriteVocabularyReviewState {
     this.cards = const <FlashcardItem>[],
     this.currentIndex = 0,
     this.face = FavoriteVocabularyReviewFace.front,
-    this.playbackState = FavoriteVocabularyReviewPlaybackState.idle,
+    this.wordPlaybackState = FavoriteVocabularyReviewPlaybackState.idle,
+    this.sourcePlaybackState = FavoriteVocabularyReviewPlaybackState.idle,
     this.isRemoving = false,
     this.mediaError,
     this.removeError,
@@ -60,7 +61,8 @@ class FavoriteVocabularyReviewState {
   final List<FlashcardItem> cards;
   final int currentIndex;
   final FavoriteVocabularyReviewFace face;
-  final FavoriteVocabularyReviewPlaybackState playbackState;
+  final FavoriteVocabularyReviewPlaybackState wordPlaybackState;
+  final FavoriteVocabularyReviewPlaybackState sourcePlaybackState;
   final bool isRemoving;
   final String? mediaError;
   final String? removeError;
@@ -78,7 +80,8 @@ class FavoriteVocabularyReviewState {
     List<FlashcardItem>? cards,
     int? currentIndex,
     FavoriteVocabularyReviewFace? face,
-    FavoriteVocabularyReviewPlaybackState? playbackState,
+    FavoriteVocabularyReviewPlaybackState? wordPlaybackState,
+    FavoriteVocabularyReviewPlaybackState? sourcePlaybackState,
     bool? isRemoving,
     String? mediaError,
     bool clearMediaError = false,
@@ -91,7 +94,8 @@ class FavoriteVocabularyReviewState {
     cards: cards ?? this.cards,
     currentIndex: currentIndex ?? this.currentIndex,
     face: face ?? this.face,
-    playbackState: playbackState ?? this.playbackState,
+    wordPlaybackState: wordPlaybackState ?? this.wordPlaybackState,
+    sourcePlaybackState: sourcePlaybackState ?? this.sourcePlaybackState,
     isRemoving: isRemoving ?? this.isRemoving,
     mediaError: clearMediaError ? null : mediaError ?? this.mediaError,
     removeError: clearRemoveError ? null : removeError ?? this.removeError,
@@ -185,19 +189,20 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     await player.stop();
     if (!_isCurrent(generation, card)) return;
     state = state.copyWith(
-      playbackState: FavoriteVocabularyReviewPlaybackState.loading,
+      wordPlaybackState: FavoriteVocabularyReviewPlaybackState.loading,
+      sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
       clearMediaError: true,
     );
     try {
       if (!_isCurrent(generation, card)) return;
       state = state.copyWith(
-        playbackState: FavoriteVocabularyReviewPlaybackState.playing,
+        wordPlaybackState: FavoriteVocabularyReviewPlaybackState.playing,
       );
       // 与查词弹窗和收藏词汇列表共用同一默认朗读入口：多发音时播稳定排序后的第一条。
       await player.speak(card.displayText, key: card.dbKey);
       if (!_isCurrent(generation, card)) return;
       state = state.copyWith(
-        playbackState: FavoriteVocabularyReviewPlaybackState.idle,
+        wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
       );
     } catch (error, stackTrace) {
       if (!_isCurrent(generation, card)) return;
@@ -206,14 +211,14 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         'playback failed error=$error\n$stackTrace',
       );
       state = state.copyWith(
-        playbackState: FavoriteVocabularyReviewPlaybackState.failed,
+        wordPlaybackState: FavoriteVocabularyReviewPlaybackState.failed,
         mediaError: 'audio_unavailable',
       );
     }
   }
 
   Future<void> toggleCurrentPlayback() async {
-    final playbackState = state.playbackState;
+    final playbackState = state.wordPlaybackState;
     if (playbackState == FavoriteVocabularyReviewPlaybackState.loading ||
         playbackState == FavoriteVocabularyReviewPlaybackState.playing) {
       await interruptPlayback();
@@ -268,6 +273,10 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     );
     try {
       _hasSourcePlayback = true;
+      state = state.copyWith(
+        wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
+        sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.playing,
+      );
       await player.play(
         audioItemId: card.audioItemId,
         sentenceIndex: card.sentenceIndex,
@@ -282,7 +291,12 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
         'source playback failed error=$error\n$stackTrace',
       );
     } finally {
-      if (_isCurrent(generation + 1, card)) _hasSourcePlayback = false;
+      if (_isCurrent(generation + 1, card)) {
+        _hasSourcePlayback = false;
+        state = state.copyWith(
+          sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
+        );
+      }
     }
   }
 
@@ -375,9 +389,11 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
 
   Future<void> interruptPlayback() async {
     _generation++;
-    if (state.playbackState != FavoriteVocabularyReviewPlaybackState.idle) {
+    if (state.wordPlaybackState != FavoriteVocabularyReviewPlaybackState.idle ||
+        state.sourcePlaybackState != FavoriteVocabularyReviewPlaybackState.idle) {
       state = state.copyWith(
-        playbackState: FavoriteVocabularyReviewPlaybackState.idle,
+        wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
+        sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
       );
     }
     await ref.read(textPlaybackProvider.notifier).stop();

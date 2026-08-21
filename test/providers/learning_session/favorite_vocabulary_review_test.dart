@@ -109,7 +109,7 @@ void main() {
 
       expect(fakePlayback.spoken, [card.displayText]);
       expect(
-        container.read(favoriteVocabularyReviewProvider).playbackState,
+        container.read(favoriteVocabularyReviewProvider).wordPlaybackState,
         FavoriteVocabularyReviewPlaybackState.idle,
       );
     },
