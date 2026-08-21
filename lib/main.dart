@@ -270,7 +270,7 @@ void main() async {
   // 失败不影响启动；底层方法已各自做 consent gate + try/catch。
   try {
     final snapshot = await PermissionSnapshot.capture(prefs);
-    await analyticsService.reportPermissionSnapshot(snapshot);
+    await analyticsService.reportPermissionSnapshot(snapshot, prefs);
   } catch (e) {
     AppLogger.log('App', '权限状态埋点失败: $e');
   }

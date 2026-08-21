@@ -40,6 +40,13 @@ class FirebaseChannel implements AnalyticsChannel {
   }
 
   @override
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    for (final entry in properties.entries) {
+      await setUserProperty(entry.key, entry.value);
+    }
+  }
+
+  @override
   Future<void> registerSuperProperties(Map<String, Object> properties) async {
     // Firebase Analytics 没有 super properties 概念；no-op。
     // 调用方需要事件级冻结属性时应在 PostHog 通道生效，Firebase 通道下相关

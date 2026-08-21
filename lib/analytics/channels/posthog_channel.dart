@@ -43,6 +43,9 @@ class PostHogChannel implements AnalyticsChannel {
       ..host = _host
       ..flushAt = 5
       ..flushInterval = const Duration(seconds: 3)
+      // 保留 SDK 的 Application Opened；该配置同时会产生 Backgrounded，SDK
+      // 5.23.1 没有提供按生命周期事件分别开关，Backgrounded 需在 PostHog 端过滤。
+      ..captureApplicationLifecycleEvents = true
       ..personProfiles = PostHogPersonProfiles.always
       ..sessionReplay = true
       ..sessionReplayConfig.maskAllTexts = false
@@ -67,6 +70,15 @@ class PostHogChannel implements AnalyticsChannel {
   Future<void> setUserProperty(String name, String? value) {
     return Posthog().setPersonProperties(
       userPropertiesToSet: {name: value ?? ''},
+    );
+  }
+
+  @override
+  Future<void> setUserProperties(Map<String, String?> properties) {
+    return Posthog().setPersonProperties(
+      userPropertiesToSet: properties.map(
+        (key, value) => MapEntry(key, value ?? ''),
+      ),
     );
   }
 

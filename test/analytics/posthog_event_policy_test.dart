@@ -6,6 +6,13 @@ void main() {
   group('PostHogEventPolicy', () {
     test('只允许核心漏斗和新增关键结果事件', () {
       expect(PostHogEventPolicy.shouldCapture(Events.learningStart), isTrue);
+      expect(PostHogEventPolicy.shouldCapture(Events.collectionCreate), isTrue);
+      expect(
+        PostHogEventPolicy.shouldCapture(Events.officialCollectionEnroll),
+        isTrue,
+      );
+      expect(PostHogEventPolicy.shouldCapture(Events.audioUpload), isFalse);
+      expect(PostHogEventPolicy.shouldCapture(Events.screenView), isFalse);
       expect(
         PostHogEventPolicy.shouldCapture(Events.blindListenComplete),
         isTrue,
@@ -24,7 +31,10 @@ void main() {
         isTrue,
       );
       expect(PostHogEventPolicy.shouldCapture(Events.chatTurnResult), isTrue);
-      expect(PostHogEventPolicy.shouldCapture(Events.themeModeChanged), isFalse);
+      expect(
+        PostHogEventPolicy.shouldCapture(Events.themeModeChanged),
+        isFalse,
+      );
       expect(PostHogEventPolicy.shouldCapture(Events.bookmarkToggle), isFalse);
     });
   });

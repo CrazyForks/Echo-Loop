@@ -8,7 +8,6 @@ import 'models/event_names.dart';
 
 abstract final class PostHogEventPolicy {
   static const Set<String> _allowedEvents = <String>{
-    Events.screenView,
     Events.learningStart,
     Events.blindListenComplete,
     Events.intensiveListenComplete,
@@ -16,7 +15,8 @@ abstract final class PostHogEventPolicy {
     Events.retellComplete,
     Events.difficultPracticeComplete,
     Events.firstLearnComplete,
-    Events.audioUpload,
+    Events.collectionCreate,
+    Events.officialCollectionEnroll,
     Events.onboardingSurveyCompleted,
     Events.notificationSystemResult,
     Events.asrInferenceCrashSuspected,

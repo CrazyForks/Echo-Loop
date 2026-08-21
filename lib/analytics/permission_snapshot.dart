@@ -31,6 +31,7 @@ class PermissionSnapshot {
   /// SP key：上次启动时 iOS 网络 dataTask 是否成功过。
   /// 首次成功后置 true 且永远不写 false（避免飞行模式 / 弱网误判为 denied）。
   static const String spKeyNetworkOk = 'network_data_task_succeeded';
+  static const String spKeyLastReported = 'analytics_permission_snapshot_v1';
 
   final String microphone;
   final String speech;
@@ -117,12 +118,25 @@ class PermissionSnapshot {
 /// [AnalyticsService] 已在每个底层方法做了 consent gate + try/catch；
 /// 这里只串起来。consent 未同意时三路全部静默丢弃。
 extension PermissionSnapshotReporting on AnalyticsService {
-  Future<void> reportPermissionSnapshot(PermissionSnapshot snapshot) async {
+  Future<void> reportPermissionSnapshot(
+    PermissionSnapshot snapshot,
+    SharedPreferences prefs,
+  ) async {
     final params = snapshot.toEventParams();
-    await registerSuperProperties(params);
-    for (final entry in params.entries) {
-      await setUserProperty(entry.key, entry.value as String);
+    final fingerprint = [
+      snapshot.microphone,
+      snapshot.speech,
+      snapshot.notification,
+      snapshot.network,
+    ].join('|');
+    if (prefs.getString(PermissionSnapshot.spKeyLastReported) == fingerprint) {
+      return;
     }
+    await prefs.setString(PermissionSnapshot.spKeyLastReported, fingerprint);
+    await registerSuperProperties(params);
+    await setUserProperties(
+      params.map((key, value) => MapEntry(key, value.toString())),
+    );
     await track(Events.appPermissionSnapshot, params);
   }
 }

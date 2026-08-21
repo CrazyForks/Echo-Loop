@@ -27,6 +27,13 @@ abstract class AnalyticsChannel {
   /// 设置用户属性
   Future<void> setUserProperty(String name, String? value);
 
+  /// 批量更新用户属性；默认实现兼容只支持单字段的通道。
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    for (final entry in properties.entries) {
+      await setUserProperty(entry.key, entry.value);
+    }
+  }
+
   /// 注册 super properties（事件级冻结属性）。
   ///
   /// 调用后，本地 SDK 之后发出的所有事件都会自动附加这些属性，

@@ -65,6 +65,13 @@ class UmengChannel implements AnalyticsChannel {
   }
 
   @override
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    for (final entry in properties.entries) {
+      await setUserProperty(entry.key, entry.value);
+    }
+  }
+
+  @override
   Future<void> registerSuperProperties(Map<String, Object> properties) async {
     // 友盟没有 super properties 概念；no-op。
     // 国内分群仍由 [setUserProperty] 转发的 user_property_set 事件兜底。

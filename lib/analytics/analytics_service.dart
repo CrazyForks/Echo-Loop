@@ -59,6 +59,11 @@ class AnalyticsService {
     await _channel.setUserProperty(name, value);
   }
 
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    if (!_consent.hasConsented) return;
+    await _channel.setUserProperties(properties);
+  }
+
   /// 注册 super properties。
   ///
   /// 之后所有事件都会自动附加这些属性（仅 PostHog 通道生效；

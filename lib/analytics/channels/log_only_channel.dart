@@ -37,6 +37,13 @@ class LogOnlyChannel implements AnalyticsChannel {
   }
 
   @override
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    for (final entry in properties.entries) {
+      await setUserProperty(entry.key, entry.value);
+    }
+  }
+
+  @override
   Future<void> registerSuperProperties(Map<String, Object> properties) async {
     final pairs = properties.entries
         .map((e) => '${e.key}=${e.value}')
