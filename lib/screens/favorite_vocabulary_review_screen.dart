@@ -19,8 +19,10 @@ import '../providers/favorite_review_settings_provider.dart';
 import '../providers/dictionary/lookup_controller.dart';
 import '../providers/dictionary/dictionary_registry.dart';
 import '../providers/pronunciation/pronunciation_providers.dart';
+import '../providers/tts/tts_controller_provider.dart';
 import '../database/providers.dart';
 import '../models/dictionary/dictionary_lookup_result.dart';
+import '../models/dictionary/dict_speakable_texts.dart';
 import '../models/flashcard_item.dart';
 import '../router/app_router.dart';
 import '../widgets/dictionary/ai_dict_result_view.dart';
@@ -398,11 +400,16 @@ class _VocabularyBack extends ConsumerStatefulWidget {
 
 class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
   late bool _showAi = widget.autoShowAiLookup;
+  int _lastPrewarmConfigurationVersion = -1;
+  TtsController? _ttsController;
 
   @override
   void didUpdateWidget(covariant _VocabularyBack oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.autoShowAiLookup != widget.autoShowAiLookup) {
+      if (!widget.autoShowAiLookup) {
+        _ttsController?.cancelTextsPrewarm();
+      }
       _showAi = widget.autoShowAiLookup;
     }
   }
@@ -436,6 +443,40 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
         .retry();
   }
 
+  /// 将当前 AI 查词结果中的可发音文本提交到统一 TTS 后台缓存。
+  ///
+  /// 结果可能在 build 前已从缓存返回，也可能在 AI 流式请求中逐帧到达，
+  /// 因此调用方同时覆盖当前值和 provider 后续变化。文本去重及取消由
+  /// [TtsController] 统一处理，页面只负责当前卡片生命周期。
+  void _scheduleAiPrewarm(DictionaryLookupState lookup) {
+    final current = lookup.current;
+    final result = switch (current) {
+      LookupStreaming(:final result) => result,
+      LookupLoaded(:final result) => result,
+      _ => null,
+    };
+    if (result == null) return;
+
+    final hasLocalClip =
+        _isSingleWord &&
+        ref
+            .read(pronunciationClipsProvider(widget.card.displayText))
+            .isNotEmpty;
+    final texts = dictionaryPrewarmTexts(result, hasLocalClip: hasLocalClip);
+    if (texts.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental(texts);
+    });
+  }
+
+  @override
+  void dispose() {
+    // 卡片翻面、切卡或离开页面时，停止旧 AI 结果的后台合成。
+    _ttsController?.cancelTextsPrewarm();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -451,6 +492,33 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
             ),
           )
         : null;
+    // AI 折叠时不创建 TTS 控制器，保持默认关闭开关下的原有惰性行为。
+    _ttsController = _showAi
+        ? ref.read(ttsControllerProvider.notifier)
+        : null;
+    final aiLookupProvider = dictionaryLookupControllerProvider(
+      card.displayText,
+      preferredSourceId: 'ai',
+    );
+    if (_showAi) {
+      ref.listen<DictionaryLookupState>(aiLookupProvider, (previous, next) {
+        _scheduleAiPrewarm(next);
+      });
+      ref.listen<int>(
+        ttsControllerProvider.select((state) => state.configurationVersion),
+        (previous, next) {
+          if (previous == next || next == _lastPrewarmConfigurationVersion) {
+            return;
+          }
+          _lastPrewarmConfigurationVersion = next;
+          _scheduleAiPrewarm(ref.read(aiLookupProvider));
+        },
+      );
+      // provider 可能在 widget 建立前已完成，显式处理当前缓存结果。
+    }
+    if (aiLookup != null) {
+      _scheduleAiPrewarm(aiLookup);
+    }
     return Column(
       children: [
         Expanded(
@@ -512,7 +580,12 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                 _AiLookupToggle(
                   key: const Key('favorite-vocabulary-review-ai-toggle'),
                   expanded: _showAi,
-                  onTap: () => setState(() => _showAi = !_showAi),
+                  onTap: () {
+                    if (_showAi) {
+                      _ttsController?.cancelTextsPrewarm();
+                    }
+                    setState(() => _showAi = !_showAi);
+                  },
                 ),
                 if (_showAi) ...[
                   const SizedBox(height: AppSpacing.s),

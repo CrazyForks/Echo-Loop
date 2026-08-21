@@ -160,5 +160,36 @@ void main() {
         'Deep learning powers image recognition.',
       ]);
     });
+
+    test('有离线发音时只跳过标题，仍预热 AI 例句', () {
+      final result = AiDictResult(
+        _entry(
+          headword: 'run',
+          meanings: [
+            _meaning([_ex('I run every day.')]),
+          ],
+        ),
+      );
+
+      expect(dictionaryPrewarmTexts(result, hasLocalClip: true), [
+        'I run every day.',
+      ]);
+    });
+
+    test('无离线发音时预热标题和 AI 例句', () {
+      final result = AiDictResult(
+        _entry(
+          headword: 'run',
+          meanings: [
+            _meaning([_ex('I run every day.')]),
+          ],
+        ),
+      );
+
+      expect(dictionaryPrewarmTexts(result, hasLocalClip: false), [
+        'run',
+        'I run every day.',
+      ]);
+    });
   });
 }

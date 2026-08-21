@@ -265,18 +265,10 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         preferredSourceId: widget.query.preferredSourceId,
       );
 
-  /// 仅预热没有离线发音的标题单词；例句始终保留 TTS 预热。
-  void _prewarmDictionaryTexts(
-    List<String> texts, {
-    required bool hasLocalClip,
-  }) {
-    // [dictionarySpeakableTexts] 的首项固定为标题单词。词形还原命中时它可能
-    // 是原形（如 running -> run），不能用字符串相等判断，否则仍会重复预热。
-    final filtered = hasLocalClip && texts.isNotEmpty
-        ? texts.skip(1).toList()
-        : texts;
-    if (filtered.isEmpty) return;
-    _ttsController?.prewarmTextsIncremental(filtered);
+  /// 将共享编排筛选后的词典文本提交到统一 TTS 后台队列。
+  void _prewarmDictionaryTexts(List<String> texts) {
+    if (texts.isEmpty) return;
+    _ttsController?.prewarmTextsIncremental(texts);
   }
 
   /// 在订阅离线发音命中结果后再调度标题预热，确保已有本地音频不进入 TTS 队列。
@@ -328,10 +320,12 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       };
       if (result == null) return;
       _prewarmDictionaryTexts(
-        dictionarySpeakableTexts(result),
-        hasLocalClip: ref
-            .read(pronunciationClipsProvider(_normalizedWord))
-            .isNotEmpty,
+        dictionaryPrewarmTexts(
+          result,
+          hasLocalClip: ref
+              .read(pronunciationClipsProvider(_normalizedWord))
+              .isNotEmpty,
+        ),
       );
     });
 

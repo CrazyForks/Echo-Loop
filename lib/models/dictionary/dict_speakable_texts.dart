@@ -59,3 +59,18 @@ List<String> dictionarySpeakableTexts(DictionaryLookupResult result) {
   }
   return out;
 }
+
+/// 返回词典结果中需要交给 TTS 后台预热的文本。
+///
+/// 标题已有离线发音时不进入 TTS 队列；AI 结果中的例句等文本始终保留。
+/// 具体的预热调度仍由页面通过 `TtsController` 完成，避免本模型层依赖状态管理。
+List<String> dictionaryPrewarmTexts(
+  DictionaryLookupResult result, {
+  required bool hasLocalClip,
+}) {
+  final texts = dictionarySpeakableTexts(result);
+  if (hasLocalClip && texts.isNotEmpty) {
+    return texts.skip(1).toList();
+  }
+  return texts;
+}
