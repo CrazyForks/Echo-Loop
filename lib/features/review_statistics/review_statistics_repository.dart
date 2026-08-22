@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../database/app_database.dart';
+import '../memory_scheduler/domain/memory_rating.dart';
+import '../memory_scheduler/domain/review_retention.dart';
 import '../../models/study_stage.dart';
 
 /// 统计筛选范围。
@@ -154,16 +156,20 @@ class ReviewStatisticsRepository {
           local.month == today.month &&
           local.day == today.day;
     }).toList();
-    final ratings = ReviewRatingDistribution(
-      again: firstEvents.where((e) => e.rating == 'again').length,
-      hard: firstEvents.where((e) => e.rating == 'hard').length,
-      good: firstEvents.where((e) => e.rating == 'good').length,
-      easy: firstEvents.where((e) => e.rating == 'easy').length,
+    final retention = ReviewRetentionCalculator.calculate(
+      filteredEvents.map(
+        (event) => ReviewRetentionEvent(
+          subjectId: event.scheduleId,
+          rating: _memoryRating(event.rating),
+        ),
+      ),
     );
-    final retentionTotal = firstEvents.length;
-    final retentionGood = firstEvents
-        .where((e) => e.rating == 'good' || e.rating == 'easy')
-        .length;
+    final ratings = ReviewRatingDistribution(
+      again: retention.againUniqueItems,
+      hard: retention.hardUniqueItems,
+      good: retention.goodUniqueItems,
+      easy: retention.easyUniqueItems,
+    );
     final active = schedules.where(
       (row) => row.status == 'active' && matches(row.id),
     );
@@ -204,7 +210,7 @@ class ReviewStatisticsRepository {
       todaySeconds: secondsByDay[today] ?? 0,
       dueNow: dueNow,
       streak: streak,
-      retentionRate: retentionTotal == 0 ? 0 : retentionGood / retentionTotal,
+      retentionRate: retention.retentionRate,
       ratings: ratings,
       totalSentences: uniqueSubjects.values
           .where((n) => n == 'saved_sentence')
@@ -236,7 +242,9 @@ class ReviewStatisticsRepository {
         : ' WHERE ${predicates.join(' AND ')}';
     final rows = await _db
         .customSelect(
-          'SELECT schedule_id, rating, reviewed_at FROM memory_review_events$where',
+          'SELECT schedule_id, sequence, rating, reviewed_at '
+          'FROM memory_review_events$where '
+          'ORDER BY reviewed_at ASC, sequence ASC',
           variables: variables,
         )
         .get();
@@ -244,6 +252,7 @@ class ReviewStatisticsRepository {
         .map(
           (row) => _ReviewEvent(
             scheduleId: row.read<String>('schedule_id'),
+            sequence: row.read<int>('sequence'),
             rating: row.read<String>('rating'),
             reviewedAt: row.read<DateTime>('reviewed_at'),
           ),
@@ -254,12 +263,22 @@ class ReviewStatisticsRepository {
 
 class _ReviewEvent {
   final String scheduleId;
+  final int sequence;
   final String rating;
   final DateTime reviewedAt;
 
   const _ReviewEvent({
     required this.scheduleId,
+    required this.sequence,
     required this.rating,
     required this.reviewedAt,
   });
 }
+
+MemoryRating _memoryRating(String value) => switch (value) {
+  'again' => MemoryRating.again,
+  'hard' => MemoryRating.hard,
+  'good' => MemoryRating.good,
+  'easy' => MemoryRating.easy,
+  _ => throw StateError('未知复习评分: $value'),
+};

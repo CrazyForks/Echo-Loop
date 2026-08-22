@@ -1,4 +1,6 @@
 import 'package:echo_loop/features/scheduled_flashcard/domain/review_session_summary.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/review_retention.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/review/review_completion_summary.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +23,20 @@ void main() {
                 againCount: 1,
                 goodCount: 1,
                 easyCount: 1,
+                retentionEvents: [
+                  ReviewRetentionEvent(
+                    subjectId: 'a',
+                    rating: MemoryRating.again,
+                  ),
+                  ReviewRetentionEvent(
+                    subjectId: 'b',
+                    rating: MemoryRating.good,
+                  ),
+                  ReviewRetentionEvent(
+                    subjectId: 'c',
+                    rating: MemoryRating.easy,
+                  ),
+                ],
               ),
               durationLabel: '复习时长',
               reviewedLabel: '复习条数',
@@ -39,6 +55,12 @@ void main() {
       expect(find.byType(LottieBuilder), findsOneWidget);
       final animation = tester.widget<LottieBuilder>(confetti);
       expect(animation.repeat, isFalse);
+      expect(animation.animate, isFalse);
+      expect(tester.getSize(confetti), const Size(160, 160));
+      await tester.pump(const Duration(milliseconds: 499));
+      expect(tester.widget<LottieBuilder>(confetti).animate, isFalse);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(tester.widget<LottieBuilder>(confetti).animate, isTrue);
       expect(find.text('🎉'), findsNothing);
       expect(find.byKey(const Key('review-completion-title')), findsOneWidget);
       expect(find.text('收藏句复习已完成'), findsOneWidget);

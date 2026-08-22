@@ -331,7 +331,10 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      _summary = _summary.recordRating(rating);
+      final subjectId = card.memorySubjectId;
+      if (subjectId != null) {
+        _summary = _summary.recordRating(subjectId: subjectId, rating: rating);
+      }
       final isCompleted = phase == ScheduledFlashcardPhase.completed;
       final completionSummary = isCompleted
           ? _summary.complete(

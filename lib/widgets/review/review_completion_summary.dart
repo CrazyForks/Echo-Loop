@@ -1,6 +1,8 @@
 /// 收藏复习完成后的庆祝与统计总结。
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -26,7 +28,7 @@ Future<LottieComposition?> _decodeConfettiAnimation(List<int> bytes) {
 }
 
 /// 为收藏句和收藏词汇复习复用同一套完成总结布局。
-class ReviewCompletionSummary extends StatelessWidget {
+class ReviewCompletionSummary extends StatefulWidget {
   const ReviewCompletionSummary({
     super.key,
     required this.title,
@@ -51,6 +53,31 @@ class ReviewCompletionSummary extends StatelessWidget {
   final String easyLabel;
 
   @override
+  State<ReviewCompletionSummary> createState() =>
+      _ReviewCompletionSummaryState();
+}
+
+class _ReviewCompletionSummaryState extends State<ReviewCompletionSummary> {
+  Timer? _animationDelayTimer;
+  bool _shouldAnimate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationDelayTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() => _shouldAnimate = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationDelayTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isZh = Localizations.localeOf(context).languageCode == 'zh';
@@ -66,14 +93,14 @@ class ReviewCompletionSummary extends StatelessWidget {
                 _confettiAnimationAsset,
                 key: const Key('review-completion-confetti'),
                 decoder: _decodeConfettiAnimation,
-                repeat: false,
-                width: 96,
-                height: 96,
+                repeat: true,
+                width: 160,
+                height: 160,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: AppSpacing.s),
               Text(
-                title,
+                widget.title,
                 key: const Key('review-completion-title'),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.headlineSmall?.copyWith(
@@ -89,16 +116,19 @@ class ReviewCompletionSummary extends StatelessWidget {
                         Expanded(
                           child: _Metric(
                             icon: Icons.timer_outlined,
-                            label: durationLabel,
-                            value: _formatDuration(summary.elapsed, isZh),
+                            label: widget.durationLabel,
+                            value: _formatDuration(
+                              widget.summary.elapsed,
+                              isZh,
+                            ),
                             color: theme.colorScheme.primary,
                           ),
                         ),
                         Expanded(
                           child: _Metric(
                             icon: Icons.style_outlined,
-                            label: reviewedLabel,
-                            value: '${summary.reviewedCount}',
+                            label: widget.reviewedLabel,
+                            value: '${widget.summary.reviewedCount}',
                             color: AppTheme.successColor,
                           ),
                         ),
@@ -106,9 +136,9 @@ class ReviewCompletionSummary extends StatelessWidget {
                           child: _Metric(
                             icon: null,
                             iconEmoji: '🧠',
-                            label: retentionLabel,
+                            label: widget.retentionLabel,
                             value:
-                                '${(summary.retentionRate * 100).toStringAsFixed(1)}%',
+                                '${(widget.summary.retentionRate * 100).toStringAsFixed(1)}%',
                             color: const Color(0xFF2B6C8F),
                           ),
                         ),
@@ -120,7 +150,7 @@ class ReviewCompletionSummary extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        ratingsLabel,
+                        widget.ratingsLabel,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -129,23 +159,23 @@ class ReviewCompletionSummary extends StatelessWidget {
                     const SizedBox(height: AppSpacing.s),
                     _RatingRow(
                       key: const Key('review-completion-again'),
-                      label: againLabel,
-                      count: summary.againCount,
-                      total: summary.ratingCount,
+                      label: widget.againLabel,
+                      count: widget.summary.againCount,
+                      total: widget.summary.ratingCount,
                       color: const Color(0xFFC56B45),
                     ),
                     _RatingRow(
                       key: const Key('review-completion-good'),
-                      label: goodLabel,
-                      count: summary.goodCount,
-                      total: summary.ratingCount,
+                      label: widget.goodLabel,
+                      count: widget.summary.goodCount,
+                      total: widget.summary.ratingCount,
                       color: const Color(0xFF4D9271),
                     ),
                     _RatingRow(
                       key: const Key('review-completion-easy'),
-                      label: easyLabel,
-                      count: summary.easyCount,
-                      total: summary.ratingCount,
+                      label: widget.easyLabel,
+                      count: widget.summary.easyCount,
+                      total: widget.summary.ratingCount,
                       color: const Color(0xFF2B6C8F),
                     ),
                   ],

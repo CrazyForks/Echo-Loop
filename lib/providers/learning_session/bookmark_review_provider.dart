@@ -293,7 +293,10 @@ class BookmarkReview extends _$BookmarkReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      _summary = _summary.recordRating(rating);
+      _summary = _summary.recordRating(
+        subjectId: card.memorySubjectId,
+        rating: rating,
+      );
       final isCompleted = phase == ScheduledFlashcardPhase.completed;
       final completionSummary = isCompleted
           ? _summary.complete(
