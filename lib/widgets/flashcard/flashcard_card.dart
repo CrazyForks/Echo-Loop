@@ -621,7 +621,9 @@ class _SaveToggleButton extends StatelessWidget {
               Icon(
                 isUnsaved ? Icons.bookmark_border : Icons.bookmark,
                 size: 20,
-                color: isUnsaved ? theme.colorScheme.outline : Colors.amber,
+                color: isUnsaved
+                    ? theme.colorScheme.outline
+                    : AppTheme.bookmarkColor,
               ),
               const SizedBox(width: 6),
               Text(

@@ -335,7 +335,7 @@ class _SentenceBookmarkHitArea extends StatelessWidget {
         ? (l10n?.intensiveListenMarkedDifficult ?? 'Marked difficult')
         : (l10n?.intensiveListenNotDifficult ?? 'Not marked difficult');
     final iconColor = isBookmarked
-        ? Colors.amber
+        ? AppTheme.bookmarkColor
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.28);
 
     final inner = SizedBox(

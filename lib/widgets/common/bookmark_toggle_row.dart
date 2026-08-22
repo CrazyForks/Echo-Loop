@@ -62,7 +62,7 @@ class BookmarkToggleRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Icon(
             isDifficult ? Icons.bookmark : Icons.bookmark_border,
-            color: isDifficult ? Colors.amber : Colors.grey,
+            color: isDifficult ? AppTheme.bookmarkColor : Colors.grey,
             size: 18,
           ),
         ],

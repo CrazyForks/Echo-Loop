@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// 带缩放弹跳动画的书签图标按钮
 ///
 /// 收藏/取消收藏时播放缩放动画（0.7 → 1.2 → 1.0），
@@ -76,7 +78,7 @@ class _AnimatedBookmarkIconState extends State<AnimatedBookmarkIcon>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final savedColor = widget.savedColor ?? theme.colorScheme.primary;
+    final savedColor = widget.savedColor ?? AppTheme.bookmarkColor;
     final unsavedColor =
         widget.unsavedColor ?? theme.colorScheme.onSurfaceVariant;
 
