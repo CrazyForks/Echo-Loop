@@ -304,6 +304,8 @@ class _NoOpChannel implements AnalyticsChannel {
   @override
   Future<void> setUserProperty(String name, String? value) async {}
   @override
+  Future<void> setUserProperties(Map<String, String?> properties) async {}
+  @override
   Future<void> registerSuperProperties(Map<String, Object> properties) async {}
   @override
   Future<void> unregisterSuperProperty(String name) async {}
