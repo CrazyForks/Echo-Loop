@@ -1,7 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
 import '../features/review_statistics/review_statistics_provider.dart';
@@ -39,14 +38,19 @@ class ReviewStatisticsScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: l10n.reviewStatisticsTodayOverview,
-                      iconAsset: 'assets/icon/bar-chart.svg',
+                      icon: Icons.dashboard_rounded,
+                      accent: _SectionAccent.primary,
                     ),
                     const SizedBox(height: 12),
                     _TodayOverview(stats: stats, l10n: l10n),
                     const SizedBox(height: 12),
                     _CurrentDueNotice(stats: stats, l10n: l10n),
                     const SizedBox(height: 28),
-                    _SectionHeader(title: l10n.reviewStatisticsLearningRhythm),
+                    _SectionHeader(
+                      title: l10n.reviewStatisticsLearningRhythm,
+                      icon: Icons.insights_rounded,
+                      accent: _SectionAccent.secondary,
+                    ),
                     const SizedBox(height: 12),
                     _StreakCard(stats: stats, l10n: l10n),
                     const SizedBox(height: 14),
@@ -56,7 +60,11 @@ class ReviewStatisticsScreen extends ConsumerWidget {
                       child: _TrendChart(stats: stats, l10n: l10n),
                     ),
                     const SizedBox(height: 24),
-                    _SectionHeader(title: l10n.reviewStatisticsReviewPlan),
+                    _SectionHeader(
+                      title: l10n.reviewStatisticsReviewPlan,
+                      icon: Icons.event_available_rounded,
+                      accent: _SectionAccent.tertiary,
+                    ),
                     const SizedBox(height: 12),
                     _JournalCard(
                       title: l10n.reviewStatisticsUpcoming,
@@ -66,6 +74,8 @@ class ReviewStatisticsScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: l10n.reviewStatisticsRecentPerformance,
+                      icon: Icons.trending_up_rounded,
+                      accent: _SectionAccent.surface,
                     ),
                     const SizedBox(height: 12),
                     _JournalCard(
@@ -74,7 +84,11 @@ class ReviewStatisticsScreen extends ConsumerWidget {
                       child: _RatingChart(stats: stats, l10n: l10n),
                     ),
                     const SizedBox(height: 24),
-                    _SectionHeader(title: l10n.reviewStatisticsHistory),
+                    _SectionHeader(
+                      title: l10n.reviewStatisticsHistory,
+                      icon: Icons.timeline_rounded,
+                      accent: _SectionAccent.error,
+                    ),
                     const SizedBox(height: 12),
                     _JournalCard(
                       title: l10n.reviewStatisticsContent,
@@ -137,36 +151,57 @@ class _ScopeSelector extends StatelessWidget {
   );
 }
 
+enum _SectionAccent { primary, secondary, tertiary, surface, error }
+
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final String? iconAsset;
+  final IconData icon;
+  final _SectionAccent accent;
 
-  const _SectionHeader({required this.title, this.iconAsset});
+  const _SectionHeader({
+    required this.title,
+    required this.icon,
+    required this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final (backgroundColor, foregroundColor) = switch (accent) {
+      _SectionAccent.primary => (
+        theme.colorScheme.primaryContainer,
+        theme.colorScheme.onPrimaryContainer,
+      ),
+      _SectionAccent.secondary => (
+        theme.colorScheme.secondaryContainer,
+        theme.colorScheme.onSecondaryContainer,
+      ),
+      _SectionAccent.tertiary => (
+        theme.colorScheme.tertiaryContainer,
+        theme.colorScheme.onTertiaryContainer,
+      ),
+      _SectionAccent.surface => (
+        theme.colorScheme.surfaceContainerHighest,
+        theme.colorScheme.onSurfaceVariant,
+      ),
+      _SectionAccent.error => (
+        theme.colorScheme.errorContainer,
+        theme.colorScheme.onErrorContainer,
+      ),
+    };
     return Row(
       children: [
-        if (iconAsset != null) ...[
-          Container(
-            width: 28,
-            height: 28,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: SvgPicture.asset(
-              iconAsset!,
-              colorFilter: ColorFilter.mode(
-                theme.colorScheme.onPrimaryContainer,
-                BlendMode.srcIn,
-              ),
-            ),
+        Container(
+          width: 28,
+          height: 28,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(9),
           ),
-          const SizedBox(width: 9),
-        ],
+          child: Icon(icon, size: 18, color: foregroundColor),
+        ),
+        const SizedBox(width: 9),
         Text(
           title,
           style: theme.textTheme.titleMedium?.copyWith(

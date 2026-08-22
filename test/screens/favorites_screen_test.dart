@@ -823,6 +823,12 @@ void main() {
       expect(find.text('收藏'), findsOneWidget);
       expect(find.text('句子'), findsOneWidget);
       expect(find.text('词汇'), findsOneWidget);
+      expect(find.byIcon(Icons.subject), findsOneWidget);
+      expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
+
+      await tester.tap(find.text('词汇'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
     });
 
     testWidgets('中文句子空状态', (tester) async {

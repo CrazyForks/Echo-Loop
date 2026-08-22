@@ -35,13 +35,18 @@ void main() {
     expect(find.text('收藏句子'), findsOneWidget);
     expect(find.text('收藏词汇'), findsOneWidget);
     expect(find.text('今日概览'), findsOneWidget);
+    expect(find.byIcon(Icons.dashboard_rounded), findsAtLeastNWidgets(1));
     expect(find.text('学习节奏'), findsOneWidget);
+    expect(find.byIcon(Icons.insights_rounded), findsAtLeastNWidgets(1));
     await tester.scrollUntilVisible(find.text('复习安排'), 300);
     expect(find.text('复习安排'), findsOneWidget);
+    expect(find.byIcon(Icons.event_available_rounded), findsAtLeastNWidgets(1));
     await tester.scrollUntilVisible(find.text('近期表现'), 300);
     expect(find.text('近期表现'), findsOneWidget);
+    expect(find.byIcon(Icons.trending_up_rounded), findsAtLeastNWidgets(1));
     await tester.scrollUntilVisible(find.text('历史足迹'), 300);
     expect(find.text('历史足迹'), findsOneWidget);
+    expect(find.byIcon(Icons.timeline_rounded), findsAtLeastNWidgets(1));
     await tester.scrollUntilVisible(find.text('近 30 天首次评分分布'), 300);
     expect(find.text('近 30 天首次评分分布'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('未来 7 天复习安排（含今天）'), 300);

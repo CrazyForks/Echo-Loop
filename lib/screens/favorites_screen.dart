@@ -304,12 +304,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     ButtonSegment(
                       value: _FavoritesView.sentences,
                       label: Text(sentenceLabel),
-                      icon: const Icon(Icons.format_quote, size: 18),
+                      icon: const Icon(Icons.subject, size: 18),
                     ),
                     ButtonSegment(
                       value: _FavoritesView.words,
                       label: Text(wordLabel),
-                      icon: const Icon(Icons.abc, size: 18),
+                      icon: const Icon(Icons.menu_book_outlined, size: 18),
                     ),
                   ],
                   selected: {_currentView},
@@ -2029,7 +2029,7 @@ Widget _buildEmptyState(BuildContext context, {required bool isSentences}) {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            isSentences ? Icons.format_quote : Icons.abc,
+            isSentences ? Icons.subject : Icons.menu_book_outlined,
             size: 56,
             color: theme.colorScheme.outline.withValues(alpha: 0.5),
           ),
