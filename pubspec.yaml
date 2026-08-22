@@ -117,6 +117,7 @@ dependencies:
   charset_converter: ^2.4.0
   flutter_svg: ^2.3.0
   fl_chart: ^1.2.0
+  lottie: ^3.3.3
 
 dev_dependencies:
   flutter_test:
@@ -200,6 +201,7 @@ flutter:
     - assets/icon/app-icon-96.png
     # chatbot 气泡操作栏图标（复刻 ChatGPT 线条风格，currentColor 随主题着色）
     - assets/icon/chat/
+    - assets/animation/confetti.lottie
     # 后台静音保活轨：停顿期间循环播放以保持 iOS 音频会话活跃（见 background_audio_handler）
     - assets/audio/silence_2s.m4a
     # PDF 导出内嵌字体（TrueType 轮廓；pdf 包不支持 CFF/OTF，也无法读系统 CJK 字体）。

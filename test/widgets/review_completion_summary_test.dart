@@ -3,10 +3,11 @@ import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/review/review_completion_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 void main() {
   testWidgets(
-    'shows celebration, summary metrics, and all rating proportions',
+    'shows one-shot confetti animation, summary metrics, and rating proportions',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -33,10 +34,12 @@ void main() {
         ),
       );
 
-      expect(
-        find.byKey(const Key('review-completion-confetti')),
-        findsOneWidget,
-      );
+      final confetti = find.byKey(const Key('review-completion-confetti'));
+      expect(confetti, findsOneWidget);
+      expect(find.byType(LottieBuilder), findsOneWidget);
+      final animation = tester.widget<LottieBuilder>(confetti);
+      expect(animation.repeat, isFalse);
+      expect(find.text('🎉'), findsNothing);
       expect(find.byKey(const Key('review-completion-title')), findsOneWidget);
       expect(find.text('收藏句复习已完成'), findsOneWidget);
       expect(find.text('2m 8s'), findsOneWidget);

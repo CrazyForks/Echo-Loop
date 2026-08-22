@@ -2,9 +2,28 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../../theme/app_theme.dart';
+
+const _confettiAnimationAsset = 'assets/animation/confetti.lottie';
+
+/// 从 dotLottie 压缩包中选取第一个动画 JSON，供纯 Dart Lottie 播放器解析。
+Future<LottieComposition?> _decodeConfettiAnimation(List<int> bytes) {
+  return LottieComposition.decodeZip(
+    bytes,
+    filePicker: (files) {
+      for (final file in files) {
+        if (file.name.startsWith('animations/') &&
+            file.name.endsWith('.json')) {
+          return file;
+        }
+      }
+      return null;
+    },
+  );
+}
 
 /// 为收藏句和收藏词汇复习复用同一套完成总结布局。
 class ReviewCompletionSummary extends StatelessWidget {
@@ -43,10 +62,14 @@ class ReviewCompletionSummary extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '🎉',
-                key: Key('review-completion-confetti'),
-                style: TextStyle(fontSize: 72),
+              Lottie.asset(
+                _confettiAnimationAsset,
+                key: const Key('review-completion-confetti'),
+                decoder: _decodeConfettiAnimation,
+                repeat: false,
+                width: 96,
+                height: 96,
+                fit: BoxFit.contain,
               ),
               const SizedBox(height: AppSpacing.s),
               Text(
