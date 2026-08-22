@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../database/app_database.dart';
+import '../memory_scheduler/domain/memory_namespaces.dart';
 import '../memory_scheduler/domain/memory_rating.dart';
 import '../memory_scheduler/domain/review_retention.dart';
 import '../../models/study_stage.dart';
@@ -82,14 +83,21 @@ class ReviewStatisticsRepository {
     final allEvents = await _readEvents();
     final schedules = await _db.select(_db.memorySchedules).get();
     final scheduleById = {for (final row in schedules) row.id: row};
+    final validVocabularySubjects = await _readValidVocabularySubjects();
     bool matches(String scheduleId) {
-      final namespace = scheduleById[scheduleId]?.namespace;
+      final schedule = scheduleById[scheduleId];
+      final vocabularySubject = schedule == null
+          ? null
+          : _subjectKey(schedule.namespace, schedule.subjectId);
       return switch (scope) {
-        ReviewStatisticsScope.all => namespace != null,
-        ReviewStatisticsScope.sentences => namespace == 'saved_sentence',
-        ReviewStatisticsScope.vocabulary =>
-          namespace == 'saved_word_or_phrase' ||
-              namespace == 'saved_sense_group',
+        ReviewStatisticsScope.all =>
+          schedule?.namespace == kSavedSentenceNamespace ||
+              validVocabularySubjects.contains(vocabularySubject),
+        ReviewStatisticsScope.sentences =>
+          schedule?.namespace == kSavedSentenceNamespace,
+        ReviewStatisticsScope.vocabulary => validVocabularySubjects.contains(
+          vocabularySubject,
+        ),
       };
     }
 
@@ -213,10 +221,10 @@ class ReviewStatisticsRepository {
       retentionRate: retention.retentionRate,
       ratings: ratings,
       totalSentences: uniqueSubjects.values
-          .where((n) => n == 'saved_sentence')
+          .where((n) => n == kSavedSentenceNamespace)
           .length,
       totalVocabulary: uniqueSubjects.values
-          .where((n) => n != 'saved_sentence')
+          .where((n) => n != kSavedSentenceNamespace)
           .length,
       dailyTrend: trend,
       upcomingDue: upcoming,
@@ -259,7 +267,29 @@ class ReviewStatisticsRepository {
         )
         .toList(growable: false);
   }
+
+  /// 统计词汇前先对齐复习入口：软删除、缺失主体 ID 或空展示文本的内容
+  /// 都不能让历史 active 调度继续出现在待复习与统计里。
+  Future<Set<String>> _readValidVocabularySubjects() async {
+    final words = await _db.savedWordDao.getAll();
+    final phrases = await _db.savedSenseGroupDao.getAll();
+    return {
+      for (final word in words)
+        if (word.word.trim().isNotEmpty &&
+            word.memorySubjectId != null &&
+            word.memorySubjectId!.isNotEmpty)
+          _subjectKey(kSavedWordOrPhraseNamespace, word.memorySubjectId!),
+      for (final phrase in phrases)
+        if (phrase.displayText.trim().isNotEmpty &&
+            phrase.memorySubjectId != null &&
+            phrase.memorySubjectId!.isNotEmpty)
+          _subjectKey(kSavedSenseGroupNamespace, phrase.memorySubjectId!),
+    };
+  }
 }
+
+String _subjectKey(String namespace, String subjectId) =>
+    '$namespace:$subjectId';
 
 class _ReviewEvent {
   final String scheduleId;

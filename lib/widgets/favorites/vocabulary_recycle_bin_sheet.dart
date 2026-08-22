@@ -9,6 +9,7 @@ import '../../utils/time_format.dart';
 
 import '../../database/providers.dart';
 import '../../l10n/app_localizations.dart';
+import '../../providers/favorite_vocabulary_lifecycle_provider.dart';
 import '../../theme/app_theme.dart';
 import '../dialogs/confirm_dialog.dart';
 import 'recycle_bin_sheet_base.dart';
@@ -140,9 +141,11 @@ class _VocabularyRecycleBinSheetState
 
   Future<void> _onRestore(_DeletedVocabItem item) async {
     if (item.isSenseGroup) {
-      await ref.read(savedSenseGroupDaoProvider).restoreSenseGroup(item.key);
+      await ref
+          .read(favoriteVocabularyLifecycleProvider)
+          .restoreSenseGroup(item.key);
     } else {
-      await ref.read(savedWordDaoProvider).restoreWord(item.key);
+      await ref.read(favoriteVocabularyLifecycleProvider).restoreWord(item.key);
     }
     if (!mounted) return;
     setState(() => _items.remove(item));

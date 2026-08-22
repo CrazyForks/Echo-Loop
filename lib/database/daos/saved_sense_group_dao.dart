@@ -25,6 +25,21 @@ class SavedSenseGroupDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
+  /// 获取所有未删除的收藏意群。
+  Future<List<SavedSenseGroup>> getAll() =>
+      (select(savedSenseGroups)
+            ..where((t) => t.deletedAt.isNull())
+            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+          .get();
+
+  /// 按唯一意群文本查询收藏记录，包含回收站中的软删除记录。
+  ///
+  /// 收藏—调度生命周期需要先读取稳定的 [SavedSenseGroup.memorySubjectId]，
+  /// 才能对同一张记忆调度快照执行归档或恢复。
+  Future<SavedSenseGroup?> getByPhraseText(String phraseText) => (select(
+    savedSenseGroups,
+  )..where((t) => t.phraseText.equals(phraseText))).getSingleOrNull();
+
   /// 获取指定音频关联的未删除收藏意群（按来源句子索引升序）
   ///
   /// 用于学习材料导出 PDF 时将收藏意群归到所属句子。

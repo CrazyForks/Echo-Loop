@@ -19,10 +19,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../database/app_database.dart';
 import '../../database/providers.dart';
 import '../../features/memory_scheduler/domain/memory_rating.dart';
-import '../../features/memory_scheduler/domain/memory_scheduler_commands.dart';
 import '../../features/memory_scheduler/domain/memory_scheduler_results.dart';
-import '../../features/memory_scheduler/domain/memory_schedule.dart';
-import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
@@ -32,6 +29,7 @@ import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
 import '../../services/study_session_timer.dart';
 import '../favorite_review_settings_provider.dart';
+import '../favorite_vocabulary_lifecycle_provider.dart';
 import '../pronunciation/pronunciation_providers.dart';
 import '../short_audio_player_provider.dart';
 import '../tts/tts_controller_provider.dart';
@@ -387,28 +385,13 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     try {
       switch (card) {
         case FlashcardWordItem():
-          await ref.read(savedWordDaoProvider).removeWord(card.dbKey);
+          await ref
+              .read(favoriteVocabularyLifecycleProvider)
+              .removeWord(card.dbKey);
         case FlashcardPhraseItem():
           await ref
-              .read(savedSenseGroupDaoProvider)
+              .read(favoriteVocabularyLifecycleProvider)
               .removeSenseGroup(card.dbKey);
-      }
-      final subjectId = card.memorySubjectId;
-      if (subjectId != null) {
-        final scheduler = ref.read(memorySchedulerProvider);
-        final schedule = await scheduler.getSchedule(
-          MemorySubjectRef(namespace: card.namespace, subjectId: subjectId),
-        );
-        if (schedule != null &&
-            schedule.status == MemoryScheduleStatus.active) {
-          await scheduler.archive(
-            ArchiveMemoryScheduleCommand(
-              subject: schedule.subject,
-              archivedAt: DateTime.now().toUtc(),
-              expectedRevision: schedule.revision,
-            ),
-          );
-        }
       }
       if (!identical(_controller, controller)) return;
       controller.removeCurrent();

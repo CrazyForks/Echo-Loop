@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../database/app_database.dart';
 import '../database/providers.dart';
+import 'favorite_vocabulary_lifecycle_provider.dart';
 
 part 'saved_sense_group_provider.g.dart';
 
@@ -44,13 +45,15 @@ class SavedSenseGroupList extends _$SavedSenseGroupList {
       groupStartMs: groupStartMs,
       groupEndMs: groupEndMs,
     );
+    await ref
+        .read(favoriteVocabularyLifecycleProvider)
+        .restoreSenseGroupSchedule(phraseText);
   }
 
   /// 取消收藏意群
-  Future<void> removeSenseGroup(String phraseText) async {
-    final dao = ref.read(savedSenseGroupDaoProvider);
-    await dao.removeSenseGroup(phraseText);
-  }
+  Future<void> removeSenseGroup(String phraseText) => ref
+      .read(favoriteVocabularyLifecycleProvider)
+      .removeSenseGroup(phraseText);
 }
 
 /// 监听已收藏意群的归一化文本集合（用于 badge 染色与正文收藏标记）

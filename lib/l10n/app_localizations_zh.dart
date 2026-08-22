@@ -3402,7 +3402,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewStatisticsVocabulary => '收藏词汇';
 
   @override
+  String get reviewStatisticsTodayOverview => '今日概览';
+
+  @override
   String get reviewStatisticsTodayReviewed => '今日复习';
+
+  @override
+  String get reviewStatisticsTodayCompleted => '今日已复习';
 
   @override
   String get reviewCompletionReviewed => '复习条数';
@@ -3414,31 +3420,74 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewStatisticsDuration => '复习时长';
 
   @override
-  String get reviewStatisticsDue => '待复习';
+  String get reviewStatisticsDue => '现在可复习';
+
+  @override
+  String reviewStatisticsCurrentDue(String count) {
+    return '现在可复习 $count';
+  }
+
+  @override
+  String get reviewStatisticsCurrentDueExplanation => '已到期，可立即开始复习';
 
   @override
   String get reviewStatisticsStreak => '连续复习';
 
   @override
+  String reviewStatisticsStreakExplanation(int count) {
+    return '连续 $count 天都有复习记录';
+  }
+
+  @override
+  String get reviewStatisticsLearningRhythm => '学习节奏';
+
+  @override
   String get reviewStatisticsTrend => '近 30 天复习趋势';
 
   @override
-  String get reviewStatisticsUpcoming => '未来 7 天待复习';
+  String get reviewStatisticsTrendExplanation => '每天完成的不同收藏内容';
 
   @override
-  String get reviewStatisticsRatings => '评分分布';
+  String get reviewStatisticsReviewPlan => '复习安排';
+
+  @override
+  String get reviewStatisticsUpcoming => '未来 7 天复习安排（含今天）';
+
+  @override
+  String get reviewStatisticsUpcomingExplanation => '每天到期的收藏内容';
+
+  @override
+  String get reviewStatisticsTodayShort => '今天';
+
+  @override
+  String get reviewStatisticsRecentPerformance => '近期表现';
+
+  @override
+  String get reviewStatisticsRatings => '近 30 天首次评分分布';
 
   @override
   String get reviewStatisticsRetentionRate => '保持率';
 
   @override
-  String get reviewStatisticsRetentionExplanation => '“听懂了”和“轻松听懂”占全部评分的比例';
+  String get reviewStatisticsRetentionExplanation =>
+      '每个内容仅计入该期间的首次评分；Good + Easy 占比';
 
   @override
   String get reviewStatisticsEmptyRatings => '暂无评分记录';
 
   @override
   String get reviewStatisticsContent => '累计复习内容';
+
+  @override
+  String get reviewStatisticsContentExplanation => '至少完成过一次复习';
+
+  @override
+  String get reviewStatisticsHistory => '历史足迹';
+
+  @override
+  String reviewStatisticsItemCount(int count) {
+    return '$count 项';
+  }
 
   @override
   String get reviewStatisticsLoadError => '统计加载失败';

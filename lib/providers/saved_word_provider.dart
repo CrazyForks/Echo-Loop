@@ -13,6 +13,7 @@ import '../models/dict_entry.dart';
 import '../services/dictionary_service.dart';
 import '../utils/saved_text_index.dart';
 import 'notification_permission_provider.dart';
+import 'favorite_vocabulary_lifecycle_provider.dart';
 import 'saved_sense_group_provider.dart';
 
 part 'saved_word_provider.g.dart';
@@ -51,6 +52,9 @@ class SavedWordList extends _$SavedWordList {
       sentenceStartMs: sentenceStartMs,
       sentenceEndMs: sentenceEndMs,
     );
+    await ref
+        .read(favoriteVocabularyLifecycleProvider)
+        .restoreWordSchedule(word);
 
     // 埋点：收藏单词
     ref
@@ -70,10 +74,8 @@ class SavedWordList extends _$SavedWordList {
   }
 
   /// 取消收藏单词
-  Future<void> removeWord(String word) async {
-    final dao = ref.read(savedWordDaoProvider);
-    await dao.removeWord(word);
-  }
+  Future<void> removeWord(String word) =>
+      ref.read(favoriteVocabularyLifecycleProvider).removeWord(word);
 }
 
 /// 监听已收藏单词的 key 集合（用于正文收藏词下划线标记）

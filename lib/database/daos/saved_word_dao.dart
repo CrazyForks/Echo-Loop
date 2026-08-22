@@ -32,6 +32,13 @@ class SavedWordDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// 按唯一词形查询收藏记录，包含回收站中的软删除记录。
+  ///
+  /// 收藏—调度生命周期需要先读取稳定的 [SavedWord.memorySubjectId]，
+  /// 才能对同一张记忆调度快照执行归档或恢复。
+  Future<SavedWord?> getByWord(String word) =>
+      (select(savedWords)..where((t) => t.word.equals(word))).getSingleOrNull();
+
   /// 获取指定音频关联的未删除收藏单词（按来源句子索引升序）
   ///
   /// 用于学习材料导出 PDF 时将收藏词归到所属句子。

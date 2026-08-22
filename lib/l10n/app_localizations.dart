@@ -6242,11 +6242,23 @@ abstract class AppLocalizations {
   /// **'Saved vocabulary'**
   String get reviewStatisticsVocabulary;
 
+  /// No description provided for @reviewStatisticsTodayOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Today at a glance'**
+  String get reviewStatisticsTodayOverview;
+
   /// No description provided for @reviewStatisticsTodayReviewed.
   ///
   /// In en, this message translates to:
   /// **'Reviewed today'**
   String get reviewStatisticsTodayReviewed;
+
+  /// No description provided for @reviewStatisticsTodayCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed today'**
+  String get reviewStatisticsTodayCompleted;
 
   /// No description provided for @reviewCompletionReviewed.
   ///
@@ -6269,8 +6281,20 @@ abstract class AppLocalizations {
   /// No description provided for @reviewStatisticsDue.
   ///
   /// In en, this message translates to:
-  /// **'Due now'**
+  /// **'Ready now'**
   String get reviewStatisticsDue;
+
+  /// No description provided for @reviewStatisticsCurrentDue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} ready to review'**
+  String reviewStatisticsCurrentDue(String count);
+
+  /// No description provided for @reviewStatisticsCurrentDueExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Already due and ready to start'**
+  String get reviewStatisticsCurrentDueExplanation;
 
   /// No description provided for @reviewStatisticsStreak.
   ///
@@ -6278,22 +6302,64 @@ abstract class AppLocalizations {
   /// **'Review streak'**
   String get reviewStatisticsStreak;
 
+  /// No description provided for @reviewStatisticsStreakExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewed on {count} consecutive days'**
+  String reviewStatisticsStreakExplanation(int count);
+
+  /// No description provided for @reviewStatisticsLearningRhythm.
+  ///
+  /// In en, this message translates to:
+  /// **'Learning rhythm'**
+  String get reviewStatisticsLearningRhythm;
+
   /// No description provided for @reviewStatisticsTrend.
   ///
   /// In en, this message translates to:
   /// **'Last 30 days'**
   String get reviewStatisticsTrend;
 
+  /// No description provided for @reviewStatisticsTrendExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Distinct saved items completed each day'**
+  String get reviewStatisticsTrendExplanation;
+
+  /// No description provided for @reviewStatisticsReviewPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Review plan'**
+  String get reviewStatisticsReviewPlan;
+
   /// No description provided for @reviewStatisticsUpcoming.
   ///
   /// In en, this message translates to:
-  /// **'Next 7 days'**
+  /// **'Next 7 days, including today'**
   String get reviewStatisticsUpcoming;
+
+  /// No description provided for @reviewStatisticsUpcomingExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved items due on each day'**
+  String get reviewStatisticsUpcomingExplanation;
+
+  /// No description provided for @reviewStatisticsTodayShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get reviewStatisticsTodayShort;
+
+  /// No description provided for @reviewStatisticsRecentPerformance.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent performance'**
+  String get reviewStatisticsRecentPerformance;
 
   /// No description provided for @reviewStatisticsRatings.
   ///
   /// In en, this message translates to:
-  /// **'Ratings'**
+  /// **'First ratings in the last 30 days'**
   String get reviewStatisticsRatings;
 
   /// No description provided for @reviewStatisticsRetentionRate.
@@ -6305,7 +6371,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewStatisticsRetentionExplanation.
   ///
   /// In en, this message translates to:
-  /// **'Share of ratings marked Got it or Easy'**
+  /// **'Only each item\'s first rating in this period counts; Good + Easy share'**
   String get reviewStatisticsRetentionExplanation;
 
   /// No description provided for @reviewStatisticsEmptyRatings.
@@ -6319,6 +6385,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reviewed content'**
   String get reviewStatisticsContent;
+
+  /// No description provided for @reviewStatisticsContentExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed at least one review'**
+  String get reviewStatisticsContentExplanation;
+
+  /// No description provided for @reviewStatisticsHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'History'**
+  String get reviewStatisticsHistory;
+
+  /// No description provided for @reviewStatisticsItemCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items'**
+  String reviewStatisticsItemCount(int count);
 
   /// No description provided for @reviewStatisticsLoadError.
   ///

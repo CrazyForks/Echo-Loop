@@ -1,13 +1,14 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
 import '../features/review_statistics/review_statistics_provider.dart';
 import '../features/review_statistics/review_statistics_repository.dart';
 import '../l10n/app_localizations.dart';
 
-/// 收藏复习统计页，以学习数据日记的布局呈现既有统计结果。
+/// 收藏复习统计页，将当天行动、近期表现与历史记录按时间口径分层展示。
 class ReviewStatisticsScreen extends ConsumerWidget {
   const ReviewStatisticsScreen({super.key});
 
@@ -35,30 +36,54 @@ class ReviewStatisticsScreen extends ConsumerWidget {
                       onChanged: notifier.setScope,
                       l10n: l10n,
                     ),
-                    const SizedBox(height: 20),
-                    _SectionLabel(label: l10n.reviewStatisticsTodayReviewed),
-                    const SizedBox(height: 10),
-                    _MetricGrid(stats: stats, l10n: l10n),
                     const SizedBox(height: 24),
+                    _SectionHeader(
+                      title: l10n.reviewStatisticsTodayOverview,
+                      iconAsset: 'assets/icon/bar-chart.svg',
+                    ),
+                    const SizedBox(height: 12),
+                    _TodayOverview(stats: stats, l10n: l10n),
+                    const SizedBox(height: 12),
+                    _CurrentDueNotice(stats: stats, l10n: l10n),
+                    const SizedBox(height: 28),
+                    _SectionHeader(title: l10n.reviewStatisticsLearningRhythm),
+                    const SizedBox(height: 12),
+                    _StreakCard(stats: stats, l10n: l10n),
+                    const SizedBox(height: 14),
                     _JournalCard(
                       title: l10n.reviewStatisticsTrend,
-                      child: _TrendChart(stats: stats),
+                      subtitle: l10n.reviewStatisticsTrendExplanation,
+                      child: _TrendChart(stats: stats, l10n: l10n),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 24),
+                    _SectionHeader(title: l10n.reviewStatisticsReviewPlan),
+                    const SizedBox(height: 12),
                     _JournalCard(
                       title: l10n.reviewStatisticsUpcoming,
-                      child: _UpcomingChart(stats: stats),
+                      subtitle: l10n.reviewStatisticsUpcomingExplanation,
+                      child: _UpcomingChart(stats: stats, l10n: l10n),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 24),
+                    _SectionHeader(
+                      title: l10n.reviewStatisticsRecentPerformance,
+                    ),
+                    const SizedBox(height: 12),
                     _JournalCard(
                       title: l10n.reviewStatisticsRatings,
                       subtitle: l10n.reviewStatisticsRetentionExplanation,
                       child: _RatingChart(stats: stats, l10n: l10n),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 24),
+                    _SectionHeader(title: l10n.reviewStatisticsHistory),
+                    const SizedBox(height: 12),
                     _JournalCard(
                       title: l10n.reviewStatisticsContent,
-                      child: _ContentSummary(stats: stats, l10n: l10n),
+                      subtitle: l10n.reviewStatisticsContentExplanation,
+                      child: _ContentSummary(
+                        stats: stats,
+                        scope: notifier.scope,
+                        l10n: l10n,
+                      ),
                     ),
                   ],
                 ),
@@ -75,14 +100,24 @@ class _ScopeSelector extends StatelessWidget {
   final ReviewStatisticsScope selected;
   final ValueChanged<ReviewStatisticsScope> onChanged;
   final AppLocalizations l10n;
+
   const _ScopeSelector({
     required this.selected,
     required this.onChanged,
     required this.l10n,
   });
+
   @override
   Widget build(BuildContext context) => SegmentedButton<ReviewStatisticsScope>(
     showSelectedIcon: false,
+    style: ButtonStyle(
+      visualDensity: VisualDensity.compact,
+      textStyle: WidgetStatePropertyAll(
+        Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    ),
     segments: [
       ButtonSegment(
         value: ReviewStatisticsScope.all,
@@ -102,115 +137,263 @@ class _ScopeSelector extends StatelessWidget {
   );
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? iconAsset;
+
+  const _SectionHeader({required this.title, this.iconAsset});
+
   @override
-  Widget build(BuildContext context) => Text(
-    label.toUpperCase(),
-    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.05,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        if (iconAsset != null) ...[
+          Container(
+            width: 28,
+            height: 28,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: SvgPicture.asset(
+              iconAsset!,
+              colorFilter: ColorFilter.mode(
+                theme.colorScheme.onPrimaryContainer,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+        ],
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _MetricGrid extends StatelessWidget {
+class _TodayOverview extends StatelessWidget {
   final ReviewStatistics stats;
   final AppLocalizations l10n;
-  const _MetricGrid({required this.stats, required this.l10n});
+
+  const _TodayOverview({required this.stats, required this.l10n});
+
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final wide = constraints.maxWidth >= 620;
-      return GridView.count(
-        crossAxisCount: wide ? 4 : 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: wide ? 1.35 : 1.5,
-        children: [
-          _MetricCard(
-            l10n.reviewStatisticsTodayReviewed,
-            '${stats.todayReviewedCards}',
-            Icons.auto_graph_rounded,
-            const Color(0xFF2B6C8F),
-          ),
-          _MetricCard(
-            l10n.reviewStatisticsDuration,
-            _formatDuration(stats.todaySeconds, l10n),
-            Icons.timer_outlined,
-            const Color(0xFF597C65),
-          ),
-          _MetricCard(
-            l10n.reviewStatisticsDue,
-            '${stats.dueNow}',
-            Icons.hourglass_bottom_rounded,
-            const Color(0xFFC56B45),
-          ),
-          _MetricCard(
-            l10n.reviewStatisticsStreak,
-            '${stats.streak}',
-            Icons.local_fire_department_rounded,
-            const Color(0xFFD88A36),
-          ),
-        ],
-      );
-    },
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _MetricCard(
+          value: _formatItemCount(stats.todayReviewedCards, l10n),
+          label: l10n.reviewStatisticsTodayCompleted,
+          icon: Icons.task_alt_rounded,
+          accent: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: _MetricCard(
+          value: _formatDuration(stats.todaySeconds, l10n),
+          label: l10n.reviewStatisticsDuration,
+          icon: Icons.timer_outlined,
+          accent: const Color(0xFF4D9271),
+        ),
+      ),
+    ],
   );
 }
 
 class _MetricCard extends StatelessWidget {
-  final String label, value;
+  final String value;
+  final String label;
   final IconData icon;
   final Color accent;
-  const _MetricCard(this.label, this.value, this.icon, this.accent);
+
+  const _MetricCard({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.accent,
+  });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: accent.withValues(
-            alpha: theme.brightness == Brightness.dark ? 0.38 : 0.18,
-          ),
-        ),
-      ),
+    return _Surface(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Container(
-            width: 31,
-            height: 31,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(icon, size: 18, color: accent),
+            child: Icon(icon, size: 19, color: accent),
           ),
+          const SizedBox(height: 20),
           Text(
             value,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: theme.colorScheme.onSurface,
+              letterSpacing: -0.8,
             ),
           ),
+          const SizedBox(height: 3),
           Text(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CurrentDueNotice extends StatelessWidget {
+  final ReviewStatistics stats;
+  final AppLocalizations l10n;
+
+  const _CurrentDueNotice({required this.stats, required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFC56B45);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: accent.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.09,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule_rounded, color: accent, size: 21),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.reviewStatisticsCurrentDue(
+                    _formatItemCount(stats.dueNow, l10n),
+                  ),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.reviewStatisticsCurrentDueExplanation,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StreakCard extends StatelessWidget {
+  final ReviewStatistics stats;
+  final AppLocalizations l10n;
+
+  const _StreakCard({required this.stats, required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFD88A36);
+    return _Surface(
+      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.local_fire_department_rounded,
+              color: accent,
+              size: 23,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.reviewStatisticsStreak,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.reviewStatisticsStreakExplanation(stats.streak),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${stats.streak}',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Surface extends StatelessWidget {
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  const _Surface({required this.padding, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(
+            alpha: theme.brightness == Brightness.dark ? 0.56 : 0.68,
+          ),
+        ),
+      ),
+      child: child,
     );
   }
 }
@@ -219,89 +402,71 @@ class _JournalCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget child;
+
   const _JournalCard({required this.title, required this.child, this.subtitle});
+
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(
-            alpha: theme.brightness == Brightness.dark ? 0.55 : 0.7,
-          ),
+  Widget build(BuildContext context) => _Surface(
+    padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.9,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
           ),
-          const SizedBox(height: 18),
-          child,
         ],
-      ),
-    );
-  }
+        const SizedBox(height: 18),
+        child,
+      ],
+    ),
+  );
 }
 
 class _TrendChart extends StatelessWidget {
   final ReviewStatistics stats;
-  const _TrendChart({required this.stats});
+  final AppLocalizations l10n;
+
+  const _TrendChart({required this.stats, required this.l10n});
+
   @override
   Widget build(BuildContext context) {
     if (!stats.dailyTrend.any((day) => day.reviewedCards > 0)) {
-      return const _ChartEmptyState(icon: Icons.show_chart_rounded);
+      return const _ChartEmptyState(icon: Icons.bar_chart_rounded);
     }
     final theme = Theme.of(context);
-    const accent = Color(0xFF2B6C8F);
     final maxY = stats.dailyTrend
         .map((day) => day.reviewedCards)
         .reduce((a, b) => a > b ? a : b)
         .toDouble();
+    final interval = (maxY / 3).clamp(1, double.infinity).toDouble();
     return SizedBox(
-      height: 190,
-      child: LineChart(
-        LineChartData(
-          minY: 0,
+      height: 184,
+      child: BarChart(
+        BarChartData(
           maxY: maxY * 1.18,
+          alignment: BarChartAlignment.spaceAround,
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            horizontalInterval: (maxY / 3).clamp(1, double.infinity),
+            horizontalInterval: interval,
             getDrawingHorizontalLine: (_) => FlLine(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
               strokeWidth: 1,
             ),
           ),
+          borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
@@ -312,7 +477,8 @@ class _TrendChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 28,
+                reservedSize: 29,
+                interval: interval,
                 getTitlesWidget: (value, meta) => Text(
                   value.toInt().toString(),
                   style: theme.textTheme.labelSmall?.copyWith(
@@ -325,12 +491,14 @@ class _TrendChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 28,
-                interval: 10,
                 getTitlesWidget: (value, meta) {
                   final index = value.toInt();
                   if (index < 0 ||
                       index >= stats.dailyTrend.length ||
-                      (index % 10 != 0 &&
+                      (index != 0 &&
+                          index != 7 &&
+                          index != 14 &&
+                          index != 21 &&
                           index != stats.dailyTrend.length - 1)) {
                     return const SizedBox.shrink();
                   }
@@ -347,50 +515,38 @@ class _TrendChart extends StatelessWidget {
               ),
             ),
           ),
-          borderData: FlBorderData(show: false),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (_) => theme.colorScheme.inverseSurface,
-              getTooltipItems: (spots) => spots
-                  .map(
-                    (spot) => LineTooltipItem(
-                      '${stats.dailyTrend[spot.x.toInt()].reviewedCards}',
-                      TextStyle(
-                        color: theme.colorScheme.onInverseSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  )
-                  .toList(),
+              getTooltipItem: (group, _, rod, __) {
+                final day = stats.dailyTrend[group.x];
+                return BarTooltipItem(
+                  '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(day.date)}\n${_formatItemCount(rod.toY.toInt(), l10n)}',
+                  TextStyle(
+                    color: theme.colorScheme.onInverseSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+              },
             ),
           ),
-          lineBarsData: [
-            LineChartBarData(
-              isCurved: true,
-              curveSmoothness: 0.28,
-              color: accent,
-              barWidth: 3.5,
-              isStrokeCapRound: true,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    accent.withValues(alpha: 0.26),
-                    accent.withValues(alpha: 0.01),
-                  ],
-                ),
-              ),
-              spots: [
-                for (var i = 0; i < stats.dailyTrend.length; i++)
-                  FlSpot(
-                    i.toDouble(),
-                    stats.dailyTrend[i].reviewedCards.toDouble(),
+          barGroups: [
+            for (var i = 0; i < stats.dailyTrend.length; i++)
+              BarChartGroupData(
+                x: i,
+                barRods: [
+                  BarChartRodData(
+                    toY: stats.dailyTrend[i].reviewedCards.toDouble(),
+                    width: 5,
+                    color: i == stats.dailyTrend.length - 1
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.primary.withValues(alpha: 0.62),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(3),
+                    ),
                   ),
-              ],
-            ),
+                ],
+              ),
           ],
         ),
       ),
@@ -400,7 +556,10 @@ class _TrendChart extends StatelessWidget {
 
 class _UpcomingChart extends StatelessWidget {
   final ReviewStatistics stats;
-  const _UpcomingChart({required this.stats});
+  final AppLocalizations l10n;
+
+  const _UpcomingChart({required this.stats, required this.l10n});
+
   @override
   Widget build(BuildContext context) {
     if (!stats.upcomingDue.any((value) => value > 0)) {
@@ -410,7 +569,7 @@ class _UpcomingChart extends StatelessWidget {
     final now = DateTime.now();
     final maxY = stats.upcomingDue.reduce((a, b) => a > b ? a : b).toDouble();
     return SizedBox(
-      height: 184,
+      height: 188,
       child: BarChart(
         BarChartData(
           maxY: maxY * 1.2,
@@ -438,19 +597,20 @@ class _UpcomingChart extends StatelessWidget {
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 30,
+                reservedSize: 31,
                 getTitlesWidget: (value, meta) {
                   final index = value.toInt();
-                  if (index < 0 || index >= 7) {
+                  if (index < 0 || index >= stats.upcomingDue.length) {
                     return const SizedBox.shrink();
                   }
                   return SideTitleWidget(
                     meta: meta,
                     child: Text(
-                      DateFormat(
-                        'E',
-                        Localizations.localeOf(context).toLanguageTag(),
-                      ).format(now.add(Duration(days: index))),
+                      index == 0
+                          ? l10n.reviewStatisticsTodayShort
+                          : DateFormat(
+                              'M/d',
+                            ).format(now.add(Duration(days: index))),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: index == 0
                             ? const Color(0xFFC56B45)
@@ -466,8 +626,8 @@ class _UpcomingChart extends StatelessWidget {
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (_) => theme.colorScheme.inverseSurface,
-              getTooltipItem: (_, __, rod, ___) => BarTooltipItem(
-                rod.toY.toInt().toString(),
+              getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(now.add(Duration(days: group.x)))}\n${rod.toY.toInt()}',
                 TextStyle(
                   color: theme.colorScheme.onInverseSurface,
                   fontWeight: FontWeight.w700,
@@ -491,8 +651,8 @@ class _UpcomingChart extends StatelessWidget {
                     ),
                     label: BarChartRodLabel(
                       show: stats.upcomingDue[i] > 0,
-                      text: '${stats.upcomingDue[i]}',
-                      style: theme.textTheme.labelMedium?.copyWith(
+                      text: stats.upcomingDue[i].toString(),
+                      style: theme.textTheme.labelSmall?.copyWith(
                         color: i == 0
                             ? const Color(0xFFC56B45)
                             : const Color(0xFF597C65),
@@ -512,7 +672,9 @@ class _UpcomingChart extends StatelessWidget {
 class _RatingChart extends StatelessWidget {
   final ReviewStatistics stats;
   final AppLocalizations l10n;
+
   const _RatingChart({required this.stats, required this.l10n});
+
   @override
   Widget build(BuildContext context) {
     if (stats.ratings.total == 0) {
@@ -521,11 +683,11 @@ class _RatingChart extends StatelessWidget {
         message: l10n.reviewStatisticsEmptyRatings,
       );
     }
-    // 当前复习流程只提供三档评分；将历史“困难”记录归入“再来一遍”，
-    // 让环图总量继续和保持率的分母一致，也不向用户暴露已下线的选项。
+    // 当前复习流程只提供三档评分；历史困难记录归入“再来一遍”，
+    // 保持环图与近 30 天首次评分统计使用同一总量。
     final sections = [
       _RatingSlice(
-        l10n.bookmarkReviewAgain,
+        l10n.bookmarkReviewRatingAgain,
         stats.ratings.again + stats.ratings.hard,
         const Color(0xFFC56B45),
       ),
@@ -537,7 +699,7 @@ class _RatingChart extends StatelessWidget {
       _RatingSlice(
         l10n.bookmarkReviewRatingEasy,
         stats.ratings.easy,
-        const Color(0xFF2B6C8F),
+        Theme.of(context).colorScheme.primary,
       ),
     ];
     return LayoutBuilder(
@@ -585,7 +747,10 @@ class _RatingChart extends StatelessWidget {
         );
         final legend = Column(
           mainAxisSize: MainAxisSize.min,
-          children: [for (final slice in sections) _LegendRow(slice: slice)],
+          children: [
+            for (final slice in sections)
+              _LegendRow(slice: slice, total: stats.ratings.total, l10n: l10n),
+          ],
         );
         return constraints.maxWidth < 380
             ? Column(children: [chart, const SizedBox(height: 12), legend])
@@ -605,12 +770,21 @@ class _RatingSlice {
   final String label;
   final int value;
   final Color color;
+
   const _RatingSlice(this.label, this.value, this.color);
 }
 
 class _LegendRow extends StatelessWidget {
   final _RatingSlice slice;
-  const _LegendRow({required this.slice});
+  final int total;
+  final AppLocalizations l10n;
+
+  const _LegendRow({
+    required this.slice,
+    required this.total,
+    required this.l10n,
+  });
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 5),
@@ -631,11 +805,26 @@ class _LegendRow extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        Text(
-          '${slice.value}',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+        SizedBox(
+          width: 42,
+          child: Text(
+            _formatItemCount(slice.value, l10n),
+            textAlign: TextAlign.right,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 38,
+          child: Text(
+            '${(slice.value / total * 100).round()}%',
+            textAlign: TextAlign.right,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
         ),
       ],
     ),
@@ -644,39 +833,67 @@ class _LegendRow extends StatelessWidget {
 
 class _ContentSummary extends StatelessWidget {
   final ReviewStatistics stats;
+  final ReviewStatisticsScope scope;
   final AppLocalizations l10n;
-  const _ContentSummary({required this.stats, required this.l10n});
+
+  const _ContentSummary({
+    required this.stats,
+    required this.scope,
+    required this.l10n,
+  });
+
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: _ContentTile(
+  Widget build(BuildContext context) {
+    final tiles = switch (scope) {
+      ReviewStatisticsScope.all => [
+        _ContentTile(
           label: l10n.reviewStatisticsSentences,
           count: stats.totalSentences,
-          color: const Color(0xFF2B6C8F),
+          color: Theme.of(context).colorScheme.primary,
         ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: _ContentTile(
+        _ContentTile(
           label: l10n.reviewStatisticsVocabulary,
           count: stats.totalVocabulary,
-          color: const Color(0xFF597C65),
+          color: const Color(0xFF4D9271),
         ),
-      ),
-    ],
-  );
+      ],
+      ReviewStatisticsScope.sentences => [
+        _ContentTile(
+          label: l10n.reviewStatisticsSentences,
+          count: stats.totalSentences,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ],
+      ReviewStatisticsScope.vocabulary => [
+        _ContentTile(
+          label: l10n.reviewStatisticsVocabulary,
+          count: stats.totalVocabulary,
+          color: const Color(0xFF4D9271),
+        ),
+      ],
+    };
+    return Row(
+      children: [
+        for (var index = 0; index < tiles.length; index++) ...[
+          Expanded(child: tiles[index]),
+          if (index < tiles.length - 1) const SizedBox(width: 10),
+        ],
+      ],
+    );
+  }
 }
 
 class _ContentTile extends StatelessWidget {
   final String label;
   final int count;
   final Color color;
+
   const _ContentTile({
     required this.label,
     required this.count,
     required this.color,
   });
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(15),
@@ -688,7 +905,7 @@ class _ContentTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$count',
+          count.toString(),
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: color,
             fontWeight: FontWeight.w800,
@@ -742,6 +959,9 @@ class _ChartEmptyState extends StatelessWidget {
     ),
   );
 }
+
+String _formatItemCount(int count, AppLocalizations l10n) =>
+    l10n.reviewStatisticsItemCount(count);
 
 String _formatDuration(int seconds, AppLocalizations l10n) {
   final minutes = seconds ~/ 60;

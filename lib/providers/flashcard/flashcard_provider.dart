@@ -36,6 +36,7 @@ import '../tts/tts_controller_provider.dart';
 import '../../widgets/flashcard/flashcard_card.dart';
 import '../daily_study_time_provider.dart';
 import '../notification_permission_provider.dart';
+import '../saved_sense_group_provider.dart';
 import '../saved_word_provider.dart';
 import 'flashcard_flow_engine.dart';
 import 'flashcard_flow_phase.dart';
@@ -524,7 +525,7 @@ class FlashcardNotifier extends _$FlashcardNotifier {
               );
         case FlashcardPhraseItem(:final savedPhrase):
           await ref
-              .read(savedSenseGroupDaoProvider)
+              .read(savedSenseGroupListProvider.notifier)
               .saveSenseGroup(
                 phraseText: savedPhrase.phraseText,
                 displayText: savedPhrase.displayText,
@@ -550,7 +551,9 @@ class FlashcardNotifier extends _$FlashcardNotifier {
         case FlashcardWordItem():
           await ref.read(savedWordListProvider.notifier).removeWord(key);
         case FlashcardPhraseItem():
-          await ref.read(savedSenseGroupDaoProvider).removeSenseGroup(key);
+          await ref
+              .read(savedSenseGroupListProvider.notifier)
+              .removeSenseGroup(key);
       }
       _unsavedWords.add(key);
       state = state.copyWith(removedCount: state.removedCount + 1);

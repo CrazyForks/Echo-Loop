@@ -3558,7 +3558,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewStatisticsVocabulary => 'Saved vocabulary';
 
   @override
+  String get reviewStatisticsTodayOverview => 'Today at a glance';
+
+  @override
   String get reviewStatisticsTodayReviewed => 'Reviewed today';
+
+  @override
+  String get reviewStatisticsTodayCompleted => 'Completed today';
 
   @override
   String get reviewCompletionReviewed => 'Reviewed';
@@ -3570,32 +3576,78 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewStatisticsDuration => 'Review time';
 
   @override
-  String get reviewStatisticsDue => 'Due now';
+  String get reviewStatisticsDue => 'Ready now';
+
+  @override
+  String reviewStatisticsCurrentDue(String count) {
+    return '$count ready to review';
+  }
+
+  @override
+  String get reviewStatisticsCurrentDueExplanation =>
+      'Already due and ready to start';
 
   @override
   String get reviewStatisticsStreak => 'Review streak';
 
   @override
+  String reviewStatisticsStreakExplanation(int count) {
+    return 'Reviewed on $count consecutive days';
+  }
+
+  @override
+  String get reviewStatisticsLearningRhythm => 'Learning rhythm';
+
+  @override
   String get reviewStatisticsTrend => 'Last 30 days';
 
   @override
-  String get reviewStatisticsUpcoming => 'Next 7 days';
+  String get reviewStatisticsTrendExplanation =>
+      'Distinct saved items completed each day';
 
   @override
-  String get reviewStatisticsRatings => 'Ratings';
+  String get reviewStatisticsReviewPlan => 'Review plan';
+
+  @override
+  String get reviewStatisticsUpcoming => 'Next 7 days, including today';
+
+  @override
+  String get reviewStatisticsUpcomingExplanation =>
+      'Saved items due on each day';
+
+  @override
+  String get reviewStatisticsTodayShort => 'Today';
+
+  @override
+  String get reviewStatisticsRecentPerformance => 'Recent performance';
+
+  @override
+  String get reviewStatisticsRatings => 'First ratings in the last 30 days';
 
   @override
   String get reviewStatisticsRetentionRate => 'Retention';
 
   @override
   String get reviewStatisticsRetentionExplanation =>
-      'Share of ratings marked Got it or Easy';
+      'Only each item\'s first rating in this period counts; Good + Easy share';
 
   @override
   String get reviewStatisticsEmptyRatings => 'No ratings yet';
 
   @override
   String get reviewStatisticsContent => 'Reviewed content';
+
+  @override
+  String get reviewStatisticsContentExplanation =>
+      'Completed at least one review';
+
+  @override
+  String get reviewStatisticsHistory => 'History';
+
+  @override
+  String reviewStatisticsItemCount(int count) {
+    return '$count items';
+  }
 
   @override
   String get reviewStatisticsLoadError => 'Could not load statistics';
