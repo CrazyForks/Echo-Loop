@@ -1084,6 +1084,7 @@
   "bookmarkReviewReadyTitle": "想好后翻面",
   "bookmarkReviewRevealHint": "点按查看答案",
   "bookmarkReviewEmpty": "本次复习已没有收藏句。",
+  "bookmarkReviewCompleted": "收藏句复习已完成",
   "bookmarkReviewUnsaveFailed": "取消收藏失败，请重试。",
   "bookmarkReviewSettingsPlaceholderTitle": "复习设置",
   "bookmarkReviewSettingsPlaceholderBody": "更多复习控制将在后续版本中开放。",
@@ -1107,6 +1108,7 @@
 
   "favoriteVocabularyReviewTitle": "收藏词汇复习",
   "favoriteVocabularyReviewEmpty": "本次复习已没有收藏词汇。",
+  "favoriteVocabularyReviewCompleted": "收藏词汇复习已完成",
   "favoriteVocabularyReviewTapReplay": "点按重播",
   "favoriteVocabularyReviewLoadingAudio": "正在加载音频…",
   "favoriteVocabularyReviewPlaying": "正在播放",
@@ -1454,6 +1456,7 @@
   "reviewStatisticsSentences": "收藏句子",
   "reviewStatisticsVocabulary": "收藏词汇",
   "reviewStatisticsTodayReviewed": "今日复习",
+  "reviewCompletionReviewed": "复习条数",
   "reviewStatisticsDuration": "复习时长",
   "reviewStatisticsDue": "待复习",
   "reviewStatisticsStreak": "连续复习",

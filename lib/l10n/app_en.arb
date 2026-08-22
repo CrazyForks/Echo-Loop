@@ -1411,6 +1411,7 @@
   "bookmarkReviewReadyTitle": "Flip when ready",
   "bookmarkReviewRevealHint": "Tap to reveal the answer",
   "bookmarkReviewEmpty": "No saved sentences left in this review.",
+  "bookmarkReviewCompleted": "Saved Sentence Review Complete",
   "bookmarkReviewUnsaveFailed": "Couldn't unsave this sentence. Please try again.",
   "bookmarkReviewSettingsPlaceholderTitle": "Review settings",
   "bookmarkReviewSettingsPlaceholderBody": "More review controls will be available in a future update.",
@@ -1433,6 +1434,7 @@
 
   "favoriteVocabularyReviewTitle": "Review Saved Vocabulary",
   "favoriteVocabularyReviewEmpty": "No saved vocabulary left in this review.",
+  "favoriteVocabularyReviewCompleted": "Saved Vocabulary Review Complete",
   "favoriteVocabularyReviewTapReplay": "Tap to replay",
   "favoriteVocabularyReviewLoadingAudio": "Loading audio…",
   "favoriteVocabularyReviewPlaying": "Playing",
@@ -1889,6 +1891,7 @@
   "reviewStatisticsSentences": "Saved sentences",
   "reviewStatisticsVocabulary": "Saved vocabulary",
   "reviewStatisticsTodayReviewed": "Reviewed today",
+  "reviewCompletionReviewed": "Reviewed",
   "reviewStatisticsDuration": "Review time",
   "reviewStatisticsDue": "Due now",
   "reviewStatisticsStreak": "Review streak",

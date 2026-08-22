@@ -2472,6 +2472,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewEmpty => '本次复习已没有收藏句。';
 
   @override
+  String get bookmarkReviewCompleted => '收藏句复习已完成';
+
+  @override
   String get bookmarkReviewUnsaveFailed => '取消收藏失败，请重试。';
 
   @override
@@ -2533,6 +2536,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get favoriteVocabularyReviewEmpty => '本次复习已没有收藏词汇。';
+
+  @override
+  String get favoriteVocabularyReviewCompleted => '收藏词汇复习已完成';
 
   @override
   String get favoriteVocabularyReviewTapReplay => '点按重播';
@@ -3397,6 +3403,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get reviewStatisticsTodayReviewed => '今日复习';
+
+  @override
+  String get reviewCompletionReviewed => '复习条数';
 
   @override
   String get reviewStatisticsDuration => '复习时长';

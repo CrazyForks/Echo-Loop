@@ -26,6 +26,7 @@ import '../../features/memory_scheduler/domain/memory_namespaces.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
+import '../../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../favorite_review_settings_provider.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
@@ -60,6 +61,7 @@ class BookmarkReviewState {
     this.preview,
     this.isSubmittingRating = false,
     this.reviewedCount = 0,
+    this.completionSummary,
   });
 
   final BookmarkSentence? currentCard;
@@ -73,6 +75,7 @@ class BookmarkReviewState {
   final MemoryRatingPreviewSet? preview;
   final bool isSubmittingRating;
   final int reviewedCount;
+  final ReviewSessionSummary? completionSummary;
 
   double get progress =>
       initialTotal == 0 ? 0 : (initialTotal - remainingCount) / initialTotal;
@@ -93,6 +96,8 @@ class BookmarkReviewState {
     bool clearPreview = false,
     bool? isSubmittingRating,
     int? reviewedCount,
+    ReviewSessionSummary? completionSummary,
+    bool clearCompletionSummary = false,
   }) => BookmarkReviewState(
     currentCard: clearCurrentCard ? null : currentCard ?? this.currentCard,
     initialTotal: initialTotal ?? this.initialTotal,
@@ -105,6 +110,9 @@ class BookmarkReviewState {
     preview: clearPreview ? null : preview ?? this.preview,
     isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
     reviewedCount: reviewedCount ?? this.reviewedCount,
+    completionSummary: clearCompletionSummary
+        ? null
+        : completionSummary ?? this.completionSummary,
   );
 }
 
@@ -114,6 +122,7 @@ class BookmarkReview extends _$BookmarkReview {
   late final AppLifecycleListener _lifecycleListener;
   StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<BookmarkSentence>? _controller;
+  ReviewSessionSummary _summary = const ReviewSessionSummary();
 
   /// 当前收藏句复习会话的前台有效时长。
   Duration get elapsed => _studySessionTimer?.elapsed ?? Duration.zero;
@@ -149,6 +158,7 @@ class BookmarkReview extends _$BookmarkReview {
   /// 建立只含 FSRS 到期收藏句的本次复习快照。
   Future<void> initialize(List<BookmarkWithAudio> bookmarks) async {
     await _studySessionTimer?.dispose();
+    _summary = const ReviewSessionSummary();
     _generation++;
     unawaited(ref.read(audioEngineProvider.notifier).stop());
     unawaited(_stopForegroundPlaybackIfActive());
@@ -283,7 +293,19 @@ class BookmarkReview extends _$BookmarkReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      state = _stateFromController(controller);
+      _summary = _summary.recordRating(rating);
+      final isCompleted = phase == ScheduledFlashcardPhase.completed;
+      final completionSummary = isCompleted
+          ? _summary.complete(
+              elapsed: _studySessionTimer?.elapsed ?? Duration.zero,
+              reviewedCount: controller.state.reviewedCount,
+            )
+          : null;
+      if (isCompleted) unawaited(_studySessionTimer?.stop());
+      state = _stateFromController(
+        controller,
+        completionSummary: completionSummary,
+      );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
       AppLogger.log(
@@ -370,12 +392,14 @@ class BookmarkReview extends _$BookmarkReview {
 
   /// 将通用会话的当前项和计数映射为页面所需的最小状态。
   BookmarkReviewState _stateFromController(
-    ScheduledFlashcardController<BookmarkSentence> controller,
-  ) => BookmarkReviewState(
+    ScheduledFlashcardController<BookmarkSentence> controller, {
+    ReviewSessionSummary? completionSummary,
+  }) => BookmarkReviewState(
     currentCard: controller.state.current?.content,
     initialTotal: controller.state.initialTotal,
     remainingCount: controller.state.remainingCount,
     reviewedCount: controller.state.reviewedCount,
+    completionSummary: completionSummary,
   );
 
   bool _isCurrent(int generation, BookmarkSentence card) =>

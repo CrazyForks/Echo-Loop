@@ -27,6 +27,7 @@ import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 import '../widgets/review/review_status_bar.dart';
+import '../widgets/review/review_completion_summary.dart';
 
 class BookmarkReviewScreen extends ConsumerStatefulWidget {
   const BookmarkReviewScreen({super.key});
@@ -105,6 +106,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(bookmarkReviewProvider);
     final card = state.currentCard;
+    final completionSummary = state.completionSummary;
     final l10n = AppLocalizations.of(context)!;
     final player = ref.read(bookmarkReviewProvider.notifier);
 
@@ -141,7 +143,19 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
             ],
           ),
           body: card == null
-              ? _EmptyReview(message: l10n.bookmarkReviewEmpty)
+              ? completionSummary == null
+                    ? _EmptyReview(message: l10n.bookmarkReviewEmpty)
+                    : ReviewCompletionSummary(
+                        title: l10n.bookmarkReviewCompleted,
+                        summary: completionSummary,
+                        durationLabel: l10n.reviewStatisticsDuration,
+                        reviewedLabel: l10n.reviewCompletionReviewed,
+                        retentionLabel: l10n.reviewStatisticsRetentionRate,
+                        ratingsLabel: l10n.reviewStatisticsRatings,
+                        againLabel: l10n.bookmarkReviewRatingAgain,
+                        goodLabel: l10n.bookmarkReviewRatingGood,
+                        easyLabel: l10n.bookmarkReviewRatingEasy,
+                      )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
                   child: Column(

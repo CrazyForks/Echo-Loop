@@ -36,6 +36,7 @@ import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 import '../widgets/review/review_status_bar.dart';
+import '../widgets/review/review_completion_summary.dart';
 
 class FavoriteVocabularyReviewScreen extends ConsumerStatefulWidget {
   const FavoriteVocabularyReviewScreen({super.key});
@@ -121,6 +122,7 @@ class _FavoriteVocabularyReviewScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(favoriteVocabularyReviewProvider);
     final card = state.currentCard;
+    final completionSummary = state.completionSummary;
     final l10n = AppLocalizations.of(context)!;
     final player = ref.read(favoriteVocabularyReviewProvider.notifier);
 
@@ -154,7 +156,19 @@ class _FavoriteVocabularyReviewScreenState
             ],
           ),
           body: card == null
-              ? _EmptyReview(message: l10n.favoriteVocabularyReviewEmpty)
+              ? completionSummary == null
+                    ? _EmptyReview(message: l10n.favoriteVocabularyReviewEmpty)
+                    : ReviewCompletionSummary(
+                        title: l10n.favoriteVocabularyReviewCompleted,
+                        summary: completionSummary,
+                        durationLabel: l10n.reviewStatisticsDuration,
+                        reviewedLabel: l10n.reviewCompletionReviewed,
+                        retentionLabel: l10n.reviewStatisticsRetentionRate,
+                        ratingsLabel: l10n.reviewStatisticsRatings,
+                        againLabel: l10n.bookmarkReviewRatingAgain,
+                        goodLabel: l10n.bookmarkReviewRatingGood,
+                        easyLabel: l10n.bookmarkReviewRatingEasy,
+                      )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
                   child: Column(

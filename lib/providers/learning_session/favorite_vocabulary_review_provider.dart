@@ -26,6 +26,7 @@ import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
+import '../../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../../models/flashcard_item.dart';
 import '../../models/study_stage.dart';
 import '../../services/app_logger.dart';
@@ -58,6 +59,7 @@ class FavoriteVocabularyReviewState {
     this.preview,
     this.isSubmittingRating = false,
     this.reviewedCount = 0,
+    this.completionSummary,
   });
 
   final FlashcardItem? currentCard;
@@ -72,6 +74,7 @@ class FavoriteVocabularyReviewState {
   final MemoryRatingPreviewSet? preview;
   final bool isSubmittingRating;
   final int reviewedCount;
+  final ReviewSessionSummary? completionSummary;
 
   double get progress =>
       initialTotal == 0 ? 0 : (initialTotal - remainingCount) / initialTotal;
@@ -93,6 +96,8 @@ class FavoriteVocabularyReviewState {
     bool clearPreview = false,
     bool? isSubmittingRating,
     int? reviewedCount,
+    ReviewSessionSummary? completionSummary,
+    bool clearCompletionSummary = false,
   }) => FavoriteVocabularyReviewState(
     currentCard: clearCurrentCard ? null : currentCard ?? this.currentCard,
     initialTotal: initialTotal ?? this.initialTotal,
@@ -106,6 +111,9 @@ class FavoriteVocabularyReviewState {
     preview: clearPreview ? null : preview ?? this.preview,
     isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
     reviewedCount: reviewedCount ?? this.reviewedCount,
+    completionSummary: clearCompletionSummary
+        ? null
+        : completionSummary ?? this.completionSummary,
   );
 }
 
@@ -116,6 +124,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
   late final AppLifecycleListener _lifecycleListener;
   StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<FlashcardItem>? _controller;
+  ReviewSessionSummary _summary = const ReviewSessionSummary();
 
   /// 当前收藏词汇复习会话的前台有效时长。
   Duration get elapsed => _studySessionTimer?.elapsed ?? Duration.zero;
@@ -148,6 +157,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     List<SavedSenseGroup> phrases,
   ) async {
     await _studySessionTimer?.dispose();
+    _summary = const ReviewSessionSummary();
     _generation++;
     unawaited(ref.read(textPlaybackProvider.notifier).stop());
 
@@ -321,7 +331,19 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      state = _stateFromController(controller);
+      _summary = _summary.recordRating(rating);
+      final isCompleted = phase == ScheduledFlashcardPhase.completed;
+      final completionSummary = isCompleted
+          ? _summary.complete(
+              elapsed: _studySessionTimer?.elapsed ?? Duration.zero,
+              reviewedCount: controller.state.reviewedCount,
+            )
+          : null;
+      if (isCompleted) unawaited(_studySessionTimer?.stop());
+      state = _stateFromController(
+        controller,
+        completionSummary: completionSummary,
+      );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
       AppLogger.log(
@@ -409,12 +431,14 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
 
   /// 将通用会话的当前项和计数映射为页面所需的最小状态。
   FavoriteVocabularyReviewState _stateFromController(
-    ScheduledFlashcardController<FlashcardItem> controller,
-  ) => FavoriteVocabularyReviewState(
+    ScheduledFlashcardController<FlashcardItem> controller, {
+    ReviewSessionSummary? completionSummary,
+  }) => FavoriteVocabularyReviewState(
     currentCard: controller.state.current?.content,
     initialTotal: controller.state.initialTotal,
     remainingCount: controller.state.remainingCount,
     reviewedCount: controller.state.reviewedCount,
+    completionSummary: completionSummary,
   );
 
   bool _isCurrent(int generation, FlashcardItem card) =>

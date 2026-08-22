@@ -2582,6 +2582,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewEmpty => 'No saved sentences left in this review.';
 
   @override
+  String get bookmarkReviewCompleted => 'Saved Sentence Review Complete';
+
+  @override
   String get bookmarkReviewUnsaveFailed =>
       'Couldn\'t unsave this sentence. Please try again.';
 
@@ -2647,6 +2650,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get favoriteVocabularyReviewEmpty =>
       'No saved vocabulary left in this review.';
+
+  @override
+  String get favoriteVocabularyReviewCompleted =>
+      'Saved Vocabulary Review Complete';
 
   @override
   String get favoriteVocabularyReviewTapReplay => 'Tap to replay';
@@ -3553,6 +3560,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reviewStatisticsTodayReviewed => 'Reviewed today';
+
+  @override
+  String get reviewCompletionReviewed => 'Reviewed';
 
   @override
   String get reviewStatisticsDuration => 'Review time';
