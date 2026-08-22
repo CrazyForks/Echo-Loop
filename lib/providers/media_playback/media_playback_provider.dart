@@ -16,6 +16,7 @@ import '../../services/app_logger.dart';
 import '../../services/storage_service.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../listening_practice/bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../listening_practice/playback_reducer.dart';
 import '../listening_practice/playback_state_storage.dart';
 import '../listening_practice/sentence_tracker.dart';
@@ -628,11 +629,9 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
           sentences: newSentences,
         );
       }
-      await BookmarkManager.removeBookmarksFromDb(
-        item.id,
-        toRemove,
-        dao: ref.read(bookmarkDaoProvider),
-      );
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .remove(item.id, toRemove);
     } else {
       newBookmarks.add(index);
       newSentences[index] = newSentences[index].copyWith(isBookmarked: true);
@@ -640,11 +639,9 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
         bookmarkedIndices: newBookmarks,
         sentences: newSentences,
       );
-      await BookmarkManager.addBookmarkToDb(
-        item.id,
-        state.sentences[index],
-        dao: ref.read(bookmarkDaoProvider),
-      );
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .save(item.id, state.sentences[index]);
     }
   }
 

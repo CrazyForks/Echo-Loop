@@ -14,6 +14,7 @@ import '../../models/sentence.dart';
 import '../../models/word_timestamp.dart';
 import '../../providers/audio_engine/audio_engine_provider.dart';
 import '../../providers/audio_library_provider.dart';
+import '../../providers/favorite_sentence_lifecycle_provider.dart';
 import '../../providers/learning_progress_provider.dart';
 import '../../providers/listening_practice/listening_practice_provider.dart';
 import '../../utils/app_data_dir.dart';
@@ -1009,7 +1010,9 @@ class SubtitleEditorController extends StateNotifier<SubtitleEditorState> {
       // 句子数量变化（合并/删除）才会打乱按句索引的学习进度和收藏句子，需清空；
       // 仅调整时间戳时索引对应关系不变，保留进度与收藏。
       if (sentenceCountChanged) {
-        await _ref.read(bookmarkDaoProvider).removeAllForAudio(item.id);
+        await _ref
+            .read(favoriteSentenceLifecycleProvider)
+            .removeAllForAudio(item.id);
         await _ref
             .read(learningProgressNotifierProvider.notifier)
             .deleteProgress(item.id);

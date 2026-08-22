@@ -30,6 +30,7 @@ import '../../utils/keyword_extraction.dart';
 import '../../utils/word_counter.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
 import '../listening_practice/bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../learned_vocabulary_tracker_provider.dart';
 import '../learning_settings_provider.dart';
 import '../notification_permission_provider.dart';
@@ -400,17 +401,18 @@ class RetellPlayer extends _$RetellPlayer {
   ///
   /// 先写 DB，成功后再更新内存状态，避免 DB 失败导致状态不一致。
   Future<void> toggleBookmark(String audioItemId, Sentence sentence) async {
-    final dao = ref.read(bookmarkDaoProvider);
     final isCurrentlyBookmarked = state.bookmarkedSentenceIndices.contains(
       sentence.index,
     );
 
     if (isCurrentlyBookmarked) {
-      await BookmarkManager.removeBookmarksFromDb(audioItemId, {
+      await ref.read(favoriteSentenceLifecycleProvider).remove(audioItemId, {
         sentence.index,
-      }, dao: dao);
+      });
     } else {
-      await BookmarkManager.addBookmarkToDb(audioItemId, sentence, dao: dao);
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .save(audioItemId, sentence);
     }
 
     // 埋点：收藏/取消收藏句子

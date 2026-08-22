@@ -10,6 +10,7 @@ import '../features/memory_scheduler/domain/memory_schedule.dart';
 import '../features/memory_scheduler/domain/memory_scheduler_commands.dart';
 import '../features/memory_scheduler/domain/memory_subject_ref.dart';
 import '../features/memory_scheduler/providers/memory_scheduler_providers.dart';
+import 'learning_session/favorite_review_due_count_provider.dart';
 
 /// 统一所有词汇/意群取消与恢复收藏时的调度生命周期。
 final favoriteVocabularyLifecycleProvider =
@@ -32,6 +33,7 @@ class FavoriteVocabularyLifecycle {
       subjectId: item.memorySubjectId,
       removeContent: () => dao.removeWord(word),
     );
+    _invalidateDueCount();
   }
 
   /// 软删除意群，并归档其仍 active 的记忆调度。
@@ -44,6 +46,7 @@ class FavoriteVocabularyLifecycle {
       subjectId: item.memorySubjectId,
       removeContent: () => dao.removeSenseGroup(phraseText),
     );
+    _invalidateDueCount();
   }
 
   /// 从回收站恢复单词，并恢复既有归档调度。
@@ -57,6 +60,7 @@ class FavoriteVocabularyLifecycle {
       restoreContent: () => dao.restoreWord(word),
       undoRestoreContent: () => dao.removeWord(word),
     );
+    _invalidateDueCount();
   }
 
   /// 从回收站恢复意群，并恢复既有归档调度。
@@ -70,12 +74,14 @@ class FavoriteVocabularyLifecycle {
       restoreContent: () => dao.restoreSenseGroup(phraseText),
       undoRestoreContent: () => dao.removeSenseGroup(phraseText),
     );
+    _invalidateDueCount();
   }
 
   /// 新收藏或再次收藏后恢复既有调度；新内容立即建立可统计的调度快照。
   Future<void> restoreWordSchedule(String word) async {
     final item = await _ref.read(savedWordDaoProvider).getByWord(word);
     await _restoreSchedule(kSavedWordOrPhraseNamespace, item?.memorySubjectId);
+    _invalidateDueCount();
   }
 
   /// 新收藏或再次收藏后恢复既有调度；新内容立即建立可统计的调度快照。
@@ -84,6 +90,7 @@ class FavoriteVocabularyLifecycle {
         .read(savedSenseGroupDaoProvider)
         .getByPhraseText(phraseText);
     await _restoreSchedule(kSavedSenseGroupNamespace, item?.memorySubjectId);
+    _invalidateDueCount();
   }
 
   Future<void> _remove({
@@ -169,4 +176,8 @@ class FavoriteVocabularyLifecycle {
           expectedRevision: schedule.revision,
         ),
       );
+
+  /// 所有词汇收藏生命周期完成后统一刷新入口数量。
+  void _invalidateDueCount() =>
+      _ref.invalidate(favoriteVocabularyDueCountProvider);
 }

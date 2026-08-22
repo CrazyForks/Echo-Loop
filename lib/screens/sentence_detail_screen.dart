@@ -24,6 +24,7 @@ import '../models/sense_group_range_playback.dart';
 import '../models/sentence.dart';
 import '../providers/audio_engine/audio_engine_provider.dart';
 import '../providers/listening_practice/bookmark_manager.dart';
+import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/sentence_ai_provider.dart';
 import '../services/app_logger.dart';
@@ -189,12 +190,12 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
     _isTogglingBookmark = true;
 
     try {
-      final dao = ref.read(bookmarkDaoProvider);
       final args = widget.args;
       if (_isBookmarked) {
-        await BookmarkManager.removeBookmarksFromDb(args.audioItemId, {
-          args.sentenceIndex,
-        }, dao: dao);
+        await ref.read(favoriteSentenceLifecycleProvider).remove(
+          args.audioItemId,
+          {args.sentenceIndex},
+        );
       } else {
         final sentence = Sentence(
           index: args.sentenceIndex,
@@ -202,11 +203,9 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
           startTime: Duration(milliseconds: args.startTimeMs),
           endTime: Duration(milliseconds: args.endTimeMs),
         );
-        await BookmarkManager.addBookmarkToDb(
-          args.audioItemId,
-          sentence,
-          dao: dao,
-        );
+        await ref
+            .read(favoriteSentenceLifecycleProvider)
+            .save(args.audioItemId, sentence);
       }
 
       // 埋点：收藏/取消收藏句子

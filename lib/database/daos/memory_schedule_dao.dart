@@ -98,6 +98,28 @@ class MemoryScheduleDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// 监听活动且到期的调度数量。
+  Future<int> getDueCount({
+    required Iterable<String> namespaces,
+    required Iterable<String>? phases,
+    required DateTime dueBeforeOrAt,
+  }) {
+    final namespaceValues = namespaces.toList(growable: false);
+    final phaseValues = phases?.toList(growable: false);
+    final count = memorySchedules.id.count();
+    final query = selectOnly(memorySchedules)
+      ..addColumns([count])
+      ..where(
+        memorySchedules.status.equals('active') &
+            memorySchedules.namespace.isIn(namespaceValues) &
+            memorySchedules.dueAt.isSmallerOrEqualValue(dueBeforeOrAt) &
+            (phaseValues == null
+                ? const Constant(true)
+                : memorySchedules.phase.isIn(phaseValues)),
+      );
+    return query.getSingle().then((row) => row.read(count) ?? 0);
+  }
+
+  /// 监听活动且到期的调度数量。
   Stream<int> watchDueCount({
     required Iterable<String> namespaces,
     required Iterable<String>? phases,

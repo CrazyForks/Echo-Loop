@@ -23,6 +23,7 @@ import '../features/usage/usage_providers.dart';
 import '../models/audio_item.dart';
 import '../database/providers.dart';
 import '../providers/audio_library_provider.dart';
+import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../providers/audio_sentences_provider.dart';
 import '../providers/learning_progress_provider.dart';
 import '../providers/listening_practice/listening_practice_provider.dart';
@@ -2088,7 +2089,9 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
         );
 
     // 5. 删除该音频的所有收藏句子
-    await ref.read(bookmarkDaoProvider).removeAllForAudio(audioItem.id);
+    await ref
+        .read(favoriteSentenceLifecycleProvider)
+        .removeAllForAudio(audioItem.id);
 
     // 6. 重置该音频的学习进度
     // 学习进度基于句子索引/段落索引，字幕删除后这些索引失去参照；

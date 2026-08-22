@@ -26,6 +26,7 @@ import '../providers/learning_session/intensive_listen_player_provider.dart';
 import '../providers/learning_session/learning_session_provider.dart';
 import '../providers/sentence_ai_provider.dart';
 import '../providers/listening_practice/bookmark_manager.dart';
+import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/notification_permission_dialog.dart'
     show maybeShowLearningNotificationPrompt;
@@ -284,20 +285,17 @@ class _IntensiveListenPlayerScreenState
     final isNowDifficult = newState.difficultSentences.contains(idx);
 
     // 3. 即时持久化到 DB
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
     if (isNowDifficult) {
       if (idx < player.sentences.length) {
         final sentence = player.sentences[idx];
-        await BookmarkManager.addBookmarkToDb(
-          widget.audioItemId,
-          sentence,
-          dao: bookmarkDao,
-        );
+        await ref
+            .read(favoriteSentenceLifecycleProvider)
+            .save(widget.audioItemId, sentence);
       }
     } else {
-      await bookmarkDao.removeBookmark(
+      await ref.read(favoriteSentenceLifecycleProvider).remove(
         widget.audioItemId,
-        player.sentences[idx].index,
+        {player.sentences[idx].index},
       );
     }
   }
@@ -309,7 +307,6 @@ class _IntensiveListenPlayerScreenState
   Future<void> _saveDifficultSentences() async {
     final playerState = ref.read(intensiveListenPlayerProvider);
     final player = ref.read(intensiveListenPlayerProvider.notifier);
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
 
     // 初始书签集合 — 使用位置索引，与 difficultSentences 保持一致
     final initialBookmarks = <int>{
@@ -322,11 +319,9 @@ class _IntensiveListenPlayerScreenState
     for (final index in added) {
       if (index < player.sentences.length) {
         final sentence = player.sentences[index];
-        await BookmarkManager.addBookmarkToDb(
-          widget.audioItemId,
-          sentence,
-          dao: bookmarkDao,
-        );
+        await ref
+            .read(favoriteSentenceLifecycleProvider)
+            .save(widget.audioItemId, sentence);
       }
     }
 
@@ -339,11 +334,9 @@ class _IntensiveListenPlayerScreenState
         for (final pos in removedPositions)
           if (pos < player.sentences.length) player.sentences[pos].index,
       };
-      await BookmarkManager.removeBookmarksFromDb(
-        widget.audioItemId,
-        removedSentenceIndices,
-        dao: bookmarkDao,
-      );
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .remove(widget.audioItemId, removedSentenceIndices);
     }
   }
 

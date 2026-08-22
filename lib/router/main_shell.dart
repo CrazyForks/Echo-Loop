@@ -25,6 +25,7 @@ import '../providers/app_update_provider.dart';
 import '../providers/audio_library_provider.dart';
 import '../providers/collection_provider.dart';
 import '../providers/learning_progress_provider.dart';
+import '../providers/learning_session/favorite_review_due_count_provider.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/reminder_settings_provider.dart';
 import '../providers/review_reminder_provider.dart';
@@ -382,6 +383,10 @@ class _MainShellState extends ConsumerState<MainShell> {
     // 切换到学习 tab 时刷新数据
     if (index == 1) {
       _refreshStudyData();
+    }
+    // StatefulShell 保留收藏页实例；重新进入时强制刷新两个待复习入口。
+    if (index == 2) {
+      refreshFavoriteReviewDueCounts(ref);
     }
   }
 

@@ -31,7 +31,7 @@ import '../blind_flow/blind_practice_flow_state.dart';
 import '../learned_vocabulary_tracker_provider.dart';
 import '../learning_progress_provider.dart';
 import '../difficult_practice_prefs_provider.dart';
-import '../listening_practice/bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../repeat_flow/repeat_flow_engine.dart';
 import '../repeat_flow/repeat_flow_phase.dart';
 import '../repeat_flow/repeat_flow_state.dart';
@@ -528,13 +528,14 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
     _sentences[idx] = s.copyWith(isBookmarked: !s.isBookmarked);
     state = state.copyWith(bookmarkVersion: state.bookmarkVersion + 1);
 
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
     if (wasBookmarked) {
-      await bookmarkDao.removeBookmark(audioItemId, s.index);
+      await ref.read(favoriteSentenceLifecycleProvider).remove(audioItemId, {
+        s.index,
+      });
       return;
     }
 
-    await BookmarkManager.addBookmarkToDb(audioItemId, s, dao: bookmarkDao);
+    await ref.read(favoriteSentenceLifecycleProvider).save(audioItemId, s);
   }
 
   /// 同步录音控制器模式，并在切到手动模式时取消活跃录音。

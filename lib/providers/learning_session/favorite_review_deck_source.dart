@@ -45,6 +45,7 @@ final class FavoriteReviewDeckSource<T> implements FlashcardDeckSource<T> {
     final schedules = <MemorySubjectRef, MemorySchedule>{};
     for (final item in _items) {
       final existing = await _scheduler.getSchedule(item.subject);
+      // 兼容旧调用方或测试直接写入收藏表的情况；正常新增路径会提前建立快照。
       final schedule = existing == null
           ? await _scheduler.ensureSchedule(
               EnsureMemoryScheduleCommand(

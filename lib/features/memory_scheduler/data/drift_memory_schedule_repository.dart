@@ -71,6 +71,13 @@ final class DriftMemoryScheduleRepository implements MemoryScheduleRepository {
   }
 
   @override
+  Future<int> getDueCount(DueMemoryCountQuery query) => _dao.getDueCount(
+    namespaces: query.namespaces,
+    phases: query.phases?.map((phase) => phase.name),
+    dueBeforeOrAt: query.dueBeforeOrAt,
+  );
+
+  @override
   Stream<int> watchDueCount(DueMemoryCountQuery query) {
     return _dao.watchDueCount(
       namespaces: query.namespaces,

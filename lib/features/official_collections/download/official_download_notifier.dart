@@ -12,6 +12,7 @@ import '../../../database/providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/word_timestamp.dart';
 import '../../../providers/audio_library_provider.dart';
+import '../../../providers/favorite_sentence_lifecycle_provider.dart';
 import '../../../providers/learning_progress_provider.dart';
 import '../../../providers/listening_practice/listening_practice_provider.dart';
 import '../../../services/app_logger.dart';
@@ -170,7 +171,9 @@ class OfficialDownload extends _$OfficialDownload {
           'sentences=${stats.$1} words=${stats.$2}',
     );
 
-    await ref.read(bookmarkDaoProvider).removeAllForAudio(audioItem.id);
+    await ref
+        .read(favoriteSentenceLifecycleProvider)
+        .removeAllForAudio(audioItem.id);
     await ref
         .read(learningProgressNotifierProvider.notifier)
         .deleteProgress(audioItem.id);

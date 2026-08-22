@@ -66,6 +66,9 @@ abstract interface class MemoryScheduleRepository {
   /// 查询活动且已到期的快照。
   Future<List<MemorySchedule>> getDue(DueMemorySchedulesQuery query);
 
+  /// 读取活动且已到期的快照数量。
+  Future<int> getDueCount(DueMemoryCountQuery query);
+
   /// 监听活动且已到期的数量。
   Stream<int> watchDueCount(DueMemoryCountQuery query);
 

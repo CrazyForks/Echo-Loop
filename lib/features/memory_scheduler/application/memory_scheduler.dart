@@ -29,6 +29,9 @@ abstract interface class MemoryScheduler {
   /// 查询到期调度。
   Future<List<MemorySchedule>> getDueSchedules(DueMemorySchedulesQuery query);
 
+  /// 读取到期调度数量。
+  Future<int> getDueCount(DueMemoryCountQuery query);
+
   /// 监听到期调度数量。
   Stream<int> watchDueCount(DueMemoryCountQuery query);
 

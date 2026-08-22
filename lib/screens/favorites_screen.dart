@@ -4,6 +4,8 @@
 /// 通过 SegmentedButton 在句子/单词视图间切换。
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +28,7 @@ import '../widgets/tts/speak_button.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
 import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
 import '../providers/learning_session/favorite_review_due_count_provider.dart';
+import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../providers/new_user_guide_provider.dart';
 import '../providers/saved_sense_group_provider.dart';
 import '../providers/saved_word_provider.dart';
@@ -113,7 +116,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       onStateChange: (state) {
         // 应用回到前台时，到期时间可能已跨过当前时刻；重新读取当前入口数量。
         if (state == AppLifecycleState.resumed) {
-          _refreshDueCount(_currentView);
+          refreshFavoriteReviewDueCounts(ref);
         }
       },
     );
@@ -125,15 +128,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     super.dispose();
   }
 
-  /// 使当前收藏类型的到期数量失效，下一次渲染始终基于最新调度快照。
-  void _refreshDueCount(_FavoritesView view) {
-    switch (view) {
-      case _FavoritesView.sentences:
-        ref.invalidate(favoriteSentenceDueCountProvider);
-      case _FavoritesView.words:
-        ref.invalidate(favoriteVocabularyDueCountProvider);
-    }
-  }
+  /// 收藏页重新可见时同时刷新两类入口，避免 StatefulShell 保留旧 Future。
+  void _refreshDueCounts() => refreshFavoriteReviewDueCounts(ref);
 
   /// 打开收藏复习共享设置；收藏页不预展开任一内容分区。
   Future<void> _openReviewSettings() async {
@@ -244,18 +240,22 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 ),
               ),
               tooltip: '复习统计',
-              onPressed: () => context.push(AppRoutes.reviewStatistics),
+              onPressed: () async {
+                await context.push<void>(AppRoutes.reviewStatistics);
+                if (mounted) _refreshDueCounts();
+              },
             ),
             IconButton(
               key: const Key('favorites-recycle-bin'),
               icon: const Icon(Icons.restore),
               tooltip: l10n.recycleBinTitle,
-              onPressed: () {
+              onPressed: () async {
                 if (_currentView == _FavoritesView.sentences) {
-                  showSentenceRecycleBinSheet(context: context);
+                  await showSentenceRecycleBinSheet(context: context);
                 } else {
-                  showVocabularyRecycleBinSheet(context: context);
+                  await showVocabularyRecycleBinSheet(context: context);
                 }
+                if (mounted) _refreshDueCounts();
               },
             ),
             IconButton(
@@ -297,7 +297,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     final sw = Stopwatch()..start();
                     setState(() => _currentView = nextView);
                     // IndexedStack 会保留两个 Tab；显式失效避免复用旧 Future 结果。
-                    _refreshDueCount(nextView);
+                    _refreshDueCounts();
                     debugPrint(
                       '[PERF] setState 完成: ${sw.elapsedMilliseconds}ms',
                     );
@@ -488,7 +488,7 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
         await context.push<void>(AppRoutes.bookmarkReview);
         if (context.mounted) {
           // 返回收藏页时重新计算，覆盖评分、取消收藏及会话停留期间到期的卡片。
-          ref.invalidate(favoriteSentenceDueCountProvider);
+          refreshFavoriteReviewDueCounts(ref);
         }
         debugPrint(
           '[PERF] bookmarkReview returned: ${sw.elapsedMilliseconds}ms',
@@ -545,7 +545,7 @@ class _FloatingFlashcardButton extends ConsumerWidget {
         await context.push<void>(AppRoutes.favoriteVocabularyReview);
         if (context.mounted) {
           // 返回收藏页时重新计算，避免保留进入复习前的缓存数量。
-          ref.invalidate(favoriteVocabularyDueCountProvider);
+          refreshFavoriteReviewDueCounts(ref);
         }
       },
     );
@@ -779,8 +779,8 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
     final theme = Theme.of(context);
     final bm = widget.bookmark;
 
-    // 提前捕获 DAO，避免 Dismissible 销毁 widget 后 ref 失效
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
+    // 提前捕获统一生命周期服务，避免 Dismissible 销毁 widget 后 ref 失效。
+    final sentenceLifecycle = ref.read(favoriteSentenceLifecycleProvider);
 
     return Dismissible(
       key: ValueKey('bookmark_${bm.id}'),
@@ -792,7 +792,7 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
         child: Icon(Icons.bookmark_remove, color: theme.colorScheme.onError),
       ),
       onDismissed: (_) {
-        bookmarkDao.removeBookmark(widget.audioId, bm.sentenceIndex);
+        unawaited(sentenceLifecycle.remove(widget.audioId, {bm.sentenceIndex}));
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),

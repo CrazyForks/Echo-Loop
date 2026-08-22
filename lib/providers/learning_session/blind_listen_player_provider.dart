@@ -31,6 +31,7 @@ import '../learned_vocabulary_tracker_provider.dart';
 import '../learning_progress_provider.dart';
 import '../blind_listen_prefs_provider.dart';
 import '../listening_practice/bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../notification_permission_provider.dart';
 import '../settings_provider.dart';
 import 'countdown_controller.dart';
@@ -529,17 +530,18 @@ class BlindListenPlayer extends _$BlindListenPlayer {
   ///
   /// 盲听列表右侧收藏按钮直接调用该入口，避免用户必须进入讲解页才能收藏/取消收藏。
   Future<void> toggleBookmark(String audioItemId, Sentence sentence) async {
-    final dao = ref.read(bookmarkDaoProvider);
     final isCurrentlyBookmarked = state.bookmarkedSentenceIndices.contains(
       sentence.index,
     );
 
     if (isCurrentlyBookmarked) {
-      await BookmarkManager.removeBookmarksFromDb(audioItemId, {
+      await ref.read(favoriteSentenceLifecycleProvider).remove(audioItemId, {
         sentence.index,
-      }, dao: dao);
+      });
     } else {
-      await BookmarkManager.addBookmarkToDb(audioItemId, sentence, dao: dao);
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .save(audioItemId, sentence);
     }
 
     final analyticsParams = {

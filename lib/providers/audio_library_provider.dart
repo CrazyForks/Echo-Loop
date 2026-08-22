@@ -16,6 +16,7 @@ import '../utils/audio_duration.dart';
 import '../utils/transcript_stats.dart';
 import 'collection_provider.dart';
 import 'learning_progress_provider.dart';
+import 'favorite_sentence_lifecycle_provider.dart';
 import 'tag_provider.dart';
 
 part 'audio_library_provider.g.dart';
@@ -261,6 +262,12 @@ class AudioLibrary extends _$AudioLibrary {
     await savedWordDao.clearContextForAudios(ids);
     final savedSenseGroupDao = ref.read(savedSenseGroupDaoProvider);
     await savedSenseGroupDao.clearContextForAudios(ids);
+
+    // FK 级联会直接删除书签，必须先统一归档其 FSRS 快照。
+    final sentenceLifecycle = ref.read(favoriteSentenceLifecycleProvider);
+    for (final id in ids) {
+      await sentenceLifecycle.removeAllForAudio(id);
+    }
 
     final dao = ref.read(audioItemDaoProvider);
     await dao.hardDeleteMany(ids);

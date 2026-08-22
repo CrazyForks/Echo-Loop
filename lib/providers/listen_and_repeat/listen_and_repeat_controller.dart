@@ -37,6 +37,7 @@ import '../repeat_flow/repeat_flow_engine.dart';
 import '../repeat_flow/repeat_flow_phase.dart';
 import '../speech/speech_recording_controller.dart';
 import '../listening_practice/bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../intensive_listen_prefs_provider.dart';
 import '../../models/stage_settings_overrides.dart';
 import '../study_task_controller_mixin.dart';
@@ -492,15 +493,15 @@ class ListenAndRepeatController extends _$ListenAndRepeatController
     _sentences[idx] = s.copyWith(isBookmarked: !wasBookmarked);
     state = state.copyWith(currentSentenceBookmarked: !wasBookmarked);
 
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
     if (wasBookmarked) {
-      await bookmarkDao.removeBookmark(_engine.config.audioItemId, s.index);
-    } else {
-      await BookmarkManager.addBookmarkToDb(
+      await ref.read(favoriteSentenceLifecycleProvider).remove(
         _engine.config.audioItemId,
-        s,
-        dao: bookmarkDao,
+        {s.index},
       );
+    } else {
+      await ref
+          .read(favoriteSentenceLifecycleProvider)
+          .save(_engine.config.audioItemId, s);
     }
   }
 

@@ -16,6 +16,7 @@ import '../audio_engine/audio_engine_provider.dart';
 import '../collection_provider.dart';
 import '../notification_permission_provider.dart';
 import 'bookmark_manager.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import 'playback_reducer.dart';
 import 'playback_state_storage.dart';
 import 'sentence_tracker.dart';
@@ -1480,19 +1481,14 @@ class ListeningPractice extends _$ListeningPractice {
     }
 
     if (state.currentAudioItem != null) {
-      final bookmarkDao = ref.read(bookmarkDaoProvider);
       if (isRemoving) {
-        await BookmarkManager.removeBookmarksFromDb(
-          state.currentAudioItem!.id,
-          indicesToRemove,
-          dao: bookmarkDao,
-        );
+        await ref
+            .read(favoriteSentenceLifecycleProvider)
+            .remove(state.currentAudioItem!.id, indicesToRemove);
       } else {
-        await BookmarkManager.addBookmarkToDb(
-          state.currentAudioItem!.id,
-          state.sentences[index],
-          dao: bookmarkDao,
-        );
+        await ref
+            .read(favoriteSentenceLifecycleProvider)
+            .save(state.currentAudioItem!.id, state.sentences[index]);
       }
     }
 

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/daos/bookmark_dao.dart';
 import '../../database/providers.dart';
+import '../../providers/favorite_sentence_lifecycle_provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../dialogs/confirm_dialog.dart';
@@ -64,11 +65,7 @@ class _SentenceRecycleBinSheetState
   }
 
   Future<void> _onRestore(BookmarkWithAudio item) async {
-    final dao = ref.read(bookmarkDaoProvider);
-    await dao.restoreBookmark(
-      item.bookmark.audioItemId,
-      item.bookmark.sentenceIndex,
-    );
+    await ref.read(favoriteSentenceLifecycleProvider).restore(item);
     if (!mounted) return;
     setState(() => _items.remove(item));
   }

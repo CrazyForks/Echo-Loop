@@ -51,6 +51,18 @@ class BookmarkDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// 读取一条书签（包含回收站内容），供收藏与调度生命周期保持同一主体 ID。
+  Future<Bookmark?> getByAudioAndSentence(
+    String audioItemId,
+    int sentenceIndex,
+  ) =>
+      (select(bookmarks)..where(
+            (table) =>
+                table.audioItemId.equals(audioItemId) &
+                table.sentenceIndex.equals(sentenceIndex),
+          ))
+          .getSingleOrNull();
+
   /// 监听指定音频的所有未删除书签
   Stream<List<Bookmark>> watchByAudioId(String audioItemId) {
     return (select(bookmarks)

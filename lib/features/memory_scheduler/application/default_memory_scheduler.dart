@@ -92,6 +92,10 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
       _repository.getDue(query);
 
   @override
+  Future<int> getDueCount(DueMemoryCountQuery query) =>
+      _repository.getDueCount(query);
+
+  @override
   Stream<int> watchDueCount(DueMemoryCountQuery query) =>
       _repository.watchDueCount(query);
 

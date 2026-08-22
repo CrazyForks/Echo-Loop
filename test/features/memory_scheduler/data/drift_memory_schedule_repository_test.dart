@@ -64,6 +64,38 @@ void main() {
     expect(second.map((schedule) => schedule.id), <String>['b']);
   });
 
+  test('到期数量仅统计命名空间内的 active 到期快照', () async {
+    final now = DateTime.utc(2026, 7, 26, 8);
+    await repository.createIfAbsent(
+      _schedule(id: 'due', subjectId: 'due', dueAt: now),
+    );
+    await repository.createIfAbsent(
+      _schedule(
+        id: 'future',
+        subjectId: 'future',
+        dueAt: now.add(const Duration(minutes: 1)),
+      ),
+    );
+    await repository.createIfAbsent(
+      _schedule(
+        id: 'archived',
+        subjectId: 'archived',
+        dueAt: now,
+        status: MemoryScheduleStatus.archived,
+      ),
+    );
+
+    final count = await repository.getDueCount(
+      DueMemoryCountQuery(
+        namespaces: const {'test'},
+        phases: null,
+        dueBeforeOrAt: now,
+      ),
+    );
+
+    expect(count, 1);
+  });
+
   test('评分写入快照和事件，并对同一 operationId 幂等', () async {
     final before = _schedule(id: 'schedule-1', subjectId: 'one');
     await repository.createIfAbsent(before);
