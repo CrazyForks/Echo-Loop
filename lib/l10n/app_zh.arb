@@ -1084,7 +1084,7 @@
   "bookmarkReviewReadyTitle": "想好后翻面",
   "bookmarkReviewRevealHint": "点按查看答案",
   "bookmarkReviewEmpty": "本次复习已没有收藏句。",
-  "bookmarkReviewCompleted": "收藏句复习已完成",
+  "bookmarkReviewCompleted": "全部完成！",
   "bookmarkReviewUnsaveFailed": "取消收藏失败，请重试。",
   "bookmarkReviewSettingsPlaceholderTitle": "复习设置",
   "bookmarkReviewSettingsPlaceholderBody": "更多复习控制将在后续版本中开放。",
@@ -1108,7 +1108,7 @@
 
   "favoriteVocabularyReviewTitle": "收藏词汇复习",
   "favoriteVocabularyReviewEmpty": "本次复习已没有收藏词汇。",
-  "favoriteVocabularyReviewCompleted": "收藏词汇复习已完成",
+  "favoriteVocabularyReviewCompleted": "全部完成！",
   "favoriteVocabularyReviewTapReplay": "点按重播",
   "favoriteVocabularyReviewLoadingAudio": "正在加载音频…",
   "favoriteVocabularyReviewPlaying": "正在播放",
@@ -1555,12 +1555,7 @@
   "guideStudyStatsHeaderTitle": "今日学习统计",
   "guideStudyStatsHeaderDescription": "今天的听力时长、口语练习时长和新学词汇量都汇总在这里。点击卡片或柱状图，可查看更详细的数据分布。",
   "guideStudyStreakDescription": "点击这里查看学习日历。坚持每天打卡，逐步养成稳定的学习习惯。",
-  "guideFavoritesSentencesListDescription": "这里是你收藏的句子，并按来源音频分组展示。点击 {dumbbellIcon} 按钮，可以一键复习该音频中的所有收藏句子。",
-  "@guideFavoritesSentencesListDescription": {
-    "placeholders": {
-      "dumbbellIcon": {"type": "String"}
-    }
-  },
+  "guideFavoritesSentencesListDescription": "这里是你收藏的句子，并按来源音频分组展示。展开分组即可查看其中的收藏句子。",
   "guideFavoritesSentencesReviewDescription": "点击这里，一键复习所有收藏的句子。",
   "guideFavoritesVocabularyListDescription": "这里是你收藏的单词和意群。展开后可查看释义，也可以收听它们在原句中的发音。",
   "guideFavoritesFlashcardDescription": "点击这里进入闪卡模式，复习所有收藏的词汇。通过看单词、听原句，可以更高效地巩固记忆。",

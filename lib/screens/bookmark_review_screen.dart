@@ -148,6 +148,8 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                     : ReviewCompletionSummary(
                         title: l10n.bookmarkReviewCompleted,
                         summary: completionSummary,
+                        onExit: _exit,
+                        doneLabel: l10n.done,
                         durationLabel: l10n.reviewStatisticsDuration,
                         reviewedLabel: l10n.reviewCompletionReviewed,
                         retentionLabel: l10n.reviewStatisticsRetentionRate,

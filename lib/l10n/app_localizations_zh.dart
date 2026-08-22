@@ -2472,7 +2472,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewEmpty => '本次复习已没有收藏句。';
 
   @override
-  String get bookmarkReviewCompleted => '收藏句复习已完成';
+  String get bookmarkReviewCompleted => '全部完成！';
 
   @override
   String get bookmarkReviewUnsaveFailed => '取消收藏失败，请重试。';
@@ -2538,7 +2538,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get favoriteVocabularyReviewEmpty => '本次复习已没有收藏词汇。';
 
   @override
-  String get favoriteVocabularyReviewCompleted => '收藏词汇复习已完成';
+  String get favoriteVocabularyReviewCompleted => '全部完成！';
 
   @override
   String get favoriteVocabularyReviewTapReplay => '点按重播';
@@ -3650,9 +3650,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guideStudyStreakDescription => '点击这里查看学习日历。坚持每天打卡，逐步养成稳定的学习习惯。';
 
   @override
-  String guideFavoritesSentencesListDescription(String dumbbellIcon) {
-    return '这里是你收藏的句子，并按来源音频分组展示。点击 $dumbbellIcon 按钮，可以一键复习该音频中的所有收藏句子。';
-  }
+  String get guideFavoritesSentencesListDescription =>
+      '这里是你收藏的句子，并按来源音频分组展示。展开分组即可查看其中的收藏句子。';
 
   @override
   String get guideFavoritesSentencesReviewDescription => '点击这里，一键复习所有收藏的句子。';

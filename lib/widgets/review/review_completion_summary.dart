@@ -33,6 +33,8 @@ class ReviewCompletionSummary extends StatefulWidget {
     super.key,
     required this.title,
     required this.summary,
+    required this.onExit,
+    required this.doneLabel,
     required this.durationLabel,
     required this.reviewedLabel,
     required this.retentionLabel,
@@ -44,6 +46,8 @@ class ReviewCompletionSummary extends StatefulWidget {
 
   final String title;
   final ReviewSessionSummary summary;
+  final VoidCallback onExit;
+  final String doneLabel;
   final String durationLabel;
   final String reviewedLabel;
   final String retentionLabel;
@@ -179,6 +183,15 @@ class _ReviewCompletionSummaryState extends State<ReviewCompletionSummary> {
                       color: const Color(0xFF2B6C8F),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.l),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('review-completion-done'),
+                  onPressed: widget.onExit,
+                  child: Text(widget.doneLabel),
                 ),
               ),
             ],

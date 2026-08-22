@@ -8,13 +8,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 
 void main() {
+  testWidgets('shows a done button and invokes the exit callback', (
+    tester,
+  ) async {
+    var exitCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: ReviewCompletionSummary(
+            title: '收藏句复习已完成',
+            summary: const ReviewSessionSummary(
+              elapsed: Duration.zero,
+              reviewedCount: 1,
+              againCount: 0,
+              goodCount: 1,
+              easyCount: 0,
+              retentionEvents: [
+                ReviewRetentionEvent(subjectId: 'a', rating: MemoryRating.good),
+              ],
+            ),
+            onExit: () => exitCount += 1,
+            doneLabel: '完成',
+            durationLabel: '复习时长',
+            reviewedLabel: '复习条数',
+            retentionLabel: '保持率',
+            ratingsLabel: '评分分布',
+            againLabel: '听不懂',
+            goodLabel: '听懂了',
+            easyLabel: '轻松听懂',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('review-completion-done')), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('review-completion-done')));
+    expect(exitCount, 1);
+  });
+
   testWidgets(
     'shows one-shot confetti animation, summary metrics, and rating proportions',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light(),
-          home: const Scaffold(
+          home: Scaffold(
             body: ReviewCompletionSummary(
               title: '收藏句复习已完成',
               summary: ReviewSessionSummary(
@@ -38,6 +78,8 @@ void main() {
                   ),
                 ],
               ),
+              onExit: () {},
+              doneLabel: '完成',
               durationLabel: '复习时长',
               reviewedLabel: '复习条数',
               retentionLabel: '保持率',

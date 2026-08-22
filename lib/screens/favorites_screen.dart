@@ -173,40 +173,20 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         : l10n.favoritesVocabulary;
 
     // ----- 新手引导 flow 声明 -----
-    // 句子列表描述中嵌入真实的哑铃图标，让用户更易辨识 tap 目标
-    const iconPlaceholder = '{ICON}';
-    final sentencesListDescRaw = l10n.guideFavoritesSentencesListDescription(
-      iconPlaceholder,
-    );
-    final sentencesListDescParts = sentencesListDescRaw.split(iconPlaceholder);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tooltipDescColor = isDark
         ? const Color(0xFF9BA3AE)
         : const Color(0xFF5A6270);
     final stepSentencesList = GuideStep(
       key: _keySentencesList,
-      description: sentencesListDescRaw,
-      descriptionWidget: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(text: sentencesListDescParts[0]),
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Icon(
-                Icons.fitness_center,
-                size: 15,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            if (sentencesListDescParts.length > 1)
-              TextSpan(text: sentencesListDescParts[1]),
-          ],
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.55,
-            fontWeight: FontWeight.w400,
-            color: tooltipDescColor,
-          ),
+      description: l10n.guideFavoritesSentencesListDescription,
+      descriptionWidget: Text(
+        l10n.guideFavoritesSentencesListDescription,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.55,
+          fontWeight: FontWeight.w400,
+          color: tooltipDescColor,
         ),
       ),
     );
@@ -475,7 +455,9 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return _FloatingReviewButton(
-      icon: Icons.fitness_center,
+      leading: dueCount == 0
+          ? const Text('🎉', style: TextStyle(fontSize: 18))
+          : const Icon(Icons.style_outlined, size: 18),
       guideStep: guideStep,
       // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
       label: dueCount == null
@@ -538,7 +520,9 @@ class _FloatingFlashcardButton extends ConsumerWidget {
     final dueCountAsync = ref.watch(favoriteVocabularyDueCountProvider);
     final dueCount = dueCountAsync.valueOrNull;
     return _FloatingReviewButton(
-      icon: Icons.style_outlined,
+      leading: dueCount == 0
+          ? const Text('🎉', style: TextStyle(fontSize: 18))
+          : const Icon(Icons.style_outlined, size: 18),
       guideStep: guideStep,
       // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
       label: dueCount == null
@@ -570,7 +554,7 @@ class _FloatingFlashcardButton extends ConsumerWidget {
 
 /// 底部悬浮复习按钮 — 渐变遮罩 + 全宽 FilledButton
 class _FloatingReviewButton extends StatelessWidget {
-  final IconData icon;
+  final Widget leading;
   final String label;
   final VoidCallback onPressed;
 
@@ -579,7 +563,7 @@ class _FloatingReviewButton extends StatelessWidget {
   final bool enabled;
 
   const _FloatingReviewButton({
-    required this.icon,
+    required this.leading,
     required this.label,
     required this.onPressed,
     this.enabled = true,
@@ -590,17 +574,15 @@ class _FloatingReviewButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // 统一三种状态的按钮高度，避免 Emoji 前导内容改变 FilledButton 的固有高度。
     Widget button = SizedBox(
       width: double.infinity,
+      height: 48,
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
+          children: [leading, const SizedBox(width: 8), Text(label)],
         ),
       ),
     );
@@ -651,7 +633,7 @@ class _FloatingReviewButton extends StatelessWidget {
 }
 
 /// 单个音频的书签分组卡片
-class _AudioBookmarkGroup extends ConsumerWidget {
+class _AudioBookmarkGroup extends StatelessWidget {
   final String audioId;
   final String audioName;
   final List<BookmarkWithAudio> bookmarks;
@@ -667,7 +649,7 @@ class _AudioBookmarkGroup extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
 
@@ -698,27 +680,6 @@ class _AudioBookmarkGroup extends ConsumerWidget {
               l10n.favoritesBookmarkCount(bookmarks.length),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: 4),
-            // 练习该音频收藏句按钮
-            SizedBox(
-              width: 32,
-              height: 32,
-              child: IconButton(
-                icon: const Icon(Icons.fitness_center, size: 18),
-                color: theme.colorScheme.primary,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () async {
-                  final provider = ref.read(bookmarkReviewProvider.notifier);
-                  await provider.initialize(bookmarks);
-                  if (!context.mounted) return;
-                  await context.push<void>(AppRoutes.bookmarkReview);
-                  if (context.mounted) {
-                    ref.invalidate(favoriteSentenceDueCountProvider);
-                  }
-                },
               ),
             ),
           ],

@@ -2526,7 +2526,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get bookmarkReviewNothingToReview => 'Nothing to review';
+  String get bookmarkReviewNothingToReview => 'All Done!';
 
   @override
   String favoriteVocabularyReviewDueCount(int count) {
@@ -2534,7 +2534,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get favoriteReviewNothingToReview => 'Nothing to review';
+  String get favoriteReviewNothingToReview => 'All Done!';
 
   @override
   String get bookmarkReviewComplete => 'Review Complete';
@@ -2582,7 +2582,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewEmpty => 'No saved sentences left in this review.';
 
   @override
-  String get bookmarkReviewCompleted => 'Saved Sentence Review Complete';
+  String get bookmarkReviewCompleted => 'All Done!';
 
   @override
   String get bookmarkReviewUnsaveFailed =>
@@ -2652,8 +2652,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No saved vocabulary left in this review.';
 
   @override
-  String get favoriteVocabularyReviewCompleted =>
-      'Saved Vocabulary Review Complete';
+  String get favoriteVocabularyReviewCompleted => 'All Done!';
 
   @override
   String get favoriteVocabularyReviewTapReplay => 'Tap to replay';
@@ -3818,9 +3817,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap here to open your activity calendar. Check in every day and build a good learning habit little by little.';
 
   @override
-  String guideFavoritesSentencesListDescription(String dumbbellIcon) {
-    return 'Your saved sentences, grouped by source audio. Tap $dumbbellIcon to review all the saved sentences from the same audio at once.';
-  }
+  String get guideFavoritesSentencesListDescription =>
+      'Your saved sentences, grouped by source audio. Expand a group to view its saved sentences.';
 
   @override
   String get guideFavoritesSentencesReviewDescription =>

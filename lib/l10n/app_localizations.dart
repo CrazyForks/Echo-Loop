@@ -4403,7 +4403,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewNothingToReview.
   ///
   /// In en, this message translates to:
-  /// **'Nothing to review'**
+  /// **'All Done!'**
   String get bookmarkReviewNothingToReview;
 
   /// No description provided for @favoriteVocabularyReviewDueCount.
@@ -4415,7 +4415,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoriteReviewNothingToReview.
   ///
   /// In en, this message translates to:
-  /// **'Nothing to review'**
+  /// **'All Done!'**
   String get favoriteReviewNothingToReview;
 
   /// No description provided for @bookmarkReviewComplete.
@@ -4505,7 +4505,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewCompleted.
   ///
   /// In en, this message translates to:
-  /// **'Saved Sentence Review Complete'**
+  /// **'All Done!'**
   String get bookmarkReviewCompleted;
 
   /// No description provided for @bookmarkReviewUnsaveFailed.
@@ -4637,7 +4637,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoriteVocabularyReviewCompleted.
   ///
   /// In en, this message translates to:
-  /// **'Saved Vocabulary Review Complete'**
+  /// **'All Done!'**
   String get favoriteVocabularyReviewCompleted;
 
   /// No description provided for @favoriteVocabularyReviewTapReplay.
@@ -6671,8 +6671,8 @@ abstract class AppLocalizations {
   /// No description provided for @guideFavoritesSentencesListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your saved sentences, grouped by source audio. Tap {dumbbellIcon} to review all the saved sentences from the same audio at once.'**
-  String guideFavoritesSentencesListDescription(String dumbbellIcon);
+  /// **'Your saved sentences, grouped by source audio. Expand a group to view its saved sentences.'**
+  String get guideFavoritesSentencesListDescription;
 
   /// No description provided for @guideFavoritesSentencesReviewDescription.
   ///

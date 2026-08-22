@@ -272,7 +272,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requests, 2);
-      expect(find.text('Nothing to review'), findsOneWidget);
+      expect(find.text('All Done!'), findsOneWidget);
     });
 
     testWidgets('从后台恢复时刷新当前 tab 的待复习数量', (tester) async {
@@ -305,7 +305,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requests, 2);
-      expect(find.text('Nothing to review'), findsOneWidget);
+      expect(find.text('All Done!'), findsOneWidget);
     });
 
     testWidgets('右上角设置打开收藏复习共享设置且不展开内容分区', (tester) async {
@@ -462,7 +462,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requests, 2);
-      expect(find.text('Nothing to review'), findsOneWidget);
+      expect(find.text('All Done!'), findsOneWidget);
     });
 
     testWidgets('无数据时显示句子空状态', (tester) async {
@@ -535,9 +535,10 @@ void main() {
 
       // FilledButton.tonal 类型的开始复习按钮
       expect(find.byType(FilledButton), findsAtLeast(1));
-      // 哑铃图标（练习按钮）
-      expect(find.byIcon(Icons.fitness_center), findsAtLeast(1));
+      // 有待复习内容时统一使用闪卡图标。
+      expect(find.byIcon(Icons.style_outlined), findsAtLeast(1));
       expect(find.text('1 due for review'), findsOneWidget);
+      expect(tester.getSize(find.byType(FilledButton).last).height, 48);
     });
 
     testWidgets('句子无待复习内容时显示空态并禁用按钮', (tester) async {
@@ -556,7 +557,9 @@ void main() {
       wordController.add([]);
       await tester.pumpAndSettle();
 
-      expect(find.text('Nothing to review'), findsOneWidget);
+      expect(find.text('All Done!'), findsOneWidget);
+      expect(find.text('🎉'), findsOneWidget);
+      expect(tester.getSize(find.byType(FilledButton).last).height, 48);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed,
         isNull,
@@ -668,7 +671,7 @@ void main() {
       expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
     });
 
-    testWidgets('多个音频分组各自有练习按钮', (tester) async {
+    testWidgets('多个音频分组不再显示单篇练习按钮', (tester) async {
       await tester.pumpWidget(createTestWidget());
 
       bookmarkController.add([
@@ -692,8 +695,7 @@ void main() {
       wordController.add([]);
       await tester.pumpAndSettle();
 
-      // 每个音频组标题旁有哑铃练习按钮 + 顶部复习按钮
-      expect(find.byIcon(Icons.fitness_center), findsAtLeast(3));
+      expect(find.byIcon(Icons.fitness_center), findsNothing);
     });
   });
 
@@ -760,6 +762,21 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('2 due for review'), findsOneWidget);
+    });
+
+    testWidgets('词汇无待复习内容时显示庆祝图标', (tester) async {
+      await tester.pumpWidget(createTestWidget(vocabularyDueCount: 0));
+      await tester.pump();
+
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      wordController.add([_createSavedWord(id: 1, word: 'apple')]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.text('All Done!'), findsOneWidget);
+      expect(find.text('🎉'), findsOneWidget);
+      expect(find.byIcon(Icons.style_outlined), findsNothing);
     });
 
     testWidgets('单词项显示单词内容', (tester) async {

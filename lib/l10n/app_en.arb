@@ -1388,12 +1388,12 @@
   "@bookmarkReviewDueCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "bookmarkReviewNothingToReview": "Nothing to review",
+  "bookmarkReviewNothingToReview": "All Done!",
   "favoriteVocabularyReviewDueCount": "{count} due for review",
   "@favoriteVocabularyReviewDueCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "favoriteReviewNothingToReview": "Nothing to review",
+  "favoriteReviewNothingToReview": "All Done!",
   "bookmarkReviewComplete": "Review Complete",
   "bookmarkReviewAgain": "Review Again",
   "bookmarkReviewAudioSkipped": "Audio unavailable, skip this sentence",
@@ -1411,7 +1411,7 @@
   "bookmarkReviewReadyTitle": "Flip when ready",
   "bookmarkReviewRevealHint": "Tap to reveal the answer",
   "bookmarkReviewEmpty": "No saved sentences left in this review.",
-  "bookmarkReviewCompleted": "Saved Sentence Review Complete",
+  "bookmarkReviewCompleted": "All Done!",
   "bookmarkReviewUnsaveFailed": "Couldn't unsave this sentence. Please try again.",
   "bookmarkReviewSettingsPlaceholderTitle": "Review settings",
   "bookmarkReviewSettingsPlaceholderBody": "More review controls will be available in a future update.",
@@ -1434,7 +1434,7 @@
 
   "favoriteVocabularyReviewTitle": "Review Saved Vocabulary",
   "favoriteVocabularyReviewEmpty": "No saved vocabulary left in this review.",
-  "favoriteVocabularyReviewCompleted": "Saved Vocabulary Review Complete",
+  "favoriteVocabularyReviewCompleted": "All Done!",
   "favoriteVocabularyReviewTapReplay": "Tap to replay",
   "favoriteVocabularyReviewLoadingAudio": "Loading audio…",
   "favoriteVocabularyReviewPlaying": "Playing",
@@ -2031,12 +2031,7 @@
   "guideStudyStatsHeaderTitle": "Today at a glance",
   "guideStudyStatsHeaderDescription": "Your listening time, speaking practice time, and new vocabulary for today are all summarized here. Tap a card or bar for a more detailed breakdown.",
   "guideStudyStreakDescription": "Tap here to open your activity calendar. Check in every day and build a good learning habit little by little.",
-  "guideFavoritesSentencesListDescription": "Your saved sentences, grouped by source audio. Tap {dumbbellIcon} to review all the saved sentences from the same audio at once.",
-  "@guideFavoritesSentencesListDescription": {
-    "placeholders": {
-      "dumbbellIcon": {"type": "String"}
-    }
-  },
+  "guideFavoritesSentencesListDescription": "Your saved sentences, grouped by source audio. Expand a group to view its saved sentences.",
   "guideFavoritesSentencesReviewDescription": "Tap here to review every saved sentence at once.",
   "guideFavoritesVocabularyListDescription": "Your saved words, phrases, and sense groups. Expand a flashcard to view meanings of a saved item and hear it in its original sentence.",
   "guideFavoritesFlashcardDescription": "Tap here to enter flashcard mode and review every saved words. Viewing the word and hearing it in context makes memory stick.",
