@@ -2469,9 +2469,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewRevealHint => '点按查看答案';
 
   @override
-  String get bookmarkReviewEmpty => '本次复习已没有收藏句。';
-
-  @override
   String get bookmarkReviewCompleted => '全部完成！';
 
   @override
@@ -2533,9 +2530,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get favoriteVocabularyReviewTitle => '收藏词汇复习';
-
-  @override
-  String get favoriteVocabularyReviewEmpty => '本次复习已没有收藏词汇。';
 
   @override
   String get favoriteVocabularyReviewCompleted => '全部完成！';

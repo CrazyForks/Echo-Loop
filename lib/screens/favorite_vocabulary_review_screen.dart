@@ -14,6 +14,7 @@ import '../features/subscription/widgets/feature_gate.dart';
 import '../features/memory_scheduler/domain/memory_rating.dart';
 import '../features/memory_scheduler/domain/memory_scheduler_results.dart';
 import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart';
+import '../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../providers/learning_session/favorite_vocabulary_review_provider.dart';
 import '../providers/favorite_review_settings_provider.dart';
 import '../providers/dictionary/lookup_controller.dart';
@@ -123,6 +124,7 @@ class _FavoriteVocabularyReviewScreenState
     final state = ref.watch(favoriteVocabularyReviewProvider);
     final card = state.currentCard;
     final completionSummary = state.completionSummary;
+    final displaySummary = completionSummary ?? const ReviewSessionSummary();
     final l10n = AppLocalizations.of(context)!;
     final player = ref.read(favoriteVocabularyReviewProvider.notifier);
 
@@ -156,21 +158,19 @@ class _FavoriteVocabularyReviewScreenState
             ],
           ),
           body: card == null
-              ? completionSummary == null
-                    ? _EmptyReview(message: l10n.favoriteVocabularyReviewEmpty)
-                    : ReviewCompletionSummary(
-                        title: l10n.favoriteVocabularyReviewCompleted,
-                        summary: completionSummary,
-                        onExit: _exit,
-                        doneLabel: l10n.done,
-                        durationLabel: l10n.reviewStatisticsDuration,
-                        reviewedLabel: l10n.reviewCompletionReviewed,
-                        retentionLabel: l10n.reviewStatisticsRetentionRate,
-                        ratingsLabel: l10n.reviewStatisticsRatings,
-                        againLabel: l10n.bookmarkReviewRatingAgain,
-                        goodLabel: l10n.bookmarkReviewRatingGood,
-                        easyLabel: l10n.bookmarkReviewRatingEasy,
-                      )
+              ? ReviewCompletionSummary(
+                  title: l10n.favoriteVocabularyReviewCompleted,
+                  summary: displaySummary,
+                  onExit: _exit,
+                  doneLabel: l10n.done,
+                  durationLabel: l10n.reviewStatisticsDuration,
+                  reviewedLabel: l10n.reviewCompletionReviewed,
+                  retentionLabel: l10n.reviewStatisticsRetentionRate,
+                  ratingsLabel: l10n.reviewStatisticsRatings,
+                  againLabel: l10n.bookmarkReviewRatingAgain,
+                  goodLabel: l10n.bookmarkReviewRatingGood,
+                  easyLabel: l10n.bookmarkReviewRatingEasy,
+                )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
                   child: Column(
@@ -1057,28 +1057,5 @@ class _SourceMaterialLink extends ConsumerWidget {
         ),
       );
     },
-  );
-}
-
-class _EmptyReview extends StatelessWidget {
-  const _EmptyReview({required this.message});
-  final String message;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            size: 48,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: AppSpacing.m),
-          Text(message, style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
-    ),
   );
 }

@@ -41,6 +41,7 @@ import '../theme/app_theme.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
 import '../widgets/favorites/vocabulary_recycle_bin_sheet.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
+import '../widgets/common/app_popup_menu.dart';
 import '../widgets/guide_flow.dart';
 
 /// 判断 tile 是否真实位于最近滚动视口内；`cacheExtent` 保留的离屏 widget 不预热。
@@ -61,6 +62,9 @@ bool _isInScrollableViewport(BuildContext context) {
 
 /// 收藏页面视图模式
 enum _FavoritesView { sentences, words }
+
+/// 收藏页 AppBar 的更多操作。
+enum _FavoritesMoreAction { recycleBin, reviewSettings }
 
 Future<bool> _playSourceSentence(
   WidgetRef ref, {
@@ -146,6 +150,16 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         task: FavoriteReviewSettingsTask.favorites,
       ),
     );
+  }
+
+  /// 打开当前收藏类型对应的回收站，并在返回后刷新待复习数量。
+  Future<void> _openRecycleBin() async {
+    if (_currentView == _FavoritesView.sentences) {
+      await showSentenceRecycleBinSheet(context: context);
+    } else {
+      await showVocabularyRecycleBinSheet(context: context);
+    }
+    if (mounted) _refreshDueCounts();
   }
 
   @override
@@ -245,24 +259,32 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 if (mounted) _refreshDueCounts();
               },
             ),
-            IconButton(
-              key: const Key('favorites-recycle-bin'),
-              icon: const Icon(Icons.restore),
-              tooltip: l10n.recycleBinTitle,
-              onPressed: () async {
-                if (_currentView == _FavoritesView.sentences) {
-                  await showSentenceRecycleBinSheet(context: context);
-                } else {
-                  await showVocabularyRecycleBinSheet(context: context);
+            PopupMenuButton<_FavoritesMoreAction>(
+              key: const Key('favorites-more'),
+              icon: const Icon(Icons.more_vert),
+              tooltip: MaterialLocalizations.of(context).showMenuTooltip,
+              onSelected: (action) {
+                switch (action) {
+                  case _FavoritesMoreAction.recycleBin:
+                    unawaited(_openRecycleBin());
+                  case _FavoritesMoreAction.reviewSettings:
+                    unawaited(_openReviewSettings());
                 }
-                if (mounted) _refreshDueCounts();
               },
-            ),
-            IconButton(
-              key: const Key('favorites-review-settings'),
-              icon: const Icon(Icons.tune),
-              tooltip: l10n.bookmarkReviewSettingsTitle,
-              onPressed: _openReviewSettings,
+              itemBuilder: (context) => [
+                appPopupMenuItem(
+                  context,
+                  value: _FavoritesMoreAction.recycleBin,
+                  icon: const Icon(Icons.restore),
+                  label: l10n.recycleBinTitle,
+                ),
+                appPopupMenuItem(
+                  context,
+                  value: _FavoritesMoreAction.reviewSettings,
+                  icon: const Icon(Icons.tune),
+                  label: l10n.bookmarkReviewSettingsTitle,
+                ),
+              ],
             ),
           ],
         ),

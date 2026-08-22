@@ -4496,12 +4496,6 @@ abstract class AppLocalizations {
   /// **'Tap to reveal the answer'**
   String get bookmarkReviewRevealHint;
 
-  /// No description provided for @bookmarkReviewEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No saved sentences left in this review.'**
-  String get bookmarkReviewEmpty;
-
   /// No description provided for @bookmarkReviewCompleted.
   ///
   /// In en, this message translates to:
@@ -4627,12 +4621,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review Saved Vocabulary'**
   String get favoriteVocabularyReviewTitle;
-
-  /// No description provided for @favoriteVocabularyReviewEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No saved vocabulary left in this review.'**
-  String get favoriteVocabularyReviewEmpty;
 
   /// No description provided for @favoriteVocabularyReviewCompleted.
   ///

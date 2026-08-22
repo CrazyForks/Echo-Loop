@@ -1410,7 +1410,6 @@
   "bookmarkReviewListenPrompt": "Tap to replay from the beginning",
   "bookmarkReviewReadyTitle": "Flip when ready",
   "bookmarkReviewRevealHint": "Tap to reveal the answer",
-  "bookmarkReviewEmpty": "No saved sentences left in this review.",
   "bookmarkReviewCompleted": "All Done!",
   "bookmarkReviewUnsaveFailed": "Couldn't unsave this sentence. Please try again.",
   "bookmarkReviewSettingsPlaceholderTitle": "Review settings",
@@ -1433,7 +1432,6 @@
   "bookmarkReviewRatingGood": "Got it",
 
   "favoriteVocabularyReviewTitle": "Review Saved Vocabulary",
-  "favoriteVocabularyReviewEmpty": "No saved vocabulary left in this review.",
   "favoriteVocabularyReviewCompleted": "All Done!",
   "favoriteVocabularyReviewTapReplay": "Tap to replay",
   "favoriteVocabularyReviewLoadingAudio": "Loading audio…",

@@ -158,6 +158,7 @@ class BookmarkReview extends _$BookmarkReview {
   /// 建立只含 FSRS 到期收藏句的本次复习快照。
   Future<void> initialize(List<BookmarkWithAudio> bookmarks) async {
     await _studySessionTimer?.dispose();
+    _studySessionTimer = null;
     _summary = const ReviewSessionSummary();
     _generation++;
     unawaited(ref.read(audioEngineProvider.notifier).stop());
@@ -179,7 +180,15 @@ class BookmarkReview extends _$BookmarkReview {
     _controller = controller;
     await controller.load();
     if (!identical(_controller, controller)) return;
-    state = _stateFromController(controller);
+    final completionSummary =
+        controller.state.phase == ScheduledFlashcardPhase.completed
+        ? _summary.complete(elapsed: Duration.zero, reviewedCount: 0)
+        : null;
+    state = _stateFromController(
+      controller,
+      completionSummary: completionSummary,
+    );
+    if (completionSummary != null) return;
     // 每次新建复习快照都创建新的计时会话，避免复用已停止的 timer。
     _studySessionTimer = StudySessionTimer(
       studyTimeService: ref.read(studyTimeServiceProvider),
@@ -314,14 +323,7 @@ class BookmarkReview extends _$BookmarkReview {
         subjectId: card.memorySubjectId,
         rating: rating,
       );
-      final isCompleted = phase == ScheduledFlashcardPhase.completed;
-      final completionSummary = isCompleted
-          ? _summary.complete(
-              elapsed: _studySessionTimer?.elapsed ?? Duration.zero,
-              reviewedCount: controller.state.reviewedCount,
-            )
-          : null;
-      if (isCompleted) unawaited(_studySessionTimer?.stop());
+      final completionSummary = _completionSummaryIfFinished(controller);
       state = _stateFromController(
         controller,
         completionSummary: completionSummary,
@@ -363,7 +365,10 @@ class BookmarkReview extends _$BookmarkReview {
       }
       if (!identical(_controller, controller)) return;
       controller.removeCurrent();
-      state = _stateFromController(controller);
+      state = _stateFromController(
+        controller,
+        completionSummary: _completionSummaryIfFinished(controller),
+      );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } catch (error, stackTrace) {
       AppLogger.log(
@@ -421,6 +426,22 @@ class BookmarkReview extends _$BookmarkReview {
     reviewedCount: controller.state.reviewedCount,
     completionSummary: completionSummary,
   );
+
+  /// 调度器没有下一张可展示卡时，统一产出本次会话的完成快照。
+  ///
+  /// 评分结束和取消最后一张收藏句都会走这里；取消收藏本身不写入 [_summary]。
+  ReviewSessionSummary? _completionSummaryIfFinished(
+    ScheduledFlashcardController<BookmarkSentence> controller,
+  ) {
+    if (controller.state.phase != ScheduledFlashcardPhase.completed) {
+      return null;
+    }
+    unawaited(_studySessionTimer?.stop());
+    return _summary.complete(
+      elapsed: _studySessionTimer?.elapsed ?? Duration.zero,
+      reviewedCount: controller.state.reviewedCount,
+    );
+  }
 
   bool _isCurrent(int generation, BookmarkSentence card) =>
       generation == _generation && identical(state.currentCard, card);

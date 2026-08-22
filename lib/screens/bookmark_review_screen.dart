@@ -11,6 +11,7 @@ import '../features/chatbot/widgets/sentence_chat_button.dart';
 import '../features/memory_scheduler/domain/memory_rating.dart';
 import '../features/memory_scheduler/domain/memory_scheduler_results.dart';
 import '../features/scheduled_flashcard/widgets/flashcard_rating_action_bar.dart';
+import '../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../l10n/app_localizations.dart';
 import '../models/bookmark_sentence.dart';
 import '../providers/audio_engine/foreground_audio_engine_provider.dart';
@@ -107,6 +108,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
     final state = ref.watch(bookmarkReviewProvider);
     final card = state.currentCard;
     final completionSummary = state.completionSummary;
+    final displaySummary = completionSummary ?? const ReviewSessionSummary();
     final l10n = AppLocalizations.of(context)!;
     final player = ref.read(bookmarkReviewProvider.notifier);
 
@@ -143,21 +145,19 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
             ],
           ),
           body: card == null
-              ? completionSummary == null
-                    ? _EmptyReview(message: l10n.bookmarkReviewEmpty)
-                    : ReviewCompletionSummary(
-                        title: l10n.bookmarkReviewCompleted,
-                        summary: completionSummary,
-                        onExit: _exit,
-                        doneLabel: l10n.done,
-                        durationLabel: l10n.reviewStatisticsDuration,
-                        reviewedLabel: l10n.reviewCompletionReviewed,
-                        retentionLabel: l10n.reviewStatisticsRetentionRate,
-                        ratingsLabel: l10n.reviewStatisticsRatings,
-                        againLabel: l10n.bookmarkReviewRatingAgain,
-                        goodLabel: l10n.bookmarkReviewRatingGood,
-                        easyLabel: l10n.bookmarkReviewRatingEasy,
-                      )
+              ? ReviewCompletionSummary(
+                  title: l10n.bookmarkReviewCompleted,
+                  summary: displaySummary,
+                  onExit: _exit,
+                  doneLabel: l10n.done,
+                  durationLabel: l10n.reviewStatisticsDuration,
+                  reviewedLabel: l10n.reviewCompletionReviewed,
+                  retentionLabel: l10n.reviewStatisticsRetentionRate,
+                  ratingsLabel: l10n.reviewStatisticsRatings,
+                  againLabel: l10n.bookmarkReviewRatingAgain,
+                  goodLabel: l10n.bookmarkReviewRatingGood,
+                  easyLabel: l10n.bookmarkReviewRatingEasy,
+                )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
                   child: Column(
@@ -620,27 +620,4 @@ class _ReviewAnswer extends ConsumerWidget {
       ],
     );
   }
-}
-
-class _EmptyReview extends StatelessWidget {
-  const _EmptyReview({required this.message});
-  final String message;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            size: 48,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: AppSpacing.m),
-          Text(message, style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
-    ),
-  );
 }

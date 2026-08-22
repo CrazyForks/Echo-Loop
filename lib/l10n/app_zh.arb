@@ -1083,7 +1083,6 @@
   "bookmarkReviewListenPrompt": "点按可从头重播",
   "bookmarkReviewReadyTitle": "想好后翻面",
   "bookmarkReviewRevealHint": "点按查看答案",
-  "bookmarkReviewEmpty": "本次复习已没有收藏句。",
   "bookmarkReviewCompleted": "全部完成！",
   "bookmarkReviewUnsaveFailed": "取消收藏失败，请重试。",
   "bookmarkReviewSettingsPlaceholderTitle": "复习设置",
@@ -1107,7 +1106,6 @@
   "bookmarkReviewRatingEasy": "轻松听懂",
 
   "favoriteVocabularyReviewTitle": "收藏词汇复习",
-  "favoriteVocabularyReviewEmpty": "本次复习已没有收藏词汇。",
   "favoriteVocabularyReviewCompleted": "全部完成！",
   "favoriteVocabularyReviewTapReplay": "点按重播",
   "favoriteVocabularyReviewLoadingAudio": "正在加载音频…",

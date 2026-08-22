@@ -15,6 +15,7 @@ import 'package:echo_loop/providers/learning_settings_provider.dart';
 import 'package:echo_loop/providers/learning_session/favorite_vocabulary_review_provider.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/screens/favorite_vocabulary_review_screen.dart';
+import 'package:echo_loop/widgets/review/review_completion_summary.dart';
 import 'package:echo_loop/widgets/practice/selectable_sentence_text.dart';
 import 'package:echo_loop/services/dictionary/dictionary_source.dart';
 import 'package:echo_loop/services/dictionary/local_dictionary_source.dart';
@@ -569,7 +570,8 @@ void main() {
 
       await tester.tap(action);
       await tester.pump();
-      expect(find.text('本次复习已没有收藏词汇。'), findsOneWidget);
+      expect(find.byType(ReviewCompletionSummary), findsOneWidget);
+      expect(find.text('本次复习已没有收藏词汇。'), findsNothing);
     },
   );
 

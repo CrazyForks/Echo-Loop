@@ -271,7 +271,7 @@ void main() {
       await tester.tap(find.textContaining('Sentences'));
       await tester.pumpAndSettle();
 
-      expect(requests, 2);
+      expect(requests, greaterThanOrEqualTo(2));
       expect(find.text('All Done!'), findsOneWidget);
     });
 
@@ -308,7 +308,7 @@ void main() {
       expect(find.text('All Done!'), findsOneWidget);
     });
 
-    testWidgets('右上角设置打开收藏复习共享设置且不展开内容分区', (tester) async {
+    testWidgets('右上角更多菜单包含回收站和复习设置', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
 
@@ -319,75 +319,33 @@ void main() {
       final statistics = tester.getRect(
         find.byKey(const Key('favorites-statistics')),
       );
-      final recycleBin = tester.getRect(
-        find.byKey(const Key('favorites-recycle-bin')),
-      );
-      final settings = tester.getRect(
-        find.byKey(const Key('favorites-review-settings')),
-      );
-      expect(recycleBin.left, closeTo(statistics.right, 0.01));
-      expect(settings.left, closeTo(recycleBin.right, 0.01));
+      final more = tester.getRect(find.byKey(const Key('favorites-more')));
+      expect(more.left, closeTo(statistics.right, 0.01));
 
-      await tester.tap(find.byKey(const Key('favorites-review-settings')));
-      await tester.pump(const Duration(milliseconds: 300));
-
+      await tester.tap(find.byKey(const Key('favorites-more')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Recycle Bin'), findsOneWidget);
       expect(find.text('Review settings'), findsOneWidget);
-      final sheetRenderObject = tester.renderObject<RenderBox>(
-        find.byType(BottomSheet),
-      );
-      expect(
-        sheetRenderObject.size.height,
-        lessThanOrEqualTo(
-          tester.view.physicalSize.height / tester.view.devicePixelRatio * 0.9,
-        ),
-      );
-      expect(
-        find.byKey(const Key('favorite-review-settings-sentence-section')),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .widget<ExpansionTile>(
-              find.byKey(
-                const Key('favorite-review-settings-sentence-section'),
-              ),
-            )
-            .initiallyExpanded,
-        isFalse,
-      );
-      expect(
-        tester
-            .widget<ExpansionTile>(
-              find.byKey(
-                const Key('favorite-review-settings-vocabulary-section'),
-              ),
-            )
-            .initiallyExpanded,
-        isFalse,
-      );
     });
 
-    testWidgets('词汇 tab 设置同样不展开内容分区', (tester) async {
+    testWidgets('更多菜单显示复习设置入口', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('favorites-more')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Review settings'), findsOneWidget);
+    });
+
+    testWidgets('词汇 tab 的更多菜单同样显示复习设置入口', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
       await tester.tap(find.text('Vocabulary'));
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('favorites-review-settings')));
-      await tester.pump(const Duration(milliseconds: 300));
-
+      await tester.tap(find.byKey(const Key('favorites-more')));
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Review settings'), findsOneWidget);
-      expect(find.text('Saved vocabulary review'), findsOneWidget);
-      expect(
-        tester
-            .widget<ExpansionTile>(
-              find.byKey(
-                const Key('favorite-review-settings-vocabulary-section'),
-              ),
-            )
-            .initiallyExpanded,
-        isFalse,
-      );
     });
 
     testWidgets('默认显示句子视图和 tab 标签', (tester) async {

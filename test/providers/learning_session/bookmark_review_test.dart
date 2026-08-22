@@ -446,6 +446,45 @@ void main() {
     );
   });
 
+  test('empty deck creates a zero-stat completion summary', () async {
+    final scope = _testScope(_TestBookmarkDao());
+    addTearDown(() async {
+      scope.container.dispose();
+      await scope.database.close();
+    });
+
+    await scope.container
+        .read(bookmarkReviewProvider.notifier)
+        .initialize(const []);
+
+    final state = scope.container.read(bookmarkReviewProvider);
+    expect(state.currentCard, isNull);
+    expect(state.completionSummary, isNotNull);
+    expect(state.completionSummary?.reviewedCount, 0);
+    expect(state.completionSummary?.ratingCount, 0);
+  });
+
+  test(
+    'unsaving the only sentence shows a zero-stat completion summary',
+    () async {
+      final scope = _testScope(_TestBookmarkDao());
+      addTearDown(() async {
+        scope.container.dispose();
+        await scope.database.close();
+      });
+      final notifier = scope.container.read(bookmarkReviewProvider.notifier);
+      await notifier.initialize([_bookmark(1)]);
+
+      await notifier.removeCurrentBookmark();
+
+      final state = scope.container.read(bookmarkReviewProvider);
+      expect(state.currentCard, isNull);
+      expect(state.completionSummary, isNotNull);
+      expect(state.completionSummary?.reviewedCount, 0);
+      expect(state.completionSummary?.ratingCount, 0);
+    },
+  );
+
   test('failed unsave keeps current card', () async {
     final scope = _testScope(_TestBookmarkDao(fail: true));
     final container = scope.container;

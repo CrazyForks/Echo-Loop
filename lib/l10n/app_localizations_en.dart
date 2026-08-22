@@ -2579,9 +2579,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewRevealHint => 'Tap to reveal the answer';
 
   @override
-  String get bookmarkReviewEmpty => 'No saved sentences left in this review.';
-
-  @override
   String get bookmarkReviewCompleted => 'All Done!';
 
   @override
@@ -2646,10 +2643,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get favoriteVocabularyReviewTitle => 'Review Saved Vocabulary';
-
-  @override
-  String get favoriteVocabularyReviewEmpty =>
-      'No saved vocabulary left in this review.';
 
   @override
   String get favoriteVocabularyReviewCompleted => 'All Done!';

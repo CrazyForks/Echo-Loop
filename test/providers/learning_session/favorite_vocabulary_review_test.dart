@@ -245,6 +245,18 @@ void main() {
     expect(schedule?.status, MemoryScheduleStatus.archived);
   });
 
+  test('empty deck creates a zero-stat completion summary', () async {
+    final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
+
+    await notifier.initialize(const [], const []);
+
+    final state = container.read(favoriteVocabularyReviewProvider);
+    expect(state.currentCard, isNull);
+    expect(state.completionSummary, isNotNull);
+    expect(state.completionSummary?.reviewedCount, 0);
+    expect(state.completionSummary?.ratingCount, 0);
+  });
+
   test(
     'unsaving a sense group archives its schedule and completes the deck',
     () async {
@@ -262,6 +274,9 @@ void main() {
 
       final state = container.read(favoriteVocabularyReviewProvider);
       expect(state.currentCard, isNull);
+      expect(state.completionSummary, isNotNull);
+      expect(state.completionSummary?.reviewedCount, 0);
+      expect(state.completionSummary?.ratingCount, 0);
       expect(
         await database.savedSenseGroupDao.isSenseGroupSaved(first.phraseText),
         isFalse,
@@ -303,4 +318,24 @@ void main() {
     expect(state.isRemoving, isFalse);
     expect(state.removeError, 'unsave_failed');
   });
+
+  test(
+    'unsaving the only word creates a zero-stat completion summary',
+    () async {
+      final notifier = container.read(
+        favoriteVocabularyReviewProvider.notifier,
+      );
+      await database.savedWordDao.saveWord(word: 'apple');
+      final first = (await database.savedWordDao.getAll()).single;
+      await notifier.initialize([first], const []);
+
+      await notifier.removeCurrentVocabulary();
+
+      final state = container.read(favoriteVocabularyReviewProvider);
+      expect(state.currentCard, isNull);
+      expect(state.completionSummary, isNotNull);
+      expect(state.completionSummary?.reviewedCount, 0);
+      expect(state.completionSummary?.ratingCount, 0);
+    },
+  );
 }

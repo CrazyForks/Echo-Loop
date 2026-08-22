@@ -26,6 +26,7 @@ import 'package:echo_loop/services/dictionary/dictionary_source.dart';
 import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
 import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
+import 'package:echo_loop/widgets/review/review_completion_summary.dart';
 import 'package:echo_loop/widgets/selection/app_selectable_text.dart';
 import 'package:dio/dio.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -265,6 +266,19 @@ void main() {
     expect(find.text('Hidden sentence'), findsNothing);
     expect(find.byKey(const Key('bookmark-review-progress')), findsOneWidget);
     expect(find.byKey(const Key('bookmark-review-status-bar')), findsOneWidget);
+  });
+
+  testWidgets('unsaving the final sentence shows the completion summary', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('bookmark-review-unsave')));
+    await tester.pump();
+
+    expect(find.byType(ReviewCompletionSummary), findsOneWidget);
+    expect(find.text('本次复习已没有收藏句。'), findsNothing);
   });
 
   testWidgets(
