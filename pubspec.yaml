@@ -170,6 +170,7 @@ flutter:
     - assets/icon/app-icon-1024-alpha.png
     - assets/icon/artist-palette.svg
     - assets/icon/baidu-netdisk.svg
+    - assets/icon/bar-chart.svg
     - assets/icon/bell.svg
     - assets/icon/book.svg
     - assets/icon/book-shelf.svg

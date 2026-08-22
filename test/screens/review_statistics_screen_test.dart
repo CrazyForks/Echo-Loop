@@ -33,6 +33,7 @@ void main() {
     expect(find.text('全部'), findsOneWidget);
     expect(find.text('收藏句子'), findsOneWidget);
     expect(find.text('收藏词汇'), findsOneWidget);
-    expect(find.text('今日复习'), findsOneWidget);
+    expect(find.text('今日复习'), findsWidgets);
+    expect(find.text('ALL TIME'), findsNothing);
   });
 }

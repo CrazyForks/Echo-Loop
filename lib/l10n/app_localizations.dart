@@ -6272,6 +6272,18 @@ abstract class AppLocalizations {
   /// **'Ratings'**
   String get reviewStatisticsRatings;
 
+  /// No description provided for @reviewStatisticsRetentionRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Retention'**
+  String get reviewStatisticsRetentionRate;
+
+  /// No description provided for @reviewStatisticsRetentionExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Share of ratings marked Got it or Easy'**
+  String get reviewStatisticsRetentionExplanation;
+
   /// No description provided for @reviewStatisticsEmptyRatings.
   ///
   /// In en, this message translates to:

@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../analytics/models/event_names.dart';
@@ -222,7 +223,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           actions: [
             IconButton(
               key: const Key('favorites-statistics'),
-              icon: const Icon(Icons.analytics_outlined),
+              icon: SvgPicture.asset(
+                'assets/icon/bar-chart.svg',
+                width: 21,
+                height: 21,
+                colorFilter: ColorFilter.mode(
+                  Theme.of(context).colorScheme.onSurfaceVariant,
+                  BlendMode.srcIn,
+                ),
+              ),
               tooltip: '复习统计',
               onPressed: () => context.push(AppRoutes.reviewStatistics),
             ),

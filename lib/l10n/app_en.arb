@@ -1895,6 +1895,8 @@
   "reviewStatisticsTrend": "Last 30 days",
   "reviewStatisticsUpcoming": "Next 7 days",
   "reviewStatisticsRatings": "Ratings",
+  "reviewStatisticsRetentionRate": "Retention",
+  "reviewStatisticsRetentionExplanation": "Share of ratings marked Got it or Easy",
   "reviewStatisticsEmptyRatings": "No ratings yet",
   "reviewStatisticsContent": "Reviewed content",
   "reviewStatisticsLoadError": "Could not load statistics",

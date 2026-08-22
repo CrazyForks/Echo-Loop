@@ -3417,6 +3417,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewStatisticsRatings => '评分分布';
 
   @override
+  String get reviewStatisticsRetentionRate => '保持率';
+
+  @override
+  String get reviewStatisticsRetentionExplanation => '“听懂了”和“轻松听懂”占全部评分的比例';
+
+  @override
   String get reviewStatisticsEmptyRatings => '暂无评分记录';
 
   @override

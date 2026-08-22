@@ -3573,6 +3573,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewStatisticsRatings => 'Ratings';
 
   @override
+  String get reviewStatisticsRetentionRate => 'Retention';
+
+  @override
+  String get reviewStatisticsRetentionExplanation =>
+      'Share of ratings marked Got it or Easy';
+
+  @override
   String get reviewStatisticsEmptyRatings => 'No ratings yet';
 
   @override
