@@ -3540,6 +3540,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recycleBinTitle => 'Recycle Bin';
 
   @override
+  String get reviewStatisticsTitle => 'Review statistics';
+
+  @override
+  String get reviewStatisticsAll => 'All';
+
+  @override
+  String get reviewStatisticsSentences => 'Saved sentences';
+
+  @override
+  String get reviewStatisticsVocabulary => 'Saved vocabulary';
+
+  @override
+  String get reviewStatisticsTodayReviewed => 'Reviewed today';
+
+  @override
+  String get reviewStatisticsDuration => 'Review time';
+
+  @override
+  String get reviewStatisticsDue => 'Due now';
+
+  @override
+  String get reviewStatisticsStreak => 'Review streak';
+
+  @override
+  String get reviewStatisticsTrend => 'Last 30 days';
+
+  @override
+  String get reviewStatisticsUpcoming => 'Next 7 days';
+
+  @override
+  String get reviewStatisticsRatings => 'Ratings';
+
+  @override
+  String get reviewStatisticsEmptyRatings => 'No ratings yet';
+
+  @override
+  String get reviewStatisticsContent => 'Reviewed content';
+
+  @override
+  String get reviewStatisticsLoadError => 'Could not load statistics';
+
+  @override
   String get recycleBinEmpty => 'No removed items';
 
   @override

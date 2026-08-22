@@ -3384,6 +3384,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String get recycleBinTitle => '回收站';
 
   @override
+  String get reviewStatisticsTitle => '复习统计';
+
+  @override
+  String get reviewStatisticsAll => '全部';
+
+  @override
+  String get reviewStatisticsSentences => '收藏句子';
+
+  @override
+  String get reviewStatisticsVocabulary => '收藏词汇';
+
+  @override
+  String get reviewStatisticsTodayReviewed => '今日复习';
+
+  @override
+  String get reviewStatisticsDuration => '复习时长';
+
+  @override
+  String get reviewStatisticsDue => '待复习';
+
+  @override
+  String get reviewStatisticsStreak => '连续复习';
+
+  @override
+  String get reviewStatisticsTrend => '近 30 天复习趋势';
+
+  @override
+  String get reviewStatisticsUpcoming => '未来 7 天待复习';
+
+  @override
+  String get reviewStatisticsRatings => '评分分布';
+
+  @override
+  String get reviewStatisticsEmptyRatings => '暂无评分记录';
+
+  @override
+  String get reviewStatisticsContent => '累计复习内容';
+
+  @override
+  String get reviewStatisticsLoadError => '统计加载失败';
+
+  @override
   String get recycleBinEmpty => '没有已移除的内容';
 
   @override

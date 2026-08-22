@@ -116,6 +116,7 @@ dependencies:
   in_app_purchase: ^3.3.0
   charset_converter: ^2.4.0
   flutter_svg: ^2.3.0
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

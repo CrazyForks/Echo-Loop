@@ -6206,6 +6206,90 @@ abstract class AppLocalizations {
   /// **'Recycle Bin'**
   String get recycleBinTitle;
 
+  /// No description provided for @reviewStatisticsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review statistics'**
+  String get reviewStatisticsTitle;
+
+  /// No description provided for @reviewStatisticsAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get reviewStatisticsAll;
+
+  /// No description provided for @reviewStatisticsSentences.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved sentences'**
+  String get reviewStatisticsSentences;
+
+  /// No description provided for @reviewStatisticsVocabulary.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved vocabulary'**
+  String get reviewStatisticsVocabulary;
+
+  /// No description provided for @reviewStatisticsTodayReviewed.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewed today'**
+  String get reviewStatisticsTodayReviewed;
+
+  /// No description provided for @reviewStatisticsDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Review time'**
+  String get reviewStatisticsDuration;
+
+  /// No description provided for @reviewStatisticsDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Due now'**
+  String get reviewStatisticsDue;
+
+  /// No description provided for @reviewStatisticsStreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Review streak'**
+  String get reviewStatisticsStreak;
+
+  /// No description provided for @reviewStatisticsTrend.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 30 days'**
+  String get reviewStatisticsTrend;
+
+  /// No description provided for @reviewStatisticsUpcoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Next 7 days'**
+  String get reviewStatisticsUpcoming;
+
+  /// No description provided for @reviewStatisticsRatings.
+  ///
+  /// In en, this message translates to:
+  /// **'Ratings'**
+  String get reviewStatisticsRatings;
+
+  /// No description provided for @reviewStatisticsEmptyRatings.
+  ///
+  /// In en, this message translates to:
+  /// **'No ratings yet'**
+  String get reviewStatisticsEmptyRatings;
+
+  /// No description provided for @reviewStatisticsContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewed content'**
+  String get reviewStatisticsContent;
+
+  /// No description provided for @reviewStatisticsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load statistics'**
+  String get reviewStatisticsLoadError;
+
   /// No description provided for @recycleBinEmpty.
   ///
   /// In en, this message translates to:

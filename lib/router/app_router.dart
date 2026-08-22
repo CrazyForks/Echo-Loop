@@ -49,6 +49,7 @@ import '../screens/backup_restore_screen.dart';
 import '../screens/flashcard_screen.dart';
 import '../screens/favorite_vocabulary_review_screen.dart';
 import '../screens/activity_calendar_screen.dart';
+import '../screens/review_statistics_screen.dart';
 import 'main_shell.dart';
 
 /// 全局根导航器 key
@@ -157,6 +158,7 @@ abstract class AppRoutes {
 
   /// 活动日历页路径
   static const activityCalendar = '/activity-calendar';
+  static const reviewStatistics = '/review-statistics';
 
   /// 难句补练页路径
   static String reviewDifficultPractice(String? collectionId, String audioId) =>
@@ -534,6 +536,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/activity-calendar',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const ActivityCalendarScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.reviewStatistics,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const ReviewStatisticsScreen(),
       ),
       // 发现官方合集（全屏）
       GoRoute(

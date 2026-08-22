@@ -220,6 +220,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         appBar: AppBar(
           title: Text(l10n.favorites),
           actions: [
+            IconButton(
+              key: const Key('favorites-statistics'),
+              icon: const Icon(Icons.analytics_outlined),
+              tooltip: '复习统计',
+              onPressed: () => context.push(AppRoutes.reviewStatistics),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: IconButton(
