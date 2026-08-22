@@ -257,7 +257,7 @@ void main() {
           find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
         )
         .dy;
-    expect(listenTop - progressBottom, closeTo(8, 0.1));
+    expect(listenTop - progressBottom, closeTo(4, 0.1));
     final listen = tester.getSize(
       find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
     );

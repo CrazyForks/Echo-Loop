@@ -242,7 +242,7 @@ class _ReviewProgress extends StatelessWidget {
         AppSpacing.m,
         AppSpacing.xs,
         AppSpacing.m,
-        AppSpacing.xs,
+        0,
       ),
       child: LinearProgressIndicator(
         key: const Key('favorite-vocabulary-review-progress'),
