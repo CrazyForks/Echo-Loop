@@ -71,7 +71,7 @@ class _RecordingChannel implements AnalyticsChannel {
   @override
   Future<void> setUserProperties(Map<String, String?> properties) async {
     for (final entry in properties.entries) {
-      userProperties.add((name: entry.key, value: entry.value));
+      await setUserProperty(entry.key, entry.value);
     }
   }
 

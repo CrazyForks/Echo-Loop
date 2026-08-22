@@ -80,7 +80,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-show AI explanations',
+          (w.title as Text).data == 'Auto-show AI explanation',
     );
     final autoShowTile = tester.widget<SwitchListTile>(autoShowFinder);
     expect(autoShowTile.value, isTrue);
@@ -97,7 +97,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-      (w.title as Text).data == 'Auto-skip retelling practice',
+          (w.title as Text).data == 'Auto-skip retelling practice',
     );
     final switchTile = tester.widget<SwitchListTile>(autoSkipFinder);
     expect(switchTile.value, isFalse);
@@ -106,7 +106,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-      (w.title as Text).data == 'Auto-play retelling recording',
+          (w.title as Text).data == 'Auto-play retelling recording',
     );
     final autoPlayTile = tester.widget<SwitchListTile>(autoPlayFinder);
     expect(autoPlayTile.value, isFalse);
@@ -114,7 +114,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-      (w.title as Text).data == 'Show rating after each repeat',
+          (w.title as Text).data == 'Show rating after each repeat',
     );
     final listenRatingTile = tester.widget<SwitchListTile>(ratingFinder);
     expect(listenRatingTile.value, isTrue);
@@ -122,7 +122,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-      (w.title as Text).data == 'Show rating after each retelling',
+          (w.title as Text).data == 'Show rating after each retelling',
     );
     final ratingTile = tester.widget<SwitchListTile>(retellRatingFinder);
     expect(ratingTile.value, isTrue);
@@ -136,7 +136,7 @@ void main() {
       (w) =>
           w is SwitchListTile &&
           w.title is Text &&
-          (w.title as Text).data == 'Auto-show AI explanations',
+          (w.title as Text).data == 'Auto-show AI explanation',
     );
     expect(tester.widget<SwitchListTile>(autoShowFinder).value, isFalse);
     expect(find.text('AI Analysis'), findsNothing);

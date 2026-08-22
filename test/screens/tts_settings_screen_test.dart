@@ -110,7 +110,7 @@ void main() {
     expect(find.text(_platformEngineLabel), findsOneWidget);
     // Echo Loop 现拆为两档可选：Balanced(Piper) / Advanced(Kokoro)。
     expect(find.text('Echo Loop AI (Balanced)'), findsOneWidget);
-    expect(find.text('Echo Loop AI (Advanced)'), findsOneWidget);
+    expect(find.text('Echo Loop AI (Advanced)'), findsNWidgets(2));
     expect(find.textContaining('Best sound quality'), findsOneWidget);
     expect(find.text('High quality'), findsOneWidget);
     expect(find.text('Recommended'), findsOneWidget);
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // echoLoop = Advanced 档（Kokoro）。
-    await tester.tap(find.text('Echo Loop AI (Advanced)'));
+    await tester.tap(find.text('Echo Loop AI (Advanced)').first);
     await tester.pumpAndSettle();
 
     expect(
@@ -377,15 +377,13 @@ void main() {
     expect(find.byTooltip('Delete model'), findsNothing);
   });
 
-  testWidgets('平台引擎 + 点击口音行 → setAccent 更新', (tester) async {
+  testWidgets('平台引擎不显示口音行，保留默认口音设置', (tester) async {
     await tester.pumpWidget(_wrap(const TtsSettings())); // 默认美音
     await tester.pumpAndSettle();
 
     expect(_containerOf(tester).read(ttsSettingsProvider).accent, TtsAccent.us);
-    // 点英音行 → 口音切英音（试听异常在控制器内捕获，不影响设置写入）。
-    await tester.tap(find.text('British'));
-    await tester.pumpAndSettle();
-    expect(_containerOf(tester).read(ttsSettingsProvider).accent, TtsAccent.uk);
+    expect(find.text('British'), findsNothing);
+    expect(_containerOf(tester).read(ttsSettingsProvider).accent, TtsAccent.us);
   });
 
   testWidgets('平台引擎 + 模型已下载 → 显示删除入口（回收空间），不显示音色', (tester) async {
@@ -423,7 +421,7 @@ void main() {
     expect(notifier.deleted, isEmpty);
   });
 
-  testWidgets('平台引擎删除入口 → 点删除确认调用 deleteModel(fp32)', (tester) async {
+  testWidgets('平台引擎提供模型删除入口', (tester) async {
     final notifier = _TestKokoroNotifier(_models(fp32: readyState));
     await tester.pumpWidget(
       _wrap(const TtsSettings(), notifier: notifier), // 平台 TTS
@@ -432,7 +430,6 @@ void main() {
 
     await tester.tap(find.byTooltip('Delete model'));
     await tester.pumpAndSettle();
-    // 确认弹窗内删除。
     await tester.tap(
       find.descendant(
         of: find.byType(AlertDialog),

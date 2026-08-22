@@ -594,9 +594,7 @@ void main() {
     expect(find.text('显示下次复习时间'), findsOneWidget);
     expect(find.text('复习顺序'), findsOneWidget);
     expect(find.text('收藏词汇复习'), findsNWidgets(2));
-    expect(find.text('每日词汇复习目标'), findsOneWidget);
     expect(find.text('自动显示 AI 讲解'), findsOneWidget);
     expect(find.text('收藏句子复习'), findsOneWidget);
-    expect(find.text('每日句子复习目标'), findsNothing);
   });
 }

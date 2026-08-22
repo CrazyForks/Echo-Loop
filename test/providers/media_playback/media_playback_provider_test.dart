@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' hide PlaybackState;
 import 'package:drift/drift.dart' show Value;
-import 'package:echo_loop/database/app_database.dart'
-    show BookmarksCompanion, PlaybackState, PlaybackStatesCompanion;
+import 'package:drift/native.dart';
+import 'package:echo_loop/database/app_database.dart' hide AudioItem;
 import 'package:echo_loop/database/daos/playback_state_dao.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/listening_practice_state.dart';
@@ -33,6 +33,7 @@ void main() {
   late _MockPlaybackStateDao playbackStateDao;
   late MediaSessionRouter router;
   late ProviderContainer container;
+  late AppDatabase database;
 
   final sentences = <Sentence>[
     Sentence(
@@ -74,12 +75,14 @@ void main() {
           '1\n00:00:43,000 --> 00:00:50,000\nFirst sentence.\n';
     bookmarkDao = FakeBookmarkDao();
     playbackStateDao = _MockPlaybackStateDao();
+    database = AppDatabase(NativeDatabase.memory());
     when(
       () => playbackStateDao.getByAudioId(any()),
     ).thenAnswer((_) async => null);
     router = MediaSessionRouter(defaultHandler: BaseAudioHandler());
     container = ProviderContainer(
       overrides: [
+        appDatabaseProvider.overrideWithValue(database),
         mediaBackendFactoryProvider.overrideWithValue(() => backend),
         mediaSessionRouterProvider.overrideWithValue(router),
         audioItemDaoProvider.overrideWithValue(audioItemDao),
@@ -94,6 +97,7 @@ void main() {
 
   tearDown(() async {
     container.dispose();
+    await database.close();
     appDataDirectoryOverride = null;
     if (await appDir.exists()) await appDir.delete(recursive: true);
   });

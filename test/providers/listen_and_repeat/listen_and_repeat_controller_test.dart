@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:drift/native.dart';
 
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/database/providers.dart';
@@ -171,10 +172,13 @@ void main() {
 
   late ProviderContainer container;
   late ListenAndRepeatController controller;
+  late AppDatabase database;
 
   setUp(() {
+    database = AppDatabase(NativeDatabase.memory());
     container = ProviderContainer(
       overrides: [
+        appDatabaseProvider.overrideWithValue(database),
         foregroundAudioEngineProvider.overrideWith(() => _InstantAudioEngine()),
         audioEngineProvider.overrideWith(TestAudioEngine.new),
         speechRecordingControllerProvider.overrideWith(
@@ -185,8 +189,9 @@ void main() {
     controller = container.read(listenAndRepeatControllerProvider.notifier);
   });
 
-  tearDown(() {
+  tearDown(() async {
     container.dispose();
+    await database.close();
   });
 
   ListenAndRepeatSessionState readState() =>
@@ -467,6 +472,7 @@ void main() {
       container.dispose();
       container = ProviderContainer(
         overrides: [
+          appDatabaseProvider.overrideWithValue(database),
           foregroundAudioEngineProvider.overrideWith(() => audioEngine),
           audioEngineProvider.overrideWith(TestAudioEngine.new),
           speechRecordingControllerProvider.overrideWith(
@@ -501,6 +507,7 @@ void main() {
       container.dispose();
       container = ProviderContainer(
         overrides: [
+          appDatabaseProvider.overrideWithValue(database),
           foregroundAudioEngineProvider.overrideWith(() => audioEngine),
           audioEngineProvider.overrideWith(TestAudioEngine.new),
           speechRecordingControllerProvider.overrideWith(
@@ -596,10 +603,28 @@ void main() {
       when(
         () => bookmarkDao.removeBookmark(any(), any()),
       ).thenAnswer((_) async {});
+      when(
+        () => bookmarkDao.removeBookmarks(any(), any()),
+      ).thenAnswer((_) async {});
       when(() => bookmarkDao.addBookmark(any())).thenAnswer((_) async {});
+      when(
+        () => bookmarkDao.getByAudioAndSentence(any(), any()),
+      ).thenAnswer((_) async => Bookmark(
+        id: 1,
+        memorySubjectId: 'subject-1',
+        audioItemId: 'test-audio',
+        sentenceIndex: 0,
+        sentenceText: 'First sentence.',
+        startTime: 0,
+        endTime: 1,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        syncStatus: 0,
+      ));
 
       final initializedContainer = ProviderContainer(
         overrides: [
+          appDatabaseProvider.overrideWithValue(database),
           foregroundAudioEngineProvider.overrideWith(
             () => _InstantAudioEngine(),
           ),
@@ -636,7 +661,7 @@ void main() {
       );
 
       await initializedController.toggleCurrentBookmark();
-      verify(() => bookmarkDao.removeBookmark('test-audio', 0)).called(1);
+      verify(() => bookmarkDao.removeBookmarks('test-audio', {0})).called(1);
       verifyNever(() => bookmarkDao.addBookmark(any()));
     });
 
@@ -647,6 +672,7 @@ void main() {
       ).thenAnswer((_) async => <int>{});
       final fullTextContainer = ProviderContainer(
         overrides: [
+          appDatabaseProvider.overrideWithValue(database),
           foregroundAudioEngineProvider.overrideWith(
             () => _InstantAudioEngine(),
           ),
@@ -700,21 +726,28 @@ void main() {
 
     test('播放中切换书签不应使当前播放回调失效', () async {
       final controlledEngine = _ControlledAudioEngine();
+      final bookmarkDao = _MockBookmarkDao();
+      when(
+        () => bookmarkDao.getByAudioAndSentence(any(), any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => bookmarkDao.removeBookmark(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => bookmarkDao.removeBookmarks(any(), any()),
+      ).thenAnswer((_) async {});
+      when(() => bookmarkDao.addBookmark(any())).thenAnswer((_) async {});
       final controlledContainer = ProviderContainer(
         overrides: [
+          appDatabaseProvider.overrideWithValue(database),
           foregroundAudioEngineProvider.overrideWith(() => controlledEngine),
           audioEngineProvider.overrideWith(TestAudioEngine.new),
-          bookmarkDaoProvider.overrideWithValue(_MockBookmarkDao()),
+          bookmarkDaoProvider.overrideWithValue(bookmarkDao),
           speechRecordingControllerProvider.overrideWith(
             TestSpeechRecordingController.new,
           ),
         ],
       );
-      final bookmarkDao = controlledContainer.read(bookmarkDaoProvider);
-      when(
-        () => bookmarkDao.removeBookmark(any(), any()),
-      ).thenAnswer((_) async {});
-      when(() => bookmarkDao.addBookmark(any())).thenAnswer((_) async {});
       addTearDown(controlledContainer.dispose);
 
       final controlledController = controlledContainer.read(
@@ -748,7 +781,7 @@ void main() {
       );
       expect(stateAfterToggle.flowToken, tokenBefore);
       expect(stateAfterToggle.currentSentenceBookmarked, isFalse);
-      verify(() => bookmarkDao.removeBookmark('test-audio', 0)).called(1);
+      verify(() => bookmarkDao.removeBookmarks('test-audio', {0})).called(1);
       verifyNever(() => bookmarkDao.addBookmark(any()));
 
       controlledEngine.playCompleter?.complete();

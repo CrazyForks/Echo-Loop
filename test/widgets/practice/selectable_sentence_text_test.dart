@@ -26,6 +26,7 @@ import 'package:echo_loop/providers/dictionary/lookup_controller.dart';
 import 'package:echo_loop/providers/dictionary/visible_sources_provider.dart';
 import 'package:echo_loop/providers/saved_sense_group_provider.dart';
 import 'package:echo_loop/providers/saved_word_provider.dart';
+import 'package:echo_loop/providers/favorite_vocabulary_lifecycle_provider.dart';
 import 'package:echo_loop/services/dictionary/dictionary_source.dart';
 import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -47,6 +48,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../helpers/mock_providers.dart';
 
 class _MockDictionaryService extends Mock implements DictionaryService {}
+
+/// 单测只验证收藏 DAO 与 UI 状态，不启动真实记忆调度器。
+class _TestFavoriteVocabularyLifecycle extends FavoriteVocabularyLifecycle {
+  _TestFavoriteVocabularyLifecycle(this._ref) : super(_ref);
+
+  final Ref _ref;
+
+  @override
+  Future<void> removeWord(String word) =>
+      _ref.read(savedWordDaoProvider).removeWord(word);
+
+  @override
+  Future<void> removeSenseGroup(String phraseText) =>
+      _ref.read(savedSenseGroupDaoProvider).removeSenseGroup(phraseText);
+
+  @override
+  Future<void> restoreWordSchedule(String word) async {}
+
+  @override
+  Future<void> restoreSenseGroupSchedule(String phraseText) async {}
+}
 
 /// 固定收藏单词集合的 fake（绕过 DB）
 class _FakeSavedWordTexts extends SavedWordTexts {
@@ -117,6 +139,21 @@ class _RecordingSavedWordDao implements SavedWordDao {
   }
 
   @override
+  Future<SavedWord?> getByWord(String word) async {
+    final now = DateTime(2026);
+    return SavedWord(
+      id: 1,
+      word: word,
+      practiceCount: 0,
+      totalStudyMs: 0,
+      viewedBack: false,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 0,
+    );
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -146,6 +183,23 @@ class _RecordingSavedSenseGroupDao implements SavedSenseGroupDao {
     removedPhrase = phraseText;
     storedPhrases.remove(phraseText);
     _phrasesController.add(Set<String>.unmodifiable(storedPhrases));
+  }
+
+  @override
+  Future<SavedSenseGroup?> getByPhraseText(String phraseText) async {
+    if (!storedPhrases.contains(phraseText)) return null;
+    final now = DateTime(2026);
+    return SavedSenseGroup(
+      id: 1,
+      phraseText: phraseText,
+      displayText: phraseText,
+      practiceCount: 0,
+      totalStudyMs: 0,
+      viewedBack: false,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 0,
+    );
   }
 
   @override
@@ -240,6 +294,7 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
+
   final hostKey = GlobalKey<DictionaryPanelHostState>();
 
   Widget wrap({
@@ -258,11 +313,18 @@ void main() {
     // 保证调用方能覆盖同名默认 provider（与 createTestApp 约定一致）
     overrides: [
       analyticsOverride(),
+      favoriteVocabularyLifecycleProvider.overrideWith(
+        _TestFavoriteVocabularyLifecycle.new,
+      ),
       dictionaryOverride(),
       sharedPreferencesProvider.overrideWithValue(prefs),
       dictionarySourcesProvider.overrideWithValue([source]),
       dictionarySourcesByIdProvider.overrideWithValue({'local': source}),
       resolvedDefaultSourceIdProvider.overrideWithValue('local'),
+      savedWordDaoProvider.overrideWithValue(_RecordingSavedWordDao()),
+      savedSenseGroupDaoProvider.overrideWithValue(
+        _RecordingSavedSenseGroupDao(),
+      ),
       dictionaryLookupContextProvider.overrideWithValue(
         const DictionaryLookupContext(
           accessToken: 'tok',

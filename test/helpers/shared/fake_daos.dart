@@ -116,6 +116,28 @@ class FakeBookmarkDao implements BookmarkDao {
   }
 
   @override
+  Future<Bookmark?> getByAudioAndSentence(
+    String audioItemId,
+    int sentenceIndex,
+  ) async {
+    if (!(_store[audioItemId]?.contains(sentenceIndex) ?? false)) {
+      return null;
+    }
+    return Bookmark(
+      id: sentenceIndex,
+      memorySubjectId: 'fake-subject-$audioItemId-$sentenceIndex',
+      audioItemId: audioItemId,
+      sentenceIndex: sentenceIndex,
+      sentenceText: 'test sentence $sentenceIndex',
+      startTime: 0.0,
+      endTime: 1.0,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      syncStatus: 0,
+    );
+  }
+
+  @override
   Future<void> addBookmark(BookmarksCompanion entry) {
     final audioId = entry.audioItemId.value;
     final index = entry.sentenceIndex.value;

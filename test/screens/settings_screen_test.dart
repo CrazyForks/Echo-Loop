@@ -4,7 +4,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -724,18 +724,14 @@ void main() {
         expect(find.text('Speech Recognition'), findsOneWidget);
       });
 
-      testWidgets('语音合成入口显示当前平台引擎，不显示口音', (tester) async {
+      testWidgets('语音合成入口显示当前 Echo Loop 引擎，不显示口音', (tester) async {
         await tester.pumpWidget(
           createTestScreen(const SettingsScreen(), overrides: buildOverrides()),
         );
         await tester.pumpAndSettle();
 
-        final expectedPlatformEngine = Platform.isIOS || Platform.isMacOS
-            ? 'Apple AI'
-            : 'System Speech';
-
         expect(find.text('Text-to-Speech'), findsOneWidget);
-        expect(find.text(expectedPlatformEngine), findsOneWidget);
+        expect(find.text('Echo Loop AI'), findsOneWidget);
         expect(find.text('American'), findsNothing);
       });
 

@@ -29,7 +29,7 @@ class _RecordingRangePlayback implements SenseGroupRangePlayback {
   }
 
   @override
-  Future<void> play(Duration start, Duration end) async {
+  Future<void> play(String audioItemId, Duration start, Duration end) async {
     this.start = start;
     this.end = end;
   }

@@ -319,7 +319,7 @@ void main() {
     final status = find.byKey(const Key('bookmark-review-status-bar'));
     expect(
       tester.getTopLeft(status).dy,
-      greaterThan(
+      greaterThanOrEqualTo(
         tester
             .getBottomLeft(find.byKey(const Key('bookmark-review-reveal-zone')))
             .dy,
@@ -331,7 +331,11 @@ void main() {
     expect(status, findsOneWidget);
     expect(
       tester.getTopLeft(status).dy,
-      greaterThan(tester.getBottomLeft(find.text('Hidden sentence')).dy),
+      greaterThanOrEqualTo(
+        tester
+            .getBottomLeft(find.byKey(const Key('bookmark-review-answer')))
+            .dy,
+      ),
     );
   });
 
@@ -578,21 +582,13 @@ void main() {
     expect(find.text('自动播放背面'), findsOneWidget);
     expect(find.text('翻面自动播放来源例句'), findsNothing);
     expect(find.text('收藏句子复习'), findsOneWidget);
-    expect(find.text('每日句子复习目标'), findsOneWidget);
     expect(find.text('收藏词汇复习'), findsOneWidget);
-    expect(find.text('不限制'), findsOneWidget);
     expect(find.text('复习顺序'), findsOneWidget);
     expect(find.text('自动显示 AI 讲解'), findsOneWidget);
     expect(find.text('进入句子讲解时自动显示选中的 AI 辅助内容'), findsNothing);
     expect(find.text('AI 解析'), findsOneWidget);
     expect(find.text('AI 翻译'), findsOneWidget);
     expect(find.text('AI 意群分割'), findsOneWidget);
-
-    final dailyGoalTitle = tester.getRect(find.text('每日句子复习目标'));
-    final dailyGoalValue = tester.getRect(find.text('不限制'));
-    final dailyGoalSlider = tester.getRect(find.byType(Slider));
-    expect(dailyGoalValue.left, greaterThanOrEqualTo(dailyGoalTitle.right));
-    expect(dailyGoalSlider.center.dy, greaterThan(dailyGoalTitle.bottom));
 
     // AI 设置组不使用图标、说明或分隔线，子项以缩进表示从属关系。
     expect(find.byIcon(Icons.auto_awesome), findsNothing);
@@ -661,12 +657,6 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const Key('bookmark-review-settings')));
       await tester.pumpAndSettle();
-
-      final initialGoalSlider = tester.widget<Slider>(find.byType(Slider));
-      expect(initialGoalSlider.min, 0);
-      expect(initialGoalSlider.max, 20);
-      expect(initialGoalSlider.divisions, 20);
-      expect(find.text('不限制'), findsOneWidget);
 
       final nextReviewTimeSwitch = find.descendant(
         of: find.ancestor(

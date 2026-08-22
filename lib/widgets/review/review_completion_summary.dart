@@ -98,6 +98,7 @@ class _ReviewCompletionSummaryState extends State<ReviewCompletionSummary> {
                 key: const Key('review-completion-confetti'),
                 decoder: _decodeConfettiAnimation,
                 repeat: true,
+                animate: _shouldAnimate,
                 width: 160,
                 height: 160,
                 fit: BoxFit.contain,

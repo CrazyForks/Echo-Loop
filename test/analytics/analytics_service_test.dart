@@ -39,6 +39,13 @@ class MockChannel implements AnalyticsChannel {
   }
 
   @override
+  Future<void> setUserProperties(Map<String, String?> properties) async {
+    for (final entry in properties.entries) {
+      await setUserProperty(entry.key, entry.value);
+    }
+  }
+
+  @override
   Future<void> registerSuperProperties(Map<String, Object> properties) async {
     if (throwOnRegister) throw StateError('register failed');
     superPropertiesCalls.add(properties);

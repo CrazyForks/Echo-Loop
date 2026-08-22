@@ -68,8 +68,10 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
         AppSpacing.m,
         AppSpacing.xs,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        runAlignment: WrapAlignment.center,
+        runSpacing: AppSpacing.xs,
         children: [
           Icon(Icons.timer_outlined, size: 13, color: style?.color),
           const SizedBox(width: AppSpacing.xs),

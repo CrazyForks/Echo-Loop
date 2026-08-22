@@ -12,6 +12,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:echo_loop/database/daos/audio_item_dao.dart';
 import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/daos/saved_sense_group_dao.dart';
+import 'package:echo_loop/database/daos/saved_word_dao.dart';
+import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
 import 'package:echo_loop/features/remote_config/remote_config.dart';
@@ -25,6 +27,7 @@ import 'package:echo_loop/models/sense_group_range_playback.dart';
 import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/models/sentence_ai_result.dart';
 import 'package:echo_loop/providers/audio_sentences_provider.dart';
+import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/router/app_router.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
@@ -178,6 +181,8 @@ class _MockCacheDao extends Mock implements SentenceAiCacheDao {}
 
 class _MockSavedSenseGroupDao extends Mock implements SavedSenseGroupDao {}
 
+class _MockSavedWordDao extends Mock implements SavedWordDao {}
+
 class _MockAudioItemDao extends Mock implements AudioItemDao {}
 
 class _NoopSenseGroupRangePlayback implements SenseGroupRangePlayback {
@@ -185,7 +190,20 @@ class _NoopSenseGroupRangePlayback implements SenseGroupRangePlayback {
   Future<void> cancel() async {}
 
   @override
-  Future<void> play(Duration start, Duration end) async {}
+  Future<void> play(String audioItemId, Duration start, Duration end) async {}
+}
+
+/// 讲解页测试不验证真实音频播放，避免触碰未初始化的后台音频 handler。
+class _NoopAudioEngine extends TestAudioEngine {
+  @override
+  Future<void> playRangeOnce(
+    Duration start,
+    Duration end,
+    int sessionId, {
+    void Function()? onClipReady,
+  }) async {
+    onClipReady?.call();
+  }
 }
 
 class MockDio extends Mock implements Dio {}
@@ -259,6 +277,12 @@ void main() {
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
+    final savedWordDao = _MockSavedWordDao();
+    when(savedWordDao.watchAll).thenAnswer((_) => const Stream.empty());
+    when(savedWordDao.watchSavedWordTexts)
+        .thenAnswer((_) => Stream<Set<String>>.value(const {}));
+    when(() => savedWordDao.getByWord(any())).thenAnswer((_) async => null);
+    when(() => savedWordDao.removeWord(any())).thenAnswer((_) async {});
     final router = GoRouter(
       initialLocation: '/',
       routes: [
@@ -314,6 +338,8 @@ void main() {
             (ref) => Stream<Session?>.value(signedIn ? testSession() : null),
           ),
           savedSenseGroupDaoProvider.overrideWithValue(savedSenseGroupDao),
+          savedWordDaoProvider.overrideWithValue(savedWordDao),
+          audioEngineProvider.overrideWith(() => _NoopAudioEngine()),
           subscriptionAvailabilityProvider.overrideWithValue(true),
           ...extraOverrides,
         ],
@@ -758,6 +784,21 @@ void main() {
       savedSenseGroupDao.watchSavedPhraseTexts,
     ).thenAnswer((_) => savedTexts.stream);
     when(
+      () => savedSenseGroupDao.getByPhraseText(any()),
+    ).thenAnswer(
+      (_) async => SavedSenseGroup(
+        id: 1,
+        phraseText: 'hello world',
+        displayText: 'Hello world',
+        practiceCount: 0,
+        totalStudyMs: 0,
+        viewedBack: false,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        syncStatus: 0,
+      ),
+    );
+    when(
       () => savedSenseGroupDao.saveSenseGroup(
         phraseText: any(named: 'phraseText'),
         displayText: any(named: 'displayText'),
@@ -825,8 +866,13 @@ void main() {
 
     expect(bookmark.onPressed, isNotNull);
     bookmark.onPressed!.call();
-    await tester.pump();
-    verify(() => savedSenseGroupDao.removeSenseGroup('hello world')).called(1);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<AnimatedBookmarkIcon>(
+        find.byKey(const Key('dict_panel_bookmark')),
+      ).isSaved,
+      isFalse,
+    );
   });
 
   testWidgets('意群操作栏显示时可一次点击直接切换到其它意群', (tester) async {
