@@ -1067,7 +1067,7 @@
   "favoritesSaveVocabulary": "收藏",
   "favoritesUnsaveVocabulary": "取消收藏",
 
-  "bookmarkReviewTitle": "收藏复习",
+  "bookmarkReviewTitle": "收藏句复习",
   "bookmarkReviewStart": "开始复习",
   "bookmarkReviewStartCount": "开始复习 ({count})",
   "bookmarkReviewComplete": "复习完成",

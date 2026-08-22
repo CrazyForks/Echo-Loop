@@ -2401,7 +2401,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get favoritesUnsaveVocabulary => '取消收藏';
 
   @override
-  String get bookmarkReviewTitle => '收藏复习';
+  String get bookmarkReviewTitle => '收藏句复习';
 
   @override
   String get bookmarkReviewStart => '开始复习';

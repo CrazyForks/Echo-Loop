@@ -1378,7 +1378,7 @@
   "favoritesSaveVocabulary": "Save",
   "favoritesUnsaveVocabulary": "Unsave",
 
-  "bookmarkReviewTitle": "Review Saved Items",
+  "bookmarkReviewTitle": "Review Saved Sentences",
   "bookmarkReviewStart": "Start Review",
   "bookmarkReviewStartCount": "Start Review ({count})",
   "@bookmarkReviewStartCount": {

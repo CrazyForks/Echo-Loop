@@ -2510,7 +2510,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get favoritesUnsaveVocabulary => 'Unsave';
 
   @override
-  String get bookmarkReviewTitle => 'Review Saved Items';
+  String get bookmarkReviewTitle => 'Review Saved Sentences';
 
   @override
   String get bookmarkReviewStart => 'Start Review';

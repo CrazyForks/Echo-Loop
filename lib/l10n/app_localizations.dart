@@ -4379,7 +4379,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewTitle.
   ///
   /// In en, this message translates to:
-  /// **'Review Saved Items'**
+  /// **'Review Saved Sentences'**
   String get bookmarkReviewTitle;
 
   /// No description provided for @bookmarkReviewStart.

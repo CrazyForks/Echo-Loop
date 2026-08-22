@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 SavedWord _word(
@@ -175,36 +176,55 @@ Widget _app({
   bool autoShowAiLookup = false,
   bool withSource = false,
   List<PronunciationClip> pronunciationClips = const [],
-}) => ProviderScope(
-  overrides: [
-    favoriteVocabularyReviewProvider.overrideWith(
-      () => _TestFavoriteVocabularyReview(withSource: withSource),
-    ),
-    favoriteReviewSettingsProvider.overrideWith(
-      () => _TestFavoriteReviewSettings(
-        showNextReviewTime,
-        autoShowAiLookup: autoShowAiLookup,
+  GoRouter? router,
+}) {
+  final child = router == null
+      ? MaterialApp(
+          locale: const Locale('zh'),
+          theme: AppTheme.light(),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const FavoriteVocabularyReviewScreen(),
+        )
+      : MaterialApp.router(
+          locale: const Locale('zh'),
+          theme: AppTheme.light(),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        );
+  return ProviderScope(
+    overrides: [
+      favoriteVocabularyReviewProvider.overrideWith(
+        () => _TestFavoriteVocabularyReview(withSource: withSource),
       ),
-    ),
-    sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
-    localDictionarySourceProvider.overrideWithValue(
-      _TestLocalDictionarySource(),
-    ),
-    pronunciationClipsProvider.overrideWith((ref, word) => pronunciationClips),
-  ],
-  child: MaterialApp(
-    locale: const Locale('zh'),
-    theme: AppTheme.light(),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
+      favoriteReviewSettingsProvider.overrideWith(
+        () => _TestFavoriteReviewSettings(
+          showNextReviewTime,
+          autoShowAiLookup: autoShowAiLookup,
+        ),
+      ),
+      sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
+      localDictionarySourceProvider.overrideWithValue(
+        _TestLocalDictionarySource(),
+      ),
+      pronunciationClipsProvider.overrideWith(
+        (ref, word) => pronunciationClips,
+      ),
     ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: const FavoriteVocabularyReviewScreen(),
-  ),
-);
+    child: child,
+  );
+}
 
 void main() {
   setUpAll(() async {
@@ -227,6 +247,17 @@ void main() {
       find.byKey(const Key('favorite-vocabulary-review-status-bar')),
       findsOneWidget,
     );
+    final progressBottom = tester
+        .getBottomLeft(
+          find.byKey(const Key('favorite-vocabulary-review-progress')),
+        )
+        .dy;
+    final listenTop = tester
+        .getTopLeft(
+          find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
+        )
+        .dy;
+    expect(listenTop - progressBottom, closeTo(8, 0.1));
     final listen = tester.getSize(
       find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
     );
@@ -246,6 +277,37 @@ void main() {
         .dy;
     expect(statusTop - revealBottom, closeTo(4, 0.1));
   });
+
+  testWidgets(
+    'close falls back to favorites when the review route cannot pop',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/favorite-vocabulary-review',
+        routes: [
+          GoRoute(
+            path: '/favorites',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Favorites')),
+          ),
+          GoRoute(
+            path: '/favorite-vocabulary-review',
+            builder: (context, state) => const FavoriteVocabularyReviewScreen(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(_app(router: router));
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const Key('favorite-vocabulary-review-close')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/favorites');
+      expect(find.text('Favorites'), findsOneWidget);
+      expect(find.text('本次复习已没有收藏词汇。'), findsNothing);
+    },
+  );
 
   testWidgets('status bar stays at the bottom on both card faces', (
     tester,

@@ -19,6 +19,7 @@ import '../providers/audio_engine/foreground_sense_group_range_playback.dart';
 import '../providers/learning_session/bookmark_review_provider.dart';
 import '../providers/sentence_ai_provider.dart';
 import '../providers/sense_group_range_playback_provider.dart';
+import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
@@ -54,8 +55,15 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
   Future<void> _exit() async {
     if (_isExiting) return;
     _isExiting = true;
-    await ref.read(bookmarkReviewProvider.notifier).disposeSession();
-    if (mounted && context.canPop()) context.pop();
+    final review = ref.read(bookmarkReviewProvider.notifier);
+    if (mounted) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.favorites);
+      }
+    }
+    await review.disposeSession();
   }
 
   Future<void> _openSettings() async {

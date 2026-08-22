@@ -69,8 +69,15 @@ class _FavoriteVocabularyReviewScreenState
   Future<void> _exit() async {
     if (_isExiting) return;
     _isExiting = true;
-    await ref.read(favoriteVocabularyReviewProvider.notifier).disposeSession();
-    if (mounted && context.canPop()) context.pop();
+    final review = ref.read(favoriteVocabularyReviewProvider.notifier);
+    if (mounted) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.favorites);
+      }
+    }
+    await review.disposeSession();
   }
 
   Future<void> _openSettings() async {
@@ -219,9 +226,9 @@ class _ReviewProgress extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.m,
-        AppSpacing.s,
+        AppSpacing.xs,
         AppSpacing.m,
-        AppSpacing.s,
+        AppSpacing.xs,
       ),
       child: LinearProgressIndicator(
         key: const Key('favorite-vocabulary-review-progress'),
@@ -266,7 +273,7 @@ class _VocabularyFront extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.m,
-            AppSpacing.s,
+            AppSpacing.xs,
             AppSpacing.m,
             AppSpacing.xs,
           ),

@@ -35,6 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/mock_providers.dart';
@@ -186,46 +187,62 @@ class _TestDao implements BookmarkDao {
 late final SharedPreferences _sharedPreferences;
 final _dictionarySource = _EchoDictionarySource();
 
-Widget _app({Locale locale = const Locale('zh')}) => ProviderScope(
-  overrides: [
-    bookmarkReviewProvider.overrideWith(_TestBookmarkReview.new),
-    bookmarkDaoProvider.overrideWithValue(_TestDao()),
-    audioItemDaoProvider.overrideWithValue(FakeAudioItemDao()),
-    sentenceAiNotifierProvider.overrideWithValue(
-      SentenceAiNotifier(
-        cacheDao: createStubbedMockCacheDao(),
-        apiClient: _NoopSentenceAiApiClient(),
+Widget _app({Locale locale = const Locale('zh'), GoRouter? router}) {
+  final child = router == null
+      ? MaterialApp(
+          locale: locale,
+          theme: AppTheme.light(),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const BookmarkReviewScreen(),
+        )
+      : MaterialApp.router(
+          locale: locale,
+          theme: AppTheme.light(),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        );
+  return ProviderScope(
+    overrides: [
+      bookmarkReviewProvider.overrideWith(_TestBookmarkReview.new),
+      bookmarkDaoProvider.overrideWithValue(_TestDao()),
+      audioItemDaoProvider.overrideWithValue(FakeAudioItemDao()),
+      sentenceAiNotifierProvider.overrideWithValue(
+        SentenceAiNotifier(
+          cacheDao: createStubbedMockCacheDao(),
+          apiClient: _NoopSentenceAiApiClient(),
+        ),
       ),
-    ),
-    ...learningSettingsOverrides(),
-    analyticsOverride(),
-    dictionaryOverride(),
-    sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
-    dictionarySourcesProvider.overrideWithValue([_dictionarySource]),
-    dictionarySourcesByIdProvider.overrideWithValue({
-      _dictionarySource.id: _dictionarySource,
-    }),
-    resolvedDefaultSourceIdProvider.overrideWithValue(_dictionarySource.id),
-    shortAudioPlayerProvider.overrideWithValue(
-      LocalAudioClipPlayer(backend: _NoopShortAudioBackend()),
-    ),
-    dictionaryLookupContextProvider.overrideWithValue(
-      const DictionaryLookupContext(targetLanguage: 'zh-CN'),
-    ),
-  ],
-  child: MaterialApp(
-    locale: locale,
-    theme: AppTheme.light(),
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
+      ...learningSettingsOverrides(),
+      analyticsOverride(),
+      dictionaryOverride(),
+      sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
+      dictionarySourcesProvider.overrideWithValue([_dictionarySource]),
+      dictionarySourcesByIdProvider.overrideWithValue({
+        _dictionarySource.id: _dictionarySource,
+      }),
+      resolvedDefaultSourceIdProvider.overrideWithValue(_dictionarySource.id),
+      shortAudioPlayerProvider.overrideWithValue(
+        LocalAudioClipPlayer(backend: _NoopShortAudioBackend()),
+      ),
+      dictionaryLookupContextProvider.overrideWithValue(
+        const DictionaryLookupContext(targetLanguage: 'zh-CN'),
+      ),
     ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: const BookmarkReviewScreen(),
-  ),
-);
+    child: child,
+  );
+}
 
 void main() {
   setUpAll(() async {
@@ -239,7 +256,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_app());
     await tester.pump();
-    expect(find.text('收藏复习'), findsOneWidget);
+    expect(find.text('收藏句复习'), findsOneWidget);
     expect(find.text('来自：Daily Listening'), findsOneWidget);
     expect(find.text('2.5秒'), findsOneWidget);
     expect(find.text('取消收藏'), findsOneWidget);
@@ -249,6 +266,35 @@ void main() {
     expect(find.byKey(const Key('bookmark-review-progress')), findsOneWidget);
     expect(find.byKey(const Key('bookmark-review-status-bar')), findsOneWidget);
   });
+
+  testWidgets(
+    'close falls back to favorites when the review route cannot pop',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/bookmark-review',
+        routes: [
+          GoRoute(
+            path: '/favorites',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Favorites')),
+          ),
+          GoRoute(
+            path: '/bookmark-review',
+            builder: (context, state) => const BookmarkReviewScreen(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(_app(router: router));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('bookmark-review-close')));
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/favorites');
+      expect(find.text('Favorites'), findsOneWidget);
+      expect(find.text('本次复习已没有收藏句。'), findsNothing);
+    },
+  );
 
   testWidgets('status bar stays at the bottom on both card faces', (
     tester,
