@@ -159,11 +159,7 @@ class _FavoriteVocabularyReviewScreenState
                   key: _dictionaryHostKey,
                   child: Column(
                     children: [
-                      _ReviewProgress(
-                        progress: state.total == 0
-                            ? 0
-                            : state.position / state.total,
-                      ),
+                      _ReviewProgress(progress: state.progress),
                       Expanded(
                         child: state.face == FavoriteVocabularyReviewFace.front
                             ? _VocabularyFront(

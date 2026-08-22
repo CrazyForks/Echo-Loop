@@ -75,6 +75,7 @@ final class FavoriteReviewDeckSource<T> implements FlashcardDeckSource<T> {
             subject: item.subject,
             content: item.content,
             scheduleRevision: schedules[item.subject]!.revision,
+            dueAt: schedules[item.subject]!.dueAt,
           ),
         )
         .toList(growable: false);

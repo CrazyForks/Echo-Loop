@@ -88,15 +88,15 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   FavoriteVocabularyReviewState build() {
     final now = DateTime.now().toUtc();
     return FavoriteVocabularyReviewState(
-      cards: [
-        FlashcardWordItem(
-          savedWord: _word(
-            'apple',
-            memorySubjectId: 'w-1',
-            sentenceText: withSource ? 'I ate an apple this morning.' : null,
-          ),
+      currentCard: FlashcardWordItem(
+        savedWord: _word(
+          'apple',
+          memorySubjectId: 'w-1',
+          sentenceText: withSource ? 'I ate an apple this morning.' : null,
         ),
-      ],
+      ),
+      initialTotal: 1,
+      remainingCount: 1,
       preview: MemoryRatingPreviewSet(
         scheduleId: 'test-schedule',
         revision: 1,

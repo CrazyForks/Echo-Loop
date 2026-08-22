@@ -49,8 +49,9 @@ enum BookmarkReviewPlaybackState { idle, loading, playing, failed }
 @immutable
 class BookmarkReviewState {
   const BookmarkReviewState({
-    this.cards = const <BookmarkSentence>[],
-    this.currentIndex = 0,
+    this.currentCard,
+    this.initialTotal = 0,
+    this.remainingCount = 0,
     this.face = BookmarkReviewFace.front,
     this.playbackState = BookmarkReviewPlaybackState.idle,
     this.isRemoving = false,
@@ -61,8 +62,9 @@ class BookmarkReviewState {
     this.reviewedCount = 0,
   });
 
-  final List<BookmarkSentence> cards;
-  final int currentIndex;
+  final BookmarkSentence? currentCard;
+  final int initialTotal;
+  final int remainingCount;
   final BookmarkReviewFace face;
   final BookmarkReviewPlaybackState playbackState;
   final bool isRemoving;
@@ -72,16 +74,14 @@ class BookmarkReviewState {
   final bool isSubmittingRating;
   final int reviewedCount;
 
-  BookmarkSentence? get currentCard =>
-      currentIndex >= 0 && currentIndex < cards.length
-      ? cards[currentIndex]
-      : null;
-  int get total => cards.length;
-  int get position => cards.isEmpty ? 0 : currentIndex + 1;
+  double get progress =>
+      initialTotal == 0 ? 0 : (initialTotal - remainingCount) / initialTotal;
 
   BookmarkReviewState copyWith({
-    List<BookmarkSentence>? cards,
-    int? currentIndex,
+    BookmarkSentence? currentCard,
+    bool clearCurrentCard = false,
+    int? initialTotal,
+    int? remainingCount,
     BookmarkReviewFace? face,
     BookmarkReviewPlaybackState? playbackState,
     bool? isRemoving,
@@ -94,8 +94,9 @@ class BookmarkReviewState {
     bool? isSubmittingRating,
     int? reviewedCount,
   }) => BookmarkReviewState(
-    cards: cards ?? this.cards,
-    currentIndex: currentIndex ?? this.currentIndex,
+    currentCard: clearCurrentCard ? null : currentCard ?? this.currentCard,
+    initialTotal: initialTotal ?? this.initialTotal,
+    remainingCount: remainingCount ?? this.remainingCount,
     face: face ?? this.face,
     playbackState: playbackState ?? this.playbackState,
     isRemoving: isRemoving ?? this.isRemoving,
@@ -168,11 +169,7 @@ class BookmarkReview extends _$BookmarkReview {
     _controller = controller;
     await controller.load();
     if (!identical(_controller, controller)) return;
-    state = BookmarkReviewState(
-      cards: controller.state.deck
-          .map((card) => card.content)
-          .toList(growable: false),
-    );
+    state = _stateFromController(controller);
     // 每次新建复习快照都创建新的计时会话，避免复用已停止的 timer。
     _studySessionTimer = StudySessionTimer(
       studyTimeService: ref.read(studyTimeServiceProvider),
@@ -181,7 +178,7 @@ class BookmarkReview extends _$BookmarkReview {
     );
     _studySessionTimer!.start();
     ref.read(analyticsServiceProvider).track(Events.bookmarkReviewStart, {
-      EventParams.totalSentencesCount: state.cards.length,
+      EventParams.totalSentencesCount: state.initialTotal,
     });
   }
 
@@ -286,13 +283,7 @@ class BookmarkReview extends _$BookmarkReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      state = BookmarkReviewState(
-        cards: controller.state.deck
-            .map((c) => c.content)
-            .toList(growable: false),
-        currentIndex: controller.state.currentIndex,
-        reviewedCount: state.reviewedCount + 1,
-      );
+      state = _stateFromController(controller);
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
       AppLogger.log(
@@ -330,12 +321,7 @@ class BookmarkReview extends _$BookmarkReview {
       }
       if (!identical(_controller, controller)) return;
       controller.removeCurrent();
-      state = BookmarkReviewState(
-        cards: controller.state.deck
-            .map((c) => c.content)
-            .toList(growable: false),
-        currentIndex: controller.state.currentIndex,
-      );
+      state = _stateFromController(controller);
       if (controller.state.current != null) unawaited(startCurrentCard());
     } catch (error, stackTrace) {
       AppLogger.log(
@@ -366,13 +352,13 @@ class BookmarkReview extends _$BookmarkReview {
   Future<void> disposeSession() async {
     await interruptPlayback();
     await _studySessionTimer?.stop();
-    if (state.cards.isNotEmpty) {
+    if (state.initialTotal > 0) {
       ref
           .read(usageTrackerProvider)
           .record(
             UsageEvent.bookmarkSentenceReviewCompleted,
             analyticsParams: {
-              EventParams.totalSentencesCount: state.cards.length,
+              EventParams.totalSentencesCount: state.initialTotal,
               EventParams.durationMs: 0,
             },
           );
@@ -381,6 +367,16 @@ class BookmarkReview extends _$BookmarkReview {
     _controller = null;
     state = const BookmarkReviewState();
   }
+
+  /// 将通用会话的当前项和计数映射为页面所需的最小状态。
+  BookmarkReviewState _stateFromController(
+    ScheduledFlashcardController<BookmarkSentence> controller,
+  ) => BookmarkReviewState(
+    currentCard: controller.state.current?.content,
+    initialTotal: controller.state.initialTotal,
+    remainingCount: controller.state.remainingCount,
+    reviewedCount: controller.state.reviewedCount,
+  );
 
   bool _isCurrent(int generation, BookmarkSentence card) =>
       generation == _generation && identical(state.currentCard, card);

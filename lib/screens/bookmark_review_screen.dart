@@ -147,9 +147,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                   child: Column(
                     children: [
                       _ReviewProgress(
-                        progress: state.total == 0
-                            ? 0
-                            : state.position / state.total,
+                        progress: state.progress,
                         source: l10n.bookmarkReviewFromAudio(card.audioName),
                         duration: l10n.sentenceDuration(
                           (card.sentence.duration.inMilliseconds / 1000)

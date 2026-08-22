@@ -10,6 +10,7 @@ import 'package:echo_loop/features/memory_scheduler/domain/memory_subject_ref.da
 import 'package:echo_loop/features/memory_scheduler/domain/memory_namespaces.dart';
 import 'package:echo_loop/features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import 'package:echo_loop/models/favorite_review_settings.dart';
+import 'package:echo_loop/models/flashcard_item.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,7 +90,7 @@ void main() {
     ], []);
 
     final state = container.read(favoriteVocabularyReviewProvider);
-    expect(state.total, 2);
+    expect(state.initialTotal, 2);
     expect(state.face, FavoriteVocabularyReviewFace.front);
     expect(state.currentCard?.displayText, isNotEmpty);
   });
@@ -174,19 +175,28 @@ void main() {
     await database.savedWordDao.saveWord(word: 'apple');
     final first = (await database.savedWordDao.getAll()).single;
     await notifier.initialize([first, _word('w2', 'banana')], []);
+    final removed = switch (container
+        .read(favoriteVocabularyReviewProvider)
+        .currentCard) {
+      FlashcardWordItem item => item,
+      _ => throw StateError('current card must be a word'),
+    };
 
     await notifier.removeCurrentVocabulary();
 
     final state = container.read(favoriteVocabularyReviewProvider);
-    expect(state.currentCard?.displayText, 'banana');
-    expect(await database.savedWordDao.isWordSaved(first.word), isFalse);
-    final subjectId = first.memorySubjectId;
+    expect(state.currentCard?.dbKey, isNot(removed.dbKey));
+    expect(
+      await database.savedWordDao.isWordSaved(removed.savedWord.word),
+      isFalse,
+    );
+    final subjectId = removed.memorySubjectId;
     if (subjectId == null) fail('saved word must have a memory subject ID');
     final schedule = await container
         .read(memorySchedulerProvider)
         .getSchedule(
           MemorySubjectRef(
-            namespace: state.cards.first.namespace,
+            namespace: kSavedWordOrPhraseNamespace,
             subjectId: subjectId,
           ),
         );

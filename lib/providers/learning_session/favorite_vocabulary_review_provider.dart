@@ -46,8 +46,9 @@ enum FavoriteVocabularyReviewPlaybackState { idle, loading, playing, failed }
 @immutable
 class FavoriteVocabularyReviewState {
   const FavoriteVocabularyReviewState({
-    this.cards = const <FlashcardItem>[],
-    this.currentIndex = 0,
+    this.currentCard,
+    this.initialTotal = 0,
+    this.remainingCount = 0,
     this.face = FavoriteVocabularyReviewFace.front,
     this.wordPlaybackState = FavoriteVocabularyReviewPlaybackState.idle,
     this.sourcePlaybackState = FavoriteVocabularyReviewPlaybackState.idle,
@@ -59,8 +60,9 @@ class FavoriteVocabularyReviewState {
     this.reviewedCount = 0,
   });
 
-  final List<FlashcardItem> cards;
-  final int currentIndex;
+  final FlashcardItem? currentCard;
+  final int initialTotal;
+  final int remainingCount;
   final FavoriteVocabularyReviewFace face;
   final FavoriteVocabularyReviewPlaybackState wordPlaybackState;
   final FavoriteVocabularyReviewPlaybackState sourcePlaybackState;
@@ -71,16 +73,14 @@ class FavoriteVocabularyReviewState {
   final bool isSubmittingRating;
   final int reviewedCount;
 
-  FlashcardItem? get currentCard =>
-      currentIndex >= 0 && currentIndex < cards.length
-      ? cards[currentIndex]
-      : null;
-  int get total => cards.length;
-  int get position => cards.isEmpty ? 0 : currentIndex + 1;
+  double get progress =>
+      initialTotal == 0 ? 0 : (initialTotal - remainingCount) / initialTotal;
 
   FavoriteVocabularyReviewState copyWith({
-    List<FlashcardItem>? cards,
-    int? currentIndex,
+    FlashcardItem? currentCard,
+    bool clearCurrentCard = false,
+    int? initialTotal,
+    int? remainingCount,
     FavoriteVocabularyReviewFace? face,
     FavoriteVocabularyReviewPlaybackState? wordPlaybackState,
     FavoriteVocabularyReviewPlaybackState? sourcePlaybackState,
@@ -94,8 +94,9 @@ class FavoriteVocabularyReviewState {
     bool? isSubmittingRating,
     int? reviewedCount,
   }) => FavoriteVocabularyReviewState(
-    cards: cards ?? this.cards,
-    currentIndex: currentIndex ?? this.currentIndex,
+    currentCard: clearCurrentCard ? null : currentCard ?? this.currentCard,
+    initialTotal: initialTotal ?? this.initialTotal,
+    remainingCount: remainingCount ?? this.remainingCount,
     face: face ?? this.face,
     wordPlaybackState: wordPlaybackState ?? this.wordPlaybackState,
     sourcePlaybackState: sourcePlaybackState ?? this.sourcePlaybackState,
@@ -166,11 +167,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     _controller = controller;
     await controller.load();
     if (!identical(_controller, controller)) return;
-    state = FavoriteVocabularyReviewState(
-      cards: controller.state.deck
-          .map((card) => card.content)
-          .toList(growable: false),
-    );
+    state = _stateFromController(controller);
     // 每次新建复习快照都创建新的计时会话，避免复用已停止的 timer。
     _studySessionTimer = StudySessionTimer(
       studyTimeService: ref.read(studyTimeServiceProvider),
@@ -324,13 +321,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     final phase = controller.state.phase;
     if (phase == ScheduledFlashcardPhase.prompt ||
         phase == ScheduledFlashcardPhase.completed) {
-      state = FavoriteVocabularyReviewState(
-        cards: controller.state.deck
-            .map((card) => card.content)
-            .toList(growable: false),
-        currentIndex: controller.state.currentIndex,
-        reviewedCount: state.reviewedCount + 1,
-      );
+      state = _stateFromController(controller);
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
       AppLogger.log(
@@ -379,12 +370,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       }
       if (!identical(_controller, controller)) return;
       controller.removeCurrent();
-      state = FavoriteVocabularyReviewState(
-        cards: controller.state.deck
-            .map((card) => card.content)
-            .toList(growable: false),
-        currentIndex: controller.state.currentIndex,
-      );
+      state = _stateFromController(controller);
       if (controller.state.current != null) unawaited(startCurrentCard());
     } catch (error, stackTrace) {
       AppLogger.log(
@@ -398,7 +384,8 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
   Future<void> interruptPlayback() async {
     _generation++;
     if (state.wordPlaybackState != FavoriteVocabularyReviewPlaybackState.idle ||
-        state.sourcePlaybackState != FavoriteVocabularyReviewPlaybackState.idle) {
+        state.sourcePlaybackState !=
+            FavoriteVocabularyReviewPlaybackState.idle) {
       state = state.copyWith(
         wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
         sourcePlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
@@ -419,6 +406,16 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     _controller = null;
     state = const FavoriteVocabularyReviewState();
   }
+
+  /// 将通用会话的当前项和计数映射为页面所需的最小状态。
+  FavoriteVocabularyReviewState _stateFromController(
+    ScheduledFlashcardController<FlashcardItem> controller,
+  ) => FavoriteVocabularyReviewState(
+    currentCard: controller.state.current?.content,
+    initialTotal: controller.state.initialTotal,
+    remainingCount: controller.state.remainingCount,
+    reviewedCount: controller.state.reviewedCount,
+  );
 
   bool _isCurrent(int generation, FlashcardItem card) =>
       generation == _generation && identical(state.currentCard, card);

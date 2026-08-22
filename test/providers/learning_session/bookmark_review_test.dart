@@ -216,7 +216,7 @@ void main() {
       invalid,
     ]);
     final state = container.read(bookmarkReviewProvider);
-    expect(state.total, 1);
+    expect(state.initialTotal, 1);
     expect(state.face, BookmarkReviewFace.front);
     expect(state.currentCard?.sentence.text, 'Sentence 1');
   });
@@ -412,7 +412,7 @@ void main() {
     final removed = container.read(bookmarkReviewProvider).currentCard!;
     await notifier.removeCurrentBookmark();
     expect(dao.removed, [(removed.audioItemId, removed.originalSentenceIndex)]);
-    expect(container.read(bookmarkReviewProvider).total, 1);
+    expect(container.read(bookmarkReviewProvider).remainingCount, 1);
     expect(
       container.read(bookmarkReviewProvider).face,
       BookmarkReviewFace.front,
@@ -430,7 +430,7 @@ void main() {
     await notifier.initialize([_bookmark(1)]);
     await notifier.removeCurrentBookmark();
     final state = container.read(bookmarkReviewProvider);
-    expect(state.total, 1);
+    expect(state.remainingCount, 1);
     expect(state.removeError, isNotNull);
     expect(state.isRemoving, isFalse);
   });

@@ -8,19 +8,34 @@ import '../../memory_scheduler/domain/memory_subject_ref.dart';
 /// 一张带调度 revision 的内容卡片。
 final class ScheduledFlashcard<T> {
   /// 创建卡片。
-  const ScheduledFlashcard({
+  ScheduledFlashcard({
     required this.subject,
     required this.content,
     required this.scheduleRevision,
-  });
+    required DateTime dueAt,
+    this.status = ScheduledFlashcardStatus.pending,
+    this.retryCount = 0,
+  }) : dueAt = dueAt.toUtc();
 
   final MemorySubjectRef subject;
   final T content;
-  final int scheduleRevision;
+  int scheduleRevision;
+  DateTime dueAt;
+  ScheduledFlashcardStatus status;
+  int retryCount;
 }
 
+/// 卡片在当前复习会话中的临时状态；不会持久化。
+enum ScheduledFlashcardStatus { pending, retry }
+
 /// 卡片会话的阶段。
-enum ScheduledFlashcardPhase { loadingDeck, prompt, answer, submittingRating, completed }
+enum ScheduledFlashcardPhase {
+  loadingDeck,
+  prompt,
+  answer,
+  submittingRating,
+  completed,
+}
 
 /// 通用卡片队列来源。
 abstract interface class FlashcardDeckSource<T> {

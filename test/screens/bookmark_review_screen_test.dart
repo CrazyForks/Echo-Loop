@@ -105,21 +105,21 @@ class _TestBookmarkReview extends BookmarkReview {
       easy: _preview(MemoryRating.easy, now.add(const Duration(days: 16))),
     );
     return BookmarkReviewState(
-      cards: [
-        BookmarkSentence(
-          sentence: Sentence(
-            index: 2,
-            text: 'Hidden sentence',
-            startTime: Duration(seconds: 1),
-            endTime: Duration(milliseconds: 3500),
-            isBookmarked: true,
-          ),
-          audioItemId: 'audio-1',
-          memorySubjectId: 'test-subject-2',
-          audioName: 'Daily Listening',
-          originalSentenceIndex: 2,
+      currentCard: BookmarkSentence(
+        sentence: Sentence(
+          index: 2,
+          text: 'Hidden sentence',
+          startTime: Duration(seconds: 1),
+          endTime: Duration(milliseconds: 3500),
+          isBookmarked: true,
         ),
-      ],
+        audioItemId: 'audio-1',
+        memorySubjectId: 'test-subject-2',
+        audioName: 'Daily Listening',
+        originalSentenceIndex: 2,
+      ),
+      initialTotal: 1,
+      remainingCount: 1,
       preview: preview,
     );
   }
@@ -666,11 +666,6 @@ void main() {
       await tester.pump();
       expect(tester.widget<Switch>(nextReviewTimeSwitch).value, isTrue);
 
-      final goalSlider = tester.widget<Slider>(find.byType(Slider));
-      goalSlider.onChanged!(11);
-      await tester.pump();
-      expect(tester.widget<Slider>(find.byType(Slider)).value, 11);
-
       await tester.tap(find.byKey(const Key('bookmark-review-order-random')));
       await tester.pump();
 
@@ -679,16 +674,7 @@ void main() {
       );
       final settings = container.read(favoriteReviewSettingsProvider);
       expect(settings.showNextReviewTime, isTrue);
-      expect(settings.sentenceDailyReviewGoal, 60);
       expect(settings.order.name, 'random');
-
-      tester.widget<Slider>(find.byType(Slider)).onChanged!(20);
-      await tester.pump();
-      expect(
-        container.read(favoriteReviewSettingsProvider).sentenceDailyReviewGoal,
-        isNull,
-      );
-      expect(find.text('不限制'), findsOneWidget);
 
       Switch switchFor(String title) => tester.widget<Switch>(
         find.descendant(

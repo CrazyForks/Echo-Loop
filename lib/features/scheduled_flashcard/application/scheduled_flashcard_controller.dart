@@ -59,7 +59,7 @@ final class ScheduledFlashcardController<T> {
         _log('load.discarded generation=$generation');
         return;
       }
-      _engine.setDeck(deck);
+      _engine.setDeck(deck, _clock.now().toUtc());
       _log('load.success generation=$generation cards=${deck.length}');
       _promptedAt = _clock.now().toUtc();
       _notify();
@@ -122,7 +122,7 @@ final class ScheduledFlashcardController<T> {
       'submit.start card=${card.subject.subjectId} rating=$rating revision=${card.scheduleRevision} operationId=$operationId generation=$generation',
     );
     try {
-      await _ratingPort.submit(
+      final result = await _ratingPort.submit(
         subject: card.subject,
         rating: rating,
         preview: _previewFor(preview, rating),
@@ -137,7 +137,12 @@ final class ScheduledFlashcardController<T> {
         return;
       }
       _pendingOperationId = null;
-      _engine.advance();
+      _engine.completeRating(
+        rating: rating,
+        scheduleRevision: result.schedule.revision,
+        dueAt: result.schedule.dueAt,
+        now: _clock.now().toUtc(),
+      );
       _log('submit.success card=${card.subject.subjectId}');
       _notify();
     } catch (error) {
@@ -172,7 +177,7 @@ final class ScheduledFlashcardController<T> {
     _generation++;
     _pendingOperationId = null;
     _log('remove_current card=${state.current?.subject.subjectId}');
-    _engine.removeCurrent();
+    _engine.removeCurrent(_clock.now().toUtc());
     _promptedAt = _clock.now().toUtc();
     _notify();
   }

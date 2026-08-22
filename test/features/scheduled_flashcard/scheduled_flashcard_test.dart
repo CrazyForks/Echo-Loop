@@ -16,16 +16,19 @@ import 'package:echo_loop/features/scheduled_flashcard/application/scheduled_fla
 import 'package:echo_loop/features/scheduled_flashcard/domain/scheduled_flashcard.dart';
 
 void main() {
-  final subject = MemorySubjectRef(namespace: 'test', subjectId: 'one');
-  final card = ScheduledFlashcard<String>(
-    subject: subject,
-    content: 'hello',
-    scheduleRevision: 3,
-  );
+  final now = DateTime.utc(2026, 8, 22, 12);
+  ScheduledFlashcard<String> card(String id, {DateTime? dueAt}) =>
+      ScheduledFlashcard<String>(
+        subject: MemorySubjectRef(namespace: 'test', subjectId: id),
+        content: id,
+        scheduleRevision: 3,
+        dueAt: dueAt ?? now,
+      );
 
   test('engine enforces prompt, answer, submitting and completion order', () {
+    final first = card('one');
     final engine = ScheduledFlashcardEngine<String>();
-    engine.setDeck(<ScheduledFlashcard<String>>[card]);
+    engine.setDeck(<ScheduledFlashcard<String>>[first], now);
     expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
 
     engine.beginSubmitting(MemoryRating.good);
@@ -33,63 +36,55 @@ void main() {
     engine.revealAnswer();
     engine.beginSubmitting(MemoryRating.again);
     expect(engine.state.phase, ScheduledFlashcardPhase.submittingRating);
-    engine.advance();
+    engine.completeRating(
+      rating: MemoryRating.good,
+      scheduleRevision: 4,
+      dueAt: now.add(const Duration(days: 1)),
+      now: now,
+    );
     expect(engine.state.phase, ScheduledFlashcardPhase.completed);
     expect(engine.state.reviewedCount, 1);
   });
 
   test('empty deck completes immediately', () {
     final engine = ScheduledFlashcardEngine<String>();
-    engine.setDeck(const <ScheduledFlashcard<String>>[]);
+    engine.setDeck(const <ScheduledFlashcard<String>>[], now);
     expect(engine.state.phase, ScheduledFlashcardPhase.completed);
   });
 
   group('removeCurrent', () {
-    final second = ScheduledFlashcard<String>(
-      subject: MemorySubjectRef(namespace: 'test', subjectId: 'two'),
-      content: 'world',
-      scheduleRevision: 1,
-    );
-    final third = ScheduledFlashcard<String>(
-      subject: MemorySubjectRef(namespace: 'test', subjectId: 'three'),
-      content: 'again',
-      scheduleRevision: 1,
-    );
+    final first = card('one');
+    final second = card('two');
+    final third = card('three');
 
-    test('removing the middle card keeps index pointing at the next one', () {
-      final engine = ScheduledFlashcardEngine<String>();
-      engine.setDeck(<ScheduledFlashcard<String>>[card, second, third]);
-      engine.removeCurrent();
-      expect(engine.state.deck, <ScheduledFlashcard<String>>[second, third]);
-      expect(engine.state.currentIndex, 0);
-      expect(engine.state.current, second);
-      expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
-      expect(engine.state.reviewedCount, 0);
-    });
-
-    test('removing the last card clamps the index', () {
-      final engine = ScheduledFlashcardEngine<String>();
-      engine.setDeck(<ScheduledFlashcard<String>>[card, second]);
-      engine.advance();
-      expect(engine.state.current, second);
-      engine.removeCurrent();
-      expect(engine.state.deck, <ScheduledFlashcard<String>>[card]);
-      expect(engine.state.currentIndex, 0);
-      expect(engine.state.current, card);
-    });
+    test(
+      'removing current advances the FIFO queue without a snapshot or index',
+      () {
+        final engine = ScheduledFlashcardEngine<String>();
+        engine.setDeck(<ScheduledFlashcard<String>>[first, second, third], now);
+        engine.removeCurrent(now);
+        expect(engine.state.current, second);
+        expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
+        expect(engine.state.reviewedCount, 0);
+        expect(engine.state.initialTotal, 3);
+        expect(engine.state.remainingCount, 2);
+      },
+    );
 
     test('removing the only remaining card completes the session', () {
       final engine = ScheduledFlashcardEngine<String>();
-      engine.setDeck(<ScheduledFlashcard<String>>[card]);
-      engine.removeCurrent();
-      expect(engine.state.deck, isEmpty);
+      engine.setDeck(<ScheduledFlashcard<String>>[first], now);
+      engine.removeCurrent(now);
       expect(engine.state.current, isNull);
       expect(engine.state.phase, ScheduledFlashcardPhase.completed);
     });
 
     test('controller bumps generation so stale preview is discarded', () async {
       final controller = ScheduledFlashcardController<String>(
-        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card, second]),
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[
+          first,
+          second,
+        ]),
         ratingPort: _FakeRatingPort(),
         operationIdGenerator: _FixedIds(),
       );
@@ -103,10 +98,104 @@ void main() {
     });
   });
 
+  test(
+    'Again requeues the identical card after pending cards without duplication',
+    () {
+      final first = card('one');
+      final second = card('two');
+      final engine = ScheduledFlashcardEngine<String>();
+      engine.setDeck(<ScheduledFlashcard<String>>[first, second], now);
+
+      engine.completeRating(
+        rating: MemoryRating.again,
+        scheduleRevision: 4,
+        dueAt: now.add(const Duration(minutes: 1)),
+        now: now,
+      );
+
+      expect(engine.state.current, second);
+      expect(engine.state.remainingCount, 2);
+      expect(engine.state.reviewedCount, 0);
+
+      engine.completeRating(
+        rating: MemoryRating.good,
+        scheduleRevision: 4,
+        dueAt: now.add(const Duration(days: 1)),
+        now: now,
+      );
+
+      expect(identical(engine.state.current, first), isTrue);
+      expect(first.status, ScheduledFlashcardStatus.retry);
+      expect(first.retryCount, 1);
+      expect(first.scheduleRevision, 4);
+      expect(engine.state.initialTotal, 2);
+      expect(engine.state.reviewedCount, 1);
+    },
+  );
+
+  test('retry inside the two-minute window is shown without waiting', () {
+    final first = card('one');
+    final engine = ScheduledFlashcardEngine<String>();
+    engine.setDeck(<ScheduledFlashcard<String>>[first], now);
+
+    engine.completeRating(
+      rating: MemoryRating.again,
+      scheduleRevision: 4,
+      dueAt: now.add(const Duration(minutes: 2)),
+      now: now,
+    );
+
+    expect(engine.state.current, first);
+    expect(engine.state.phase, ScheduledFlashcardPhase.prompt);
+  });
+
+  test('retry outside the two-minute window completes this session', () {
+    final first = card('one');
+    final engine = ScheduledFlashcardEngine<String>();
+    engine.setDeck(<ScheduledFlashcard<String>>[first], now);
+
+    engine.completeRating(
+      rating: MemoryRating.again,
+      scheduleRevision: 4,
+      dueAt: now.add(const Duration(minutes: 2, seconds: 1)),
+      now: now,
+    );
+
+    expect(engine.state.current, isNull);
+    expect(engine.state.phase, ScheduledFlashcardPhase.completed);
+    expect(engine.state.remainingCount, 1);
+  });
+
+  test(
+    'retry priority uses earliest dueAt instead of Again submission order',
+    () {
+      final first = card('one');
+      final second = card('two');
+      final engine = ScheduledFlashcardEngine<String>();
+      engine.setDeck(<ScheduledFlashcard<String>>[first, second], now);
+
+      engine.completeRating(
+        rating: MemoryRating.again,
+        scheduleRevision: 4,
+        dueAt: now.add(const Duration(minutes: 1)),
+        now: now,
+      );
+      engine.completeRating(
+        rating: MemoryRating.again,
+        scheduleRevision: 4,
+        dueAt: now.add(const Duration(seconds: 30)),
+        now: now,
+      );
+
+      expect(engine.state.current, second);
+    },
+  );
+
   test('controller submits rating with stable idempotent revision', () async {
+    final first = card('one');
     final port = _FakeRatingPort();
     final controller = ScheduledFlashcardController<String>(
-      deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+      deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[first]),
       ratingPort: port,
       operationIdGenerator: _FixedIds(),
     );
@@ -117,11 +206,17 @@ void main() {
 
     expect(port.lastRevision, 3);
     expect(port.lastOperationId, 'op-1');
-    expect(controller.state.phase, ScheduledFlashcardPhase.completed);
+    expect(controller.state.phase, ScheduledFlashcardPhase.prompt);
+    expect(identical(controller.state.current, first), isTrue);
+    expect(first.status, ScheduledFlashcardStatus.retry);
+    expect(first.retryCount, 1);
+    expect(controller.state.initialTotal, 1);
+    expect(controller.state.reviewedCount, 0);
     controller.dispose();
   });
 
   test('late deck result is discarded after dispose', () async {
+    final first = card('one');
     final source = _CompletingDeckSource();
     final controller = ScheduledFlashcardController<String>(
       deckSource: source,
@@ -130,9 +225,28 @@ void main() {
     );
     final load = controller.load();
     controller.dispose();
-    source.complete(<ScheduledFlashcard<String>>[card]);
+    source.complete(<ScheduledFlashcard<String>>[first]);
     await load;
     expect(controller.state.current, isNull);
+  });
+
+  test('late deck result is discarded after a newer initialization', () async {
+    final source = _SequencedCompletingDeckSource();
+    final controller = ScheduledFlashcardController<String>(
+      deckSource: source,
+      ratingPort: _FakeRatingPort(),
+      operationIdGenerator: _FixedIds(),
+    );
+    final firstLoad = controller.load();
+    final secondLoad = controller.load();
+
+    source.complete(1, <ScheduledFlashcard<String>>[card('new')]);
+    await secondLoad;
+    source.complete(0, <ScheduledFlashcard<String>>[card('old')]);
+    await firstLoad;
+
+    expect(controller.state.current?.content, 'new');
+    controller.dispose();
   });
 
   test('independent sessions use different operation IDs', () async {
@@ -141,7 +255,9 @@ void main() {
 
     for (var index = 0; index < 2; index++) {
       final controller = ScheduledFlashcardController<String>(
-        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[
+          card('$index'),
+        ]),
         ratingPort: port,
         operationIdGenerator: ids,
       );
@@ -160,7 +276,7 @@ void main() {
     () async {
       final port = _RejectOnceRatingPort();
       final controller = ScheduledFlashcardController<String>(
-        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card]),
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card('one')]),
         ratingPort: port,
         operationIdGenerator: _SequenceIds(<String>[
           'legacy-conflict',
@@ -194,6 +310,22 @@ final class _CompletingDeckSource implements FlashcardDeckSource<String> {
   Future<List<ScheduledFlashcard<String>>> load() => _completer.future;
   void complete(List<ScheduledFlashcard<String>> cards) =>
       _completer.complete(cards);
+}
+
+final class _SequencedCompletingDeckSource
+    implements FlashcardDeckSource<String> {
+  final _completers = <Completer<List<ScheduledFlashcard<String>>>>[
+    Completer<List<ScheduledFlashcard<String>>>(),
+    Completer<List<ScheduledFlashcard<String>>>(),
+  ];
+  var _next = 0;
+
+  @override
+  Future<List<ScheduledFlashcard<String>>> load() =>
+      _completers[_next++].future;
+
+  void complete(int index, List<ScheduledFlashcard<String>> cards) =>
+      _completers[index].complete(cards);
 }
 
 final class _FixedIds implements MemoryIdGenerator {
