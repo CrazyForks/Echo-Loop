@@ -222,6 +222,22 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
 
+      expect(
+        tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
+        const EdgeInsets.only(right: AppSpacing.s),
+      );
+      final statistics = tester.getRect(
+        find.byKey(const Key('favorites-statistics')),
+      );
+      final recycleBin = tester.getRect(
+        find.byKey(const Key('favorites-recycle-bin')),
+      );
+      final settings = tester.getRect(
+        find.byKey(const Key('favorites-review-settings')),
+      );
+      expect(recycleBin.left, closeTo(statistics.right, 0.01));
+      expect(settings.left, closeTo(recycleBin.right, 0.01));
+
       await tester.tap(find.byKey(const Key('favorites-review-settings')));
       await tester.pump(const Duration(milliseconds: 300));
 

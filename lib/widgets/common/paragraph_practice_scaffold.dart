@@ -143,6 +143,7 @@ class ParagraphPracticeScaffold extends StatelessWidget {
       appBar: isFullscreen
           ? null
           : AppBar(
+              actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
               title: Text(title),
               centerTitle: true,
               leading: IconButton(

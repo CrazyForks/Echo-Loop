@@ -649,6 +649,9 @@ class _IntensiveListenPlayerScreenState
                 appBar: presentation.expanded
                     ? null
                     : AppBar(
+                        actionsPadding: const EdgeInsets.only(
+                          right: AppSpacing.s,
+                        ),
                         title: Text(l10n.intensiveListenAppBarTitle),
                         centerTitle: true,
                         leading: IconButton(

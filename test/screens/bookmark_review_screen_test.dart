@@ -505,6 +505,12 @@ void main() {
   testWidgets('settings opens FSRS review controls', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pump();
+
+    expect(
+      tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
+      const EdgeInsets.only(right: AppSpacing.s),
+    );
+
     await tester.tap(find.byKey(const Key('bookmark-review-settings')));
     await tester.pumpAndSettle();
     expect(find.text('显示下次复习时间'), findsOneWidget);

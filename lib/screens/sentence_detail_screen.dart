@@ -376,6 +376,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
       appBar: expanded
           ? null
           : AppBar(
+              actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
               title: Text(args.audioName),
               centerTitle: true,
               actions: [SentenceChatButton(sentenceText: args.sentenceText)],

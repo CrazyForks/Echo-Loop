@@ -79,25 +79,21 @@ class SentenceChatButton extends ConsumerWidget {
     );
     if (!show || sentenceText.isEmpty) return const SizedBox.shrink();
 
-    // 右侧留白：让 action 按钮不贴相邻控件/屏幕右缘，与左侧图标边距对称。
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: IconButton(
-        // 渐变多色图标，保留原始配色不做 colorFilter 染色。
-        icon: SvgPicture.asset(
-          'assets/icon/chat/use-ai-chat.svg',
-          width: 24,
-          height: 24,
-        ),
-        tooltip: AppLocalizations.of(context)!.chatOpenTooltip,
-        onPressed: () {
-          onBeforeOpen?.call();
-          showSentenceChatbotSheet(
-            context: context,
-            sentenceText: sentenceText,
-          );
-        },
+    return IconButton(
+      // 渐变多色图标，保留原始配色不做 colorFilter 染色。
+      icon: SvgPicture.asset(
+        'assets/icon/chat/use-ai-chat.svg',
+        width: 24,
+        height: 24,
       ),
+      tooltip: AppLocalizations.of(context)!.chatOpenTooltip,
+      onPressed: () {
+        onBeforeOpen?.call();
+        showSentenceChatbotSheet(
+          context: context,
+          sentenceText: sentenceText,
+        );
+      },
     );
   }
 }

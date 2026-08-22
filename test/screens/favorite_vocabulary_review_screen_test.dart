@@ -517,6 +517,11 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pump();
 
+    expect(
+      tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
+      const EdgeInsets.only(right: AppSpacing.s),
+    );
+
     await tester.tap(
       find.byKey(const Key('favorite-vocabulary-review-settings')),
     );

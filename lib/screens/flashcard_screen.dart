@@ -104,6 +104,7 @@ class _FlashcardScreenState extends ConsumerState<FlashcardScreen>
         },
         child: Scaffold(
           appBar: AppBar(
+            actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
             leading: IconButton(
               icon: const Icon(Icons.close),
               onPressed: _handleExit,
@@ -122,7 +123,6 @@ class _FlashcardScreenState extends ConsumerState<FlashcardScreen>
                 icon: const Icon(Icons.tune),
                 onPressed: () => _showSettings(context),
               ),
-              const SizedBox(width: 4),
             ],
           ),
           body: Column(

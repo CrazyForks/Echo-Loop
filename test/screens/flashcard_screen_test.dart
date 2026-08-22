@@ -198,6 +198,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.tune), findsOneWidget);
+      expect(
+        tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
+        const EdgeInsets.only(right: AppSpacing.s),
+      );
     });
 
     testWidgets('AppBar 包含关闭按钮', (tester) async {

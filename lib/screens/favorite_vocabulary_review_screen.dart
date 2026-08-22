@@ -126,6 +126,7 @@ class _FavoriteVocabularyReviewScreenState
         },
         child: Scaffold(
           appBar: AppBar(
+            actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
             leading: IconButton(
               key: const Key('favorite-vocabulary-review-close'),
               onPressed: _exit,

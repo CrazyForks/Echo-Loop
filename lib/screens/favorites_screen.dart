@@ -219,6 +219,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       flows: flows,
       child: Scaffold(
         appBar: AppBar(
+          actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
           title: Text(l10n.favorites),
           actions: [
             IconButton(
@@ -235,19 +236,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               tooltip: '复习统计',
               onPressed: () => context.push(AppRoutes.reviewStatistics),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: const Icon(Icons.restore),
-                tooltip: l10n.recycleBinTitle,
-                onPressed: () {
-                  if (_currentView == _FavoritesView.sentences) {
-                    showSentenceRecycleBinSheet(context: context);
-                  } else {
-                    showVocabularyRecycleBinSheet(context: context);
-                  }
-                },
-              ),
+            IconButton(
+              key: const Key('favorites-recycle-bin'),
+              icon: const Icon(Icons.restore),
+              tooltip: l10n.recycleBinTitle,
+              onPressed: () {
+                if (_currentView == _FavoritesView.sentences) {
+                  showSentenceRecycleBinSheet(context: context);
+                } else {
+                  showVocabularyRecycleBinSheet(context: context);
+                }
+              },
             ),
             IconButton(
               key: const Key('favorites-review-settings'),

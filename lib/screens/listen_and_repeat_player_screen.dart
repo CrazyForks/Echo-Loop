@@ -582,6 +582,9 @@ class _ListenAndRepeatPlayerScreenState
               appBar: presentation.expanded
                   ? null
                   : AppBar(
+                      actionsPadding: const EdgeInsets.only(
+                        right: AppSpacing.s,
+                      ),
                       title: Text(l10n.listenAndRepeatAppBarTitle),
                       centerTitle: true,
                       leading: IconButton(

@@ -112,6 +112,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
         },
         child: Scaffold(
           appBar: AppBar(
+            actionsPadding: const EdgeInsets.only(right: AppSpacing.s),
             leading: IconButton(
               key: const Key('bookmark-review-close'),
               onPressed: _exit,
