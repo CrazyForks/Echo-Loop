@@ -156,16 +156,6 @@ class _FavoriteVocabularyReviewScreenState
                             ? 0
                             : state.position / state.total,
                       ),
-                      ReviewStatusBar(
-                        elapsed: () => player.elapsed,
-                        reviewedCount: state.reviewedCount,
-                        elapsedLabel: Localizations.localeOf(context).languageCode == 'zh'
-                            ? '学习时长'
-                            : 'Study time',
-                        reviewedLabel: Localizations.localeOf(context).languageCode == 'zh'
-                            ? '已复习'
-                            : 'Reviewed',
-                      ),
                       Expanded(
                         child: state.face == FavoriteVocabularyReviewFace.front
                             ? _VocabularyFront(
@@ -195,6 +185,19 @@ class _FavoriteVocabularyReviewScreenState
                                     unawaited(player.selectRating(rating)),
                                 onRemove: () => unawaited(_removeCurrent()),
                               ),
+                      ),
+                      ReviewStatusBar(
+                        key: const Key('favorite-vocabulary-review-status-bar'),
+                        elapsed: () => player.elapsed,
+                        reviewedCount: state.reviewedCount,
+                        elapsedLabel:
+                            Localizations.localeOf(context).languageCode == 'zh'
+                            ? '学习时长'
+                            : 'Study time',
+                        reviewedLabel:
+                            Localizations.localeOf(context).languageCode == 'zh'
+                            ? '已复习'
+                            : 'Reviewed',
                       ),
                     ],
                   ),
@@ -264,7 +267,7 @@ class _VocabularyFront extends StatelessWidget {
             AppSpacing.m,
             AppSpacing.s,
             AppSpacing.m,
-            AppSpacing.l,
+            AppSpacing.xs,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(32),
@@ -629,48 +632,49 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
             ),
           ),
         ),
-        SafeArea(
-          top: false,
-          maintainBottomViewPadding: true,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            child: FlashcardRatingActionBar(
-              key: const Key('favorite-vocabulary-review-rating-bar'),
-              actions: [
-                FlashcardRatingAction(
-                  rating: MemoryRating.again,
-                  emoji: '😕',
-                  label: l10n.bookmarkReviewRatingAgain,
-                  detail: formatNextReviewTimeDetail(
-                    context,
-                    showNextReviewTime: widget.showNextReviewTime,
-                    dueAt: widget.preview?.again.dueAt,
-                  ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.xs,
+          ),
+          child: FlashcardRatingActionBar(
+            key: const Key('favorite-vocabulary-review-rating-bar'),
+            actions: [
+              FlashcardRatingAction(
+                rating: MemoryRating.again,
+                emoji: '😕',
+                label: l10n.bookmarkReviewRatingAgain,
+                detail: formatNextReviewTimeDetail(
+                  context,
+                  showNextReviewTime: widget.showNextReviewTime,
+                  dueAt: widget.preview?.again.dueAt,
                 ),
-                FlashcardRatingAction(
-                  rating: MemoryRating.good,
-                  emoji: '🙂',
-                  label: l10n.bookmarkReviewRatingGood,
-                  detail: formatNextReviewTimeDetail(
-                    context,
-                    showNextReviewTime: widget.showNextReviewTime,
-                    dueAt: widget.preview?.good.dueAt,
-                  ),
+              ),
+              FlashcardRatingAction(
+                rating: MemoryRating.good,
+                emoji: '🙂',
+                label: l10n.bookmarkReviewRatingGood,
+                detail: formatNextReviewTimeDetail(
+                  context,
+                  showNextReviewTime: widget.showNextReviewTime,
+                  dueAt: widget.preview?.good.dueAt,
                 ),
-                FlashcardRatingAction(
-                  rating: MemoryRating.easy,
-                  emoji: '😎',
-                  label: l10n.bookmarkReviewRatingEasy,
-                  detail: formatNextReviewTimeDetail(
-                    context,
-                    showNextReviewTime: widget.showNextReviewTime,
-                    dueAt: widget.preview?.easy.dueAt,
-                  ),
+              ),
+              FlashcardRatingAction(
+                rating: MemoryRating.easy,
+                emoji: '😎',
+                label: l10n.bookmarkReviewRatingEasy,
+                detail: formatNextReviewTimeDetail(
+                  context,
+                  showNextReviewTime: widget.showNextReviewTime,
+                  dueAt: widget.preview?.easy.dueAt,
                 ),
-              ],
-              enabled: widget.preview != null && !widget.isSubmitting,
-              onSelected: (action) => widget.onRating(action.rating),
-            ),
+              ),
+            ],
+            enabled: widget.preview != null && !widget.isSubmitting,
+            onSelected: (action) => widget.onRating(action.rating),
           ),
         ),
       ],

@@ -55,7 +55,12 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.m, 0, AppSpacing.m, AppSpacing.s),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.m,
+        0,
+        AppSpacing.m,
+        AppSpacing.xs,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -64,7 +69,7 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
           Text(widget.elapsedLabel, style: style),
           const SizedBox(width: AppSpacing.xs),
           Text(time, style: timeStyle),
-          const SizedBox(width: AppSpacing.m),
+          const SizedBox(width: AppSpacing.l),
           Icon(Icons.check_circle_outline, size: 14, color: style?.color),
           const SizedBox(width: AppSpacing.xs),
           Text('${widget.reviewedLabel} ${widget.reviewedCount}', style: style),

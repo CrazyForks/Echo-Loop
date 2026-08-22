@@ -136,9 +136,9 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
       wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
       sourcePlaybackState:
           state.sourcePlaybackState ==
-                  FavoriteVocabularyReviewPlaybackState.playing
-              ? FavoriteVocabularyReviewPlaybackState.idle
-              : FavoriteVocabularyReviewPlaybackState.playing,
+              FavoriteVocabularyReviewPlaybackState.playing
+          ? FavoriteVocabularyReviewPlaybackState.idle
+          : FavoriteVocabularyReviewPlaybackState.playing,
     );
   }
 
@@ -223,6 +223,10 @@ void main() {
       find.byKey(const Key('favorite-vocabulary-review-progress')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-status-bar')),
+      findsOneWidget,
+    );
     final listen = tester.getSize(
       find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
     );
@@ -230,6 +234,54 @@ void main() {
       find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
     );
     expect(reveal.height / listen.height, closeTo(1, 0.02));
+    final revealBottom = tester
+        .getBottomLeft(
+          find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+        )
+        .dy;
+    final statusTop = tester
+        .getTopLeft(
+          find.byKey(const Key('favorite-vocabulary-review-status-bar')),
+        )
+        .dy;
+    expect(statusTop - revealBottom, closeTo(4, 0.1));
+  });
+
+  testWidgets('status bar stays at the bottom on both card faces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    final status = find.byKey(
+      const Key('favorite-vocabulary-review-status-bar'),
+    );
+    expect(
+      tester.getTopLeft(status).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(
+              find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+            )
+            .dy,
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+    expect(status, findsOneWidget);
+    expect(
+      tester.getTopLeft(status).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(
+              find.byKey(const Key('favorite-vocabulary-review-back-word')),
+            )
+            .dy,
+      ),
+    );
   });
 
   testWidgets(

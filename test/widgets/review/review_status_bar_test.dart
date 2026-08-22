@@ -20,6 +20,43 @@ void main() {
     expect(find.text('已复习 3'), findsOneWidget);
   });
 
+  testWidgets('uses a wider gap between the two metrics', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReviewStatusBar(
+          elapsed: () => const Duration(minutes: 1),
+          reviewedCount: 3,
+          elapsedLabel: '学习时长',
+          reviewedLabel: '已复习',
+        ),
+      ),
+    );
+
+    final time = tester.getTopRight(find.text('01:00'));
+    final reviewed = tester.getTopLeft(find.text('已复习 3'));
+    expect(reviewed.dx - time.dx, greaterThanOrEqualTo(36));
+  });
+
+  testWidgets('uses compact vertical padding', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: ReviewStatusBar(
+              elapsed: () => Duration.zero,
+              reviewedCount: 0,
+              elapsedLabel: 'Study time',
+              reviewedLabel: 'Reviewed',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.getSize(find.byType(ReviewStatusBar)).height, lessThan(24));
+  });
+
   testWidgets('ticks locally without losing count', (tester) async {
     var elapsed = Duration.zero;
     await tester.pumpWidget(

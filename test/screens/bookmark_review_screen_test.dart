@@ -247,6 +247,32 @@ void main() {
     expect(find.text('听不太懂'), findsNothing);
     expect(find.text('Hidden sentence'), findsNothing);
     expect(find.byKey(const Key('bookmark-review-progress')), findsOneWidget);
+    expect(find.byKey(const Key('bookmark-review-status-bar')), findsOneWidget);
+  });
+
+  testWidgets('status bar stays at the bottom on both card faces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    final status = find.byKey(const Key('bookmark-review-status-bar'));
+    expect(
+      tester.getTopLeft(status).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(find.byKey(const Key('bookmark-review-reveal-zone')))
+            .dy,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('bookmark-review-reveal-zone')));
+    await tester.pump();
+    expect(status, findsOneWidget);
+    expect(
+      tester.getTopLeft(status).dy,
+      greaterThan(tester.getBottomLeft(find.text('Hidden sentence')).dy),
+    );
   });
 
   testWidgets('front uses an equal listening and reveal split', (tester) async {

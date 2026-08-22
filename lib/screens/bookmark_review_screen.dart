@@ -148,8 +148,6 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                         ),
                         isRemoving: state.isRemoving,
                         onRemove: _removeCurrent,
-                        elapsed: () => player.elapsed,
-                        reviewedCount: state.reviewedCount,
                       ),
                       Expanded(
                         child: state.face == BookmarkReviewFace.front
@@ -188,6 +186,19 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                                 ),
                               ),
                       ),
+                      ReviewStatusBar(
+                        key: const Key('bookmark-review-status-bar'),
+                        elapsed: () => player.elapsed,
+                        reviewedCount: state.reviewedCount,
+                        elapsedLabel:
+                            Localizations.localeOf(context).languageCode == 'zh'
+                            ? '学习时长'
+                            : 'Study time',
+                        reviewedLabel:
+                            Localizations.localeOf(context).languageCode == 'zh'
+                            ? '已复习'
+                            : 'Reviewed',
+                      ),
                     ],
                   ),
                 ),
@@ -204,8 +215,6 @@ class _ReviewProgress extends StatelessWidget {
     required this.duration,
     required this.isRemoving,
     required this.onRemove,
-    required this.elapsed,
-    required this.reviewedCount,
   });
 
   final double progress;
@@ -213,8 +222,6 @@ class _ReviewProgress extends StatelessWidget {
   final String duration;
   final bool isRemoving;
   final VoidCallback onRemove;
-  final Duration Function() elapsed;
-  final int reviewedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -309,16 +316,6 @@ class _ReviewProgress extends StatelessWidget {
               );
             },
           ),
-          ReviewStatusBar(
-            elapsed: elapsed,
-            reviewedCount: reviewedCount,
-            elapsedLabel: Localizations.localeOf(context).languageCode == 'zh'
-                ? '学习时长'
-                : 'Study time',
-            reviewedLabel: Localizations.localeOf(context).languageCode == 'zh'
-                ? '已复习'
-                : 'Reviewed',
-          ),
         ],
       ),
     );
@@ -356,7 +353,7 @@ class _ListeningFront extends StatelessWidget {
             AppSpacing.m,
             AppSpacing.s,
             AppSpacing.m,
-            AppSpacing.l,
+            AppSpacing.xs,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(32),
@@ -559,39 +556,40 @@ class _ReviewAnswer extends ConsumerWidget {
             ),
           ),
         ),
-        SafeArea(
-          top: false,
-          maintainBottomViewPadding: true,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.m),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  key: const Key('bookmark-review-sentence-playback'),
-                  width: double.infinity,
-                  height: 44,
-                  child: FilledButton.tonalIcon(
-                    key: const Key('bookmark-review-sentence-playback-toggle'),
-                    onPressed: onTogglePlayback,
-                    icon: Icon(
-                      isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                    ),
-                    label: Text(
-                      isPlaying
-                          ? l10n.stopPlayback
-                          : l10n.bookmarkReviewPlayOriginal,
-                    ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.m,
+            AppSpacing.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                key: const Key('bookmark-review-sentence-playback'),
+                width: double.infinity,
+                height: 44,
+                child: FilledButton.tonalIcon(
+                  key: const Key('bookmark-review-sentence-playback-toggle'),
+                  onPressed: onTogglePlayback,
+                  icon: Icon(
+                    isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  ),
+                  label: Text(
+                    isPlaying
+                        ? l10n.stopPlayback
+                        : l10n.bookmarkReviewPlayOriginal,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.s),
-                FlashcardRatingActionBar(
-                  actions: actions,
-                  enabled: preview != null && !isSubmitting,
-                  onSelected: (action) => onRating(action.rating),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: AppSpacing.s),
+              FlashcardRatingActionBar(
+                actions: actions,
+                enabled: preview != null && !isSubmitting,
+                onSelected: (action) => onRating(action.rating),
+              ),
+            ],
           ),
         ),
       ],
