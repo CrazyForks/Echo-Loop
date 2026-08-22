@@ -2,6 +2,7 @@ import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/widgets/dialogs/free_play_complete_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 import '../helpers/test_app.dart';
 
@@ -23,7 +24,7 @@ void main() {
         locale: const Locale('en'),
       ),
     );
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     final l10n = AppLocalizations.of(
       tester.element(find.byType(FreePlayCompleteDialog)),
@@ -43,6 +44,15 @@ void main() {
       find.widgetWithText(FilledButton, l10n.done),
     );
     expect(replayButton.width, greaterThan(doneButton.width));
+    final animation = tester.widget<LottieBuilder>(
+      find.byKey(const Key('completion-dialog-done-check')),
+    );
+    expect(animation.repeat, isTrue);
+    expect(animation.animate, isTrue);
+    expect(
+      tester.getSize(find.byKey(const Key('completion-dialog-done-check'))),
+      const Size(160, 160),
+    );
     expect(tester.takeException(), isNull);
   });
 }

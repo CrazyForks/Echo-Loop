@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../../theme/app_theme.dart';
 
 /// 单条完成统计项
@@ -13,9 +14,27 @@ import '../../theme/app_theme.dart';
 /// [value] 高亮显示的数字（如 "9"），[label] 下方的短标签（如 "句子"）。
 typedef CompletionStat = ({String value, String label});
 
+const _doneCheckAnimationAsset = 'assets/animation/done-check.lottie';
+
+/// 从 dotLottie 压缩包中选取第一个动画 JSON，供 Lottie 播放器解析。
+Future<LottieComposition?> _decodeDoneCheckAnimation(List<int> bytes) {
+  return LottieComposition.decodeZip(
+    bytes,
+    filePicker: (files) {
+      for (final file in files) {
+        if (file.name.startsWith('animations/') &&
+            file.name.endsWith('.json')) {
+          return file;
+        }
+      }
+      return null;
+    },
+  );
+}
+
 /// 完成对话框顶部英雄区
 ///
-/// 柔和色带背景上居中放置圆形勾选徽章（一次性入场缩放，强化「完成」瞬间）、
+/// 柔和色带背景上居中放置完成动画（强化「完成」瞬间）、
 /// 居中标题与可选副标题（如步骤进度）。
 /// 全部走 [ColorScheme]，亮/暗/AMOLED 自适应。
 class CompletionHeroHeader extends StatelessWidget {
@@ -40,32 +59,25 @@ class CompletionHeroHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: headerBg,
-      padding: const EdgeInsets.all(AppSpacing.l),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.l,
+        vertical: AppSpacing.s,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 圆形勾选徽章（绿色成功色 + 白色对号，一次性入场缩放）
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.7, end: 1),
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutBack,
-            builder: (context, scale, child) =>
-                Transform.scale(scale: scale, child: child),
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: const BoxDecoration(
-                color: AppTheme.successColor,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_rounded,
-                color: Colors.white,
-                size: 32,
-              ),
-            ),
+          // 完成动画循环播放，持续强化完成状态。
+          Lottie.asset(
+            _doneCheckAnimationAsset,
+            key: const Key('completion-dialog-done-check'),
+            decoder: _decodeDoneCheckAnimation,
+            repeat: true,
+            animate: true,
+            width: 160,
+            height: 160,
+            fit: BoxFit.contain,
           ),
-          const SizedBox(height: AppSpacing.m),
+          const SizedBox(height: AppSpacing.s),
           // 标题（居中）
           Text(
             title,
