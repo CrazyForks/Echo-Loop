@@ -276,8 +276,9 @@ class BookmarkReview extends _$BookmarkReview {
     }
   }
 
-  /// 提交一次评分：成功则引擎推进队列并自动播放下一张；失败或乐观锁冲突则
-  /// 停留在背面，解除提交中标记以便重试。
+  /// 提交一次评分：先中断当前媒体，避免最后一张卡进入完成页后仍在播放。
+  /// 成功则引擎推进队列并自动播放下一张；失败或乐观锁冲突则停留在背面，
+  /// 解除提交中标记以便重试。
   Future<void> selectRating(MemoryRating rating) async {
     final controller = _controller;
     final card = state.currentCard;
@@ -288,6 +289,22 @@ class BookmarkReview extends _$BookmarkReview {
     }
     if (state.isSubmittingRating || state.preview == null) return;
     state = state.copyWith(isSubmittingRating: true);
+    // 评分是当前卡片生命周期的终点，不能依赖下一张卡的自动播放间接停止旧媒体。
+    try {
+      await interruptPlayback();
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'FavoriteSentenceReview',
+        'interrupt playback before rating failed error=$error\n$stackTrace',
+      );
+      state = state.copyWith(isSubmittingRating: false);
+      return;
+    }
+    if (!identical(_controller, controller) ||
+        !identical(state.currentCard, card) ||
+        state.face != BookmarkReviewFace.back) {
+      return;
+    }
     await controller.submitRating(rating);
     if (!identical(_controller, controller)) return;
     final phase = controller.state.phase;

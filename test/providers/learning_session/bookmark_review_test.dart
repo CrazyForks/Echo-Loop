@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/features/memory_scheduler/domain/memory_rating.dart';
 import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
@@ -15,7 +16,7 @@ import 'package:echo_loop/utils/app_data_dir.dart' as app_data_dir;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
-import 'package:drift/drift.dart' hide isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 
 import '../../helpers/mock_providers.dart';
 
@@ -377,6 +378,32 @@ void main() {
       BookmarkReviewPlaybackState.idle,
     );
   });
+
+  test(
+    'rating the last card stops playback before showing completion',
+    () async {
+      final scope = _testScope(_TestBookmarkDao(), autoPlayBack: true);
+      addTearDown(() async {
+        scope.container.dispose();
+        await scope.database.close();
+      });
+      final notifier = scope.container.read(bookmarkReviewProvider.notifier);
+      await _addPlayableMedia(scope.database);
+      await notifier.initialize([_bookmark(1)]);
+      await notifier.revealBack();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(scope.player.pendingRangePlay, isNotNull);
+
+      await notifier.selectRating(MemoryRating.good);
+
+      expect(scope.player.stops, greaterThan(0));
+      expect(scope.container.read(bookmarkReviewProvider).currentCard, isNull);
+      expect(
+        scope.container.read(bookmarkReviewProvider).completionSummary,
+        isNotNull,
+      );
+    },
+  );
 
   test('failed sentence playback exposes the existing failed state', () async {
     final scope = _testScope(_TestBookmarkDao());

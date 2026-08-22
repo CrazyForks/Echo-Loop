@@ -314,7 +314,8 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     }
   }
 
-  /// 提交评分并在成功后推进队列；失败保留当前背面以便重试。
+  /// 提交评分前先中断单词、来源句和 TTS 播放，避免最后一张卡进入完成页后
+  /// 仍有共享播放器继续运行；成功后推进队列，失败保留当前背面以便重试。
   Future<void> selectRating(MemoryRating rating) async {
     final controller = _controller;
     final card = state.currentCard;
@@ -326,6 +327,22 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
       return;
     }
     state = state.copyWith(isSubmittingRating: true);
+    // 评分是当前卡片生命周期的终点，不能依赖下一张卡的自动播放间接停止旧媒体。
+    try {
+      await interruptPlayback();
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'FavoriteVocabularyReview',
+        'interrupt playback before rating failed error=$error\n$stackTrace',
+      );
+      state = state.copyWith(isSubmittingRating: false);
+      return;
+    }
+    if (!identical(_controller, controller) ||
+        !identical(state.currentCard, card) ||
+        state.face != FavoriteVocabularyReviewFace.back) {
+      return;
+    }
     await controller.submitRating(rating);
     if (!identical(_controller, controller)) return;
     final phase = controller.state.phase;

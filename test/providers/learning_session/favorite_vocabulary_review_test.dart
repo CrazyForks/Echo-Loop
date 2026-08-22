@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/database/daos/saved_word_dao.dart';
@@ -18,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeTextPlaybackController extends TextPlaybackController {
   int stops = 0;
   final spoken = <String>[];
+  bool holdSpeak = false;
+  Completer<void>? pendingSpeak;
 
   @override
   TextPlaybackState build() => const TextPlaybackState();
@@ -25,11 +29,17 @@ class _FakeTextPlaybackController extends TextPlaybackController {
   @override
   Future<void> speak(String text, {String? key}) async {
     spoken.add(text);
+    if (holdSpeak) {
+      final pending = pendingSpeak ??= Completer<void>();
+      await pending.future;
+    }
   }
 
   @override
   Future<void> stop() async {
     stops++;
+    pendingSpeak?.complete();
+    pendingSpeak = null;
   }
 }
 
@@ -169,6 +179,38 @@ void main() {
     expect(advanced.face, FavoriteVocabularyReviewFace.front);
     expect(advanced.currentCard?.displayText, 'banana');
   });
+
+  test(
+    'rating the last card stops word playback before showing completion',
+    () async {
+      final notifier = container.read(
+        favoriteVocabularyReviewProvider.notifier,
+      );
+      await notifier.initialize([_word('w1', 'apple')], []);
+      await notifier.revealBack();
+
+      fakePlayback.holdSpeak = true;
+      final playback = notifier.replayCurrent();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(
+        container.read(favoriteVocabularyReviewProvider).wordPlaybackState,
+        FavoriteVocabularyReviewPlaybackState.playing,
+      );
+
+      await notifier.selectRating(MemoryRating.good);
+      await playback;
+
+      expect(fakePlayback.stops, greaterThan(0));
+      expect(
+        container.read(favoriteVocabularyReviewProvider).currentCard,
+        isNull,
+      );
+      expect(
+        container.read(favoriteVocabularyReviewProvider).completionSummary,
+        isNotNull,
+      );
+    },
+  );
 
   test('unsaving a word archives its schedule and advances the deck', () async {
     final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
