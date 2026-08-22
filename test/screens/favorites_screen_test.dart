@@ -83,6 +83,14 @@ class _DeferredBookmarkReview extends BookmarkReview {
       initialized.future;
 }
 
+class _ImmediateBookmarkReview extends BookmarkReview {
+  @override
+  BookmarkReviewState build() => const BookmarkReviewState();
+
+  @override
+  Future<void> initialize(List<BookmarkWithAudio> bookmarks) async {}
+}
+
 /// 创建测试用 Bookmark 数据
 Bookmark _createBookmark({
   required int id,
@@ -149,8 +157,9 @@ void main() {
 
   Widget createTestWidget({
     Locale locale = const Locale('en'),
-    _DeferredBookmarkReview? bookmarkReview,
+    BookmarkReview? bookmarkReview,
     int? sentenceDueCount,
+    Future<int> Function()? sentenceDueLoader,
     int? vocabularyDueCount,
     Future<int>? vocabularyDueFuture,
   }) {
@@ -163,8 +172,15 @@ void main() {
         ),
         GoRoute(
           path: '/bookmark-review',
-          builder: (context, state) =>
-              const Scaffold(body: Text('Bookmark Review')),
+          builder: (context, state) => Scaffold(
+            body: Center(
+              child: TextButton(
+                key: const Key('test-bookmark-review-close'),
+                onPressed: context.pop,
+                child: const Text('Bookmark Review'),
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -186,6 +202,10 @@ void main() {
         if (sentenceDueCount != null)
           favoriteSentenceDueCountProvider.overrideWith(
             (ref) async => sentenceDueCount,
+          ),
+        if (sentenceDueLoader != null)
+          favoriteSentenceDueCountProvider.overrideWith(
+            (ref) => sentenceDueLoader(),
           ),
         if (vocabularyDueCount != null)
           favoriteVocabularyDueCountProvider.overrideWith(
@@ -218,6 +238,76 @@ void main() {
   }
 
   group('FavoritesScreen — SegmentedButton 切换', () {
+    testWidgets('重新显示句子 tab 时重新读取待复习数量', (tester) async {
+      var dueCount = 2;
+      var requests = 0;
+      await tester.pumpWidget(
+        createTestWidget(
+          sentenceDueLoader: () async {
+            requests += 1;
+            return dueCount;
+          },
+          vocabularyDueCount: 1,
+        ),
+      );
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+      expect(find.text('2 due for review'), findsOneWidget);
+
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pumpAndSettle();
+      dueCount = 0;
+      await tester.tap(find.textContaining('Sentences'));
+      await tester.pumpAndSettle();
+
+      expect(requests, 2);
+      expect(find.text('Nothing to review'), findsOneWidget);
+    });
+
+    testWidgets('从后台恢复时刷新当前 tab 的待复习数量', (tester) async {
+      var dueCount = 1;
+      var requests = 0;
+      await tester.pumpWidget(
+        createTestWidget(
+          sentenceDueLoader: () async {
+            requests += 1;
+            return dueCount;
+          },
+        ),
+      );
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+
+      dueCount = 0;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(requests, 2);
+      expect(find.text('Nothing to review'), findsOneWidget);
+    });
+
     testWidgets('右上角设置打开收藏复习共享设置且不展开内容分区', (tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
@@ -337,6 +427,44 @@ void main() {
   });
 
   group('FavoritesScreen — 句子视图', () {
+    testWidgets('关闭句子复习后刷新待复习数量', (tester) async {
+      var dueCount = 1;
+      var requests = 0;
+      await tester.pumpWidget(
+        createTestWidget(
+          bookmarkReview: _ImmediateBookmarkReview(),
+          sentenceDueLoader: () async {
+            requests += 1;
+            return dueCount;
+          },
+        ),
+      );
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FilledButton).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Bookmark Review'), findsOneWidget);
+
+      dueCount = 0;
+      await tester.tap(find.byKey(const Key('test-bookmark-review-close')));
+      await tester.pumpAndSettle();
+
+      expect(requests, 2);
+      expect(find.text('Nothing to review'), findsOneWidget);
+    });
+
     testWidgets('无数据时显示句子空状态', (tester) async {
       await tester.pumpWidget(createTestWidget());
       bookmarkController.add([]);
@@ -578,14 +706,15 @@ void main() {
       wordController.add([_createSavedWord(id: 1, word: 'apple')]);
       await tester.pump();
 
-      await tester.tap(find.text('Vocabulary'));
+      await tester.tap(find.textContaining('Vocabulary'));
       await tester.pump();
 
       expect(find.text('Start Quiz (1)'), findsNothing);
       expect(find.text('Loading'), findsOneWidget);
 
       dueCount.complete(2);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
       expect(find.text('2 due for review'), findsOneWidget);
     });
 

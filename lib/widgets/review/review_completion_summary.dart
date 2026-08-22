@@ -81,7 +81,8 @@ class ReviewCompletionSummary extends StatelessWidget {
                         ),
                         Expanded(
                           child: _Metric(
-                            icon: Icons.psychology_rounded,
+                            icon: null,
+                            iconEmoji: '🧠',
                             label: retentionLabel,
                             value:
                                 '${(summary.retentionRate * 100).toStringAsFixed(1)}%',
@@ -157,11 +158,13 @@ class _SummaryCard extends StatelessWidget {
 class _Metric extends StatelessWidget {
   const _Metric({
     required this.icon,
+    this.iconEmoji,
     required this.label,
     required this.value,
     required this.color,
   });
-  final IconData icon;
+  final IconData? icon;
+  final String? iconEmoji;
   final String label;
   final String value;
   final Color color;
@@ -169,7 +172,9 @@ class _Metric extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Icon(icon, color: color, size: 22),
+      iconEmoji == null
+          ? Icon(icon, color: color, size: 22)
+          : Text(iconEmoji ?? '', style: const TextStyle(fontSize: 22)),
       const SizedBox(height: AppSpacing.xs),
       Text(
         value,

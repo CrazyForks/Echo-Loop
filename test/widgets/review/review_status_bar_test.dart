@@ -10,14 +10,17 @@ void main() {
         home: ReviewStatusBar(
           elapsed: () => const Duration(minutes: 1, seconds: 2),
           reviewedCount: 3,
+          remainingCount: 2,
           elapsedLabel: '学习时长',
           reviewedLabel: '已复习',
+          remainingLabel: '剩余',
         ),
       ),
     );
 
     expect(find.text('01:02'), findsOneWidget);
     expect(find.text('已复习 3'), findsOneWidget);
+    expect(find.text('剩余 2'), findsOneWidget);
   });
 
   testWidgets('uses a wider gap between the two metrics', (tester) async {
@@ -26,8 +29,10 @@ void main() {
         home: ReviewStatusBar(
           elapsed: () => const Duration(minutes: 1),
           reviewedCount: 3,
+          remainingCount: 2,
           elapsedLabel: '学习时长',
           reviewedLabel: '已复习',
+          remainingLabel: '剩余',
         ),
       ),
     );
@@ -46,8 +51,10 @@ void main() {
             child: ReviewStatusBar(
               elapsed: () => Duration.zero,
               reviewedCount: 0,
+              remainingCount: 0,
               elapsedLabel: 'Study time',
               reviewedLabel: 'Reviewed',
+              remainingLabel: 'Remaining',
             ),
           ),
         ),
@@ -64,8 +71,10 @@ void main() {
         home: ReviewStatusBar(
           elapsed: () => elapsed,
           reviewedCount: 2,
+          remainingCount: 1,
           elapsedLabel: 'Study time',
           reviewedLabel: 'Reviewed',
+          remainingLabel: 'Remaining',
         ),
       ),
     );
@@ -83,8 +92,10 @@ void main() {
         home: ReviewStatusBar(
           elapsed: () => elapsed,
           reviewedCount: 1,
+          remainingCount: 0,
           elapsedLabel: 'Study time',
           reviewedLabel: 'Reviewed',
+          remainingLabel: 'Remaining',
         ),
       ),
     );

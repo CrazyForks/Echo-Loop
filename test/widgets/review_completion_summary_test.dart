@@ -41,7 +41,7 @@ void main() {
       expect(find.text('收藏句复习已完成'), findsOneWidget);
       expect(find.text('2m 8s'), findsOneWidget);
       expect(find.text('66.7%'), findsOneWidget);
-      expect(find.byIcon(Icons.psychology_rounded), findsOneWidget);
+      expect(find.text('🧠'), findsOneWidget);
       expect(find.byKey(const Key('review-completion-again')), findsOneWidget);
       expect(find.byKey(const Key('review-completion-good')), findsOneWidget);
       expect(find.byKey(const Key('review-completion-easy')), findsOneWidget);

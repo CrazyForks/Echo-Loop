@@ -3565,6 +3565,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewCompletionReviewed => 'Reviewed';
 
   @override
+  String get reviewStatusRemaining => 'Remaining';
+
+  @override
   String get reviewStatisticsDuration => 'Review time';
 
   @override

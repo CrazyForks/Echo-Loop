@@ -6254,6 +6254,12 @@ abstract class AppLocalizations {
   /// **'Reviewed'**
   String get reviewCompletionReviewed;
 
+  /// No description provided for @reviewStatusRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining'**
+  String get reviewStatusRemaining;
+
   /// No description provided for @reviewStatisticsDuration.
   ///
   /// In en, this message translates to:

@@ -211,6 +211,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                         key: const Key('bookmark-review-status-bar'),
                         elapsed: () => player.elapsed,
                         reviewedCount: state.reviewedCount,
+                        remainingCount: state.remainingCount,
                         elapsedLabel:
                             Localizations.localeOf(context).languageCode == 'zh'
                             ? '学习时长'
@@ -219,6 +220,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                             Localizations.localeOf(context).languageCode == 'zh'
                             ? '已复习'
                             : 'Reviewed',
+                        remainingLabel: l10n.reviewStatusRemaining,
                       ),
                     ],
                   ),

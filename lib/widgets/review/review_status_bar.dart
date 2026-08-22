@@ -8,15 +8,19 @@ class ReviewStatusBar extends StatefulWidget {
   const ReviewStatusBar({
     required this.elapsed,
     required this.reviewedCount,
+    required this.remainingCount,
     required this.elapsedLabel,
     required this.reviewedLabel,
+    required this.remainingLabel,
     super.key,
   });
 
   final Duration Function() elapsed;
   final int reviewedCount;
+  final int remainingCount;
   final String elapsedLabel;
   final String reviewedLabel;
+  final String remainingLabel;
 
   @override
   State<ReviewStatusBar> createState() => _ReviewStatusBarState();
@@ -42,7 +46,10 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      color: Theme.of(
+        context,
+      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.68),
+      fontSize: 11,
     );
     final duration = widget.elapsed();
     final minutes = duration.inMinutes.toString().padLeft(2, '0');
@@ -64,15 +71,22 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.timer_outlined, size: 14, color: style?.color),
+          Icon(Icons.timer_outlined, size: 13, color: style?.color),
           const SizedBox(width: AppSpacing.xs),
           Text(widget.elapsedLabel, style: style),
           const SizedBox(width: AppSpacing.xs),
           Text(time, style: timeStyle),
           const SizedBox(width: AppSpacing.l),
-          Icon(Icons.check_circle_outline, size: 14, color: style?.color),
+          Icon(Icons.check_circle_outline, size: 13, color: style?.color),
           const SizedBox(width: AppSpacing.xs),
           Text('${widget.reviewedLabel} ${widget.reviewedCount}', style: style),
+          const SizedBox(width: AppSpacing.l),
+          Icon(Icons.pending_actions_outlined, size: 13, color: style?.color),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '${widget.remainingLabel} ${widget.remainingCount}',
+            style: style,
+          ),
         ],
       ),
     );

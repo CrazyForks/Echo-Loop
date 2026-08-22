@@ -98,12 +98,42 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   _FavoritesView _currentView = _FavoritesView.sentences;
+  late final AppLifecycleListener _lifecycleListener;
 
   /// 新手引导 step key（生命周期内稳定）
   final GlobalKey _keySentencesList = GlobalKey();
   final GlobalKey _keySentencesReviewBtn = GlobalKey();
   final GlobalKey _keyWordsList = GlobalKey();
   final GlobalKey _keyVocabReviewBtn = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (state) {
+        // 应用回到前台时，到期时间可能已跨过当前时刻；重新读取当前入口数量。
+        if (state == AppLifecycleState.resumed) {
+          _refreshDueCount(_currentView);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener.dispose();
+    super.dispose();
+  }
+
+  /// 使当前收藏类型的到期数量失效，下一次渲染始终基于最新调度快照。
+  void _refreshDueCount(_FavoritesView view) {
+    switch (view) {
+      case _FavoritesView.sentences:
+        ref.invalidate(favoriteSentenceDueCountProvider);
+      case _FavoritesView.words:
+        ref.invalidate(favoriteVocabularyDueCountProvider);
+    }
+  }
 
   /// 打开收藏复习共享设置；收藏页不预展开任一内容分区。
   Future<void> _openReviewSettings() async {
@@ -282,9 +312,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   ],
                   selected: {_currentView},
                   onSelectionChanged: (selected) {
-                    debugPrint('[PERF] tab 切换: ${selected.first}');
+                    final nextView = selected.first;
+                    debugPrint('[PERF] tab 切换: $nextView');
                     final sw = Stopwatch()..start();
-                    setState(() => _currentView = selected.first);
+                    setState(() => _currentView = nextView);
+                    // IndexedStack 会保留两个 Tab；显式失效避免复用旧 Future 结果。
+                    _refreshDueCount(nextView);
                     debugPrint(
                       '[PERF] setState 完成: ${sw.elapsedMilliseconds}ms',
                     );
@@ -470,9 +503,13 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
           '[PERF] bookmark review initialize: ${sw.elapsedMilliseconds}ms',
         );
         if (!context.mounted) return;
-        context.push(AppRoutes.bookmarkReview);
+        await context.push<void>(AppRoutes.bookmarkReview);
+        if (context.mounted) {
+          // 返回收藏页时重新计算，覆盖评分、取消收藏及会话停留期间到期的卡片。
+          ref.invalidate(favoriteSentenceDueCountProvider);
+        }
         debugPrint(
-          '[PERF] context.push bookmarkReview: ${sw.elapsedMilliseconds}ms',
+          '[PERF] bookmarkReview returned: ${sw.elapsedMilliseconds}ms',
         );
       },
     );
@@ -520,8 +557,11 @@ class _FloatingFlashcardButton extends ConsumerWidget {
         await ref
             .read(favoriteVocabularyReviewProvider.notifier)
             .initialize(words, phrases);
+        if (!context.mounted) return;
+        await context.push<void>(AppRoutes.favoriteVocabularyReview);
         if (context.mounted) {
-          context.push(AppRoutes.favoriteVocabularyReview);
+          // 返回收藏页时重新计算，避免保留进入复习前的缓存数量。
+          ref.invalidate(favoriteVocabularyDueCountProvider);
         }
       },
     );
@@ -674,7 +714,10 @@ class _AudioBookmarkGroup extends ConsumerWidget {
                   final provider = ref.read(bookmarkReviewProvider.notifier);
                   await provider.initialize(bookmarks);
                   if (!context.mounted) return;
-                  context.push(AppRoutes.bookmarkReview);
+                  await context.push<void>(AppRoutes.bookmarkReview);
+                  if (context.mounted) {
+                    ref.invalidate(favoriteSentenceDueCountProvider);
+                  }
                 },
               ),
             ),

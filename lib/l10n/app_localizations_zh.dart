@@ -3408,6 +3408,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewCompletionReviewed => '复习条数';
 
   @override
+  String get reviewStatusRemaining => '剩余';
+
+  @override
   String get reviewStatisticsDuration => '复习时长';
 
   @override
