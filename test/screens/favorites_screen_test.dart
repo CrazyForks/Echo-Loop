@@ -538,7 +538,7 @@ void main() {
       // 有待复习内容时统一使用闪卡图标。
       expect(find.byIcon(Icons.style_outlined), findsAtLeast(1));
       expect(find.text('1 due for review'), findsOneWidget);
-      expect(tester.getSize(find.byType(FilledButton).last).height, 48);
+      expect(tester.getSize(find.byType(FilledButton).last).height, 36);
     });
 
     testWidgets('句子无待复习内容时显示空态并禁用按钮', (tester) async {
@@ -559,7 +559,7 @@ void main() {
 
       expect(find.text('All Done!'), findsOneWidget);
       expect(find.text('🎉'), findsOneWidget);
-      expect(tester.getSize(find.byType(FilledButton).last).height, 48);
+      expect(tester.getSize(find.byType(FilledButton).last).height, 36);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton).last).onPressed,
         isNull,

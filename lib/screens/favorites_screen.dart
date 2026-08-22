@@ -577,7 +577,7 @@ class _FloatingReviewButton extends StatelessWidget {
     // 统一三种状态的按钮高度，避免 Emoji 前导内容改变 FilledButton 的固有高度。
     Widget button = SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 36,
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         child: Row(
