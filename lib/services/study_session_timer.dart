@@ -41,6 +41,9 @@ final class StudySessionTimer {
   bool _started = false;
   bool _stopped = false;
 
+  /// 当前会话累计的前台有效时长。
+  Duration get elapsed => _stopwatch.elapsed;
+
   /// 启动当前会话；重复调用不会重置已累计时长。
   void start() {
     if (_stopped || _started) return;

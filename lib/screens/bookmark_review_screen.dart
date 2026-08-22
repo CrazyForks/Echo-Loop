@@ -25,6 +25,7 @@ import '../utils/wakelock_mixin.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/sentence_explanation_view.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
+import '../widgets/review/review_status_bar.dart';
 
 class BookmarkReviewScreen extends ConsumerStatefulWidget {
   const BookmarkReviewScreen({super.key});
@@ -147,6 +148,8 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                         ),
                         isRemoving: state.isRemoving,
                         onRemove: _removeCurrent,
+                        elapsed: () => player.elapsed,
+                        reviewedCount: state.reviewedCount,
                       ),
                       Expanded(
                         child: state.face == BookmarkReviewFace.front
@@ -201,6 +204,8 @@ class _ReviewProgress extends StatelessWidget {
     required this.duration,
     required this.isRemoving,
     required this.onRemove,
+    required this.elapsed,
+    required this.reviewedCount,
   });
 
   final double progress;
@@ -208,6 +213,8 @@ class _ReviewProgress extends StatelessWidget {
   final String duration;
   final bool isRemoving;
   final VoidCallback onRemove;
+  final Duration Function() elapsed;
+  final int reviewedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +308,16 @@ class _ReviewProgress extends StatelessWidget {
                 ],
               );
             },
+          ),
+          ReviewStatusBar(
+            elapsed: elapsed,
+            reviewedCount: reviewedCount,
+            elapsedLabel: Localizations.localeOf(context).languageCode == 'zh'
+                ? '学习时长'
+                : 'Study time',
+            reviewedLabel: Localizations.localeOf(context).languageCode == 'zh'
+                ? '已复习'
+                : 'Reviewed',
           ),
         ],
       ),

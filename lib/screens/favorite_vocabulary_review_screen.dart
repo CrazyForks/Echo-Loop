@@ -35,6 +35,7 @@ import '../theme/app_theme.dart';
 import '../utils/time_format.dart';
 import '../utils/wakelock_mixin.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
+import '../widgets/review/review_status_bar.dart';
 
 class FavoriteVocabularyReviewScreen extends ConsumerStatefulWidget {
   const FavoriteVocabularyReviewScreen({super.key});
@@ -154,6 +155,16 @@ class _FavoriteVocabularyReviewScreenState
                         progress: state.total == 0
                             ? 0
                             : state.position / state.total,
+                      ),
+                      ReviewStatusBar(
+                        elapsed: () => player.elapsed,
+                        reviewedCount: state.reviewedCount,
+                        elapsedLabel: Localizations.localeOf(context).languageCode == 'zh'
+                            ? '学习时长'
+                            : 'Study time',
+                        reviewedLabel: Localizations.localeOf(context).languageCode == 'zh'
+                            ? '已复习'
+                            : 'Reviewed',
                       ),
                       Expanded(
                         child: state.face == FavoriteVocabularyReviewFace.front

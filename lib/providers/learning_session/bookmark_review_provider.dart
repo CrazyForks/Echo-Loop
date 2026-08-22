@@ -58,6 +58,7 @@ class BookmarkReviewState {
     this.removeError,
     this.preview,
     this.isSubmittingRating = false,
+    this.reviewedCount = 0,
   });
 
   final List<BookmarkSentence> cards;
@@ -69,6 +70,7 @@ class BookmarkReviewState {
   final String? removeError;
   final MemoryRatingPreviewSet? preview;
   final bool isSubmittingRating;
+  final int reviewedCount;
 
   BookmarkSentence? get currentCard =>
       currentIndex >= 0 && currentIndex < cards.length
@@ -90,6 +92,7 @@ class BookmarkReviewState {
     MemoryRatingPreviewSet? preview,
     bool clearPreview = false,
     bool? isSubmittingRating,
+    int? reviewedCount,
   }) => BookmarkReviewState(
     cards: cards ?? this.cards,
     currentIndex: currentIndex ?? this.currentIndex,
@@ -100,6 +103,7 @@ class BookmarkReviewState {
     removeError: clearRemoveError ? null : removeError ?? this.removeError,
     preview: clearPreview ? null : preview ?? this.preview,
     isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
+    reviewedCount: reviewedCount ?? this.reviewedCount,
   );
 }
 
@@ -109,6 +113,9 @@ class BookmarkReview extends _$BookmarkReview {
   late final AppLifecycleListener _lifecycleListener;
   StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<BookmarkSentence>? _controller;
+
+  /// 当前收藏句复习会话的前台有效时长。
+  Duration get elapsed => _studySessionTimer?.elapsed ?? Duration.zero;
 
   @override
   BookmarkReviewState build() {
@@ -284,6 +291,7 @@ class BookmarkReview extends _$BookmarkReview {
             .map((c) => c.content)
             .toList(growable: false),
         currentIndex: controller.state.currentIndex,
+        reviewedCount: state.reviewedCount + 1,
       );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {

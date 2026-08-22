@@ -56,6 +56,7 @@ class FavoriteVocabularyReviewState {
     this.removeError,
     this.preview,
     this.isSubmittingRating = false,
+    this.reviewedCount = 0,
   });
 
   final List<FlashcardItem> cards;
@@ -68,6 +69,7 @@ class FavoriteVocabularyReviewState {
   final String? removeError;
   final MemoryRatingPreviewSet? preview;
   final bool isSubmittingRating;
+  final int reviewedCount;
 
   FlashcardItem? get currentCard =>
       currentIndex >= 0 && currentIndex < cards.length
@@ -90,6 +92,7 @@ class FavoriteVocabularyReviewState {
     MemoryRatingPreviewSet? preview,
     bool clearPreview = false,
     bool? isSubmittingRating,
+    int? reviewedCount,
   }) => FavoriteVocabularyReviewState(
     cards: cards ?? this.cards,
     currentIndex: currentIndex ?? this.currentIndex,
@@ -101,6 +104,7 @@ class FavoriteVocabularyReviewState {
     removeError: clearRemoveError ? null : removeError ?? this.removeError,
     preview: clearPreview ? null : preview ?? this.preview,
     isSubmittingRating: isSubmittingRating ?? this.isSubmittingRating,
+    reviewedCount: reviewedCount ?? this.reviewedCount,
   );
 }
 
@@ -111,6 +115,9 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
   late final AppLifecycleListener _lifecycleListener;
   StudySessionTimer? _studySessionTimer;
   ScheduledFlashcardController<FlashcardItem>? _controller;
+
+  /// 当前收藏词汇复习会话的前台有效时长。
+  Duration get elapsed => _studySessionTimer?.elapsed ?? Duration.zero;
 
   @override
   FavoriteVocabularyReviewState build() {
@@ -322,6 +329,7 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
             .map((card) => card.content)
             .toList(growable: false),
         currentIndex: controller.state.currentIndex,
+        reviewedCount: state.reviewedCount + 1,
       );
       if (controller.state.current != null) unawaited(startCurrentCard());
     } else {
