@@ -729,15 +729,27 @@ class _FloatingReviewButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // 统一三种状态的按钮高度，避免 Emoji 前导内容改变 FilledButton 的固有高度。
-    Widget button = SizedBox(
-      width: double.infinity,
-      height: 36,
-      child: FilledButton(
-        onPressed: enabled ? onPressed : null,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [leading, const SizedBox(width: 8), Text(label)],
+    // 常规字号保持紧凑 36px；放大系统字体时允许按文本自然增高，
+    // 避免全局 FilledButton 的垂直内边距把复习文案裁切掉。
+    Widget button = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 36),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: enabled ? onPressed : null,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              leading,
+              const SizedBox(width: 8),
+              Flexible(child: Text(label, textAlign: TextAlign.center)),
+            ],
+          ),
         ),
       ),
     );

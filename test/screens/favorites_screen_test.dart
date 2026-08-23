@@ -157,6 +157,7 @@ void main() {
 
   Widget createTestWidget({
     Locale locale = const Locale('en'),
+    TextScaler textScaler = TextScaler.noScaling,
     BookmarkReview? bookmarkReview,
     int? sentenceDueCount,
     Future<int> Function()? sentenceDueLoader,
@@ -222,17 +223,22 @@ void main() {
           ),
         ),
       ],
-      child: MaterialApp.router(
-        locale: locale,
-        supportedLocales: const [Locale('en'), Locale('zh')],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light(),
-        routerConfig: router,
+      child: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+          child: MaterialApp.router(
+            locale: locale,
+            supportedLocales: const [Locale('en'), Locale('zh')],
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
       ),
     );
   }
@@ -594,6 +600,42 @@ void main() {
       expect(find.byIcon(Icons.style_outlined), findsAtLeast(1));
       expect(find.text('1 due for review'), findsOneWidget);
       expect(tester.getSize(find.byType(FilledButton).last).height, 36);
+    });
+
+    testWidgets('中文放大字体下复习按钮完整显示且按内容增高', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          locale: const Locale('zh'),
+          textScaler: const TextScaler.linear(2),
+          sentenceDueCount: 1,
+        ),
+      );
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+            endTime: 3.0,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([]);
+      await tester.pumpAndSettle();
+
+      final label = find.text('待复习 1 个');
+      final button = find.byType(FilledButton).last;
+      expect(label, findsOneWidget);
+      expect(tester.getSize(button).height, greaterThan(36));
+      final buttonRect = tester.getRect(button);
+      final labelRect = tester.getRect(label);
+      expect(buttonRect.contains(labelRect.topLeft), isTrue);
+      expect(
+        buttonRect.contains(labelRect.bottomRight - const Offset(0.1, 0.1)),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('句子无待复习内容时显示空态并禁用按钮', (tester) async {
