@@ -651,6 +651,7 @@
   "confirmExit": "Exit",
   "library": "Library",
   "myLibrary": "My Library",
+  "libraryShowAll": "All",
   "collectionsTab": "Collections",
   "audioTab": "Audio",
   "uncategorized": "Uncategorized",

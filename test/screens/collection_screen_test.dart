@@ -37,6 +37,68 @@ void main() {
         expect(find.text('Audio'), findsNothing);
       });
 
+      testWidgets('连续点击标题五次后显示全部音频入口', (tester) async {
+        await tester.pumpWidget(createTestScreen(const LibraryScreen()));
+        await tester.pumpAndSettle();
+
+        final title = find.byKey(const Key('library_title'));
+        expect(find.byKey(const Key('library_all_audio_button')), findsNothing);
+
+        for (var i = 0; i < 4; i++) {
+          await tester.tap(title);
+        }
+        await tester.pump();
+        expect(find.byKey(const Key('library_all_audio_button')), findsNothing);
+
+        await tester.tap(title);
+        await tester.pump();
+        expect(find.text('All'), findsOneWidget);
+      });
+
+      testWidgets('点击全部后进入原音频列表视图', (tester) async {
+        await tester.pumpWidget(createTestScreen(const LibraryScreen()));
+        await tester.pumpAndSettle();
+
+        final title = find.byKey(const Key('library_title'));
+        for (var i = 0; i < 5; i++) {
+          await tester.tap(title);
+        }
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('library_all_audio_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('No audio files yet'), findsOneWidget);
+        expect(find.byIcon(Icons.sort), findsOneWidget);
+      });
+
+      testWidgets('全部入口仅保存在当前页面内存中', (tester) async {
+        await tester.pumpWidget(createTestScreen(const LibraryScreen()));
+        await tester.pumpAndSettle();
+
+        for (var i = 0; i < 5; i++) {
+          await tester.tap(find.byKey(const Key('library_title')));
+        }
+        await tester.pump();
+        expect(find.text('All'), findsOneWidget);
+
+        await tester.pumpWidget(createTestScreen(const LibraryScreen()));
+        await tester.pumpAndSettle();
+        expect(find.text('All'), findsNothing);
+      });
+
+      testWidgets('中文环境显示全部按钮', (tester) async {
+        await tester.pumpWidget(
+          createTestScreen(const LibraryScreen(), locale: const Locale('zh')),
+        );
+        await tester.pumpAndSettle();
+
+        for (var i = 0; i < 5; i++) {
+          await tester.tap(find.byKey(const Key('library_title')));
+        }
+        await tester.pump();
+        expect(find.text('全部'), findsOneWidget);
+      });
+
       testWidgets('显示创建按钮', (tester) async {
         await tester.pumpWidget(createTestScreen(const LibraryScreen()));
         await tester.pumpAndSettle();

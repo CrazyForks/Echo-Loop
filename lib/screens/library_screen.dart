@@ -28,6 +28,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   LibraryViewType _currentView = LibraryViewType.collections;
+  int _libraryTitleTapCount = 0;
+  bool _showAllAudioShortcut = false;
 
   // Guide steps 的 GlobalKey 在 state 层持有，保证整个 screen 生命周期内稳定。
   // 同一个 step 会同时被 GuideFlow.steps 和对应的 GuideTarget 引用。
@@ -72,7 +74,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.myLibrary),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                key: const Key('library_title'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _onLibraryTitleTap,
+                child: Text(l10n.myLibrary),
+              ),
+              if (_showAllAudioShortcut) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  key: const Key('library_all_audio_button'),
+                  onPressed: _showAllAudio,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(l10n.libraryShowAll),
+                ),
+              ],
+            ],
+          ),
           // TODO(资源库 UI 稳定后): 删除以下暂时隐藏的合集/音频选择组件及相关视图切换逻辑。
           // title: SegmentedButton<LibraryViewType>(
           //   segments: [
@@ -115,6 +140,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       ),
     );
+  }
+
+  /// 连续点击标题五次后，在标题旁显示临时的全量音频入口。
+  void _onLibraryTitleTap() {
+    if (_showAllAudioShortcut) return;
+    setState(() {
+      if (_libraryTitleTapCount < 5) {
+        _libraryTitleTapCount += 1;
+      }
+      if (_libraryTitleTapCount == 5) {
+        _showAllAudioShortcut = true;
+      }
+    });
+  }
+
+  /// 复用旧音频 Tab 的切换行为，保留音频列表及 AppBar 操作入口。
+  void _showAllAudio() {
+    setState(() {
+      _currentView = LibraryViewType.audio;
+    });
   }
 
   /// 根据当前视图构建 AppBar actions

@@ -1193,6 +1193,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myLibrary => 'My Library';
 
   @override
+  String get libraryShowAll => 'All';
+
+  @override
   String get collectionsTab => 'Collections';
 
   @override

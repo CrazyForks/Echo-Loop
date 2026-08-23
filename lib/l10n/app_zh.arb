@@ -486,6 +486,7 @@
   "confirmExit": "退出",
   "library": "资源库",
   "myLibrary": "我的资源库",
+  "libraryShowAll": "全部",
   "collectionsTab": "合集",
   "audioTab": "音频",
   "uncategorized": "未归类",
