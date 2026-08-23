@@ -49,6 +49,14 @@ import 'package:echo_loop/theme/app_theme.dart';
 
 import 'mock_providers.dart';
 
+// 所有轻量 widget 测试共享一份内存数据库，避免每次 pump 都创建 Drift 数据库，
+// 导致异步查询流在 ProviderScope 销毁时留下 pending timer。
+final _testAppDatabase = AppDatabase(
+  NativeDatabase.memory(
+    setup: (db) => db.execute('PRAGMA foreign_keys = ON'),
+  ),
+);
+
 /// 创建测试用 App 包装器
 ///
 /// 自动注入所有 Provider 的测试替身，可通过 [overrides] 覆盖。
@@ -80,6 +88,9 @@ Widget createTestApp(
     foregroundAudioEngineProvider.overrideWith(
       () => TestForegroundAudioEngine(),
     ),
+    // 收藏生命周期、播放断点等 Provider 会在 widget 测试中读取数据库；
+    // 默认注入独立内存库，避免测试意外依赖生产启动流程的全局数据库。
+    appDatabaseProvider.overrideWithValue(_testAppDatabase),
     learningProgressNotifierProvider.overrideWith(
       () => TestLearningProgressNotifier(),
     ),
