@@ -145,9 +145,7 @@ class _FavoritesSegment extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     // 图标作为辅助信息使用次要色，避免与标题争夺视觉焦点。
-    final foregroundColor = colorScheme.onSurfaceVariant.withValues(
-      alpha: 0.6,
-    );
+    final foregroundColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
 
     return Expanded(
       child: Semantics(
@@ -865,6 +863,7 @@ class _AudioBookmarkGroup extends StatelessWidget {
               bookmark: bookmarks[i].bookmark,
               audioId: audioId,
               audioName: audioName,
+              displayNumber: i + 1,
             ),
           ],
         ],
@@ -878,11 +877,13 @@ class _BookmarkSentenceTile extends ConsumerStatefulWidget {
   final Bookmark bookmark;
   final String audioId;
   final String audioName;
+  final int displayNumber;
 
   const _BookmarkSentenceTile({
     required this.bookmark,
     required this.audioId,
     required this.audioName,
+    required this.displayNumber,
   });
 
   @override
@@ -939,10 +940,6 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
 
   @override
   Widget build(BuildContext context) {
-    final playingKey = ref
-        .watch(shortAudioPlaybackStateProvider)
-        .valueOrNull
-        ?.playingKey;
     final theme = Theme.of(context);
     final bm = widget.bookmark;
 
@@ -963,19 +960,18 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),
-        leading: IconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          icon: Icon(
-            playingKey == 'saved-sentence:${bm.id}'
-                ? Icons.stop_circle_outlined
-                : Icons.play_circle_outline,
-            size: 28,
+        horizontalTitleGap: 8,
+        // 整行点击已经负责播放/停止，左侧仅保留紧凑编号以释放正文空间。
+        leading: SizedBox(
+          key: ValueKey('saved-sentence-number-${bm.id}'),
+          width: 24,
+          child: Text(
+            '${widget.displayNumber}',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-          color: playingKey == 'saved-sentence:${bm.id}'
-              ? theme.colorScheme.error
-              : theme.colorScheme.primary,
-          onPressed: _playSentence,
         ),
         title: Text(bm.sentenceText, style: theme.textTheme.bodyMedium),
         trailing: SizedBox(
@@ -1473,13 +1469,6 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     ref.watch(
       ttsControllerProvider.select((state) => state.configurationVersion),
     );
-    final playingKey = ref
-        .watch(shortAudioPlaybackStateProvider)
-        .valueOrNull
-        ?.playingKey;
-    final ttsPlayingKey = ref.watch(
-      ttsControllerProvider.select((state) => state.speakingKey),
-    );
     _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
@@ -1557,32 +1546,14 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(height: AppSpacing.s),
-                    // 来源句子（可播放）
+                    // 来源句子仍可点击播放，但不再显示重复的播放/停止图标。
                     if (phrase.sentenceText != null) ...[
                       InkWell(
+                        key: const Key('favorite-phrase-source-sentence'),
                         onTap: _playSentence,
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           children: [
-                            if (phrase.sentenceText != null)
-                              Icon(
-                                playingKey ==
-                                            'saved-phrase-source:${phrase.id}' ||
-                                        ttsPlayingKey ==
-                                            'saved-phrase-source:${phrase.id}'
-                                    ? Icons.stop_circle_outlined
-                                    : Icons.play_circle_outline,
-                                size: 18,
-                                color:
-                                    playingKey ==
-                                            'saved-phrase-source:${phrase.id}' ||
-                                        ttsPlayingKey ==
-                                            'saved-phrase-source:${phrase.id}'
-                                    ? theme.colorScheme.error
-                                    : theme.colorScheme.onSurfaceVariant,
-                              ),
-                            if (phrase.sentenceText != null)
-                              const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
                                 phrase.sentenceText!,
@@ -1599,14 +1570,11 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                     // 来源音频
                     if (_audioName != null && phrase.audioItemId != null) ...[
                       const SizedBox(height: AppSpacing.s),
-                      GestureDetector(
-                        onTap: () {
-                          context.push(
-                            AppRoutes.audioLearningPlan(phrase.audioItemId!),
-                          );
-                        },
-                        child: _SourceAudioReference(
-                          label: l10n.bookmarkReviewFromAudio(_audioName!),
+                      _SourceAudioReference(
+                        key: const Key('favorite-source-audio-reference'),
+                        label: l10n.bookmarkReviewFromAudio(_audioName!),
+                        onTap: () => context.push(
+                          AppRoutes.audioLearningPlan(phrase.audioItemId!),
                         ),
                       ),
                     ],
@@ -1878,13 +1846,6 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     ref.watch(
       ttsControllerProvider.select((state) => state.configurationVersion),
     );
-    final playingKey = ref
-        .watch(shortAudioPlaybackStateProvider)
-        .valueOrNull
-        ?.playingKey;
-    final ttsPlayingKey = ref.watch(
-      ttsControllerProvider.select((state) => state.speakingKey),
-    );
     _schedulePrewarm();
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
@@ -1998,39 +1959,22 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                       _buildMetaTags(theme, widget.dictEntry!),
                     ],
 
-                    // 来源句子
+                    // 来源句子仍可点击播放，但不再显示重复的播放/停止图标。
                     if (word.sentenceText != null) ...[
-                      const SizedBox(height: AppSpacing.m),
+                      const SizedBox(height: AppSpacing.xs),
                       Divider(
                         height: 1,
                         color: theme.colorScheme.outlineVariant.withValues(
                           alpha: 0.7,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.s),
+                      const SizedBox(height: 0),
                       InkWell(
+                        key: const Key('favorite-word-source-sentence'),
                         onTap: _playSentence,
                         borderRadius: BorderRadius.circular(8),
                         child: Row(
                           children: [
-                            if (word.sentenceText != null)
-                              Icon(
-                                playingKey == 'saved-word-source:${word.id}' ||
-                                        ttsPlayingKey ==
-                                            'saved-word-source:${word.id}'
-                                    ? Icons.stop_circle_outlined
-                                    : Icons.play_circle_outline,
-                                size: 18,
-                                color:
-                                    playingKey ==
-                                            'saved-word-source:${word.id}' ||
-                                        ttsPlayingKey ==
-                                            'saved-word-source:${word.id}'
-                                    ? theme.colorScheme.error
-                                    : theme.colorScheme.onSurfaceVariant,
-                              ),
-                            if (word.sentenceText != null)
-                              const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
                                 word.sentenceText!,
@@ -2046,15 +1990,12 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
                     // 源音频引用
                     if (_audioName != null && word.audioItemId != null) ...[
-                      const SizedBox(height: AppSpacing.s),
-                      GestureDetector(
-                        onTap: () {
-                          context.push(
-                            AppRoutes.audioLearningPlan(word.audioItemId!),
-                          );
-                        },
-                        child: _SourceAudioReference(
-                          label: l10n.bookmarkReviewFromAudio(_audioName!),
+                      const SizedBox(height: AppSpacing.xs),
+                      _SourceAudioReference(
+                        key: const Key('favorite-source-audio-reference'),
+                        label: l10n.bookmarkReviewFromAudio(_audioName!),
+                        onTap: () => context.push(
+                          AppRoutes.audioLearningPlan(word.audioItemId!),
                         ),
                       ),
                     ],
@@ -2132,29 +2073,58 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
   }
 }
 
-/// 来源音频固定为单行左对齐，保证窄屏和超长标题下仍保留跳转入口。
+/// 来源音频固定为单行右对齐，并以箭头提示该行可跳转。
 class _SourceAudioReference extends StatelessWidget {
   final String label;
+  final VoidCallback onTap;
 
-  const _SourceAudioReference({required this.label});
+  const _SourceAudioReference({
+    super.key,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = theme.colorScheme.outline.withValues(alpha: 0.7);
-    return Row(
-      children: [
-        Icon(Icons.headphones, size: 14, color: color),
-        const SizedBox(width: AppSpacing.xs),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
+    return Semantics(
+      button: true,
+      label: '打开来源材料 $label',
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            mouseCursor: SystemMouseCursors.click,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: 3,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.headphones, size: 14, color: color),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(color: color),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: color),
+                ],
+              ),
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

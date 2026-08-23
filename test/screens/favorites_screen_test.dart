@@ -33,9 +33,9 @@ class _MockCacheDao extends Mock implements SentenceAiCacheDao {}
 class _MockApiClient extends Mock implements SentenceAiApiClient {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {
-  _MockAudioItemDao() {
+  _MockAudioItemDao({AudioItem? audioItem}) {
     // 默认返回 null（音频不存在），避免未 stub 报错
-    when(() => getById(any())).thenAnswer((_) async => null);
+    when(() => getById(any())).thenAnswer((_) async => audioItem);
   }
 }
 
@@ -158,6 +158,7 @@ void main() {
   Widget createTestWidget({
     Locale locale = const Locale('en'),
     TextScaler textScaler = TextScaler.noScaling,
+    AudioItem? sourceAudio,
     BookmarkReview? bookmarkReview,
     int? sentenceDueCount,
     Future<int> Function()? sentenceDueLoader,
@@ -196,7 +197,9 @@ void main() {
         savedWordDaoProvider.overrideWithValue(
           _TestSavedWordDao(wordController),
         ),
-        audioItemDaoProvider.overrideWithValue(_MockAudioItemDao()),
+        audioItemDaoProvider.overrideWithValue(
+          _MockAudioItemDao(audioItem: sourceAudio),
+        ),
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
         if (bookmarkReview != null)
           bookmarkReviewProvider.overrideWith(() => bookmarkReview),
@@ -743,7 +746,7 @@ void main() {
       expect(find.text('Test.'), findsOneWidget);
     });
 
-    testWidgets('句子项显示播放按钮', (tester) async {
+    testWidgets('句子项显示分组内编号且不显示播放按钮', (tester) async {
       await tester.pumpWidget(createTestWidget());
 
       bookmarkController.add([
@@ -756,6 +759,15 @@ void main() {
           ),
           audioName: 'Audio One',
         ),
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 2,
+            audioItemId: 'audio-1',
+            sentenceIndex: 1,
+            sentenceText: 'Second sentence.',
+          ),
+          audioName: 'Audio One',
+        ),
       ]);
       wordController.add([]);
       await tester.pumpAndSettle();
@@ -764,8 +776,35 @@ void main() {
       await tester.tap(find.text('Audio One'));
       await tester.pumpAndSettle();
 
-      // 播放按钮
-      expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('saved-sentence-number-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('saved-sentence-number-2')),
+        findsOneWidget,
+      );
+      final numberRect = tester.getRect(
+        find.byKey(const ValueKey('saved-sentence-number-1')),
+      );
+      final titleRect = tester.getRect(find.text('Test.'));
+      expect(titleRect.left - numberRect.right, closeTo(8, 0.01));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('saved-sentence-number-1')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('saved-sentence-number-2')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+      expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
     });
 
     testWidgets('多个音频分组不再显示单篇练习按钮', (tester) async {
@@ -887,6 +926,52 @@ void main() {
       await tester.pump();
 
       expect(find.text('hello'), findsOneWidget);
+    });
+
+    testWidgets('单词来源句不显示播放图标且来源音频右侧显示箭头', (tester) async {
+      final sourceAudio = AudioItem(
+        id: 'audio-1',
+        name: 'A source lesson',
+        addedDate: DateTime(2026, 1, 1),
+        totalDuration: 60,
+        sentenceCount: 1,
+        wordCount: 5,
+        isPinned: false,
+        updatedAt: DateTime(2026, 1, 1),
+        syncStatus: 0,
+      );
+      await tester.pumpWidget(createTestWidget(sourceAudio: sourceAudio));
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'researcher',
+          audioItemId: 'audio-1',
+          sentenceIndex: 0,
+          sentenceText: 'A researcher studies inherited traits.',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('researcher'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+      expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
+      expect(
+        find.byKey(const Key('favorite-source-audio-reference')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('favorite-source-audio-reference')),
+          matching: find.byType(InkWell),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
     });
   });
 
