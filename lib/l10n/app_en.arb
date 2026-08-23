@@ -1402,6 +1402,7 @@
   "@bookmarkReviewFromAudio": {
     "placeholders": { "name": { "type": "String" } }
   },
+  "favoriteSourceMaterialNotFound": "Source material not found",
   "bookmarkReviewUnsave": "Unsave",
   "bookmarkReviewTapReplay": "Listen and recall",
   "bookmarkReviewLoadingAudio": "Loading audio…",

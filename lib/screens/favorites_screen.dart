@@ -16,10 +16,12 @@ import '../analytics/models/event_names.dart';
 import '../features/usage/usage_event.dart';
 import '../features/usage/usage_providers.dart';
 import '../database/app_database.dart';
+import '../database/daos/audio_item_dao.dart';
 import '../database/daos/bookmark_dao.dart';
 import '../database/providers.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dict_entry.dart';
+import '../models/sentence.dart';
 import '../screens/sentence_detail_screen.dart';
 import '../providers/short_audio_player_provider.dart';
 import '../providers/tts/tts_controller_provider.dart';
@@ -36,6 +38,7 @@ import '../services/dictionary_service.dart';
 import '../services/app_logger.dart';
 import '../services/pronunciation/source_sentence_player.dart';
 import '../services/pronunciation/local_audio_range_player.dart';
+import '../services/subtitle_parser.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
@@ -958,39 +961,205 @@ class _BookmarkSentenceTileState extends ConsumerState<_BookmarkSentenceTile> {
       onDismissed: (_) {
         unawaited(sentenceLifecycle.remove(widget.audioId, {bm.sentenceIndex}));
       },
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),
-        horizontalTitleGap: 8,
-        // 整行点击已经负责播放/停止，左侧仅保留紧凑编号以释放正文空间。
-        leading: SizedBox(
-          key: ValueKey('saved-sentence-number-${bm.id}'),
-          width: 24,
-          child: Text(
-            '${widget.displayNumber}',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        title: Text(bm.sentenceText, style: theme.textTheme.bodyMedium),
-        trailing: SizedBox(
-          width: 40,
-          height: 40,
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            icon: Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-            onPressed: _openDetail,
-          ),
-        ),
-        onTap: _playSentence,
+      child: _FavoriteSourceSentenceTile(
+        sentenceText: bm.sentenceText,
+        displayNumber: widget.displayNumber,
+        displayNumberKey: ValueKey('saved-sentence-number-${bm.id}'),
+        onPlay: _playSentence,
+        onOpenDetail: _openDetail,
       ),
     );
   }
+}
+
+/// 收藏句与词汇来源句共用的分段交互行。
+///
+/// 左侧正文负责来源句试听；右侧整块操作区进入句子讲解页，降低箭头误触。
+class _FavoriteSourceSentenceTile extends StatelessWidget {
+  final String sentenceText;
+  final int? displayNumber;
+  final Key? displayNumberKey;
+  final VoidCallback onPlay;
+  final VoidCallback? onOpenDetail;
+
+  const _FavoriteSourceSentenceTile({
+    super.key,
+    required this.sentenceText,
+    required this.onPlay,
+    this.displayNumber,
+    this.displayNumberKey,
+    this.onOpenDetail,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final number = displayNumber;
+    final canOpenDetail = onOpenDetail != null;
+    final leftPadding = number == null ? 0.0 : AppSpacing.s;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: onPlay,
+                child: Padding(
+                  // 无编号的来源句与外层释义、分隔线共用左边界；收藏句保留编号所需的内边距。
+                  padding: EdgeInsets.only(
+                    left: leftPadding,
+                    right: AppSpacing.s,
+                    top: 8,
+                    bottom: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      if (number != null) ...[
+                        SizedBox(
+                          key: displayNumberKey,
+                          width: 24,
+                          child: Text(
+                            '$number',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Text(
+                          sentenceText,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (canOpenDetail)
+              SizedBox(
+                key: const Key('favorite-source-sentence-open-action'),
+                width: 42,
+                child: Material(
+                  // 默认保持透明，仅由 InkWell 提供按下、悬停等即时反馈。
+                  color: Colors.transparent,
+                  child: Semantics(
+                    button: true,
+                    label: 'Open sentence explanation',
+                    child: InkWell(
+                      onTap: onOpenDetail,
+                      child: Center(
+                        child: Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.55,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 解析收藏词汇来源句进入讲解页所需的位置。
+///
+/// 新数据直接使用持久化的句序和时间；旧数据缺少其中任一字段时，改从当前
+/// 材料字幕按句序或文本恢复，避免把错误的时间范围传给讲解页。
+Future<void> _openFavoriteSourceSentenceDetail({
+  required BuildContext context,
+  required WidgetRef ref,
+  required String audioItemId,
+  required String sentenceText,
+  required int? sentenceIndex,
+  required int? sentenceStartMs,
+  required int? sentenceEndMs,
+}) async {
+  final audioItemDao = ref.read(audioItemDaoProvider);
+  final audio = await audioItemDao.getById(audioItemId);
+  if (audio == null) return;
+
+  final storedRangeIsValid =
+      sentenceStartMs != null &&
+      sentenceEndMs != null &&
+      sentenceEndMs - sentenceStartMs >= 200;
+  final storedIndexIsValid = sentenceIndex != null && sentenceIndex >= 0;
+  final storedLocation = storedRangeIsValid && storedIndexIsValid
+      ? (
+          sentenceIndex: sentenceIndex,
+          startTimeMs: sentenceStartMs,
+          endTimeMs: sentenceEndMs,
+        )
+      : null;
+  final location =
+      storedLocation ??
+      await _resolveSourceSentenceLocation(
+        audioItemDao: audioItemDao,
+        audioItemId: audioItemId,
+        sentenceText: sentenceText,
+        preferredSentenceIndex: sentenceIndex,
+      );
+  if (location == null || !context.mounted) return;
+
+  AppRoutes.pushNested(
+    context,
+    AppRoutes.sentenceDetailSegment,
+    extra: SentenceDetailArgs(
+      audioItemId: audioItemId,
+      audioName: audio.name,
+      sentenceText: sentenceText,
+      sentenceIndex: location.sentenceIndex,
+      startTimeMs: location.startTimeMs,
+      endTimeMs: location.endTimeMs,
+    ),
+  );
+}
+
+/// 从材料字幕恢复来源句的位置；优先信任仍与文本一致的原句序。
+Future<({int sentenceIndex, int startTimeMs, int endTimeMs})?>
+_resolveSourceSentenceLocation({
+  required AudioItemDao audioItemDao,
+  required String audioItemId,
+  required String sentenceText,
+  required int? preferredSentenceIndex,
+}) async {
+  final srt = await audioItemDao.getTranscriptSrt(audioItemId);
+  if (srt == null || srt.isEmpty) return null;
+  final sentences = await SubtitleParser.parseSubtitleString(srt);
+  final normalizedText = sentenceText.trim();
+  if (normalizedText.isEmpty) return null;
+
+  final preferred =
+      preferredSentenceIndex != null &&
+          preferredSentenceIndex >= 0 &&
+          preferredSentenceIndex < sentences.length
+      ? sentences[preferredSentenceIndex]
+      : null;
+  final resolved = preferred?.text.trim() == normalizedText
+      ? preferred
+      : sentences.cast<Sentence?>().firstWhere(
+          (candidate) => candidate?.text.trim() == normalizedText,
+          orElse: () => null,
+        );
+  if (resolved == null) return null;
+  return (
+    sentenceIndex: resolved.index,
+    startTimeMs: resolved.startTime.inMilliseconds,
+    endTimeMs: resolved.endTime.inMilliseconds,
+  );
 }
 
 // ============================================================
@@ -1270,12 +1439,14 @@ class _SavedPhraseTile extends ConsumerStatefulWidget {
 class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
   bool _isExpanded = false;
   String? _audioName;
+  bool _sourceAudioResolved = false;
   bool _hasSubmittedPrewarm = false;
   int _lastPrewarmConfigurationVersion = -1;
 
   @override
   void initState() {
     super.initState();
+    _sourceAudioResolved = widget.savedPhrase.audioItemId == null;
     _loadAudioName();
     _schedulePrewarm();
   }
@@ -1321,9 +1492,29 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     if (audioId == null) return;
     final dao = ref.read(audioItemDaoProvider);
     final row = await dao.getById(audioId);
-    if (mounted && row != null) {
-      setState(() => _audioName = row.name);
+    if (mounted) {
+      setState(() {
+        _audioName = row?.name;
+        _sourceAudioResolved = true;
+      });
     }
+  }
+
+  /// 打开来源句讲解；历史收藏缺少定位字段时由共享解析器回填。
+  Future<void> _openSourceSentenceDetail() {
+    final phrase = widget.savedPhrase;
+    final audioItemId = phrase.audioItemId;
+    final sentenceText = phrase.sentenceText;
+    if (audioItemId == null || sentenceText == null) return Future.value();
+    return _openFavoriteSourceSentenceDetail(
+      context: context,
+      ref: ref,
+      audioItemId: audioItemId,
+      sentenceText: sentenceText,
+      sentenceIndex: phrase.sentenceIndex,
+      sentenceStartMs: phrase.sentenceStartMs,
+      sentenceEndMs: phrase.sentenceEndMs,
+    );
   }
 
   /// 播放意群片段（优先意群时间，回退句子时间）
@@ -1546,24 +1737,15 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(height: AppSpacing.s),
-                    // 来源句子仍可点击播放，但不再显示重复的播放/停止图标。
+                    // 来源句复用收藏句行：正文试听，箭头打开讲解。
                     if (phrase.sentenceText != null) ...[
-                      InkWell(
+                      _FavoriteSourceSentenceTile(
                         key: const Key('favorite-phrase-source-sentence'),
-                        onTap: _playSentence,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                phrase.sentenceText!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        sentenceText: phrase.sentenceText!,
+                        onPlay: _playSentence,
+                        onOpenDetail: _audioName != null
+                            ? () => unawaited(_openSourceSentenceDetail())
+                            : null,
                       ),
                     ],
 
@@ -1577,6 +1759,10 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                           AppRoutes.audioLearningPlan(phrase.audioItemId!),
                         ),
                       ),
+                    ] else if (phrase.sentenceText != null &&
+                        _sourceAudioResolved) ...[
+                      const SizedBox(height: AppSpacing.s),
+                      const _MissingSourceAudioReference(),
                     ],
                   ],
                 ),
@@ -1621,12 +1807,14 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
 
   /// 源音频名称（异步加载）
   String? _audioName;
+  bool _sourceAudioResolved = false;
   bool _hasSubmittedPrewarm = false;
   int _lastPrewarmConfigurationVersion = -1;
 
   @override
   void initState() {
     super.initState();
+    _sourceAudioResolved = widget.savedWord.audioItemId == null;
     _loadAudioName();
     _schedulePrewarm();
   }
@@ -1674,9 +1862,29 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     if (audioId == null) return;
     final dao = ref.read(audioItemDaoProvider);
     final row = await dao.getById(audioId);
-    if (mounted && row != null) {
-      setState(() => _audioName = row.name);
+    if (mounted) {
+      setState(() {
+        _audioName = row?.name;
+        _sourceAudioResolved = true;
+      });
     }
+  }
+
+  /// 打开来源句讲解；历史收藏缺少定位字段时由共享解析器回填。
+  Future<void> _openSourceSentenceDetail() {
+    final word = widget.savedWord;
+    final audioItemId = word.audioItemId;
+    final sentenceText = word.sentenceText;
+    if (audioItemId == null || sentenceText == null) return Future.value();
+    return _openFavoriteSourceSentenceDetail(
+      context: context,
+      ref: ref,
+      audioItemId: audioItemId,
+      sentenceText: sentenceText,
+      sentenceIndex: word.sentenceIndex,
+      sentenceStartMs: word.sentenceStartMs,
+      sentenceEndMs: word.sentenceEndMs,
+    );
   }
 
   /// 播放来源句子的原声片段
@@ -1959,7 +2167,7 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                       _buildMetaTags(theme, widget.dictEntry!),
                     ],
 
-                    // 来源句子仍可点击播放，但不再显示重复的播放/停止图标。
+                    // 来源句复用收藏句行：正文试听，箭头打开讲解。
                     if (word.sentenceText != null) ...[
                       const SizedBox(height: AppSpacing.xs),
                       Divider(
@@ -1969,22 +2177,13 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                         ),
                       ),
                       const SizedBox(height: 0),
-                      InkWell(
+                      _FavoriteSourceSentenceTile(
                         key: const Key('favorite-word-source-sentence'),
-                        onTap: _playSentence,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                word.sentenceText!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        sentenceText: word.sentenceText!,
+                        onPlay: _playSentence,
+                        onOpenDetail: _audioName != null
+                            ? () => unawaited(_openSourceSentenceDetail())
+                            : null,
                       ),
                     ],
 
@@ -1998,6 +2197,10 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                           AppRoutes.audioLearningPlan(word.audioItemId!),
                         ),
                       ),
+                    ] else if (word.sentenceText != null &&
+                        _sourceAudioResolved) ...[
+                      const SizedBox(height: AppSpacing.s),
+                      const _MissingSourceAudioReference(),
                     ],
                   ],
                 ),
@@ -2122,6 +2325,41 @@ class _SourceAudioReference extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 已删除来源材料的只读提示，外观与可跳转的来源材料行保持一致。
+class _MissingSourceAudioReference extends StatelessWidget {
+  const _MissingSourceAudioReference();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.outline.withValues(alpha: 0.7);
+    final l10n = AppLocalizations.of(context)!;
+    return Semantics(
+      label: l10n.favoriteSourceMaterialNotFound,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xs,
+            vertical: 3,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.headphones, size: 14, color: color),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                l10n.favoriteSourceMaterialNotFound,
+                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              ),
+            ],
           ),
         ),
       ),

@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/screens/favorites_screen.dart';
+import 'package:echo_loop/screens/sentence_detail_screen.dart';
 import 'package:echo_loop/database/daos/audio_item_dao.dart';
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
 import 'package:echo_loop/database/daos/saved_word_dao.dart';
@@ -33,9 +34,10 @@ class _MockCacheDao extends Mock implements SentenceAiCacheDao {}
 class _MockApiClient extends Mock implements SentenceAiApiClient {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {
-  _MockAudioItemDao({AudioItem? audioItem}) {
+  _MockAudioItemDao({AudioItem? audioItem, String? transcriptSrt}) {
     // 默认返回 null（音频不存在），避免未 stub 报错
     when(() => getById(any())).thenAnswer((_) async => audioItem);
+    when(() => getTranscriptSrt(any())).thenAnswer((_) async => transcriptSrt);
   }
 }
 
@@ -121,6 +123,8 @@ SavedWord _createSavedWord({
   String? audioItemId,
   int? sentenceIndex,
   String? sentenceText,
+  int? sentenceStartMs,
+  int? sentenceEndMs,
 }) {
   return SavedWord(
     id: id,
@@ -128,8 +132,8 @@ SavedWord _createSavedWord({
     audioItemId: audioItemId,
     sentenceIndex: sentenceIndex,
     sentenceText: sentenceText,
-    sentenceStartMs: null,
-    sentenceEndMs: null,
+    sentenceStartMs: sentenceStartMs,
+    sentenceEndMs: sentenceEndMs,
     practiceCount: 0,
     totalStudyMs: 0,
     viewedBack: false,
@@ -144,10 +148,12 @@ SavedWord _createSavedWord({
 void main() {
   late StreamController<List<BookmarkWithAudio>> bookmarkController;
   late StreamController<List<SavedWord>> wordController;
+  SentenceDetailArgs? openedSentenceDetailArgs;
 
   setUp(() {
     bookmarkController = StreamController<List<BookmarkWithAudio>>.broadcast();
     wordController = StreamController<List<SavedWord>>.broadcast();
+    openedSentenceDetailArgs = null;
   });
 
   tearDown(() {
@@ -159,6 +165,7 @@ void main() {
     Locale locale = const Locale('en'),
     TextScaler textScaler = TextScaler.noScaling,
     AudioItem? sourceAudio,
+    String? sourceTranscriptSrt,
     BookmarkReview? bookmarkReview,
     int? sentenceDueCount,
     Future<int> Function()? sentenceDueLoader,
@@ -184,6 +191,16 @@ void main() {
             ),
           ),
         ),
+        GoRoute(
+          path: '/favorites/sentence-detail',
+          builder: (context, state) {
+            final args = state.extra;
+            if (args is SentenceDetailArgs) {
+              openedSentenceDetailArgs = args;
+            }
+            return const Scaffold(body: Text('Sentence detail destination'));
+          },
+        ),
       ],
     );
 
@@ -198,7 +215,10 @@ void main() {
           _TestSavedWordDao(wordController),
         ),
         audioItemDaoProvider.overrideWithValue(
-          _MockAudioItemDao(audioItem: sourceAudio),
+          _MockAudioItemDao(
+            audioItem: sourceAudio,
+            transcriptSrt: sourceTranscriptSrt,
+          ),
         ),
         audioEngineProvider.overrideWith(() => TestAudioEngine()),
         if (bookmarkReview != null)
@@ -972,6 +992,201 @@ void main() {
         findsOneWidget,
       );
       expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+    });
+
+    testWidgets('单词来源句左侧与释义分隔线对齐', (tester) async {
+      final sourceSentence = 'A researcher studies inherited traits.';
+      await tester.pumpWidget(createTestWidget());
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'researcher',
+          sentenceText: sourceSentence,
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('researcher'));
+      await tester.pumpAndSettle();
+
+      final sourceTextRect = tester.getRect(find.text(sourceSentence));
+      final dividerRect = tester.getRect(find.byType(Divider));
+      expect(sourceTextRect.left, closeTo(dividerRect.left, 0.01));
+    });
+
+    testWidgets('单词来源句箭头使用已存定位进入句子讲解页', (tester) async {
+      final sourceAudio = AudioItem(
+        id: 'audio-1',
+        name: 'A source lesson',
+        addedDate: DateTime(2026, 1, 1),
+        totalDuration: 60,
+        sentenceCount: 1,
+        wordCount: 5,
+        isPinned: false,
+        updatedAt: DateTime(2026, 1, 1),
+        syncStatus: 0,
+      );
+      await tester.pumpWidget(createTestWidget(sourceAudio: sourceAudio));
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'researcher',
+          audioItemId: 'audio-1',
+          sentenceIndex: 2,
+          sentenceText: 'A researcher studies inherited traits.',
+          sentenceStartMs: 1200,
+          sentenceEndMs: 3600,
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('researcher'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('favorite-word-source-sentence')),
+          matching: find.byIcon(Icons.arrow_forward_ios),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sentence detail destination'), findsOneWidget);
+      expect(openedSentenceDetailArgs?.audioItemId, 'audio-1');
+      expect(openedSentenceDetailArgs?.audioName, 'A source lesson');
+      expect(openedSentenceDetailArgs?.sentenceIndex, 2);
+      expect(openedSentenceDetailArgs?.startTimeMs, 1200);
+      expect(openedSentenceDetailArgs?.endTimeMs, 3600);
+    });
+
+    testWidgets('单词来源句右侧整块区域均可进入讲解页', (tester) async {
+      final sourceAudio = AudioItem(
+        id: 'audio-1',
+        name: 'A source lesson',
+        addedDate: DateTime(2026, 1, 1),
+        totalDuration: 60,
+        sentenceCount: 1,
+        wordCount: 5,
+        isPinned: false,
+        updatedAt: DateTime(2026, 1, 1),
+        syncStatus: 0,
+      );
+      await tester.pumpWidget(createTestWidget(sourceAudio: sourceAudio));
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'researcher',
+          audioItemId: 'audio-1',
+          sentenceIndex: 2,
+          sentenceText: 'A researcher studies inherited traits.',
+          sentenceStartMs: 1200,
+          sentenceEndMs: 3600,
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('researcher'));
+      await tester.pumpAndSettle();
+
+      final actionRect = tester.getRect(
+        find.byKey(const Key('favorite-source-sentence-open-action')),
+      );
+      final tileRect = tester.getRect(
+        find.byKey(const Key('favorite-word-source-sentence')),
+      );
+      expect(actionRect.width, 42);
+      expect(actionRect.right, tileRect.right);
+
+      await tester.tapAt(Offset(tileRect.right - 8, tileRect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sentence detail destination'), findsOneWidget);
+      expect(openedSentenceDetailArgs?.sentenceIndex, 2);
+    });
+
+    testWidgets('单词来源句缺少时间时从字幕恢复后进入讲解页', (tester) async {
+      final sourceAudio = AudioItem(
+        id: 'audio-1',
+        name: 'A source lesson',
+        addedDate: DateTime(2026, 1, 1),
+        totalDuration: 60,
+        sentenceCount: 1,
+        wordCount: 5,
+        isPinned: false,
+        updatedAt: DateTime(2026, 1, 1),
+        syncStatus: 0,
+      );
+      await tester.pumpWidget(
+        createTestWidget(
+          sourceAudio: sourceAudio,
+          sourceTranscriptSrt:
+              '1\n00:00:01,200 --> 00:00:03,600\nA researcher studies inherited traits.\n',
+        ),
+      );
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'researcher',
+          audioItemId: 'audio-1',
+          sentenceIndex: 9,
+          sentenceText: 'A researcher studies inherited traits.',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('researcher'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('favorite-word-source-sentence')),
+          matching: find.byIcon(Icons.arrow_forward_ios),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sentence detail destination'), findsOneWidget);
+      expect(openedSentenceDetailArgs?.sentenceIndex, 0);
+      expect(openedSentenceDetailArgs?.startTimeMs, 1200);
+      expect(openedSentenceDetailArgs?.endTimeMs, 3600);
+    });
+
+    testWidgets('来源材料已删除时显示不可点击提示', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.tap(find.text('Vocabulary'));
+      await tester.pump();
+      bookmarkController.add([]);
+      wordController.add([
+        _createSavedWord(
+          id: 1,
+          word: 'orphaned',
+          sentenceText: 'This source sentence remains after deletion.',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('orphaned'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Source material not found'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('favorite-word-source-sentence')),
+          matching: find.byIcon(Icons.arrow_forward_ios),
+        ),
+        findsNothing,
+      );
+      expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
     });
   });
 

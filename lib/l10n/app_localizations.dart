@@ -4448,6 +4448,12 @@ abstract class AppLocalizations {
   /// **'From: {name}'**
   String bookmarkReviewFromAudio(String name);
 
+  /// No description provided for @favoriteSourceMaterialNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Source material not found'**
+  String get favoriteSourceMaterialNotFound;
+
   /// No description provided for @bookmarkReviewUnsave.
   ///
   /// In en, this message translates to:

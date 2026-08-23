@@ -1075,6 +1075,7 @@
   "bookmarkReviewAgain": "再来一遍",
   "bookmarkReviewAudioSkipped": "音频不可用，跳过该句",
   "bookmarkReviewFromAudio": "来自：{name}",
+  "favoriteSourceMaterialNotFound": "来源材料未找到",
   "bookmarkReviewUnsave": "取消收藏",
   "bookmarkReviewTapReplay": "听一遍，想一想",
   "bookmarkReviewLoadingAudio": "正在加载音频…",

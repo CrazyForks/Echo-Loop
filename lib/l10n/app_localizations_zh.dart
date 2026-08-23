@@ -2445,6 +2445,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get favoriteSourceMaterialNotFound => '来源材料未找到';
+
+  @override
   String get bookmarkReviewUnsave => '取消收藏';
 
   @override

@@ -2555,6 +2555,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get favoriteSourceMaterialNotFound => 'Source material not found';
+
+  @override
   String get bookmarkReviewUnsave => 'Unsave';
 
   @override
