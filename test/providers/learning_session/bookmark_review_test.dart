@@ -32,6 +32,34 @@ class _TestBookmarkDao implements BookmarkDao {
   }
 
   @override
+  Future<void> removeBookmarks(
+    String audioItemId,
+    Set<int> sentenceIndices,
+  ) async {
+    if (fail) throw StateError('failed');
+    for (final sentenceIndex in sentenceIndices) {
+      removed.add((audioItemId, sentenceIndex));
+    }
+  }
+
+  @override
+  Future<db.Bookmark?> getByAudioAndSentence(
+    String audioItemId,
+    int sentenceIndex,
+  ) async => db.Bookmark(
+    id: sentenceIndex,
+    audioItemId: audioItemId,
+    memorySubjectId: 'test-subject-$sentenceIndex',
+    sentenceIndex: sentenceIndex,
+    sentenceText: 'Sentence $sentenceIndex',
+    startTime: sentenceIndex.toDouble(),
+    endTime: sentenceIndex + 1.0,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+    syncStatus: 0,
+  );
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 

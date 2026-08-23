@@ -15,6 +15,7 @@ import 'utils/echo_loop_scroll_behavior.dart';
 import 'database/app_database.dart';
 import 'database/providers.dart';
 import 'database/migration/sp_to_drift_migration.dart';
+import 'database/migration/legacy_favorite_memory_schedule_migrator.dart';
 import 'providers/package_info_provider.dart';
 import 'providers/dictionary_provider.dart';
 import 'providers/download_provider.dart';
@@ -70,6 +71,13 @@ import 'features/remote_config/remote_config_providers.dart';
 import 'features/remote_config/remote_config_service.dart';
 import 'features/subscription/providers/subscription_controller.dart';
 import 'features/subscription/providers/subscription_plans_provider.dart';
+import 'features/memory_scheduler/application/default_memory_scheduler.dart';
+import 'features/memory_scheduler/application/memory_model_registry.dart';
+import 'features/memory_scheduler/adapters/fsrs/fsrs_memory_model_adapter.dart';
+import 'features/memory_scheduler/config/memory_profiles.dart';
+import 'features/memory_scheduler/data/drift_memory_schedule_repository.dart';
+import 'features/memory_scheduler/providers/memory_scheduler_providers.dart';
+import 'package:clock/clock.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -175,6 +183,29 @@ void main() async {
     } catch (e) {
       print('内置示例安装失败: $e');
     }
+  }
+
+  // 旧收藏在通用 FSRS 上线前没有调度快照；必须在首帧前补齐，避免收藏页把
+  // “缺失调度”误显示为“没有待复习内容”。每次启动幂等执行，失败项目下次重试。
+  final legacyFavoriteScheduler = DefaultMemoryScheduler(
+    repository: DriftMemoryScheduleRepository(database),
+    profileRegistry: kMemoryProfileRegistry,
+    modelRegistry: StaticMemoryModelRegistry(<FsrsMemoryModelAdapter>[
+      FsrsMemoryModelAdapter(),
+    ]),
+    idGenerator: UuidMemoryIdGenerator(),
+    clock: const Clock(),
+  );
+  try {
+    await LegacyFavoriteMemoryScheduleMigrator(
+      database: database,
+      scheduler: legacyFavoriteScheduler,
+    ).migrate();
+  } catch (error, stackTrace) {
+    AppLogger.log(
+      'LegacyFavoriteMemoryScheduleMigration',
+      'startupFailed error=$error stack=$stackTrace; retrying on next launch',
+    );
   }
 
   await initEchoLoopAudioHandler();

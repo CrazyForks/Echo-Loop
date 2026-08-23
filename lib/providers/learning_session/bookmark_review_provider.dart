@@ -18,16 +18,13 @@ import '../../analytics/models/event_names.dart';
 import '../../database/daos/bookmark_dao.dart';
 import '../../database/providers.dart';
 import '../../features/memory_scheduler/domain/memory_rating.dart';
-import '../../features/memory_scheduler/domain/memory_scheduler_commands.dart';
 import '../../features/memory_scheduler/domain/memory_scheduler_results.dart';
-import '../../features/memory_scheduler/domain/memory_schedule.dart';
-import '../../features/memory_scheduler/domain/memory_subject_ref.dart';
-import '../../features/memory_scheduler/domain/memory_namespaces.dart';
 import '../../features/memory_scheduler/providers/memory_scheduler_providers.dart';
 import '../../features/scheduled_flashcard/application/scheduled_flashcard_controller.dart';
 import '../../features/scheduled_flashcard/domain/scheduled_flashcard.dart';
 import '../../features/scheduled_flashcard/domain/review_session_summary.dart';
 import '../favorite_review_settings_provider.dart';
+import '../favorite_sentence_lifecycle_provider.dart';
 import '../../features/usage/usage_event.dart';
 import '../../features/usage/usage_providers.dart';
 import '../../models/bookmark_sentence.dart';
@@ -345,24 +342,10 @@ class BookmarkReview extends _$BookmarkReview {
     await interruptPlayback();
     state = state.copyWith(isRemoving: true, clearRemoveError: true);
     try {
-      await ref
-          .read(bookmarkDaoProvider)
-          .removeBookmark(card.audioItemId, card.originalSentenceIndex);
-      final scheduler = ref.read(memorySchedulerProvider);
-      final subject = MemorySubjectRef(
-        namespace: kSavedSentenceNamespace,
-        subjectId: card.memorySubjectId,
+      await ref.read(favoriteSentenceLifecycleProvider).remove(
+        card.audioItemId,
+        {card.originalSentenceIndex},
       );
-      final schedule = await scheduler.getSchedule(subject);
-      if (schedule != null && schedule.status == MemoryScheduleStatus.active) {
-        await scheduler.archive(
-          ArchiveMemoryScheduleCommand(
-            subject: schedule.subject,
-            archivedAt: DateTime.now().toUtc(),
-            expectedRevision: schedule.revision,
-          ),
-        );
-      }
       if (!identical(_controller, controller)) return;
       controller.removeCurrent();
       state = _stateFromController(
