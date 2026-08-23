@@ -2180,6 +2180,12 @@ abstract class AppLocalizations {
   /// **'Library'**
   String get library;
 
+  /// No description provided for @myLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'My Library'**
+  String get myLibrary;
+
   /// No description provided for @collectionsTab.
   ///
   /// In en, this message translates to:

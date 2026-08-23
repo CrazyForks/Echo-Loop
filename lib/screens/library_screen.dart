@@ -72,29 +72,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: SegmentedButton<LibraryViewType>(
-            segments: [
-              ButtonSegment(
-                value: LibraryViewType.collections,
-                label: Text(l10n.collectionsTab),
-              ),
-              ButtonSegment(
-                value: LibraryViewType.audio,
-                label: Text(l10n.audioTab),
-              ),
-            ],
-            selected: {_currentView},
-            onSelectionChanged: (selected) {
-              setState(() {
-                _currentView = selected.first;
-              });
-            },
-            showSelectedIcon: false,
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
+          title: Text(l10n.myLibrary),
+          // TODO(资源库 UI 稳定后): 删除以下暂时隐藏的合集/音频选择组件及相关视图切换逻辑。
+          // title: SegmentedButton<LibraryViewType>(
+          //   segments: [
+          //     ButtonSegment(
+          //       value: LibraryViewType.collections,
+          //       label: Text(l10n.collectionsTab),
+          //     ),
+          //     ButtonSegment(
+          //       value: LibraryViewType.audio,
+          //       label: Text(l10n.audioTab),
+          //     ),
+          //   ],
+          //   selected: {_currentView},
+          //   onSelectionChanged: (selected) {
+          //     setState(() {
+          //       _currentView = selected.first;
+          //     });
+          //   },
+          //   showSelectedIcon: false,
+          //   style: ButtonStyle(
+          //     visualDensity: VisualDensity.compact,
+          //     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          //   ),
+          // ),
           actions: _buildActions(l10n, stepCreateCollection),
         ),
         body: IndexedStack(

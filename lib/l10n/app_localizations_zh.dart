@@ -1153,6 +1153,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get library => '资源库';
 
   @override
+  String get myLibrary => '我的资源库';
+
+  @override
   String get collectionsTab => '合集';
 
   @override

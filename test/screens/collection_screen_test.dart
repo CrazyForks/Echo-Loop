@@ -28,12 +28,13 @@ void main() {
         expect(find.text('No collections yet'), findsOneWidget);
       });
 
-      testWidgets('显示 SegmentedButton 切换', (tester) async {
+      testWidgets('显示我的资源库标题并隐藏旧视图选择组件', (tester) async {
         await tester.pumpWidget(createTestScreen(const LibraryScreen()));
         await tester.pumpAndSettle();
 
-        expect(find.text('Collections'), findsOneWidget);
-        expect(find.text('Audio'), findsOneWidget);
+        expect(find.text('My Library'), findsOneWidget);
+        expect(find.text('Collections'), findsNothing);
+        expect(find.text('Audio'), findsNothing);
       });
 
       testWidgets('显示创建按钮', (tester) async {
@@ -285,18 +286,6 @@ void main() {
         expect(find.text('Name (Z-A)'), findsOneWidget);
         expect(find.text('oldest First'), findsOneWidget);
         expect(find.text('Newest First'), findsOneWidget);
-      });
-
-      testWidgets('SegmentedButton 切换到音频视图', (tester) async {
-        await tester.pumpWidget(createTestScreen(const LibraryScreen()));
-        await tester.pumpAndSettle();
-
-        // 切换到音频视图
-        await tester.tap(find.text('Audio'));
-        await tester.pumpAndSettle();
-
-        // 应显示音频空状态
-        expect(find.text('No audio files yet'), findsOneWidget);
       });
 
       testWidgets('列表视图菜单内点击置顶切换', (tester) async {

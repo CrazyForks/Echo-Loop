@@ -777,6 +777,7 @@ void main() {
   testWidgets('收藏意群后操作栏保持显示并随收藏真值切换为取消收藏', (tester) async {
     final cacheDao = _MockCacheDao();
     final savedSenseGroupDao = _MockSavedSenseGroupDao();
+    final audioItemDao = _MockAudioItemDao();
     final savedTexts = StreamController<Set<String>>.broadcast();
     addTearDown(savedTexts.close);
     when(() => cacheDao.getByHash(any(), any())).thenAnswer((_) async => null);
@@ -814,6 +815,10 @@ void main() {
     when(
       () => savedSenseGroupDao.removeSenseGroup('hello world'),
     ).thenAnswer((_) async => savedTexts.add(const {}));
+    when(() => audioItemDao.getById('audio-1')).thenAnswer((_) async => null);
+    when(
+      () => audioItemDao.getTranscriptSrt('audio-1'),
+    ).thenAnswer((_) async => null);
 
     await pumpAuthTestApp(
       tester,
@@ -827,7 +832,9 @@ void main() {
       ),
       wrapDictionaryPanelHost: true,
       senseGroupRangePlayback: _NoopSenseGroupRangePlayback(),
+      audioItemId: 'audio-1',
       extraOverrides: [
+        audioItemDaoProvider.overrideWithValue(audioItemDao),
         dictionaryOverride(),
         remoteFeatureEnabledProvider(
           RemoteFeature.aiChatAssistant,

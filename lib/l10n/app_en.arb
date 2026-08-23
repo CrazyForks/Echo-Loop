@@ -650,6 +650,7 @@
   "exitBlindListenMessage": "Audio is still playing. Are you sure you want to exit?",
   "confirmExit": "Exit",
   "library": "Library",
+  "myLibrary": "My Library",
   "collectionsTab": "Collections",
   "audioTab": "Audio",
   "uncategorized": "Uncategorized",

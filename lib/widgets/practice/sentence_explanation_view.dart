@@ -865,6 +865,9 @@ class _SentenceExplanationViewState
     if (currentlySaved) {
       await provider.removeSenseGroup(normalizedText);
     } else {
+      // 收藏意群必须绑定父音频；没有来源时保持未收藏，避免向必填参数传入 null。
+      final audioItemId = widget.audioItemId;
+      if (audioItemId == null) return;
       int? groupStartMs;
       int? groupEndMs;
       if (_senseGroupTimings != null && index < _senseGroupTimings!.length) {
@@ -875,7 +878,7 @@ class _SentenceExplanationViewState
       await provider.saveSenseGroup(
         phraseText: normalizedText,
         displayText: displayText.trim(),
-        audioItemId: widget.audioItemId,
+        audioItemId: audioItemId,
         sentenceIndex: _sentenceIndex,
         sentenceText: _text,
         sentenceStartMs: _sentenceStartMs,

@@ -485,6 +485,7 @@
   "exitBlindListenMessage": "音频正在播放中，确定要退出吗？",
   "confirmExit": "退出",
   "library": "资源库",
+  "myLibrary": "我的资源库",
   "collectionsTab": "合集",
   "audioTab": "音频",
   "uncategorized": "未归类",
