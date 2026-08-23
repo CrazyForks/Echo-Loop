@@ -22,10 +22,11 @@ class SavedSenseGroupList extends _$SavedSenseGroupList {
   ///
   /// [phraseText] 归一化后的文本（小写 + trim + 去句末标点）。
   /// [displayText] 原始文本（保留大小写）。
+  /// [audioItemId] 必须指向收藏发生时存在的父音频。
   Future<void> saveSenseGroup({
     required String phraseText,
     required String displayText,
-    String? audioItemId,
+    required String audioItemId,
     int? sentenceIndex,
     String? sentenceText,
     int? sentenceStartMs,

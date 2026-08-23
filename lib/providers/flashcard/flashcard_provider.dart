@@ -524,12 +524,14 @@ class FlashcardNotifier extends _$FlashcardNotifier {
                 sentenceEndMs: savedWord.sentenceEndMs,
               );
         case FlashcardPhraseItem(:final savedPhrase):
+          final audioItemId = savedPhrase.audioItemId;
+          if (audioItemId == null) return;
           await ref
               .read(savedSenseGroupListProvider.notifier)
               .saveSenseGroup(
                 phraseText: savedPhrase.phraseText,
                 displayText: savedPhrase.displayText,
-                audioItemId: savedPhrase.audioItemId,
+                audioItemId: audioItemId,
                 sentenceIndex: savedPhrase.sentenceIndex,
                 sentenceText: savedPhrase.sentenceText,
                 sentenceStartMs: savedPhrase.sentenceStartMs,

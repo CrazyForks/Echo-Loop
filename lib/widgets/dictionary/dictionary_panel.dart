@@ -218,11 +218,13 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       return;
     }
     if (widget.query.bookmarkKind == DictionaryBookmarkKind.senseGroup) {
+      final audioItemId = widget.query.audioItemId;
+      if (audioItemId == null) return;
       final notifier = ref.read(savedSenseGroupListProvider.notifier);
       await notifier.saveSenseGroup(
         phraseText: surfaceWord,
         displayText: _lookupQuery,
-        audioItemId: widget.query.audioItemId,
+        audioItemId: audioItemId,
         sentenceIndex: widget.query.sentenceIndex,
         sentenceText: widget.query.sentenceText,
         sentenceStartMs: widget.query.sentenceStartMs,
