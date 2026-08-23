@@ -3615,14 +3615,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewStatisticsRecentPerformance => 'Recent performance';
 
   @override
-  String get reviewStatisticsRatings => 'First ratings in the last 30 days';
+  String get reviewStatisticsRatings => '30-day retention rate';
 
   @override
   String get reviewStatisticsRetentionRate => 'Retention';
 
   @override
   String get reviewStatisticsRetentionExplanation =>
-      'Only each item\'s first rating in this period counts; Good + Easy share';
+      'Based on each item\'s first review in the last 30 days.\nRetention rate = (Got it + Easy) / Total';
 
   @override
   String get reviewStatisticsEmptyRatings => 'No ratings yet';

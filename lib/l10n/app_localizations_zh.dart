@@ -3457,14 +3457,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewStatisticsRecentPerformance => '近期表现';
 
   @override
-  String get reviewStatisticsRatings => '近 30 天首次评分分布';
+  String get reviewStatisticsRatings => '近 30 天记忆保持率';
 
   @override
   String get reviewStatisticsRetentionRate => '保持率';
 
   @override
   String get reviewStatisticsRetentionExplanation =>
-      '每个内容仅计入该期间的首次评分；Good + Easy 占比';
+      '每项内容仅统计首次复习结果。\n保持率 = (听懂了 + 轻松听懂) / 总数';
 
   @override
   String get reviewStatisticsEmptyRatings => '暂无评分记录';

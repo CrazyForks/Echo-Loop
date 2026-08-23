@@ -6347,7 +6347,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewStatisticsRatings.
   ///
   /// In en, this message translates to:
-  /// **'First ratings in the last 30 days'**
+  /// **'30-day retention rate'**
   String get reviewStatisticsRatings;
 
   /// No description provided for @reviewStatisticsRetentionRate.
@@ -6359,7 +6359,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewStatisticsRetentionExplanation.
   ///
   /// In en, this message translates to:
-  /// **'Only each item\'s first rating in this period counts; Good + Easy share'**
+  /// **'Based on each item\'s first review in the last 30 days.\nRetention rate = (Got it + Easy) / Total'**
   String get reviewStatisticsRetentionExplanation;
 
   /// No description provided for @reviewStatisticsEmptyRatings.

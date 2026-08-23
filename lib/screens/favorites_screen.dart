@@ -63,6 +63,126 @@ bool _isInScrollableViewport(BuildContext context) {
 /// 收藏页面视图模式
 enum _FavoritesView { sentences, words }
 
+/// 收藏页分段控件中的标题与数量 badge。
+class _FavoritesSegmentLabel extends StatelessWidget {
+  final String title;
+  final int? count;
+  final Key badgeKey;
+
+  const _FavoritesSegmentLabel({
+    required this.title,
+    required this.count,
+    required this.badgeKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    final countValue = count;
+    final showCount = countValue != null && countValue > 0;
+    if (!showCount) return Text(title, style: textStyle);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title, style: textStyle),
+        const SizedBox(width: 6),
+        Container(
+          key: badgeKey,
+          constraints: const BoxConstraints(
+            minWidth: 20,
+            minHeight: 20,
+            maxHeight: 20,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Text(
+              '$countValue',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 收藏页单个分段；使用固定等宽布局，避免标题和 badge 触发 intrinsic 错位。
+class _FavoritesSegment extends StatelessWidget {
+  final Key segmentKey;
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final int? count;
+  final Key badgeKey;
+  final VoidCallback onTap;
+
+  const _FavoritesSegment({
+    required this.segmentKey,
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.badgeKey,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    // 图标作为辅助信息使用次要色，避免与标题争夺视觉焦点。
+    final foregroundColor = colorScheme.onSurfaceVariant.withValues(
+      alpha: 0.6,
+    );
+
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        child: Material(
+          key: segmentKey,
+          color: selected ? colorScheme.secondaryContainer : Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 42,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: foregroundColor),
+                    const SizedBox(width: 8),
+                    _FavoritesSegmentLabel(
+                      title: title,
+                      count: count,
+                      badgeKey: badgeKey,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 收藏页 AppBar 的更多操作。
 enum _FavoritesMoreAction { recycleBin, reviewSettings }
 
@@ -175,13 +295,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ref.watch(savedSenseGroupListProvider).valueOrNull?.length ?? 0;
     final vocabCount = wordCount + phraseCount;
 
-    final sentenceLabel = sentenceCount != null && sentenceCount > 0
-        ? '${l10n.favoritesSentences} ($sentenceCount)'
-        : l10n.favoritesSentences;
-    final wordLabel = vocabCount > 0
-        ? '${l10n.favoritesVocabulary} ($vocabCount)'
-        : l10n.favoritesVocabulary;
-
     // ----- 新手引导 flow 声明 -----
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tooltipDescColor = isDark
@@ -274,15 +387,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               itemBuilder: (context) => [
                 appPopupMenuItem(
                   context,
-                  value: _FavoritesMoreAction.recycleBin,
-                  icon: const Icon(Icons.restore),
-                  label: l10n.recycleBinTitle,
-                ),
-                appPopupMenuItem(
-                  context,
                   value: _FavoritesMoreAction.reviewSettings,
                   icon: const Icon(Icons.tune),
                   label: l10n.bookmarkReviewSettingsTitle,
+                ),
+                appPopupMenuItem(
+                  context,
+                  value: _FavoritesMoreAction.recycleBin,
+                  icon: const Icon(Icons.restore),
+                  label: l10n.recycleBinTitle,
                 ),
               ],
             ),
@@ -296,37 +409,46 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 horizontal: AppSpacing.m,
                 vertical: AppSpacing.s,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<_FavoritesView>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(
-                      value: _FavoritesView.sentences,
-                      label: Text(sentenceLabel),
-                      icon: const Icon(Icons.subject, size: 18),
+              child: DecoratedBox(
+                key: const Key('favorites-segmented-control-shell'),
+                decoration: ShapeDecoration(
+                  color: theme.colorScheme.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(21),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.8,
+                      ),
                     ),
-                    ButtonSegment(
-                      value: _FavoritesView.words,
-                      label: Text(wordLabel),
-                      icon: const Icon(Icons.menu_book_outlined, size: 18),
-                    ),
-                  ],
-                  selected: {_currentView},
-                  onSelectionChanged: (selected) {
-                    final nextView = selected.first;
-                    debugPrint('[PERF] tab 切换: $nextView');
-                    final sw = Stopwatch()..start();
-                    setState(() => _currentView = nextView);
-                    // IndexedStack 会保留两个 Tab；显式失效避免复用旧 Future 结果。
-                    _refreshDueCounts();
-                    debugPrint(
-                      '[PERF] setState 完成: ${sw.elapsedMilliseconds}ms',
-                    );
-                  },
-                  style: SegmentedButton.styleFrom(
-                    textStyle: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(21),
+                  child: SizedBox(
+                    height: 42,
+                    child: Row(
+                      children: [
+                        _FavoritesSegment(
+                          segmentKey: const Key('favorites-sentences-segment'),
+                          selected: _currentView == _FavoritesView.sentences,
+                          icon: Icons.subject,
+                          title: l10n.favoritesSentences,
+                          count: sentenceCount,
+                          badgeKey: const Key('favorites-sentences-count'),
+                          onTap: () =>
+                              _selectFavoritesView(_FavoritesView.sentences),
+                        ),
+                        _FavoritesSegment(
+                          segmentKey: const Key('favorites-vocabulary-segment'),
+                          selected: _currentView == _FavoritesView.words,
+                          icon: Icons.menu_book_outlined,
+                          title: l10n.favoritesVocabulary,
+                          count: vocabCount,
+                          badgeKey: const Key('favorites-vocabulary-count'),
+                          onTap: () =>
+                              _selectFavoritesView(_FavoritesView.words),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -365,6 +487,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ),
       ),
     );
+  }
+
+  /// 切换收藏视图并刷新两个入口的待复习数量。
+  void _selectFavoritesView(_FavoritesView nextView) {
+    if (_currentView == nextView) return;
+    debugPrint('[PERF] tab 切换: $nextView');
+    final sw = Stopwatch()..start();
+    setState(() => _currentView = nextView);
+    // IndexedStack 会保留两个 Tab；显式失效避免复用旧 Future 结果。
+    _refreshDueCounts();
+    debugPrint('[PERF] setState 完成: ${sw.elapsedMilliseconds}ms');
   }
 }
 

@@ -841,9 +841,11 @@ class _LegendRow extends StatelessWidget {
           ),
         ),
         SizedBox(
-          width: 42,
+          width: 62,
           child: Text(
             _formatItemCount(slice.value, l10n),
+            maxLines: 1,
+            softWrap: false,
             textAlign: TextAlign.right,
             style: Theme.of(
               context,

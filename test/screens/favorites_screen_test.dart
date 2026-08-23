@@ -326,6 +326,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Recycle Bin'), findsOneWidget);
       expect(find.text('Review settings'), findsOneWidget);
+      expect(
+        tester.getRect(find.text('Review settings')).top,
+        lessThan(tester.getRect(find.text('Recycle Bin')).top),
+      );
     });
 
     testWidgets('更多菜单显示复习设置入口', (tester) async {
@@ -355,6 +359,99 @@ void main() {
       // tab 标签文本可见
       expect(find.text('Sentences'), findsOneWidget);
       expect(find.text('Vocabulary'), findsOneWidget);
+    });
+
+    testWidgets('收藏数量以轻量 badge 显示且分段控件保持紧凑', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+          ),
+          audioName: 'Audio One',
+        ),
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 2,
+            audioItemId: 'audio-1',
+            sentenceIndex: 1,
+          ),
+          audioName: 'Audio One',
+        ),
+      ]);
+      wordController.add([
+        _createSavedWord(id: 1, word: 'apple'),
+        _createSavedWord(id: 2, word: 'banana'),
+        _createSavedWord(id: 3, word: 'orange'),
+      ]);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('favorites-sentences-count')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('favorites-vocabulary-count')),
+        findsOneWidget,
+      );
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.menu_book_outlined)).size,
+        18,
+      );
+      expect(find.text('Sentences (2)'), findsNothing);
+      expect(find.text('Vocabulary (3)'), findsNothing);
+      expect(
+        tester
+            .getSize(find.byKey(const Key('favorites-sentences-count')))
+            .height,
+        20,
+      );
+      final badgeText = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('favorites-sentences-count')),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(badgeText.textAlign, TextAlign.center);
+      expect(
+        tester
+            .getSize(find.byKey(const Key('favorites-sentences-segment')))
+            .height,
+        closeTo(42, 0.01),
+      );
+
+      final shellWidth = tester
+          .getSize(find.byKey(const Key('favorites-segmented-control-shell')))
+          .width;
+      expect(
+        tester
+            .getSize(find.byKey(const Key('favorites-sentences-segment')))
+            .width,
+        closeTo(shellWidth / 2, 0.01),
+      );
+      expect(
+        tester
+            .widget<Material>(
+              find.byKey(const Key('favorites-sentences-segment')),
+            )
+            .color,
+        Theme.of(
+          tester.element(find.byKey(const Key('favorites-sentences-segment'))),
+        ).colorScheme.secondaryContainer,
+      );
+      expect(
+        tester
+            .widget<Material>(
+              find.byKey(const Key('favorites-vocabulary-segment')),
+            )
+            .color,
+        Colors.transparent,
+      );
     });
 
     testWidgets('点击 Vocabulary 切换到单词视图', (tester) async {

@@ -47,8 +47,12 @@ void main() {
     await tester.scrollUntilVisible(find.text('历史足迹'), 300);
     expect(find.text('历史足迹'), findsOneWidget);
     expect(find.byIcon(Icons.timeline_rounded), findsAtLeastNWidgets(1));
-    await tester.scrollUntilVisible(find.text('近 30 天首次评分分布'), 300);
-    expect(find.text('近 30 天首次评分分布'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('近 30 天记忆保持率'), 300);
+    expect(find.text('近 30 天记忆保持率'), findsOneWidget);
+    expect(
+      find.text('每项内容仅统计首次复习结果。\n保持率 = (听懂了 + 轻松听懂) / 总数'),
+      findsOneWidget,
+    );
     await tester.scrollUntilVisible(find.text('未来 7 天复习安排（含今天）'), 300);
     expect(find.text('未来 7 天复习安排（含今天）'), findsOneWidget);
     expect(find.text('ALL TIME'), findsNothing);
@@ -89,5 +93,18 @@ void main() {
       expect(localizations.bookmarkReviewRatingGood, '听懂了');
       expect(localizations.bookmarkReviewRatingEasy, '轻松听懂');
     });
+  });
+
+  test('英文复习保持率文案使用明确的首次复习口径', () async {
+    final localizations = await AppLocalizations.delegate.load(
+      const Locale('en'),
+    );
+
+    expect(localizations.reviewStatisticsRatings, '30-day retention rate');
+    expect(
+      localizations.reviewStatisticsRetentionExplanation,
+      "Based on each item's first review in the last 30 days.\n"
+      'Retention rate = (Got it + Easy) / Total',
+    );
   });
 }
