@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/features/review_statistics/review_statistics_repository.dart';
+import 'package:echo_loop/models/study_stage.dart';
 
 void main() {
   late AppDatabase db;
@@ -99,6 +100,43 @@ void main() {
     expect(stats.dueNow, 1);
     expect(stats.upcomingDue[0], 1);
     expect(stats.upcomingDue[1], 1);
+  });
+
+  test('全部时长仅汇总收藏句子和收藏词汇复习阶段', () async {
+    final now = DateTime(2026, 8, 22, 10);
+    await db.dailyStageStudyRecordDao.upsertAdd(
+      now,
+      StudyStage.intensiveListen,
+      studyTime: 90,
+    );
+    await db.dailyStageStudyRecordDao.upsertAdd(
+      now,
+      StudyStage.savedSentencesReview,
+      studyTime: 30,
+    );
+    await db.dailyStageStudyRecordDao.upsertAdd(
+      now,
+      StudyStage.savedVocabularyReview,
+      studyTime: 60,
+    );
+
+    final repository = ReviewStatisticsRepository(db);
+    final all = await repository.load(now: now);
+    final sentences = await repository.load(
+      now: now,
+      scope: ReviewStatisticsScope.sentences,
+    );
+    final vocabulary = await repository.load(
+      now: now,
+      scope: ReviewStatisticsScope.vocabulary,
+    );
+
+    expect(all.todaySeconds, 90);
+    expect(sentences.todaySeconds, 30);
+    expect(vocabulary.todaySeconds, 60);
+    expect(all.dailyTrend.last.seconds, 90);
+    expect(sentences.dailyTrend.last.seconds, 30);
+    expect(vocabulary.dailyTrend.last.seconds, 60);
   });
 }
 

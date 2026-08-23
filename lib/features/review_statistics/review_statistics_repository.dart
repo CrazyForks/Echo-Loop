@@ -139,12 +139,16 @@ class ReviewStatisticsRepository {
     ];
     final secondsByDay = <DateTime, int>{};
     for (final row in stageRows) {
-      final stageMatches =
-          scope == ReviewStatisticsScope.all ||
-          (scope == ReviewStatisticsScope.sentences &&
-              row.stage == StudyStage.savedSentencesReview) ||
-          (scope == ReviewStatisticsScope.vocabulary &&
-              row.stage == StudyStage.savedVocabularyReview);
+      // 复习统计只计算收藏复习阶段，避免普通学习时长污染筛选结果。
+      final stageMatches = switch (scope) {
+        ReviewStatisticsScope.all =>
+          row.stage == StudyStage.savedSentencesReview ||
+              row.stage == StudyStage.savedVocabularyReview,
+        ReviewStatisticsScope.sentences =>
+          row.stage == StudyStage.savedSentencesReview,
+        ReviewStatisticsScope.vocabulary =>
+          row.stage == StudyStage.savedVocabularyReview,
+      };
       if (stageMatches) {
         secondsByDay[row.date] =
             (secondsByDay[row.date] ?? 0) + row.studyTimeSeconds;
