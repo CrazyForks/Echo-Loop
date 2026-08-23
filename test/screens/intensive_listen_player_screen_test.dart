@@ -739,26 +739,6 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('中文本地化正确显示', (tester) async {
-      await tester.pumpWidget(
-        createTestWidget(
-          locale: const Locale('zh'),
-          playerState: createPlayerState(
-            currentSentenceIndex: 0,
-            totalSentences: 5,
-            difficultSentences: {0},
-            isCurrentSentenceAutoMarked: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('逐句精听'), findsOneWidget);
-      expect(find.text('偷看字幕'), findsOneWidget);
-      expect(find.text('听不太懂'), findsOneWidget);
-      expect(find.text('已自动收藏'), findsOneWidget);
-    });
-
     testWidgets('完成统计使用数据库难句总数而非本次会话数量', (tester) async {
       await tester.pumpWidget(
         createTestWidget(

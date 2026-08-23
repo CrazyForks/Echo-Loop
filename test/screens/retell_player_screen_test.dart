@@ -441,7 +441,8 @@ void main() {
       trackingPlayer.emit(
         trackingPlayer.state.copyWith(stepFinished: true, isPlaying: false),
       );
-      await tester.pumpAndSettle();
+      // 完成态包含循环动画，固定推进即可观察状态更新。
+      await tester.pump(const Duration(milliseconds: 700));
 
       verifyNever(() => notificationService.canShowPrompt());
     });

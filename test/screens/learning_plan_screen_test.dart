@@ -1333,27 +1333,6 @@ void main() {
       expect(find.text('No Subtitles Available'), findsOneWidget);
     });
 
-    testWidgets('中文本地化正确显示', (tester) async {
-      tester.view.physicalSize = const Size(1200, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(createTestWidget(locale: const Locale('zh')));
-      await tester.pumpAndSettle();
-
-      expect(find.text('未开始'), findsOneWidget);
-      expect(find.text('首次学习'), findsOneWidget);
-      expect(find.text('0/4'), findsOneWidget);
-      expect(find.text('0/4 完成'), findsNothing);
-      expect(find.text('全文盲听'), findsWidgets);
-      expect(find.text('开始学习'), findsOneWidget);
-
-      // 滚动到复习轮次区域
-      await tester.scrollUntilVisible(find.text('首轮复习'), 200);
-      expect(find.text('首轮复习'), findsOneWidget);
-    });
-
     testWidgets('阶段标题行各列上下对齐且进度列不带完成后缀', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 1.0;

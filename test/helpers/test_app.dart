@@ -149,6 +149,9 @@ Widget createTestScreen(
     foregroundAudioEngineProvider.overrideWith(
       () => TestForegroundAudioEngine(),
     ),
+    // 屏幕测试也必须注入内存数据库；否则收藏、播放断点等 Provider 会
+    // 在测试环境读取尚未由应用启动流程初始化的全局数据库。
+    appDatabaseProvider.overrideWithValue(_testAppDatabase),
   ];
 
   // 合并自定义 overrides
