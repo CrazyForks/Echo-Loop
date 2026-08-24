@@ -10,6 +10,9 @@ import 'package:uuid/uuid.dart';
 
 import 'enums.dart' show LearningStage;
 import '../services/app_logger.dart';
+import '../features/memory_scheduler/adapters/fsrs/fsrs_memory_model_adapter.dart';
+import '../features/memory_scheduler/config/memory_profiles.dart';
+import '../features/memory_scheduler/domain/memory_namespaces.dart';
 
 import 'tables/audio_items.dart';
 import 'tables/collections.dart';
@@ -98,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   /// 当前 schema 版本（静态访问，用于导入前版本检查）
-  static const currentSchemaVersion = 50;
+  static const currentSchemaVersion = 51;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -721,7 +724,221 @@ class AppDatabase extends _$AppDatabase {
             await _clearUnstartedV1FirstLearnProgress();
           }
         }
+        // v50→v51：通用记忆调度首次接入收藏业务时，v48 只建表未回填
+        // 既有收藏。本迁移把历史收藏与调度快照收敛一次；成功升级后 SQLite
+        // user_version 自动写为 51，后续冷启动不再全量扫描收藏数据。
+        if (from < 51) {
+          await _migrateLegacyFavoriteMemorySchedules();
+        }
       },
+    );
+  }
+
+  /// 一次性收敛旧收藏与 FSRS 调度快照的生命周期。
+  ///
+  /// 必须在 schema v51 升级事务内执行：任一数据异常都会使 Drift 回滚升级，
+  /// 避免把部分完成的回填标记为成功。运行期收藏入口已负责后续新增、恢复和
+  /// 取消收藏的调度生命周期，这里只处理 v50 及更早数据库的历史遗留数据。
+  Future<void> _migrateLegacyFavoriteMemorySchedules() async {
+    final migratedAt = DateTime.now().toUtc();
+    final state = FsrsMemoryModelAdapter().createInitialState(
+      profile: kFsrsDefaultProfile,
+      createdAt: migratedAt,
+    );
+    final activeAudioIds = (await select(audioItems).get())
+        .where((audio) => audio.deletedAt == null)
+        .map((audio) => audio.id)
+        .toSet();
+    final subjectsByNamespace = <String, Set<String>>{
+      kSavedSentenceNamespace: <String>{},
+      kSavedWordOrPhraseNamespace: <String>{},
+      kSavedSenseGroupNamespace: <String>{},
+    };
+    var created = 0;
+    var archived = 0;
+    var restored = 0;
+
+    Future<void> reconcile({
+      required String namespace,
+      required String subjectId,
+      required bool shouldBeActive,
+      required bool createArchivedWhenMissing,
+    }) async {
+      final existing =
+          await (select(memorySchedules)..where(
+                (schedule) =>
+                    schedule.namespace.equals(namespace) &
+                    schedule.subjectId.equals(subjectId),
+              ))
+              .getSingleOrNull();
+      if (shouldBeActive) {
+        if (existing == null) {
+          await into(memorySchedules).insert(
+            _legacyScheduleCompanion(
+              id: const Uuid().v4(),
+              namespace: namespace,
+              subjectId: subjectId,
+              modelStateJson: jsonEncode(state.values),
+              at: migratedAt,
+            ),
+          );
+          created += 1;
+        } else if (existing.status == 'archived') {
+          await (update(
+            memorySchedules,
+          )..where((schedule) => schedule.id.equals(existing.id))).write(
+            MemorySchedulesCompanion(
+              status: const Value('active'),
+              archivedAt: const Value(null),
+              updatedAt: Value(migratedAt),
+              revision: Value(existing.revision + 1),
+            ),
+          );
+          restored += 1;
+        }
+        return;
+      }
+
+      if (existing == null) {
+        if (!createArchivedWhenMissing) return;
+        await into(memorySchedules).insert(
+          _legacyScheduleCompanion(
+            id: const Uuid().v4(),
+            namespace: namespace,
+            subjectId: subjectId,
+            modelStateJson: jsonEncode(state.values),
+            at: migratedAt,
+            status: 'archived',
+            revision: 1,
+          ),
+        );
+        archived += 1;
+      } else if (existing.status == 'active') {
+        await (update(
+          memorySchedules,
+        )..where((schedule) => schedule.id.equals(existing.id))).write(
+          MemorySchedulesCompanion(
+            status: const Value('archived'),
+            archivedAt: Value(migratedAt),
+            updatedAt: Value(migratedAt),
+            revision: Value(existing.revision + 1),
+          ),
+        );
+        archived += 1;
+      }
+    }
+
+    for (final bookmark in await select(bookmarks).get()) {
+      var subjectId = bookmark.memorySubjectId;
+      if (subjectId == null || subjectId.trim().isEmpty) {
+        subjectId = const Uuid().v4();
+        await (update(bookmarks)..where((row) => row.id.equals(bookmark.id)))
+            .write(BookmarksCompanion(memorySubjectId: Value(subjectId)));
+      }
+      subjectsByNamespace[kSavedSentenceNamespace]!.add(subjectId);
+      final isReviewable =
+          bookmark.sentenceText.trim().isNotEmpty &&
+          bookmark.endTime > bookmark.startTime;
+      final hasActiveAudio = activeAudioIds.contains(bookmark.audioItemId);
+      await reconcile(
+        namespace: kSavedSentenceNamespace,
+        subjectId: subjectId,
+        shouldBeActive:
+            bookmark.deletedAt == null && hasActiveAudio && isReviewable,
+        createArchivedWhenMissing: bookmark.deletedAt != null,
+      );
+    }
+
+    for (final word in await select(savedWords).get()) {
+      var subjectId = word.memorySubjectId;
+      if (subjectId == null || subjectId.trim().isEmpty) {
+        subjectId = const Uuid().v4();
+        await (update(savedWords)..where((row) => row.id.equals(word.id)))
+            .write(SavedWordsCompanion(memorySubjectId: Value(subjectId)));
+      }
+      subjectsByNamespace[kSavedWordOrPhraseNamespace]!.add(subjectId);
+      await reconcile(
+        namespace: kSavedWordOrPhraseNamespace,
+        subjectId: subjectId,
+        shouldBeActive: word.deletedAt == null && word.word.trim().isNotEmpty,
+        createArchivedWhenMissing: word.deletedAt != null,
+      );
+    }
+
+    for (final group in await select(savedSenseGroups).get()) {
+      var subjectId = group.memorySubjectId;
+      if (subjectId == null || subjectId.trim().isEmpty) {
+        subjectId = const Uuid().v4();
+        await (update(
+          savedSenseGroups,
+        )..where((row) => row.id.equals(group.id))).write(
+          SavedSenseGroupsCompanion(memorySubjectId: Value(subjectId)),
+        );
+      }
+      subjectsByNamespace[kSavedSenseGroupNamespace]!.add(subjectId);
+      await reconcile(
+        namespace: kSavedSenseGroupNamespace,
+        subjectId: subjectId,
+        shouldBeActive:
+            group.deletedAt == null && group.phraseText.trim().isNotEmpty,
+        createArchivedWhenMissing: group.deletedAt != null,
+      );
+    }
+
+    for (final schedule in await select(memorySchedules).get()) {
+      if (schedule.status != 'active') continue;
+      final knownSubjects = subjectsByNamespace[schedule.namespace];
+      if (knownSubjects == null || knownSubjects.contains(schedule.subjectId)) {
+        continue;
+      }
+      await (update(
+        memorySchedules,
+      )..where((row) => row.id.equals(schedule.id))).write(
+        MemorySchedulesCompanion(
+          status: const Value('archived'),
+          archivedAt: Value(migratedAt),
+          updatedAt: Value(migratedAt),
+          revision: Value(schedule.revision + 1),
+        ),
+      );
+      archived += 1;
+    }
+
+    AppLogger.log(
+      'DB.migrate',
+      'v50→v51 favorite schedules: created=$created restored=$restored archived=$archived',
+    );
+  }
+
+  /// 构造旧收藏迁移使用的初始快照；删除来源的历史项直接以归档态落库。
+  MemorySchedulesCompanion _legacyScheduleCompanion({
+    required String id,
+    required String namespace,
+    required String subjectId,
+    required String modelStateJson,
+    required DateTime at,
+    String status = 'active',
+    int revision = 0,
+  }) {
+    final isArchived = status == 'archived';
+    return MemorySchedulesCompanion.insert(
+      id: id,
+      namespace: namespace,
+      subjectId: subjectId,
+      profileId: kFsrsDefaultProfileRef.profileId,
+      profileVersion: kFsrsDefaultProfileRef.profileVersion,
+      modelId: 'fsrs',
+      modelStateVersion: 1,
+      modelStateJson: Value(modelStateJson),
+      phase: 'newItem',
+      status: status,
+      dueAt: at,
+      reviewCount: const Value(0),
+      lapseCount: const Value(0),
+      revision: Value(revision),
+      createdAt: at,
+      updatedAt: at,
+      archivedAt: Value(isArchived ? at : null),
     );
   }
 
