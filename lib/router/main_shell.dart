@@ -44,6 +44,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_update_dialog.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/notification_permission_dialog.dart';
+import '../widgets/startup_splash_screen.dart';
 import 'app_router.dart' show rootNavigatorKey;
 
 /// 主导航壳组件 — 包含 NavigationRail / NavigationBar + 内容区域
@@ -601,14 +602,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     // 保持真实的 MaterialApp 与导航壳实例，但在本地数据尚未安全可读前不插入
     // StatefulNavigationShell。默认学习页因此不会提前触发数据库查询。
     if (startup.isLoading) {
-      return Scaffold(
-        body: Center(
-          child: Semantics(
-            label: '正在准备学习数据',
-            child: CircularProgressIndicator(),
-          ),
-        ),
-      );
+      return const StartupSplashScreen();
     }
     if (startup.hasError) {
       return Scaffold(

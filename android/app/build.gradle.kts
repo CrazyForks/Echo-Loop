@@ -120,6 +120,8 @@ flutter {
 }
 
 dependencies {
+    // Android 12+ 使用系统启动页；compat 主题同时保持旧版 layer-list 的一致行为。
+    implementation("androidx.core:core-splashscreen:1.0.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("com.google.android.gms:play-services-base:18.9.0")
     testImplementation("junit:junit:4.13.2")

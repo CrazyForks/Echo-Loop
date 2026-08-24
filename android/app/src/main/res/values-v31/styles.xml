@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ 系统 SplashScreen：与旧版 layer-list 和 Flutter 启动页共用背景与 Logo。 -->
+    <style name="LaunchTheme" parent="@style/Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/startup_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/startup_logo</item>
+        <item name="postSplashScreenTheme">@style/NormalTheme</item>
+    </style>
+</resources>

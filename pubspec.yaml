@@ -171,6 +171,7 @@ flutter:
     # ic_stat_logo 仅作 Android 通知图标源文件）不进包；订阅页透明底品牌图单独显式打包。
     - assets/icon/app-icon-1024.png
     - assets/icon/app-icon-1024-alpha.png
+    - assets/icon/app-icon.svg
     - assets/icon/artist-palette.svg
     - assets/icon/baidu-netdisk.svg
     - assets/icon/bar-chart.svg
