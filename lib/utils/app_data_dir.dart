@@ -34,10 +34,12 @@ Future<Directory> _resolve() async {
   return dir;
 }
 
-/// 持久化日志文件路径（落盘日志，跨进程/跨崩溃保留，供日志页导出）。
-Future<String> appLogFilePath() async {
+/// 持久化日志目录（落盘日志，跨进程保留，供日志页查看和导出）。
+///
+/// 目录仅由日志输出管理，避免轮转清理误触应用数据目录内的其他诊断文件。
+Future<String> appLogDirectoryPath() async {
   final dir = await getAppDataDirectory();
-  return '${dir.path}/app.log';
+  return '${dir.path}/logs';
 }
 
 /// ASR 推理崩溃面包屑文件路径。

@@ -1,19 +1,17 @@
-/// 应用内日志服务
+/// 应用内日志服务。
 ///
-/// 环形缓冲区存储最近的日志，供开发者选项中的日志页面查看。
-/// 全局单例，通过 [AppLogger.instance] 访问。
-/// 调用 [AppLogger.log] 记录日志，同时会 print 到控制台。
-///
-/// 此外可通过 [AppLogger.initFileSink] 开启**落盘**：每条日志同步写入文件并
-/// flush，保证崩溃（含 native SIGABRT，进程被杀、内存缓冲丢失）前的日志仍在磁盘上，
-/// 供日志页导出排查。Worker isolate 的日志可用 [AppLogger.formatLine] 按同样格式
-/// 直接追加到同一文件（静态字段不跨 isolate 共享，故 isolate 内需自行写文件）。
+/// 内存环形缓冲区用于实时展示；持久化由 `logger` 的
+/// [AdvancedFileOutput] 负责大小轮转。日志页面按需读取文件，启动阶段不会读取
+/// 或截断历史日志。
 library;
 
 import 'dart:collection';
 import 'dart:io';
 
-/// 单条日志
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:logger/logger.dart';
+
+/// 单条日志。
 class LogEntry {
   final DateTime time;
   final String tag;
@@ -29,28 +27,25 @@ class LogEntry {
   String toString() => AppLogger.formatLine(time, tag, message);
 }
 
-/// 应用内日志服务（环形缓冲区，最多保留 500 条）
+/// 应用内日志服务（内存最多保留 500 条）。
 class AppLogger {
   AppLogger._();
   static final instance = AppLogger._();
 
   static const _maxEntries = 500;
-
-  /// 落盘日志文件大小上限，超过则在启动时保留尾部，避免无限增长。
-  static const _maxFileBytes = 5 * 1024 * 1024;
+  static const _defaultMaxFileSizeKB = 5 * 1024;
+  static const _latestFileName = 'app.log';
 
   final _entries = Queue<LogEntry>();
   final _listeners = <void Function()>[];
 
-  /// 落盘日志文件路径（[initFileSink] 设置，仅主 isolate 有效）。
-  static String? _filePath;
+  static AdvancedFileOutput? _fileOutput;
+  static String? _logDirectory;
 
-  /// 所有日志条目（只读）
+  /// 所有内存日志（只读，仅当前进程）。
   List<LogEntry> get entries => List.unmodifiable(_entries);
 
   /// 统一的单行日志格式：`HH:MM:SS.mmm [tag] message`。
-  ///
-  /// 主 isolate 内存缓冲与各 isolate 落盘共用此格式，保证导出后可读、可对齐。
   static String formatLine(DateTime time, String tag, String message) {
     final t =
         '${time.hour.toString().padLeft(2, '0')}:'
@@ -60,142 +55,195 @@ class AppLogger {
     return '$t [$tag] $message';
   }
 
-  /// 开启日志落盘（主 isolate 启动时调用一次）。
+  /// 配置持久化日志输出。
   ///
-  /// 超过 [_maxFileBytes] 时只保留尾部，避免文件无限增长；随后把落盘日志尾部
-  /// 恢复进内存环形缓冲，让重启后的日志页仍能看到最近日志。失败静默忽略
-  /// （日志不应影响主流程）。
-  static Future<void> initFileSink(String filePath) async {
-    _filePath = filePath;
-    try {
-      final f = File(filePath);
-      if (await f.exists() && await f.length() > _maxFileBytes) {
-        final content = await f.readAsString();
-        final keep = content.length > _maxFileBytes ~/ 2
-            ? content.substring(content.length - _maxFileBytes ~/ 2)
-            : content;
-        await f.writeAsString('--- 日志已截断，保留尾部 ---\n$keep');
-      }
-      await _restoreRecentEntriesFromFile(f);
-    } catch (_) {
-      // 忽略：落盘失败不影响内存日志与主流程。
+  /// 当前文件固定为 `app.log`，单个文件最大 5 MB，并最多保留一个历史轮转文件。
+  /// 已在内存中的启动日志会在输出可用后写入；此方法不读取历史日志。
+  static Future<void> configurePersistentOutput(String logDirectory) {
+    return _configureOutput(logDirectory);
+  }
+
+  /// 仅供测试释放第三方输出的轮转计时器，避免测试进程残留异步句柄。
+  @visibleForTesting
+  static Future<void> resetPersistentOutputForTesting() async {
+    final output = _fileOutput;
+    _fileOutput = null;
+    _logDirectory = null;
+    await output?.destroy();
+  }
+
+  static Future<void> _configureOutput(String logDirectory) async {
+    final previous = _fileOutput;
+    _fileOutput = null;
+    await previous?.destroy();
+
+    final output = AdvancedFileOutput(
+      path: logDirectory,
+      latestFileName: _latestFileName,
+      maxFileSizeKB: _defaultMaxFileSizeKB,
+      maxRotatedFilesCount: 1,
+      // 现有 AppLogger 没有等级区分；全部尽快交给文件输出写入。
+      writeImmediately: const [Level.info],
+      fileUpdateDuration: const Duration(seconds: 1),
+      fileNameFormatter: _rotatedFileName,
+    );
+    await output.init();
+    _logDirectory = logDirectory;
+    _fileOutput = output;
+
+    for (final entry in instance._entries) {
+      _writeToPersistentOutput(entry);
     }
   }
 
-  /// 从落盘日志恢复最近 [_maxEntries] 条到内存缓冲，避免重启后日志页空白。
-  ///
-  /// 日志格式只有时间没有日期；恢复时使用当天日期补齐 [DateTime]，仅用于日志页排序
-  /// 与展示，不参与业务逻辑。
-  static Future<void> _restoreRecentEntriesFromFile(File file) async {
-    if (!await file.exists()) return;
-    final text = await file.readAsString();
-    if (text.trim().isEmpty) return;
-    final restored = text
+  /// 读取活动文件与历史轮转文件，按发生时间拼接，供日志页和分享功能使用。
+  static Future<String?> readPersistedLog() async {
+    final directory = _logDirectory;
+    if (directory == null) return null;
+    try {
+      final files = await _logFilesOldestFirst(directory);
+      if (files.isEmpty) return null;
+      final parts = await Future.wait(files.map((file) => file.readAsString()));
+      return parts.where((part) => part.isNotEmpty).join();
+    } catch (error) {
+      // 日志读取失败不可影响主流程，但控制台保留诊断信息。
+      print('读取持久化日志失败: $error');
+      return null;
+    }
+  }
+
+  /// 将持久化文本解析为日志条目，供日志页面按需恢复历史显示。
+  static List<LogEntry> parsePersistedEntries(String text) {
+    return text
         .split('\n')
         .map(_parsePersistedLine)
         .whereType<LogEntry>()
         .toList(growable: false);
-    if (restored.isEmpty) return;
+  }
+
+  /// 清空内存日志。持久化日志由 [clearPersistedLogs] 显式清理，避免测试和普通
+  /// 内存重置意外触碰磁盘。
+  void clear() {
+    _entries.clear();
+    _notifyListeners();
+  }
+
+  /// 清空活动和历史日志，然后恢复同一份大小轮转配置。
+  static Future<void> clearPersistedLogs() async {
+    final directory = _logDirectory;
+    instance.clear();
+    if (directory == null) return;
+
+    final output = _fileOutput;
+    _fileOutput = null;
+    await output?.destroy();
+    try {
+      final logDirectory = Directory(directory);
+      if (await logDirectory.exists()) {
+        await for (final entity in logDirectory.list()) {
+          if (entity is File) await entity.delete();
+        }
+      }
+    } catch (error) {
+      print('清空持久化日志失败: $error');
+    }
+    await configurePersistentOutput(directory);
+  }
+
+  /// 记录日志：输出控制台、内存缓冲和已配置的持久化文件。
+  static void log(String tag, String message) {
+    final entry = LogEntry(time: DateTime.now(), tag: tag, message: message);
+    // ignore: avoid_print
+    print(entry);
+    _writeToPersistentOutput(entry);
 
     final logger = instance;
-    logger._entries.clear();
-    final start = restored.length > _maxEntries
-        ? restored.length - _maxEntries
-        : 0;
-    for (final entry in restored.skip(start)) {
-      logger._entries.addLast(entry);
+    logger._entries.addLast(entry);
+    if (logger._entries.length > _maxEntries) {
+      logger._entries.removeFirst();
+    }
+    logger._notifyListeners();
+  }
+
+  static void _writeToPersistentOutput(LogEntry entry) {
+    try {
+      _fileOutput?.output(
+        OutputEvent(LogEvent(Level.info, entry.message, time: entry.time), [
+          entry.toString(),
+        ]),
+      );
+    } catch (error) {
+      // 输出失败不能递归写 AppLogger；控制台保留失败原因。
+      print('写入持久化日志失败: $error');
     }
   }
 
-  /// 解析 [formatLine] 写出的单行日志；无法解析的截断提示等行会被跳过。
+  static Future<List<File>> _logFilesOldestFirst(String logDirectory) async {
+    final directory = Directory(logDirectory);
+    if (!await directory.exists()) return const [];
+    final files = <File>[];
+    await for (final entity in directory.list()) {
+      if (entity is File) files.add(entity);
+    }
+    files.sort((a, b) {
+      final aIsLatest = a.path == '${directory.path}/$_latestFileName';
+      final bIsLatest = b.path == '${directory.path}/$_latestFileName';
+      if (aIsLatest) return 1;
+      if (bIsLatest) return -1;
+      return a.lastModifiedSync().compareTo(b.lastModifiedSync());
+    });
+    return files;
+  }
+
+  static String _rotatedFileName(DateTime time) {
+    final timestamp = time.toIso8601String().replaceAll(RegExp(r'[:.]'), '-');
+    return 'app-$timestamp.log';
+  }
+
   static LogEntry? _parsePersistedLine(String line) {
     final match = RegExp(
       r'^(\d{2}):(\d{2}):(\d{2})\.(\d{3}) \[([^\]]+)\] (.*)$',
     ).firstMatch(line);
     if (match == null) return null;
+    final hour = match.group(1);
+    final minute = match.group(2);
+    final second = match.group(3);
+    final millisecond = match.group(4);
+    final tag = match.group(5);
+    final message = match.group(6);
+    if (hour == null ||
+        minute == null ||
+        second == null ||
+        millisecond == null ||
+        tag == null ||
+        message == null) {
+      return null;
+    }
     final now = DateTime.now();
     return LogEntry(
       time: DateTime(
         now.year,
         now.month,
         now.day,
-        int.parse(match.group(1)!),
-        int.parse(match.group(2)!),
-        int.parse(match.group(3)!),
-        int.parse(match.group(4)!),
+        int.parse(hour),
+        int.parse(minute),
+        int.parse(second),
+        int.parse(millisecond),
       ),
-      tag: match.group(5)!,
-      message: match.group(6)!,
+      tag: tag,
+      message: message,
     );
   }
 
-  /// 读取已落盘的完整日志（含 Worker isolate 写入的部分），供日志页导出。
-  ///
-  /// 未开启落盘或读取失败时返回 null，调用方应回退到内存缓冲。
-  static Future<String?> readPersistedLog() async {
-    final path = _filePath;
-    if (path == null) return null;
-    try {
-      final f = File(path);
-      if (!await f.exists()) return null;
-      return await f.readAsString();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// 同步追加一行到落盘文件并 flush，保证崩溃前已落盘。
-  static void _appendToFile(String line) {
-    final path = _filePath;
-    if (path == null) return;
-    try {
-      File(
-        path,
-      ).writeAsStringSync('$line\n', mode: FileMode.append, flush: true);
-    } catch (_) {
-      // 忽略：落盘失败不影响内存日志与主流程。
-    }
-  }
-
-  /// 记录日志：print 到控制台 + 内存缓冲 + 落盘（若已开启）。
-  static void log(String tag, String message) {
-    final entry = LogEntry(time: DateTime.now(), tag: tag, message: message);
-    // ignore: avoid_print
-    print(entry);
-    _appendToFile(entry.toString());
-    final logger = instance;
-    logger._entries.addLast(entry);
-    if (logger._entries.length > _maxEntries) {
-      logger._entries.removeFirst();
-    }
-    for (final listener in logger._listeners) {
-      listener();
-    }
-  }
-
-  /// 清空内存日志与当前落盘日志。
-  void clear() {
-    _entries.clear();
-    final path = _filePath;
-    if (path != null) {
-      try {
-        File(path).writeAsStringSync('', flush: true);
-      } catch (_) {
-        // 忽略：清空落盘失败不影响日志页内存清空。
-      }
-    }
+  void _notifyListeners() {
     for (final listener in _listeners) {
       listener();
     }
   }
 
-  /// 添加监听器（日志页面用于刷新 UI）
-  void addListener(void Function() listener) {
-    _listeners.add(listener);
-  }
+  /// 添加监听器（日志页面用于刷新 UI）。
+  void addListener(void Function() listener) => _listeners.add(listener);
 
-  /// 移除监听器
-  void removeListener(void Function() listener) {
-    _listeners.remove(listener);
-  }
+  /// 移除监听器。
+  void removeListener(void Function() listener) => _listeners.remove(listener);
 }

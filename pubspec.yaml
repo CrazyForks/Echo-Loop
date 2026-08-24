@@ -118,6 +118,8 @@ dependencies:
   flutter_svg: ^2.3.0
   fl_chart: ^1.2.0
   lottie: ^3.3.3
+  # 持久化文件日志：使用成熟的大小轮转输出，避免手写截断逻辑。
+  logger: ^2.7.0
 
 dev_dependencies:
   flutter_test:

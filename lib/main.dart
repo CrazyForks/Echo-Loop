@@ -242,7 +242,7 @@ void main() async {
   // 仍会输出到控制台；落盘初始化完成后接管后续结构化启动日志。
   try {
     await startupTrace.run('app_log_file_sink', () async {
-      await AppLogger.initFileSink(await appLogFilePath());
+      await AppLogger.configurePersistentOutput(await appLogDirectoryPath());
     });
   } catch (_) {
     // 与既有逻辑一致：日志落盘失败不阻断启动。

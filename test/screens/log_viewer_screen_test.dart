@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:echo_loop/screens/log_viewer_screen.dart';
 import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/device_diagnostics_service.dart';
+import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,7 +30,6 @@ void main() {
   const deviceInfoChannel = DeviceDiagnosticsService.channel;
 
   late Directory tempDir;
-  late String logPath;
   late List<String> sharedPaths;
   late List<String?> sharedSubjects;
   late List<Rect?> sharedOrigins;
@@ -35,14 +37,13 @@ void main() {
 
   setUp(() async {
     tempDir = Directory.systemTemp.createTempSync('log_viewer_test_');
-    logPath = '${tempDir.path}/app.log';
     sharedPaths = <String>[];
     sharedSubjects = <String?>[];
     sharedOrigins = <Rect?>[];
     sharedMimeTypes = <String?>[];
     PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    appDataDirectoryOverride = tempDir;
     AppLogger.instance.clear();
-    await AppLogger.initFileSink(logPath);
     PackageInfo.setMockInitialValues(
       appName: 'Echo Loop',
       packageName: 'app.echoloop',
@@ -64,6 +65,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(deviceInfoChannel, null);
     AppLogger.instance.clear();
+    appDataDirectoryOverride = null;
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
@@ -99,7 +101,7 @@ void main() {
     );
   });
 
-  testWidgets('点击分享导出包含设备信息和日志内容的 .log 文件', (tester) async {
+  testWidgets('点击分享导出包含设备信息和日志内容的 ZIP 支持包', (tester) async {
     AppLogger.log('Manual', 'before share');
     await tester.pumpWidget(
       MaterialApp(home: LogViewerScreen(shareLauncher: captureShare)),
@@ -118,14 +120,19 @@ void main() {
     expect(sharedPaths, hasLength(1));
     expect(sharedSubjects.single, 'Echo Loop Logs');
     expect(sharedOrigins.single, isNotNull);
-    expect(sharedMimeTypes.single, 'text/plain');
-    expect(sharedPaths.single, endsWith('.log'));
+    expect(sharedMimeTypes.single, 'application/zip');
+    expect(sharedPaths.single, endsWith('.zip'));
     expect(sharedPaths.single, contains('log_export_'));
 
-    final exported = File(sharedPaths.single).readAsStringSync();
-    expect(exported, contains('[Manual] before share'));
-    expect(exported, contains('[DeviceInfo]'));
-    expect(exported, contains('model=iPhone16,2'));
+    final archive = ZipDecoder().decodeBytes(
+      File(sharedPaths.single).readAsBytesSync(),
+    );
+    final log = archive.findFile('logs/app.log');
+    if (log == null) fail('支持包缺少 logs/app.log');
+    final text = utf8.decode(log.content);
+    expect(text, contains('[Manual] before share'));
+    expect(text, contains('[DeviceInfo]'));
+    expect(text, contains('model=iPhone16,2'));
   });
 
   testWidgets('分享前等待设备信息写入完成', (tester) async {
@@ -157,7 +164,11 @@ void main() {
     await tester.pump();
 
     expect(sharedPaths, hasLength(1));
-    final exported = File(sharedPaths.single).readAsStringSync();
-    expect(exported, contains('DelayedPhone'));
+    final archive = ZipDecoder().decodeBytes(
+      File(sharedPaths.single).readAsBytesSync(),
+    );
+    final log = archive.findFile('logs/app.log');
+    if (log == null) fail('支持包缺少 logs/app.log');
+    expect(utf8.decode(log.content), contains('DelayedPhone'));
   });
 }

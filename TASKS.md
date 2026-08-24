@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 持久化日志改用 `logger` 的 `AdvancedFileOutput` 大小轮转：`app.log` 单文件上限 5 MB、最多保留一份历史归档；移除启动期手写截断与历史内存恢复，日志页改为打开时按需读取并在分享时打包 ZIP 支持包；ASR Worker 普通日志回传主 isolate 统一落盘，保留 native 崩溃 marker。**完成时间**: 2026-08-24
+
 - [x] 修正启动追踪缓冲日志的时间歧义：保留单调 `elapsedMs`，并为每个事件记录原始 `recordedAtMs`，避免日志 sink 延后落盘时终端时间误导启动耗时判断；补齐缓冲事件时间戳回归测试。**完成时间**: 2026-08-24
 
 - [x] 修复冷启动热重启 Supabase 竞态：新增响应式 SDK ready gate，认证 session / Token coordinator / repository 在 SDK 未就绪前不访问静态实例；同时将日志文件 sink 与数据目录迁移推迟到首帧后执行。**完成时间**: 2026-08-24

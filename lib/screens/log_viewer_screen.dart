@@ -4,8 +4,11 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -13,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/app_logger.dart';
 import '../services/device_diagnostics_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_data_dir.dart';
 
 /// 日志分享启动函数，供 widget 测试替换系统分享面板。
 typedef LogShareLauncher =
@@ -23,6 +27,43 @@ typedef LogShareLauncher =
       Rect? sharePositionOrigin,
       List<String>? fileNameOverrides,
     });
+
+/// 在后台 isolate 打包日志支持文件，避免 ZIP 压缩阻塞日志页面。
+void _packLogSupportArchive({
+  required String archivePath,
+  required String logDirectory,
+  required String crashMarkerPath,
+  required String fallbackLog,
+}) {
+  final archive = Archive();
+  final directory = Directory(logDirectory);
+  if (directory.existsSync()) {
+    for (final entity in directory.listSync()) {
+      if (entity is! File) continue;
+      final bytes = entity.readAsBytesSync();
+      archive.addFile(
+        ArchiveFile(
+          p.join('logs', p.basename(entity.path)),
+          bytes.length,
+          bytes,
+        ),
+      );
+    }
+  }
+  if (archive.isEmpty) {
+    final bytes = utf8.encode(fallbackLog);
+    archive.addFile(ArchiveFile('logs/app.log', bytes.length, bytes));
+  }
+
+  final crashMarker = File(crashMarkerPath);
+  if (crashMarker.existsSync()) {
+    final bytes = crashMarker.readAsBytesSync();
+    archive.addFile(ArchiveFile('asr_crash.marker', bytes.length, bytes));
+  }
+
+  final encoded = ZipEncoder().encode(archive);
+  File(archivePath).writeAsBytesSync(encoded, flush: true);
+}
 
 /// 日志查看页面
 class LogViewerScreen extends StatefulWidget {
@@ -40,11 +81,15 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
   final _deviceDiagnosticsService = const DeviceDiagnosticsService();
   Future<void>? _deviceInfoLogFuture;
   bool _didLogDeviceInfo = false;
+  var _persistedEntries = const <LogEntry>[];
+  var _displayedEntries = const <LogEntry>[];
 
   @override
   void initState() {
     super.initState();
+    _displayedEntries = AppLogger.instance.entries;
     AppLogger.instance.addListener(_onLogUpdated);
+    unawaited(_loadPersistedEntries());
   }
 
   @override
@@ -64,11 +109,44 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
 
   void _onLogUpdated() {
     if (!mounted) return;
-    setState(() {});
+    setState(_mergePersistedAndCurrentEntries);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
+    });
+  }
+
+  /// 日志页打开后才读取跨启动历史；内存日志继续用于实时刷新。
+  Future<void> _loadPersistedEntries() async {
+    final text = await AppLogger.readPersistedLog();
+    if (!mounted) return;
+    setState(() {
+      _persistedEntries = text == null
+          ? const <LogEntry>[]
+          : AppLogger.parsePersistedEntries(text);
+      _mergePersistedAndCurrentEntries();
+    });
+  }
+
+  void _mergePersistedAndCurrentEntries() {
+    final persistedLines = _persistedEntries
+        .map((entry) => entry.toString())
+        .toSet();
+    _displayedEntries = [
+      ..._persistedEntries,
+      ...AppLogger.instance.entries.where(
+        (entry) => !persistedLines.contains(entry.toString()),
+      ),
+    ];
+  }
+
+  Future<void> _clearLogs() async {
+    await AppLogger.clearPersistedLogs();
+    if (!mounted) return;
+    setState(() {
+      _persistedEntries = const <LogEntry>[];
+      _displayedEntries = const <LogEntry>[];
     });
   }
 
@@ -83,19 +161,17 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
     }
   }
 
-  /// 分享日志：优先导出落盘文件（含 Worker isolate 的 ASR 推理日志、跨进程历史），
-  /// 落盘不可用时回退到内存缓冲，并通过系统分享面板发出 .log 文件。
+  /// 分享日志支持包：保留轮转日志的原文件边界并压缩为一个 ZIP。
+  ///
+  /// 日志目录不可用时，用当前内存日志生成 `logs/app.log` 兜底；若 ASR 崩溃
+  /// marker 尚未被启动诊断流程处理，也一并放入支持包。
   Future<void> _shareAll() async {
     AppLogger.log('LogViewer', 'share logs start');
     try {
       await _deviceInfoLogFuture;
       AppLogger.log('LogViewer', 'share logs device info ready');
-      final persisted = await AppLogger.readPersistedLog();
-      final text = (persisted != null && persisted.trim().isNotEmpty)
-          ? persisted
-          : AppLogger.instance.entries.map((e) => e.toString()).join('\n');
       if (!mounted) return;
-      final path = await _writeLogExportFile(text);
+      final path = await _writeLogSupportArchive();
       AppLogger.log('LogViewer', 'share logs file ready: $path');
       if (!mounted) return;
       final box = context.findRenderObject() as RenderBox?;
@@ -105,7 +181,7 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
         'share logs launch custom=${widget.shareLauncher != null}',
       );
       await share(
-        [XFile(path, mimeType: 'text/plain')],
+        [XFile(path, mimeType: 'application/zip')],
         subject: 'Echo Loop Logs',
         sharePositionOrigin: box == null
             ? Rect.zero
@@ -120,11 +196,11 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
     }
   }
 
-  /// 写入供系统分享使用的临时日志文件。
+  /// 写入供系统分享使用的临时 ZIP 支持包。
   ///
   /// 分享后不能立即删除：macOS / AirDrop 可能在用户选择目标后才开始读取文件。
   /// `log_export_` 目录由 temp_cleanup_service 白名单回收。
-  Future<String> _writeLogExportFile(String text) async {
+  Future<String> _writeLogSupportArchive() async {
     final tempDir = await getTemporaryDirectory();
     final timestamp = DateTime.now().toIso8601String().replaceAll(
       RegExp(r'[:.]'),
@@ -132,15 +208,27 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
     );
     final dir = Directory(p.join(tempDir.path, 'log_export_$timestamp'));
     await dir.create(recursive: true);
-    final file = File(p.join(dir.path, 'echo_loop_logs_$timestamp.log'));
-    await file.writeAsString(text, flush: true);
-    return file.path;
+    final archivePath = p.join(dir.path, 'echo_loop_logs_$timestamp.zip');
+    final logDirectory = await appLogDirectoryPath();
+    final crashMarkerPath = await asrCrashMarkerPath();
+    final fallbackLog = AppLogger.instance.entries
+        .map((entry) => entry.toString())
+        .join('\n');
+    await Isolate.run(
+      () => _packLogSupportArchive(
+        archivePath: archivePath,
+        logDirectory: logDirectory,
+        crashMarkerPath: crashMarkerPath,
+        fallbackLog: fallbackLog,
+      ),
+    );
+    return archivePath;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entries = AppLogger.instance.entries;
+    final entries = _displayedEntries;
 
     return Scaffold(
       appBar: AppBar(
@@ -155,12 +243,7 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            onPressed: entries.isEmpty
-                ? null
-                : () {
-                    AppLogger.instance.clear();
-                    setState(() {});
-                  },
+            onPressed: entries.isEmpty ? null : () => unawaited(_clearLogs()),
           ),
         ],
       ),

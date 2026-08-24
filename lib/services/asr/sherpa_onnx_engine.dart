@@ -150,15 +150,22 @@ class SherpaOnnxEngine implements OfflineAsrEngine {
 class _AsrWorker {
   final Isolate _isolate;
   final SendPort _commandPort;
+  final ReceivePort _logPort;
 
-  _AsrWorker._(this._isolate, this._commandPort);
+  _AsrWorker._(this._isolate, this._commandPort, this._logPort);
 
   /// 创建 Worker Isolate 并在其中初始化 Recognizer。
   ///
   /// 初始化失败时抛出 [StateError]。
   static Future<_AsrWorker> spawn(AsrModelConfig config) async {
-    // 主 isolate 解析路径后传入 Worker：日志落盘 + 崩溃面包屑。
-    final logFilePath = await appLogFilePath();
+    // Worker 日志统一回传主 isolate，由唯一文件输出处理轮转；native 崩溃面包屑
+    // 仍保留独立同步文件，避免进程被杀前的消息来不及送达。
+    final logPort = ReceivePort();
+    logPort.listen((message) {
+      if (message is _WorkerLog) {
+        AppLogger.log(message.tag, message.message);
+      }
+    });
     final crashMarkerPath = await asrCrashMarkerPath();
 
     final initPort = ReceivePort();
@@ -167,7 +174,7 @@ class _AsrWorker {
       _InitPayload(
         sendPort: initPort.sendPort,
         config: config,
-        logFilePath: logFilePath,
+        logPort: logPort.sendPort,
         crashMarkerPath: crashMarkerPath,
       ),
     );
@@ -176,11 +183,12 @@ class _AsrWorker {
     initPort.close();
 
     if (response is SendPort) {
-      return _AsrWorker._(isolate, response);
+      return _AsrWorker._(isolate, response, logPort);
     }
 
     // 初始化失败，清理 Isolate。
     isolate.kill(priority: Isolate.immediate);
+    logPort.close();
     throw StateError('ASR Worker init failed: $response');
   }
 
@@ -264,6 +272,7 @@ class _AsrWorker {
     }
     replyPort.close();
     _isolate.kill(priority: Isolate.immediate);
+    _logPort.close();
   }
 }
 
@@ -276,8 +285,8 @@ class _InitPayload {
   final SendPort sendPort;
   final AsrModelConfig config;
 
-  /// 落盘日志文件路径（Worker isolate 内直接追加，静态字段不跨 isolate 共享）。
-  final String? logFilePath;
+  /// Worker 日志回传主 isolate，避免与轮转输出并发写入同一文件。
+  final SendPort logPort;
 
   /// 崩溃面包屑文件路径（native 推理前同步写、成功后清除）。
   final String? crashMarkerPath;
@@ -285,7 +294,7 @@ class _InitPayload {
   const _InitPayload({
     required this.sendPort,
     required this.config,
-    this.logFilePath,
+    required this.logPort,
     this.crashMarkerPath,
   });
 }
@@ -348,6 +357,14 @@ class _DisposeRequest {
   const _DisposeRequest({required this.replyPort});
 }
 
+/// Worker 到主 isolate 的普通日志载荷。
+class _WorkerLog {
+  final String tag;
+  final String message;
+
+  const _WorkerLog({required this.tag, required this.message});
+}
+
 // ---------------------------------------------------------------------------
 // Isolate 入口点
 // ---------------------------------------------------------------------------
@@ -358,7 +375,7 @@ class _DisposeRequest {
 /// 可选创建 VAD（用于转录前裁剪静音段），
 /// 然后循环处理转录请求直到收到释放指令。
 void _isolateEntryPoint(_InitPayload init) {
-  final logFilePath = init.logFilePath;
+  final logPort = init.logPort;
   final crashMarkerPath = init.crashMarkerPath;
   // 诊断标识：写入崩溃面包屑，便于区分崩在哪个模型/provider。
   final diag =
@@ -379,7 +396,7 @@ void _isolateEntryPoint(_InitPayload init) {
           recognizer,
           vad,
           message,
-          logFilePath: logFilePath,
+          logPort: logPort,
           crashMarkerPath: crashMarkerPath,
           diag: diag,
         );
@@ -388,7 +405,7 @@ void _isolateEntryPoint(_InitPayload init) {
         _handleTranscribeSegments(
           recognizer,
           message,
-          logFilePath: logFilePath,
+          logPort: logPort,
           crashMarkerPath: crashMarkerPath,
           diag: diag,
         );
@@ -405,22 +422,12 @@ void _isolateEntryPoint(_InitPayload init) {
   }
 }
 
-/// Worker isolate 内的日志：print + 直接追加到落盘文件（与主 isolate 同格式）。
-///
-/// 静态 [AppLogger] 字段不跨 isolate 共享，故 Worker 必须自行写文件，
-/// 这样 ASR 推理日志才能进入导出的日志（此前是黑洞）。
-void _workerLog(String? logFilePath, String tag, String message) {
+/// Worker isolate 内的普通日志：输出控制台并交给主 isolate 的唯一日志输出。
+void _workerLog(SendPort logPort, String tag, String message) {
   final line = AppLogger.formatLine(DateTime.now(), tag, message);
   // ignore: avoid_print
   print(line);
-  if (logFilePath == null) return;
-  try {
-    File(
-      logFilePath,
-    ).writeAsStringSync('$line\n', mode: FileMode.append, flush: true);
-  } catch (_) {
-    // 忽略：落盘失败不影响推理。
-  }
+  logPort.send(_WorkerLog(tag: tag, message: message));
 }
 
 /// 在调用 native 推理前同步写崩溃面包屑并 flush。
@@ -544,7 +551,7 @@ void _handleTranscribe(
   sherpa.OfflineRecognizer recognizer,
   sherpa.VoiceActivityDetector? vad,
   _TranscribeRequest request, {
-  String? logFilePath,
+  required SendPort logPort,
   String? crashMarkerPath,
   String diag = '',
 }) {
@@ -584,7 +591,7 @@ void _handleTranscribe(
       final rms = (sumSq / samples16k.length);
       // rms 未开根号，直接用平方均值即可判断量级。
       _workerLog(
-        logFilePath,
+        logPort,
         'ASREngine',
         'VAD input: ${beforeSec.toStringAsFixed(1)}s, '
             'rms²=${rms.toStringAsExponential(2)}, '
@@ -607,7 +614,7 @@ void _handleTranscribe(
       );
       final afterSec = totalSpeechSamples / _asrSampleRate;
       _workerLog(
-        logFilePath,
+        logPort,
         'ASREngine',
         'VAD: ${beforeSec.toStringAsFixed(1)}s → ${afterSec.toStringAsFixed(1)}s (${segments.length} segments)',
       );
@@ -615,7 +622,7 @@ void _handleTranscribe(
       // 合并小段为 ≤30s 的 chunk，减少 whisper 调用次数。
       final chunks = _mergeSegments(segments, 30 * _asrSampleRate);
       _workerLog(
-        logFilePath,
+        logPort,
         'ASREngine',
         '│ ${segments.length} segments → ${chunks.length} chunks',
       );
@@ -683,7 +690,7 @@ void _handleTranscribe(
 void _handleTranscribeSegments(
   sherpa.OfflineRecognizer recognizer,
   _TranscribeSegmentsRequest request, {
-  String? logFilePath,
+  required SendPort logPort,
   String? crashMarkerPath,
   String diag = '',
 }) {
@@ -707,7 +714,7 @@ void _handleTranscribeSegments(
           total,
           (start, count) => reader.readWindow(start, count),
           request.replyPort,
-          logFilePath: logFilePath,
+          logPort: logPort,
         );
         request.replyPort.send(_TranscribeSegmentsResponse(segments: out));
       } finally {
@@ -749,7 +756,7 @@ void _handleTranscribeSegments(
         return Float32List.sublistView(samples16k, start, end);
       },
       request.replyPort,
-      logFilePath: logFilePath,
+      logPort: logPort,
     );
     request.replyPort.send(_TranscribeSegmentsResponse(segments: out));
   } catch (e) {
@@ -882,7 +889,7 @@ List<_SegmentPayload> _slidingWindowTranscribe(
   int totalSamples,
   Float32List Function(int startSample, int count) readWindow,
   SendPort replyPort, {
-  String? logFilePath,
+  required SendPort logPort,
 }) {
   final cues = slidingWindowCues(
     totalSamples,
@@ -890,7 +897,7 @@ List<_SegmentPayload> _slidingWindowTranscribe(
     (samples) => _decodeWindow(recognizer, samples),
     onProgress: (done) =>
         replyPort.send(_SegmentsProgress(done: done, total: totalSamples)),
-    log: (msg) => _workerLog(logFilePath, 'ASREngine', msg),
+    log: (msg) => _workerLog(logPort, 'ASREngine', msg),
   );
   return [
     for (final c in cues)

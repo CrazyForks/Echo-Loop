@@ -1,38 +1,42 @@
-/// AppLogger 落盘日志测试。
-///
-/// 验证：开启落盘后每条日志同步写入文件、可读回；超限时只保留尾部。
-/// 落盘是排查 native 崩溃（崩溃前内存缓冲丢失）的关键，需保证可靠。
+/// AppLogger 持久化日志测试。
 library;
 
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/services/app_logger.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory tempDir;
-  late String logPath;
+  late String logDirectory;
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('app_logger_test');
-    logPath = '${tempDir.path}/app.log';
+    logDirectory = '${tempDir.path}/logs';
     AppLogger.instance.clear();
   });
 
-  tearDown(() {
+  tearDown(() async {
+    await AppLogger.resetPersistentOutputForTesting();
     AppLogger.instance.clear();
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('开启落盘后日志写入文件并可读回', () async {
-    await AppLogger.initFileSink(logPath);
+  test('配置持久化输出后写入活动日志，且不恢复历史内存日志', () async {
+    final directory = Directory(logDirectory)..createSync(recursive: true);
+    File(
+      '${directory.path}/app.log',
+    ).writeAsStringSync('12:00:00.000 [Persisted] previous run\n');
+
+    await AppLogger.configurePersistentOutput(logDirectory);
+
+    expect(AppLogger.instance.entries, isEmpty);
     AppLogger.log('Test', 'hello world');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final persisted = await AppLogger.readPersistedLog();
-    expect(persisted, isNotNull);
+    expect(persisted, contains('[Persisted] previous run'));
     expect(persisted, contains('[Test] hello world'));
-    // 文件内容应与读回一致。
-    expect(File(logPath).readAsStringSync(), contains('hello world'));
   });
 
   test('formatLine 输出 HH:MM:SS.mmm [tag] message 格式', () {
@@ -44,47 +48,27 @@ void main() {
     expect(line, '09:08:07.123 [ASREngine] decode done');
   });
 
-  test('超过上限时启动只保留尾部', () async {
-    // 预置一个超大日志文件（> 5MB）。
-    final big = StringBuffer();
-    for (var i = 0; i < 220000; i++) {
-      big.writeln('11:11:11.111 [Old] line $i');
-    }
-    File(logPath).writeAsStringSync(big.toString());
-    expect(File(logPath).lengthSync(), greaterThan(5 * 1024 * 1024));
+  test('读取持久化日志时按归档到活动文件的顺序拼接', () async {
+    final directory = Directory(logDirectory)..createSync(recursive: true);
+    File('${directory.path}/app-2026-01-01.log').writeAsStringSync('old\n');
+    File('${directory.path}/app.log').writeAsStringSync('new\n');
+    await AppLogger.configurePersistentOutput(logDirectory);
 
-    await AppLogger.initFileSink(logPath);
-
-    final after = File(logPath).readAsStringSync();
-    expect(after.length, lessThan(5 * 1024 * 1024));
-    expect(after, startsWith('--- 日志已截断，保留尾部 ---'));
-    // 截断后应保留最近的行，丢弃最早的行。
-    expect(after, contains('line 219999'));
-    expect(after, isNot(contains('line 0\n')));
+    expect(await AppLogger.readPersistedLog(), 'old\nnew\n');
   });
 
-  test('启动时从落盘日志恢复最近的内存日志', () async {
-    final old = StringBuffer();
-    for (var i = 0; i < 510; i++) {
-      old.writeln('12:00:00.000 [Persisted] line $i');
-    }
-    File(logPath).writeAsStringSync(old.toString());
-
-    await AppLogger.initFileSink(logPath);
-
-    final entries = AppLogger.instance.entries;
-    expect(entries, hasLength(500));
-    expect(entries.first.message, 'line 10');
-    expect(entries.last.message, 'line 509');
-  });
-
-  test('clear 同时清空落盘日志', () async {
-    await AppLogger.initFileSink(logPath);
+  test('清空操作同时删除活动与历史日志', () async {
+    await AppLogger.configurePersistentOutput(logDirectory);
     AppLogger.log('Test', 'to clear');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    AppLogger.instance.clear();
+    await AppLogger.clearPersistedLogs();
 
     expect(AppLogger.instance.entries, isEmpty);
-    expect(File(logPath).readAsStringSync(), isEmpty);
+    final files = Directory(logDirectory).listSync().whereType<File>().toList();
+    // 清空后会立即恢复轮转输出，因此只留下新的空活动文件。
+    expect(files, hasLength(1));
+    expect(files.single.path, endsWith('/app.log'));
+    expect(files.single.readAsStringSync(), isEmpty);
   });
 }
