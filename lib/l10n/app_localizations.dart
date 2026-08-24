@@ -98,6 +98,18 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @startupLocalDataErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare local data'**
+  String get startupLocalDataErrorTitle;
+
+  /// No description provided for @startupLocalDataErrorMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your learning data was not changed. Please retry to continue.'**
+  String get startupLocalDataErrorMessage;
+
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:

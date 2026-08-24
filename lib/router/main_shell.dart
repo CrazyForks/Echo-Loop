@@ -29,7 +29,7 @@ import '../providers/learning_session/favorite_review_due_count_provider.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/reminder_settings_provider.dart';
 import '../providers/review_reminder_provider.dart';
-import '../providers/startup_readiness_provider.dart';
+import '../providers/startup_bootstrap_provider.dart';
 import '../providers/study_stats_provider.dart';
 import '../providers/study_task_provider.dart';
 import '../providers/tag_provider.dart';
@@ -64,8 +64,10 @@ class _MainShellState extends ConsumerState<MainShell> {
   ProviderSubscription<ReminderSettings>? _reminderSettingsSubscription;
   ProviderSubscription<int>? _notificationPromptSubscription;
   ProviderSubscription<GuideControllerState>? _guideWaitSubscription;
+  ProviderSubscription<AsyncValue<StartupReport>>? _localStartupSubscription;
   late final RemoteConfigController _remoteConfigController;
   late final AppLifecycleListener _lifecycleListener;
+  bool _didStartPostLocalTasks = false;
 
   /// 资源库 tab 图标的引导 target key；在整个 shell 生命周期内保持稳定。
   final GlobalKey _keyLibraryNav = GlobalKey();
@@ -90,11 +92,21 @@ class _MainShellState extends ConsumerState<MainShell> {
       onPause: _onAppBackground,
     );
 
-    // 版本检查属于非关键网络任务，等本地数据 gate 放行后再启动。
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _waitForLocalDataReady();
-      if (mounted) _startAppUpdateListening();
-    });
+    // 所有依赖本地数据的后台任务只观察标准 startup provider；首次失败后
+    // 用户重试成功时监听器仍会收到 data，避免一次性 Future 等待遗漏恢复流程。
+    _localStartupSubscription = ref.listenManual<AsyncValue<StartupReport>>(
+      localStartupProvider,
+      (_, next) {
+        if (next.hasValue) _startPostLocalTasks();
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _startPostLocalTasks() {
+    if (!mounted || _didStartPostLocalTasks) return;
+    _didStartPostLocalTasks = true;
+    _startAppUpdateListening();
   }
 
   /// 注册版本更新结果监听，并让 provider 在首帧后的后台阶段检查更新。
@@ -121,9 +133,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 数据库迁移在首帧后执行。此处等待 gate，避免任何预热任务在迁移过程中
-      // 访问 Drift；状态由启动编排器事件驱动地释放，不使用轮询。
-      await _waitForLocalDataReady();
       if (!mounted) return;
 
       // 启动时同步系统通知权限状态到 SP，防止已授权设备误弹 pre-prompt
@@ -309,26 +318,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     });
   }
 
-  /// 等待首帧后的本地启动任务完成。
-  Future<void> _waitForLocalDataReady() {
-    if (ref.read(startupReadinessProvider).isLocalDataReady) {
-      return Future.value();
-    }
-
-    final completer = Completer<void>();
-    late ProviderSubscription<StartupReadiness> subscription;
-    subscription = ref.listenManual<StartupReadiness>(
-      startupReadinessProvider,
-      (_, next) {
-        if (next.isLocalDataReady && !completer.isCompleted) {
-          subscription.close();
-          completer.complete();
-        }
-      },
-    );
-    return completer.future;
-  }
-
   @override
   void dispose() {
     _remoteConfigController.stopPeriodicRefresh();
@@ -339,6 +328,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     _reminderSettingsSubscription?.close();
     _notificationPromptSubscription?.close();
     _guideWaitSubscription?.close();
+    _localStartupSubscription?.close();
     super.dispose();
   }
 
@@ -606,16 +596,53 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final startup = ref.watch(startupReadinessProvider);
+    final startup = ref.watch(localStartupProvider);
 
     // 保持真实的 MaterialApp 与导航壳实例，但在本地数据尚未安全可读前不插入
     // StatefulNavigationShell。默认学习页因此不会提前触发数据库查询。
-    if (!startup.isLocalDataReady) {
+    if (startup.isLoading) {
       return Scaffold(
         body: Center(
           child: Semantics(
             label: '正在准备学习数据',
-            child: const CircularProgressIndicator(),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+    if (startup.hasError) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l10n.startupLocalDataErrorTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.startupLocalDataErrorMessage,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => unawaited(
+                    ref.read(localStartupProvider.notifier).retry(),
+                  ),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.retry),
+                ),
+              ],
+            ),
           ),
         ),
       );

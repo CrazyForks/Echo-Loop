@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 标准化冷启动编排：以 Riverpod `AsyncNotifier` / `AsyncValue` 取代本地数据与第三方 SDK 的全局 Completer、静态 Supabase gate 和双重就绪状态；目录/数据库/旧数据迁移失败进入可重试错误页，日志与示例等可降级任务保留结构化 issue 后继续；补齐 provider 时序、失败重试与第三方依赖回归测试。**完成时间**: 2026-08-24
+
 - [x] 持久化日志改用 `logger` 的 `AdvancedFileOutput` 大小轮转：`app.log` 单文件上限 5 MB、最多保留一份历史归档；移除启动期手写截断与历史内存恢复，日志页改为打开时按需读取并在分享时打包 ZIP 支持包；ASR Worker 普通日志回传主 isolate 统一落盘，保留 native 崩溃 marker。**完成时间**: 2026-08-24
 
 - [x] 修正启动追踪缓冲日志的时间歧义：保留单调 `elapsedMs`，并为每个事件记录原始 `recordedAtMs`，避免日志 sink 延后落盘时终端时间误导启动耗时判断；补齐缓冲事件时间戳回归测试。**完成时间**: 2026-08-24

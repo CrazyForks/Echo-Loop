@@ -1,4 +1,6 @@
 {
+  "startupLocalDataErrorTitle": "无法准备本地学习数据",
+  "startupLocalDataErrorMessage": "你的学习数据未被修改，请重试后继续。",
   "@@locale": "zh",
   "appTitle": "Echo Loop",
   "premiumTitle": "Echo Loop 会员",

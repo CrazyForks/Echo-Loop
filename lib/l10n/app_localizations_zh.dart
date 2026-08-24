@@ -9,6 +9,12 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get startupLocalDataErrorTitle => '无法准备本地学习数据';
+
+  @override
+  String get startupLocalDataErrorMessage => '你的学习数据未被修改，请重试后继续。';
+
+  @override
   String get appTitle => 'Echo Loop';
 
   @override
