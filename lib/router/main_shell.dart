@@ -34,6 +34,7 @@ import '../providers/study_task_provider.dart';
 import '../providers/tag_provider.dart';
 import '../providers/time_provider.dart';
 import '../services/app_logger.dart';
+import '../services/startup_trace.dart';
 import '../services/app_update_launcher.dart';
 import '../services/review_reminder_service.dart';
 import '../services/review_reminder_time_calculator.dart';
@@ -79,6 +80,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   void initState() {
     super.initState();
+    activeStartupTrace?.mark('main_shell_init_state');
     // 缓存 controller，避免 dispose 阶段从已卸载的 ConsumerState ref 读取 provider。
     _remoteConfigController = ref.read(remoteConfigProvider.notifier);
     _lifecycleListener = AppLifecycleListener(
@@ -123,10 +125,19 @@ class _MainShellState extends ConsumerState<MainShell> {
       );
 
       AppLogger.log('StartupLoad', 'study bootstrap start');
+      activeStartupTrace?.mark('study_bootstrap_start');
       try {
         // 学习页是默认落地 tab，先并发预热其首屏必需数据：
         // 资源库音频列表 + 学习进度。其它非首屏关键数据继续后置，避免启动路径膨胀。
-        await _bootstrapStudyLandingData();
+        final startupTrace = activeStartupTrace;
+        if (startupTrace == null) {
+          await _bootstrapStudyLandingData();
+        } else {
+          await startupTrace.run(
+            'study_audio_library_and_progress_bootstrap',
+            _bootstrapStudyLandingData,
+          );
+        }
 
         final audioState = ref.read(audioLibraryProvider);
         AppLogger.log(
@@ -136,14 +147,22 @@ class _MainShellState extends ConsumerState<MainShell> {
               'progressItems='
               '${ref.read(learningProgressNotifierProvider).progressMap.length}',
         );
+        activeStartupTrace?.mark('study_audio_library_and_progress_ready');
 
-        await ref.read(collectionListProvider.notifier).loadCollections();
+        if (startupTrace == null) {
+          await ref.read(collectionListProvider.notifier).loadCollections();
+        } else {
+          await startupTrace.run('study_collections_bootstrap', () {
+            return ref.read(collectionListProvider.notifier).loadCollections();
+          });
+        }
         final collectionState = ref.read(collectionListProvider);
         AppLogger.log(
           'StartupLoad',
           'library bootstrap collections done: '
               'stateCollections=${collectionState.rawCollections.length}',
         );
+        activeStartupTrace?.mark('study_collections_ready');
         unawaited(_refreshSubscribedPodcastsInBackground());
 
         ref.read(tagListProvider.notifier).loadTags();
@@ -151,6 +170,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 先把旧字幕文件内容 backfill 进 DB 列，再补统计（统计优先读列）。
         await ref.read(audioLibraryProvider.notifier).backfillTranscriptSrt();
         ref.read(audioLibraryProvider.notifier).backfillTranscriptStats();
+        activeStartupTrace?.mark('study_bootstrap_success');
       } catch (e, st) {
         // 启动预热失败：先落盘日志（崩溃/异常排查重度依赖落盘日志），再给用户反馈。
         AppLogger.log('StartupLoad', 'study bootstrap failed: $e');

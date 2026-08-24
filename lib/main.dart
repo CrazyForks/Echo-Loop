@@ -51,6 +51,7 @@ import 'package:path_provider/path_provider.dart';
 import 'services/asr/asr_model_manager.dart';
 import 'services/asr/offline_asr_engine.dart';
 import 'services/app_logger.dart';
+import 'services/startup_trace.dart';
 import 'services/media_kit_debug_initializer.dart';
 import 'services/tts/kokoro_model_manager.dart';
 import 'services/tts/piper_model_manager.dart';
@@ -72,27 +73,53 @@ import 'features/subscription/providers/subscription_controller.dart';
 import 'features/subscription/providers/subscription_plans_provider.dart';
 
 void main() async {
+  final startupTrace = StartupTrace();
+  registerStartupTrace(startupTrace);
+  startupTrace.mark('dart_main_enter');
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb) ensureMediaKitInitialized();
-  initTimeago();
+  startupTrace.mark('flutter_binding_ready');
+  if (!kIsWeb) {
+    startupTrace.runSync('media_kit_initialize', ensureMediaKitInitialized);
+  } else {
+    startupTrace.mark(
+      'step_skipped',
+      fields: {'step': 'media_kit_initialize', 'reason': 'web'},
+    );
+  }
+  startupTrace.runSync('timeago_initialize', initTimeago);
 
   // 开启日志落盘：每条日志同步写入文件并 flush，崩溃（含 native SIGABRT）前的
   // 日志仍保留在磁盘，供日志页导出排查。失败静默忽略，不影响启动。
   try {
-    await AppLogger.initFileSink(await appLogFilePath());
-  } catch (_) {}
+    await startupTrace.run('app_log_file_sink', () async {
+      await AppLogger.initFileSink(await appLogFilePath());
+    });
+  } catch (_) {
+    // 与既有逻辑一致：日志落盘失败不阻断启动。
+  } finally {
+    startupTrace.attachLogger();
+  }
 
-  final packageInfo = await PackageInfo.fromPlatform();
+  final packageInfo = await startupTrace.run(
+    'package_info',
+    PackageInfo.fromPlatform,
+  );
 
   // 数据目录迁移（Documents → Application Support）
   try {
-    await migrateToAppSupportDirectory();
+    await startupTrace.run(
+      'data_directory_migration',
+      migrateToAppSupportDirectory,
+    );
   } catch (e) {
     AppLogger.log('App', '数据目录迁移失败，下次启动重试: $e');
   }
 
   // 检查是否处于演示模式
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = await startupTrace.run(
+    'shared_preferences',
+    SharedPreferences.getInstance,
+  );
   final isDemoMode = prefs.getBool('demo_mode') ?? false;
 
   // 远程配置：启动期只同步读取本地缓存/默认值，不触发网络请求，避免网络慢阻塞首帧。
@@ -108,7 +135,10 @@ void main() async {
   // 需要业务层额外用数据是否为空等 gate 兜底区分升级用户。
   final isFirstLaunch = !(prefs.getBool('first_launch_done') ?? false);
   if (isFirstLaunch) {
-    await prefs.setBool('first_launch_done', true);
+    await startupTrace.run(
+      'first_launch_marker_write',
+      () => prefs.setBool('first_launch_done', true),
+    );
   }
 
   // Onboarding 问卷"是否已完成"同步预读：GoRouter redirect 是同步函数，
@@ -119,16 +149,25 @@ void main() async {
   );
 
   // 旧“语音识别总开关”迁移到两个练习评分开关，须在学习设置预读前完成。
-  await migrateLegacyOfflineAsrEnabledToRatingSettings(prefs);
+  await startupTrace.run(
+    'legacy_offline_asr_settings_migration',
+    () => migrateLegacyOfflineAsrEnabledToRatingSettings(prefs),
+  );
 
   // 学习设置（自动跳过复述）同步预读：plan / progress 启动期就需要拿到值。
   final initialLearningSettings = LearningSettings.fromPrefsSync(prefs);
   // 清理历史 SP key（开发期数据卫生，幂等无副作用）。
-  await cleanupLegacyLearningSettingsKeys(prefs);
+  await startupTrace.run(
+    'legacy_learning_settings_cleanup',
+    () => cleanupLegacyLearningSettingsKeys(prefs),
+  );
 
   // Android 不再提供系统语音入口；先迁移历史偏好，再同步预读。
   if (!kIsWeb && Platform.isAndroid) {
-    await migrateAndroidPlatformTtsToEchoLoop(prefs);
+    await startupTrace.run(
+      'android_tts_settings_migration',
+      () => migrateAndroidPlatformTtsToEchoLoop(prefs),
+    );
   }
 
   // 语音合成设置（引擎/口音）同步预读：闪卡翻面等同步发音路径需立即拿到口音，
@@ -155,6 +194,10 @@ void main() async {
   final dbFileName = isDemoMode ? 'echo_loop_demo.db' : 'echo_loop.db';
   final database = AppDatabase(openConnectionWithName(dbFileName));
   initAppDatabase(database);
+  startupTrace.mark(
+    'database_instance_registered',
+    fields: {'demoMode': isDemoMode},
+  );
 
   // 执行 SP → Drift 迁移（仅对生产数据库）
   if (!isDemoMode) {
@@ -164,31 +207,45 @@ void main() async {
       subtitleLoader: defaultSubtitleLoader,
     );
     try {
-      await migration.migrate();
+      await startupTrace.run('shared_preferences_to_drift_migration', () {
+        return migration.migrate();
+      });
     } catch (e) {
       print('SP → Drift 迁移失败，下次启动重试: $e');
     }
 
     // 首次启动时安装内置示例内容
     try {
-      await BundledExampleInstaller(database, prefs).installOnFirstLaunch();
+      await startupTrace.run('bundled_examples_install', () {
+        return BundledExampleInstaller(database, prefs).installOnFirstLaunch();
+      });
     } catch (e) {
       print('内置示例安装失败: $e');
     }
   }
 
-  await initEchoLoopAudioHandler();
+  await startupTrace.run('background_audio_handler_initialize', () {
+    return initEchoLoopAudioHandler();
+  });
 
   // iOS: 通过原生网络栈触发系统网络权限弹窗。
   // 启动时立即触发（包括 Onboarding 期间的新用户），原因：埋点上报
   // （app_permission_snapshot / onboarding_survey_shown 等）依赖网络通畅，
   // 推迟会丢失事件。系统弹窗由 OS 决定具体呈现时机，可能延后。
   if (!kIsWeb && Platform.isIOS) {
+    startupTrace.mark(
+      'detached_scheduled',
+      fields: {'step': 'ios_network_permission_trigger'},
+    );
     unawaited(NetworkPermissionTrigger.trigger(prefs, apiBaseUrl));
   }
 
   // 初始化 Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await startupTrace.run('firebase_initialize', () {
+    return Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  });
 
   // 初始化 Supabase（认证 + 未来云同步用）
   //
@@ -200,16 +257,22 @@ void main() async {
   String? restoredUserId;
   if (auth_config.isAuthConfigured) {
     try {
-      await Supabase.initialize(
-        url: auth_config.supabaseUrl,
-        anonKey: auth_config.supabasePublishableKey,
-      );
+      await startupTrace.run('supabase_initialize', () {
+        return Supabase.initialize(
+          url: auth_config.supabaseUrl,
+          anonKey: auth_config.supabasePublishableKey,
+        );
+      });
       // Supabase 启动时自动从 SharedPreferences 恢复上次 session；此处读回恢复的用户 ID。
       restoredUserId = Supabase.instance.client.auth.currentSession?.user.id;
     } catch (e) {
       AppLogger.log('App', 'Supabase 初始化失败，认证功能不可用: $e');
     }
   } else {
+    startupTrace.mark(
+      'step_skipped',
+      fields: {'step': 'supabase_initialize', 'reason': 'not_configured'},
+    );
     AppLogger.log(
       'App',
       'Supabase 未配置（缺 SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY），跳过初始化',
@@ -223,10 +286,18 @@ void main() async {
   // 用户身份绑定（Purchases.logIn）由 SubscriptionController 监听登录态后处理，
   // 这里只做 SDK 配置。
   if (revenuecat_config.useLocalStoreKit) {
+    startupTrace.mark(
+      'step_skipped',
+      fields: {'step': 'revenuecat_initialize', 'reason': 'local_storekit'},
+    );
     // 本地 StoreKit 测试模式：**不初始化 RevenueCat**，购买走 in_app_purchase
     // 直连 .storekit，避免本地交易被 RC SDK 捕获上报（不污染 RC Sandbox）。
     AppLogger.log('App', '本地 StoreKit 测试模式：跳过 RevenueCat 初始化');
   } else if (paddle_config.isPaddleCheckoutChannel) {
+    startupTrace.mark(
+      'step_skipped',
+      fields: {'step': 'revenuecat_initialize', 'reason': 'paddle_direct'},
+    );
     // direct 渠道（侧载 APK / 桌面）：不初始化 RC，购买走 Paddle Checkout、
     // 权益经后端 /api/entitlements 读回，**不初始化 RevenueCat SDK**。
     AppLogger.log('App', 'Paddle direct 渠道：跳过 RevenueCat 初始化（权益经后端读回）');
@@ -244,7 +315,9 @@ void main() async {
       if (restoredUserId != null) {
         configuration.appUserID = restoredUserId;
       }
-      await Purchases.configure(configuration);
+      await startupTrace.run('revenuecat_initialize', () {
+        return Purchases.configure(configuration);
+      });
       AppLogger.log(
         'App',
         restoredUserId != null
@@ -255,34 +328,58 @@ void main() async {
       AppLogger.log('App', 'RevenueCat 初始化失败，订阅功能不可用: $e');
     }
   } else {
+    startupTrace.mark(
+      'step_skipped',
+      fields: {'step': 'revenuecat_initialize', 'reason': 'not_configured'},
+    );
     AppLogger.log('App', 'RevenueCat 未配置（缺平台 API Key），跳过初始化');
   }
 
   // 初始化用户 ID（SecureStorage 持久化，卸载重装可恢复）
-  final userId = await initUserIdService(prefs);
+  final userId = await startupTrace.run(
+    'user_id_initialize',
+    () => initUserIdService(prefs),
+  );
 
   // 初始化分析服务（根据 geo 选择 Firebase/友盟/Log 通道）
-  final analyticsService = await initAnalyticsService(prefs, userId: userId);
+  final analyticsService = await startupTrace.run(
+    'analytics_initialize',
+    () => initAnalyticsService(prefs, userId: userId),
+  );
   initAnalytics(analyticsService);
 
   // 上报 4 类系统授权状态（mic / speech / notification / network）：
   // super properties + person properties + app_permission_snapshot 三路写入。
   // 失败不影响启动；底层方法已各自做 consent gate + try/catch。
   try {
-    final snapshot = await PermissionSnapshot.capture(prefs);
-    await analyticsService.reportPermissionSnapshot(snapshot, prefs);
+    await startupTrace.run('permission_snapshot_report', () async {
+      final snapshot = await PermissionSnapshot.capture(prefs);
+      await analyticsService.reportPermissionSnapshot(snapshot, prefs);
+    });
   } catch (e) {
     AppLogger.log('App', '权限状态埋点失败: $e');
   }
 
   // 清理上次残留的录音临时文件（沙盒/tmp/ 中超过 60 秒的文件），不阻塞启动
   unawaited(cleanupRecordingTempFiles());
+  startupTrace.mark(
+    'detached_scheduled',
+    fields: {'step': 'recording_temp_cleanup'},
+  );
 
   // 清理超过 1 天的 PDF 分享临时目录（分享后不能立即删，见 temp_cleanup_service）
   unawaited(cleanupStalePdfExportTemp());
+  startupTrace.mark(
+    'detached_scheduled',
+    fields: {'step': 'pdf_export_temp_cleanup'},
+  );
 
   // 清理超过 1 天的百度网盘半下载临时文件，短期保留用于续传
   unawaited(cleanupStaleBaiduNetdiskTemp());
+  startupTrace.mark(
+    'detached_scheduled',
+    fields: {'step': 'baidu_netdisk_temp_cleanup'},
+  );
 
   // 启动后延迟清理 TTS 合成缓存（过期 + 超量 LRU），不拖首屏。
   Future.delayed(const Duration(seconds: 8), () {
@@ -309,18 +406,29 @@ void main() async {
     );
     final platform = SpeechPracticePlatform.instance;
     final ramBytes = platform.isSupported
-        ? await platform.getDeviceRamBytes()
+        ? await startupTrace.run(
+            'offline_asr_device_ram_read',
+            platform.getDeviceRamBytes,
+          )
         : 0;
     final modelManager = AsrModelManager();
-    recommendedAsrModel = modelManager.recommendModel(ramBytes: ramBytes);
-    initialOfflineAsrSettingsState = await loadInitialOfflineAsrSettingsState(
-      prefs: prefs,
-      modelManager: modelManager,
-      recommendedModel: recommendedAsrModel,
-      defaultBackend: defaultBackend,
+    final recommendedModel = modelManager.recommendModel(ramBytes: ramBytes);
+    recommendedAsrModel = recommendedModel;
+    initialOfflineAsrSettingsState = await startupTrace.run(
+      'offline_asr_initial_state_load',
+      () => loadInitialOfflineAsrSettingsState(
+        prefs: prefs,
+        modelManager: modelManager,
+        recommendedModel: recommendedModel,
+        defaultBackend: defaultBackend,
+      ),
     );
     // 清理历史废弃 ASR 模型目录；保留当前版本所有可选模型。
     unawaited(modelManager.cleanupUnknownModels());
+    startupTrace.mark(
+      'detached_scheduled',
+      fields: {'step': 'offline_asr_unknown_models_cleanup'},
+    );
   }
 
   // Echo Loop TTS（Kokoro）模型初始状态：用持久化标记 + 文件系统校验恢复，
@@ -331,9 +439,12 @@ void main() async {
       for (final v in KokoroModelVariant.values)
         v: KokoroModelManager(spec: kokoroSpecOf(v)),
     };
-    initialKokoroModelState = await loadInitialKokoroModelState(
-      prefs: prefs,
-      managerOf: (v) => managers[v]!,
+    initialKokoroModelState = await startupTrace.run(
+      'kokoro_initial_model_state_load',
+      () => loadInitialKokoroModelState(
+        prefs: prefs,
+        managerOf: (v) => managers[v]!,
+      ),
     );
     for (final m in managers.values) {
       m.dispose();
@@ -347,9 +458,12 @@ void main() async {
     final managers = <String, PiperModelManager>{
       for (final v in piperVoices) v.id: PiperModelManager(voice: v),
     };
-    initialPiperModelState = await loadInitialPiperModelState(
-      prefs: prefs,
-      managerOf: (id) => managers[id]!,
+    initialPiperModelState = await startupTrace.run(
+      'piper_initial_model_state_load',
+      () => loadInitialPiperModelState(
+        prefs: prefs,
+        managerOf: (id) => managers[id]!,
+      ),
     );
     for (final m in managers.values) {
       m.dispose();
@@ -358,6 +472,12 @@ void main() async {
 
   // 清理上次运行残留的官方合集音频下载 tmp 文件（异步）
   unawaited(cleanupOfficialDownloadTmp());
+
+  startupTrace.mark(
+    'detached_scheduled',
+    fields: {'step': 'official_download_tmp_cleanup'},
+  );
+  startupTrace.mark('run_app_invoked');
 
   runApp(
     // PostHogWidget：posthog_flutter 5.x Session Replay 必需的根包装。
@@ -425,10 +545,15 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
   StreamSubscription<NotificationIntent>? _intentSubscription;
   ProviderSubscription<AsyncValue<Session?>>? _authSessionSubscription;
   late final ShowcaseView _showcase;
+  bool _hasLoggedRouterCreated = false;
 
   @override
   void initState() {
     super.initState();
+    activeStartupTrace?.mark('app_widget_init_state');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      activeStartupTrace?.mark('flutter_first_frame_rendered');
+    });
     // 下载注册表由各资源模块提供；首帧后静默启动，不影响应用启动体验。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(startRegisteredDownloads(ref));
@@ -570,6 +695,10 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
     final router = ref.watch(appRouterProvider);
+    if (!_hasLoggedRouterCreated) {
+      _hasLoggedRouterCreated = true;
+      activeStartupTrace?.mark('router_created');
+    }
 
     return MaterialApp.router(
       title: 'Echo Loop',

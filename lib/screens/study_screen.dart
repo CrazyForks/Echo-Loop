@@ -21,6 +21,7 @@ import '../providers/study_task_provider.dart';
 import '../providers/time_provider.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
+import '../services/startup_trace.dart';
 import '../widgets/speech_permission_dialog.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/learning_progress_icon.dart';
@@ -54,6 +55,17 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   final GlobalKey _keyTaskArea = GlobalKey();
   final GlobalKey _keyStatsHeader = GlobalKey();
   final GlobalKey _keyStreakChip = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    activeStartupTrace?.mark('study_tab_mounted');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        activeStartupTrace?.mark('study_tab_first_frame_rendered');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -724,10 +736,7 @@ class _RecentCompletionTile extends ConsumerWidget {
           child: Row(
             children: [
               // 左侧绿色条标记本条子步骤已完成（不用对钩，避免误认为整个音频已学完）。
-              Container(
-                width: 4,
-                color: LearningProgressIcon.completedColor,
-              ),
+              Container(width: 4, color: LearningProgressIcon.completedColor),
               // 内容区
               Expanded(
                 child: Padding(
