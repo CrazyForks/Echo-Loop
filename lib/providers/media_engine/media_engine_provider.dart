@@ -11,6 +11,7 @@ import '../../services/background_audio_handler.dart';
 import '../../services/echo_loop_media_handler.dart';
 import '../../services/app_logger.dart';
 import '../../services/media_kit_player_backend.dart';
+import '../../services/media_kit_debug_initializer.dart';
 import '../../services/media_player_backend.dart';
 import '../../services/media_session_router.dart';
 
@@ -46,6 +47,7 @@ class MediaEngine extends _$MediaEngine {
 
   Future<void> ensureChain() async {
     if (_backend != null && _handler != null) return;
+    ensureMediaKitInitialized();
     final backend = ref.read(mediaBackendFactoryProvider)();
     final handler = EchoLoopMediaHandler(backend);
     final router = ref.read(mediaSessionRouterProvider);

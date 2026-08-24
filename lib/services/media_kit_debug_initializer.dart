@@ -10,6 +10,9 @@ import 'package:media_kit/src/player/native/core/native_library.dart';
 import 'package:media_kit/src/player/native/utils/android_helper.dart';
 import 'package:media_kit/src/player/native/utils/native_reference_holder.dart';
 
+import 'app_logger.dart';
+import 'app_notice.dart';
+
 /// 初始化 media_kit，并在 debug hot restart 前置清理旧 mpv callback。
 ///
 /// media_kit 1.2.6 的 debug 旧引用清理只对旧 mpv handle 发送 `quit`。
@@ -17,7 +20,7 @@ import 'package:media_kit/src/player/native/utils/native_reference_holder.dart';
 /// `quit` 过程中仍可能触发该 callback，导致 Dart VM 报
 /// “Callback invoked after it has been deleted”。这里先把旧 handle 的
 /// wakeup callback 清空，再交给 mpv 退出，避免调用已失效的 Dart callback。
-void ensureMediaKitInitialized({String? libmpv}) {
+void _initializeMediaKitNative({String? libmpv}) {
   if (kIsWeb || !kDebugMode) {
     MediaKit.ensureInitialized(libmpv: libmpv);
     return;
@@ -56,6 +59,41 @@ void ensureMediaKitInitialized({String? libmpv}) {
 
   MediaKit.ensureInitialized(libmpv: libmpv);
 }
+
+/// 进程内唯一的 media_kit 初始化协调器。
+///
+/// media_kit 未公开其初始化状态；这里记录成功结果，并在失败时让下次使用重试。
+class MediaKitInitializer {
+  MediaKitInitializer({void Function()? initialize})
+    : _initialize = initialize ?? _initializeMediaKitNative;
+
+  final void Function() _initialize;
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized;
+
+  void ensureInitialized() {
+    if (_isInitialized) return;
+    try {
+      _initialize();
+      _isInitialized = true;
+    } catch (error, stackTrace) {
+      AppLogger.log('MediaKit', 'initialize failed: $error\n$stackTrace');
+      appNoticeBus.publish(
+        const AppNotice(
+          message: AppNoticeMessage.playbackFailed,
+          dedupeKey: 'media-kit-initialize-failed',
+        ),
+      );
+      rethrow;
+    }
+  }
+}
+
+final mediaKitInitializer = MediaKitInitializer();
+
+/// 所有 media_kit 使用方的唯一初始化入口。
+void ensureMediaKitInitialized() => mediaKitInitializer.ensureInitialized();
 
 /// 对旧 mpv handle 执行可测试的热重启清理顺序。
 class MediaKitHotRestartReferenceCleaner {

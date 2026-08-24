@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:media_kit/media_kit.dart';
 
 import '../app_logger.dart';
+import '../media_kit_debug_initializer.dart';
 
 /// 无画面短音频播放器后端，测试可注入 fake。
 ///
@@ -49,8 +50,13 @@ class UnavailableAudioClipPlayerBackend implements AudioClipPlayerBackend {
 /// 未附加 [VideoController] 时，media_kit 原生播放器会禁用视频轨解码；
 /// 因此此后端可试听视频文件中的音轨，但不能用于需要画面的视频片段。
 class MediaKitAudioClipPlayerBackend implements AudioClipPlayerBackend {
-  MediaKitAudioClipPlayerBackend() : _player = Player();
+  MediaKitAudioClipPlayerBackend() : _player = _createPlayer();
   final Player _player;
+
+  static Player _createPlayer() {
+    ensureMediaKitInitialized();
+    return Player();
+  }
 
   @override
   Stream<void> get completed =>
@@ -100,23 +106,19 @@ class LocalAudioClipPlaybackState {
 /// 只播放其音轨，且可在后台继续播放；需要视频画面、全屏或字幕 UI 时，应使用
 /// 前台 [MediaKitPlayerBackend] 和媒体呈现宿主，而不是此服务。
 class LocalAudioClipPlayer {
-  LocalAudioClipPlayer({AudioClipPlayerBackend? backend})
-    : _backend = backend ?? _createDefaultBackend();
+  LocalAudioClipPlayer({AudioClipPlayerBackend? backend}) : _backend = backend;
 
   static AudioClipPlayerBackend _createDefaultBackend() {
-    try {
-      return MediaKitAudioClipPlayerBackend();
-    } catch (error, stackTrace) {
-      AppLogger.log(
-        'AudioClipPlayer',
-        'native backend unavailable; using failed-playback fallback: '
-            '$error\n$stackTrace',
-      );
-      return UnavailableAudioClipPlayerBackend();
-    }
+    // 初始化失败必须向调用方返回失败且不缓存 backend，下一次播放才能重试。
+    return MediaKitAudioClipPlayerBackend();
   }
 
-  final AudioClipPlayerBackend _backend;
+  AudioClipPlayerBackend? _backend;
+
+  AudioClipPlayerBackend _ensureBackend() {
+    return _backend ??= _createDefaultBackend();
+  }
+
   int _sessionId = 0;
   _PlaybackCompletion? _activePlayback;
   LocalAudioClipPlaybackState _state = const LocalAudioClipPlaybackState();
@@ -135,11 +137,12 @@ class LocalAudioClipPlayer {
     final completion = _replaceActivePlayback();
     _setState(LocalAudioClipPlaybackState(playingKey: playbackKey));
     try {
-      await _backend.stop();
+      final backend = _ensureBackend();
+      await backend.stop();
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       AppLogger.log('AudioClipPlayer', '▶ open sid=$sessionId path=$filePath');
       _watchCompletion(completion, sessionId);
-      await _backend.open(filePath);
+      await backend.open(filePath);
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       return await completion.future;
     } catch (error, stackTrace) {
@@ -178,31 +181,32 @@ class LocalAudioClipPlayer {
     void stopAtEnd() {
       if (sessionId != _sessionId) return;
       completion.finish(AudioPlaybackResult.completed);
-      unawaited(_backend.stop());
+      unawaited(_backend?.stop() ?? Future<void>.value());
     }
 
     try {
-      await _backend.stop();
+      final backend = _ensureBackend();
+      await backend.stop();
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
       AppLogger.log(
         'AudioClipPlayer',
         '▶ open range sid=$sessionId path=$filePath '
             'start=${start.inMilliseconds} end=${end.inMilliseconds}',
       );
-      positionSub = _backend.positions.listen((position) {
+      positionSub = backend.positions.listen((position) {
         if (position >= end) stopAtEnd();
       });
       guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
         if (sessionId != _sessionId) {
           completion.finish(AudioPlaybackResult.cancelled);
-        } else if (_backend.position >= end) {
+        } else if (backend.position >= end) {
           stopAtEnd();
         }
       });
       _watchCompletion(completion, sessionId);
-      await _backend.open(filePath, start: start);
+      await backend.open(filePath, start: start);
       if (sessionId != _sessionId) return AudioPlaybackResult.cancelled;
-      if (_backend.position >= end) stopAtEnd();
+      if (backend.position >= end) stopAtEnd();
       return await completion.future;
     } catch (error, stackTrace) {
       final result = sessionId == _sessionId
@@ -241,10 +245,12 @@ class LocalAudioClipPlayer {
       if (sessionId == _sessionId) completion.finish(result);
     }
 
-    completedSub = _backend.completed.listen(
+    final backend = _backend;
+    if (backend == null) return;
+    completedSub = backend.completed.listen(
       (_) => finish(AudioPlaybackResult.completed),
     );
-    errorSub = _backend.errors.listen((message) {
+    errorSub = backend.errors.listen((message) {
       AppLogger.log('AudioClipPlayer', '播放解码失败: $message');
       finish(AudioPlaybackResult.failed);
     });
@@ -261,7 +267,7 @@ class LocalAudioClipPlayer {
     _activePlayback?.finish(AudioPlaybackResult.cancelled);
     _activePlayback = null;
     _setState(const LocalAudioClipPlaybackState());
-    await _backend.stop();
+    await _backend?.stop();
   }
 
   Future<void> dispose() async {
@@ -269,7 +275,7 @@ class LocalAudioClipPlayer {
     _activePlayback?.finish(AudioPlaybackResult.cancelled);
     _activePlayback = null;
     _setState(const LocalAudioClipPlaybackState());
-    await _backend.dispose();
+    await _backend?.dispose();
     await _states.close();
   }
 

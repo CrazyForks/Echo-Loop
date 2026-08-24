@@ -16,6 +16,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your learning data was not changed. Please retry to continue.';
 
   @override
+  String get playbackFailedTitle => 'Playback failed';
+
+  @override
+  String get playbackFailedMessage => 'Please try again later.';
+
+  @override
   String get appTitle => 'Echo Loop';
 
   @override

@@ -15,6 +15,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get startupLocalDataErrorMessage => '你的学习数据未被修改，请重试后继续。';
 
   @override
+  String get playbackFailedTitle => '播放失败';
+
+  @override
+  String get playbackFailedMessage => '请稍后重试。';
+
+  @override
   String get appTitle => 'Echo Loop';
 
   @override

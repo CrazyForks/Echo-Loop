@@ -1,6 +1,8 @@
 {
   "startupLocalDataErrorTitle": "Could not prepare local data",
   "startupLocalDataErrorMessage": "Your learning data was not changed. Please retry to continue.",
+  "playbackFailedTitle": "Playback failed",
+  "playbackFailedMessage": "Please try again later.",
   "@@locale": "en",
   "appTitle": "Echo Loop",
   "premiumTitle": "Echo Loop Premium",

@@ -110,6 +110,18 @@ abstract class AppLocalizations {
   /// **'Your learning data was not changed. Please retry to continue.'**
   String get startupLocalDataErrorMessage;
 
+  /// No description provided for @playbackFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback failed'**
+  String get playbackFailedTitle;
+
+  /// No description provided for @playbackFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Please try again later.'**
+  String get playbackFailedMessage;
+
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:

@@ -6,12 +6,18 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'media_subtitle_style.dart';
+import 'media_kit_debug_initializer.dart';
 import 'media_player_backend.dart';
 
 /// media_kit 播放后端。只负责原生播放器适配，不承载业务播放流程。
 class MediaKitPlayerBackend implements MediaPlayerBackend {
-  MediaKitPlayerBackend() : _player = Player() {
+  MediaKitPlayerBackend() : _player = _createPlayer() {
     _controller = VideoController(_player);
+  }
+
+  static Player _createPlayer() {
+    ensureMediaKitInitialized();
+    return Player();
   }
 
   final Player _player;

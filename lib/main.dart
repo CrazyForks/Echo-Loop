@@ -41,6 +41,7 @@ import 'providers/offline_asr_settings_provider.dart';
 import 'services/app_logger.dart';
 import 'services/startup_trace.dart';
 import 'services/media_kit_debug_initializer.dart';
+import 'widgets/app_notice_presenter.dart';
 import 'features/official_collections/data/official_catalog_service.dart';
 import 'features/official_collections/data/trigger_official_sync.dart';
 import 'features/official_collections/download/official_download_notifier.dart';
@@ -58,14 +59,6 @@ void main() async {
   startupTrace.mark('dart_main_enter');
   WidgetsFlutterBinding.ensureInitialized();
   startupTrace.mark('flutter_binding_ready');
-  if (!kIsWeb) {
-    startupTrace.runSync('media_kit_initialize', ensureMediaKitInitialized);
-  } else {
-    startupTrace.mark(
-      'step_skipped',
-      fields: {'step': 'media_kit_initialize', 'reason': 'web'},
-    );
-  }
   startupTrace.runSync('timeago_initialize', initTimeago);
 
   final packageInfo = await startupTrace.run(
@@ -261,6 +254,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
 
     // 下载注册表、词典和本地模型扫描都可能访问文件系统，统一放到首帧后。
     unawaited(startRegisteredDownloads(ref));
+    _scheduleMediaKitPrewarm();
     unawaited(_restoreLocalModelStates());
     ref.read(dictionaryProvider);
     ref.read(pronunciationLibraryProvider);
@@ -279,6 +273,21 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
       const Duration(seconds: 3),
       () => _triggerCatalogSync(force: true),
     );
+  }
+
+  /// 业务内容提交后再预热，不让原生播放器依赖阻塞进入学习页。
+  void _scheduleMediaKitPrewarm() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        Future<void>(() {
+          activeStartupTrace?.runSync(
+            'media_kit_initialize',
+            ensureMediaKitInitialized,
+          );
+        }).catchError((Object _) {}),
+      );
+    });
   }
 
   /// 等待后台 SDK 初始化完成后再创建其依赖的订阅与认证控制器。
@@ -455,6 +464,8 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: router,
+      builder: (context, child) =>
+          AppNoticePresenter(child: child ?? const SizedBox.shrink()),
       scaffoldMessengerKey: officialDownloadScaffoldMessengerKey,
     );
   }
