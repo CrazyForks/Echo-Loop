@@ -4,6 +4,7 @@
 /// 独立于 [AppSettings]，遵循"Provider 按功能域拆分"原则。
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -265,9 +266,12 @@ final showOfflineAsrSectionProvider = Provider<bool>((ref) {
   return true;
 });
 
-/// 推荐的 ASR 模型（main() 中一次性计算并 override 注入）。
+/// 推荐的 ASR 模型。
+///
+/// 首帧前不再读取设备内存；这里先提供稳定的保守默认值，首帧后的状态恢复
+/// 会继续按既有规则读取并更新已保存的用户选择。
 final recommendedAsrModelProvider = Provider<AsrModelInfo>(
-  (ref) => throw UnimplementedError('Must be overridden in main()'),
+  (ref) => availableModels.first,
 );
 
 /// 离线 ASR 设置 Notifier。
@@ -285,6 +289,23 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
     });
 
     return ref.read(initialOfflineAsrSettingsStateProvider);
+  }
+
+  /// 首帧后按既有规则扫描本地模型目录，并用结果刷新当前状态。
+  Future<void> restoreInitialStateFromDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    final modelManager = ref.read(asrModelManagerProvider);
+    final defaultBackend = Platform.isAndroid
+        ? AsrBackend.offline
+        : AsrBackend.platform;
+    state = await loadInitialOfflineAsrSettingsState(
+      prefs: prefs,
+      modelManager: modelManager,
+      recommendedModel: ref.read(recommendedAsrModelProvider),
+      defaultBackend: defaultBackend,
+    );
+    // 沿用原启动期行为：后台清理历史废弃模型目录，不阻塞状态恢复。
+    unawaited(modelManager.cleanupUnknownModels());
   }
 
   /// 兼容旧调用：语音识别基础能力常开；offline 后端下确保当前模型就绪。

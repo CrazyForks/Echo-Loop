@@ -32,6 +32,9 @@ class _FakeAsrModelManager extends AsrModelManager {
   Future<void> deleteModel(String modelId) async {
     deleteModelCallCount += 1;
   }
+
+  @override
+  Future<void> cleanupUnknownModels() async {}
 }
 
 class _TestOfflineAsrSettingsNotifier extends OfflineAsrSettingsNotifier {
@@ -107,6 +110,36 @@ void main() {
 
     expect(state.downloadStatus, AsrModelDownloadStatus.downloaded);
     expect(state.localSizeBytes, 209 * 1024 * 1024);
+  });
+
+  test('首帧后恢复会用文件校验结果替换默认状态', () async {
+    SharedPreferences.setMockInitialValues({
+      'offline_asr_downloaded_whisper-base-en-int8': true,
+    });
+    final manager = _FakeAsrModelManager(
+      downloaded: true,
+      localSizeBytes: 209 * 1024 * 1024,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        asrModelManagerProvider.overrideWithValue(manager),
+        recommendedAsrModelProvider.overrideWithValue(recommendedModel),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(
+      container.read(offlineAsrSettingsProvider).downloadStatus,
+      AsrModelDownloadStatus.notDownloaded,
+    );
+    await container
+        .read(offlineAsrSettingsProvider.notifier)
+        .restoreInitialStateFromDisk();
+
+    expect(
+      container.read(offlineAsrSettingsProvider).downloadStatus,
+      AsrModelDownloadStatus.downloaded,
+    );
   });
 
   test('启动加载时没有完成标记的残留模型按 failed 处理', () async {

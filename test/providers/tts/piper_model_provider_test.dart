@@ -273,4 +273,21 @@ void main() {
       expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.failed);
     });
   });
+
+  test('首帧后恢复会用文件校验结果替换默认状态', () async {
+    SharedPreferences.setMockInitialValues({
+      'piper_model_downloaded_$_us': true,
+    });
+    final container = _container(
+      (_) => _FakeManager(downloaded: true, sizeAfterDownload: 5000),
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(piperModelProvider).of(_us).isReady, isFalse);
+    await container
+        .read(piperModelProvider.notifier)
+        .restoreInitialStateFromDisk();
+
+    expect(container.read(piperModelProvider).of(_us).isReady, isTrue);
+  });
 }

@@ -378,4 +378,21 @@ void main() {
       expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.notDownloaded);
     });
   });
+
+  test('首帧后恢复会用文件校验结果替换默认状态', () async {
+    SharedPreferences.setMockInitialValues({
+      'kokoro_model_downloaded_fp32': true,
+    });
+    final container = _container(
+      _FakeManager(downloaded: true, sizeAfterDownload: 5000),
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(kokoroModelProvider).of(_fp32).isReady, isFalse);
+    await container
+        .read(kokoroModelProvider.notifier)
+        .restoreInitialStateFromDisk();
+
+    expect(container.read(kokoroModelProvider).of(_fp32).isReady, isTrue);
+  });
 }

@@ -27,16 +27,21 @@ class StartupTrace {
     String? launchId,
     Stopwatch? stopwatch,
     int Function()? elapsedMilliseconds,
+    int Function()? recordedAtMilliseconds,
     StartupTraceLogger? logger,
   }) : _launchId = launchId ?? DateTime.now().microsecondsSinceEpoch.toString(),
        _stopwatch = stopwatch ?? Stopwatch()
          ..start(),
        _elapsedMilliseconds = elapsedMilliseconds,
+       _recordedAtMilliseconds =
+           recordedAtMilliseconds ??
+           (() => DateTime.now().millisecondsSinceEpoch),
        _logger = logger ?? AppLogger.log;
 
   final String _launchId;
   final Stopwatch _stopwatch;
   final int Function()? _elapsedMilliseconds;
+  final int Function() _recordedAtMilliseconds;
   final StartupTraceLogger _logger;
   final List<String> _bufferedMessages = <String>[];
   bool _isAttached = false;
@@ -145,6 +150,9 @@ class StartupTrace {
     final parts = <String>[
       'event=$event',
       'launchId=$_launchId',
+      // AppLogger 的行前缀代表日志实际写入时刻。启动早期事件会被缓冲，
+      // 因此必须保存采样时刻，才能与单调 elapsedMs 一起正确还原时序。
+      'recordedAtMs=${_recordedAtMilliseconds()}',
       'elapsedMs=$_elapsedMs',
       ...fields.entries.map(
         (entry) => '${entry.key}=${_singleLine('${entry.value}')}',

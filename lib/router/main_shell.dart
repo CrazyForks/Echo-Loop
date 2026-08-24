@@ -29,6 +29,7 @@ import '../providers/learning_session/favorite_review_due_count_provider.dart';
 import '../providers/notification_permission_provider.dart';
 import '../providers/reminder_settings_provider.dart';
 import '../providers/review_reminder_provider.dart';
+import '../providers/startup_readiness_provider.dart';
 import '../providers/study_stats_provider.dart';
 import '../providers/study_task_provider.dart';
 import '../providers/tag_provider.dart';
@@ -89,8 +90,15 @@ class _MainShellState extends ConsumerState<MainShell> {
       onPause: _onAppBackground,
     );
 
-    // 版本更新监听提前注册，确保首次触发 appUpdateProvider.build() → 后台检查。
-    // 同一版本的重复结果不再弹窗（冷启动后用户未处理 → 回前台不反复打扰）。
+    // 版本检查属于非关键网络任务，等本地数据 gate 放行后再启动。
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _waitForLocalDataReady();
+      if (mounted) _startAppUpdateListening();
+    });
+  }
+
+  /// 注册版本更新结果监听，并让 provider 在首帧后的后台阶段检查更新。
+  void _startAppUpdateListening() {
     _appUpdateSubscription = ref.listenManual<AppUpdateState>(appUpdateProvider, (
       previous,
       next,
@@ -113,6 +121,11 @@ class _MainShellState extends ConsumerState<MainShell> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 数据库迁移在首帧后执行。此处等待 gate，避免任何预热任务在迁移过程中
+      // 访问 Drift；状态由启动编排器事件驱动地释放，不使用轮询。
+      await _waitForLocalDataReady();
+      if (!mounted) return;
+
       // 启动时同步系统通知权限状态到 SP，防止已授权设备误弹 pre-prompt
       ref
           .read(notificationPermissionServiceProvider)
@@ -294,6 +307,26 @@ class _MainShellState extends ConsumerState<MainShell> {
         },
       );
     });
+  }
+
+  /// 等待首帧后的本地启动任务完成。
+  Future<void> _waitForLocalDataReady() {
+    if (ref.read(startupReadinessProvider).isLocalDataReady) {
+      return Future.value();
+    }
+
+    final completer = Completer<void>();
+    late ProviderSubscription<StartupReadiness> subscription;
+    subscription = ref.listenManual<StartupReadiness>(
+      startupReadinessProvider,
+      (_, next) {
+        if (next.isLocalDataReady && !completer.isCompleted) {
+          subscription.close();
+          completer.complete();
+        }
+      },
+    );
+    return completer.future;
   }
 
   @override
@@ -573,6 +606,20 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final startup = ref.watch(startupReadinessProvider);
+
+    // 保持真实的 MaterialApp 与导航壳实例，但在本地数据尚未安全可读前不插入
+    // StatefulNavigationShell。默认学习页因此不会提前触发数据库查询。
+    if (!startup.isLocalDataReady) {
+      return Scaffold(
+        body: Center(
+          child: Semantics(
+            label: '正在准备学习数据',
+            child: const CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
 
     // ----- 新手引导 flow：仅首次安装首次启动时在学习 tab 提示去资源库 -----
     // 触发条件（全部满足才显示）：

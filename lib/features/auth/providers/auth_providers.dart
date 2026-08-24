@@ -16,6 +16,7 @@ import '../../../services/supabase_token_coordinator.dart';
 import '../../../services/user_id_service.dart';
 import '../apple_sign_in_credentials.dart';
 import '../google_sign_in_credentials.dart';
+import '../supabase_startup_gate.dart';
 
 /// 认证仓库接口。
 ///
@@ -209,7 +210,7 @@ Map<String, String> _appleUserMetadata(
 ///
 /// 未配置 Supabase 时调用动作会立刻抛错，避免页面误以为认证成功。
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  if (!auth_config.isAuthConfigured) {
+  if (!auth_config.isAuthConfigured || !ref.watch(supabaseSdkReadyProvider)) {
     throw AuthException('Supabase auth is not configured.');
   }
   return SupabaseAuthRepository(Supabase.instance.client.auth);
@@ -343,7 +344,7 @@ final authControllerProvider = Provider<AuthController>((ref) {
 /// Supabase 未配置（`isAuthConfigured == false`）时永远 emit `null`，
 /// 等价于匿名态，调用方无需特殊判断。
 final supabaseSessionProvider = StreamProvider<Session?>((ref) {
-  if (!auth_config.isAuthConfigured) {
+  if (!auth_config.isAuthConfigured || !ref.watch(supabaseSdkReadyProvider)) {
     return Stream<Session?>.value(null);
   }
 
@@ -370,7 +371,9 @@ final supabaseSessionProvider = StreamProvider<Session?>((ref) {
 final supabaseTokenCoordinatorProvider = Provider<SupabaseTokenCoordinator?>((
   ref,
 ) {
-  if (!auth_config.isAuthConfigured) return null;
+  if (!auth_config.isAuthConfigured || !ref.watch(supabaseSdkReadyProvider)) {
+    return null;
+  }
   final coordinator = SupabaseTokenCoordinator(
     SupabaseAuthSessionSource(Supabase.instance.client.auth),
   );

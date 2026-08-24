@@ -148,6 +148,15 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
     return ref.read(initialPiperModelStateProvider);
   }
 
+  /// 首帧后按既有规则扫描本地模型目录，并用结果刷新当前状态。
+  Future<void> restoreInitialStateFromDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = await loadInitialPiperModelState(
+      prefs: prefs,
+      managerOf: (voiceId) => ref.read(piperModelManagerProvider(voiceId)),
+    );
+  }
+
   void _set(String voiceId, PiperModelState s) {
     state = state.withVoice(voiceId, s);
   }
