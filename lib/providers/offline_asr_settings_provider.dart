@@ -14,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../analytics/analytics_providers.dart';
 import '../analytics/models/event_names.dart';
+import '../features/onboarding_survey/providers/onboarding_survey_provider.dart'
+    show sharedPreferencesProvider;
 import '../services/app_logger.dart';
 import '../services/asr/asr_model_manager.dart';
 import '../services/asr/offline_asr_engine.dart';
@@ -29,18 +31,6 @@ const _selectedModelKey = 'offline_asr_selected_model_id';
 String _downloadCompletedKey(String modelId) =>
     'offline_asr_downloaded_$modelId';
 
-AsrModelDownloadStatus _deriveStoredDownloadStatus({
-  required bool fullyDownloaded,
-  required int localSizeBytes,
-}) {
-  if (fullyDownloaded) {
-    return AsrModelDownloadStatus.downloaded;
-  }
-  if (localSizeBytes > 0) {
-    return AsrModelDownloadStatus.failed;
-  }
-  return AsrModelDownloadStatus.notDownloaded;
-}
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -248,14 +238,18 @@ final offlineAsrSettingsProvider =
       OfflineAsrSettingsNotifier.new,
     );
 
-/// 应用启动时预加载的离线 ASR 初始状态。
-///
-/// 通过 main() 注入，避免首次点击语音练习时先读到默认值。
-/// 启动时只读取“下载完成”持久化标记，不再做文件系统重校验。
+/// 从已初始化的 Preferences 构造初始状态，不访问模型目录。
 final initialOfflineAsrSettingsStateProvider =
     Provider<OfflineAsrSettingsState>((ref) {
       final recommended = ref.read(recommendedAsrModelProvider);
-      return OfflineAsrSettingsState(recommendedModel: recommended);
+      final defaultBackend = !kIsWeb && Platform.isAndroid
+          ? AsrBackend.offline
+          : AsrBackend.platform;
+      return offlineAsrSettingsStateFromPrefs(
+        prefs: ref.read(sharedPreferencesProvider),
+        recommendedModel: recommended,
+        defaultBackend: defaultBackend,
+      );
     });
 
 /// 设置页是否显示 AI 语音识别入口。
@@ -267,9 +261,6 @@ final showOfflineAsrSectionProvider = Provider<bool>((ref) {
 });
 
 /// 推荐的 ASR 模型。
-///
-/// 首帧前不再读取设备内存；这里先提供稳定的保守默认值，首帧后的状态恢复
-/// 会继续按既有规则读取并更新已保存的用户选择。
 final recommendedAsrModelProvider = Provider<AsrModelInfo>(
   (ref) => availableModels.first,
 );
@@ -289,23 +280,6 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
     });
 
     return ref.read(initialOfflineAsrSettingsStateProvider);
-  }
-
-  /// 首帧后按既有规则扫描本地模型目录，并用结果刷新当前状态。
-  Future<void> restoreInitialStateFromDisk() async {
-    final prefs = await SharedPreferences.getInstance();
-    final modelManager = ref.read(asrModelManagerProvider);
-    final defaultBackend = Platform.isAndroid
-        ? AsrBackend.offline
-        : AsrBackend.platform;
-    state = await loadInitialOfflineAsrSettingsState(
-      prefs: prefs,
-      modelManager: modelManager,
-      recommendedModel: ref.read(recommendedAsrModelProvider),
-      defaultBackend: defaultBackend,
-    );
-    // 沿用原启动期行为：后台清理历史废弃模型目录，不阻塞状态恢复。
-    unawaited(modelManager.cleanupUnknownModels());
   }
 
   /// 兼容旧调用：语音识别基础能力常开；offline 后端下确保当前模型就绪。
@@ -738,13 +712,12 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
   }
 }
 
-/// 启动期从持久化和模型文件系统中构建离线 ASR 初始状态。
-Future<OfflineAsrSettingsState> loadInitialOfflineAsrSettingsState({
+/// 仅由下载完成标记恢复模型可用性；模型体积在本次进程下载完成前未知。
+OfflineAsrSettingsState offlineAsrSettingsStateFromPrefs({
   required SharedPreferences prefs,
-  required AsrModelManager modelManager,
   required AsrModelInfo recommendedModel,
   required AsrBackend defaultBackend,
-}) async {
+}) {
   final backendName = prefs.getString(_backendKey);
   final backend = backendName == AsrBackend.offline.name
       ? AsrBackend.offline
@@ -757,21 +730,13 @@ Future<OfflineAsrSettingsState> loadInitialOfflineAsrSettingsState({
     orElse: () => recommendedModel,
   );
 
-  final modelStates = <String, AsrModelState>{};
-  for (final model in availableModels) {
-    final persistedDownloaded =
-        prefs.getBool(_downloadCompletedKey(model.id)) ?? false;
-    final localSize = await modelManager.modelLocalSize(model.id);
-    final fullyDownloaded =
-        persistedDownloaded && await modelManager.isModelDownloaded(model.id);
-    modelStates[model.id] = AsrModelState(
-      downloadStatus: _deriveStoredDownloadStatus(
-        fullyDownloaded: fullyDownloaded,
-        localSizeBytes: localSize,
-      ),
-      localSizeBytes: localSize,
-    );
-  }
+  final modelStates = <String, AsrModelState>{
+    for (final model in availableModels)
+      if (prefs.getBool(_downloadCompletedKey(model.id)) ?? false)
+        model.id: const AsrModelState(
+          downloadStatus: AsrModelDownloadStatus.downloaded,
+        ),
+  };
 
   return OfflineAsrSettingsState(
     enabled: true,

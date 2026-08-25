@@ -70,101 +70,50 @@ void main() {
     type: AsrModelType.whisper,
   );
 
-  test('启动加载时保留残留模型大小并标记为 failed', () async {
-    SharedPreferences.setMockInitialValues({'offline_asr_enabled': true});
+  test('完成标记恢复 downloaded，且初始体积未知', () async {
+    SharedPreferences.setMockInitialValues({
+      'offline_asr_downloaded_whisper-base-en-int8': true,
+    });
     final prefs = await SharedPreferences.getInstance();
-    final manager = _FakeAsrModelManager(
-      downloaded: false,
-      localSizeBytes: 150 * 1024 * 1024,
-    );
-
-    final state = await loadInitialOfflineAsrSettingsState(
+    final state = offlineAsrSettingsStateFromPrefs(
       prefs: prefs,
-      modelManager: manager,
       recommendedModel: recommendedModel,
       defaultBackend: AsrBackend.offline,
     );
 
     expect(state.enabled, isTrue);
-    expect(state.downloadStatus, AsrModelDownloadStatus.failed);
-    expect(state.localSizeBytes, 150 * 1024 * 1024);
-  });
-
-  test('启动加载时完整模型保持 downloaded', () async {
-    SharedPreferences.setMockInitialValues({
-      'offline_asr_enabled': true,
-      'offline_asr_downloaded_whisper-base-en-int8': true,
-    });
-    final prefs = await SharedPreferences.getInstance();
-    final manager = _FakeAsrModelManager(
-      downloaded: true,
-      localSizeBytes: 209 * 1024 * 1024,
-    );
-
-    final state = await loadInitialOfflineAsrSettingsState(
-      prefs: prefs,
-      modelManager: manager,
-      recommendedModel: recommendedModel,
-      defaultBackend: AsrBackend.offline,
-    );
-
     expect(state.downloadStatus, AsrModelDownloadStatus.downloaded);
-    expect(state.localSizeBytes, 209 * 1024 * 1024);
+    expect(state.localSizeBytes, 0);
   });
 
-  test('首帧后恢复会用文件校验结果替换默认状态', () async {
-    SharedPreferences.setMockInitialValues({
-      'offline_asr_downloaded_whisper-base-en-int8': true,
-    });
-    final manager = _FakeAsrModelManager(
-      downloaded: true,
-      localSizeBytes: 209 * 1024 * 1024,
-    );
-    final container = ProviderContainer(
-      overrides: [
-        asrModelManagerProvider.overrideWithValue(manager),
-        recommendedAsrModelProvider.overrideWithValue(recommendedModel),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    expect(
-      container.read(offlineAsrSettingsProvider).downloadStatus,
-      AsrModelDownloadStatus.notDownloaded,
-    );
-    await container
-        .read(offlineAsrSettingsProvider.notifier)
-        .restoreInitialStateFromDisk();
-
-    expect(
-      container.read(offlineAsrSettingsProvider).downloadStatus,
-      AsrModelDownloadStatus.downloaded,
-    );
-  });
-
-  test('启动加载时没有完成标记的残留模型按 failed 处理', () async {
-    SharedPreferences.setMockInitialValues({
-      'offline_asr_enabled': true,
-      'offline_asr_downloaded_whisper-base-en-int8': false,
-    });
+  test('无完成标记保持 notDownloaded', () async {
+    SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final manager = _FakeAsrModelManager(
-      downloaded: true,
-      localSizeBytes: 209 * 1024 * 1024,
-    );
-
-    final state = await loadInitialOfflineAsrSettingsState(
+    final state = offlineAsrSettingsStateFromPrefs(
       prefs: prefs,
-      modelManager: manager,
       recommendedModel: recommendedModel,
       defaultBackend: AsrBackend.offline,
     );
 
-    expect(state.downloadStatus, AsrModelDownloadStatus.failed);
-    expect(
-      prefs.getBool('offline_asr_downloaded_whisper-base-en-int8'),
-      isFalse,
+    expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+  });
+
+  test('持久化后端和模型选择同步恢复', () async {
+    SharedPreferences.setMockInitialValues({
+      'offline_asr_backend': AsrBackend.offline.name,
+      'offline_asr_selected_model_id': 'whisper-base-en-int8',
+      'offline_asr_downloaded_whisper-base-en-int8': true,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final state = offlineAsrSettingsStateFromPrefs(
+      prefs: prefs,
+      recommendedModel: recommendedModel,
+      defaultBackend: AsrBackend.platform,
     );
+
+    expect(state.backend, AsrBackend.offline);
+    expect(state.selectedModel.id, recommendedModel.id);
+    expect(state.downloadStatus, AsrModelDownloadStatus.downloaded);
   });
 
   test('主动取消下载会清理残留并回到未下载态，不显示失败', () async {

@@ -29,15 +29,12 @@ import 'analytics/analytics_service.dart';
 import 'analytics/channels/log_only_channel.dart';
 import 'analytics/consent_manager.dart';
 import 'providers/learning_settings_provider.dart';
-import 'providers/tts/kokoro_model_provider.dart';
-import 'providers/tts/piper_model_provider.dart';
 import 'providers/tts/tts_settings_provider.dart';
 import 'providers/intensive_listen_prefs_provider.dart';
 import 'providers/blind_listen_prefs_provider.dart';
 import 'providers/retell_prefs_provider.dart';
 import 'providers/difficult_practice_prefs_provider.dart';
 import 'providers/new_user_guide_provider.dart';
-import 'providers/offline_asr_settings_provider.dart';
 import 'services/app_logger.dart';
 import 'services/startup_trace.dart';
 import 'services/media_kit_debug_initializer.dart';
@@ -252,10 +249,9 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
     _didStartLocalEffects = true;
     activeStartupTrace?.mark('main_navigation_released');
 
-    // 下载注册表、词典和本地模型扫描都可能访问文件系统，统一放到首帧后。
+    // 下载注册表和词典预热都可能访问文件系统，统一放到首帧后。
     unawaited(startRegisteredDownloads(ref));
     _scheduleMediaKitPrewarm();
-    unawaited(_restoreLocalModelStates());
     ref.read(dictionaryProvider);
     ref.read(pronunciationLibraryProvider);
 
@@ -314,58 +310,6 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
       },
       fireImmediately: true,
     );
-  }
-
-  /// 在首帧提交后恢复本地模型状态，避免目录扫描阻塞应用进入学习页。
-  Future<void> _restoreLocalModelStates() async {
-    if (kIsWeb) {
-      activeStartupTrace?.mark(
-        'step_skipped',
-        fields: {'step': 'local_model_state_recovery', 'reason': 'web'},
-      );
-      return;
-    }
-
-    final trace = activeStartupTrace;
-    trace?.mark('local_model_recovery_scheduled');
-    await _restoreModelState(
-      step: 'offline_asr_initial_state_load',
-      restore: () => ref
-          .read(offlineAsrSettingsProvider.notifier)
-          .restoreInitialStateFromDisk(),
-    );
-    await _restoreModelState(
-      step: 'kokoro_initial_model_state_load',
-      restore: () =>
-          ref.read(kokoroModelProvider.notifier).restoreInitialStateFromDisk(),
-    );
-    await _restoreModelState(
-      step: 'piper_initial_model_state_load',
-      restore: () =>
-          ref.read(piperModelProvider.notifier).restoreInitialStateFromDisk(),
-    );
-    trace?.mark('local_model_recovery_complete');
-  }
-
-  /// 执行单个模型域恢复；单项失败不能阻止后续域或影响应用使用。
-  Future<void> _restoreModelState({
-    required String step,
-    required Future<void> Function() restore,
-  }) async {
-    final trace = activeStartupTrace;
-    try {
-      if (trace == null) {
-        await restore();
-      } else {
-        await trace.run(step, restore);
-      }
-    } catch (error, stackTrace) {
-      AppLogger.log(
-        'Startup',
-        'local_model_recovery_failed step=$step error=$error',
-      );
-      AppLogger.log('Startup', stackTrace.toString());
-    }
   }
 
   @override

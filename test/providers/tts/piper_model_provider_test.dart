@@ -103,8 +103,9 @@ ProviderContainer _container(
   return ProviderContainer(
     overrides: [
       piperModelManagerProvider.overrideWith((ref, id) => managerOf(id)),
-      if (initial != null)
-        initialPiperModelStateProvider.overrideWithValue(initial),
+      initialPiperModelStateProvider.overrideWithValue(
+        initial ?? PiperModelsState.initial(),
+      ),
       if (settings != null)
         initialTtsSettingsProvider.overrideWithValue(settings),
     ],
@@ -243,51 +244,23 @@ void main() {
     expect(s.localSizeBytes, 0);
   });
 
-  group('loadInitialPiperModelState', () {
-    test('标记真 + 文件齐全 → downloaded', () async {
+  group('piperModelsStateFromPrefs', () {
+    test('完成标记恢复 downloaded，且初始体积未知', () async {
       SharedPreferences.setMockInitialValues({
         'piper_model_downloaded_$_us': true,
       });
       final prefs = await SharedPreferences.getInstance();
-      final s = await loadInitialPiperModelState(
-        prefs: prefs,
-        managerOf: (id) => id == _us
-            ? _FakeManager(downloaded: true, sizeAfterDownload: 5000)
-            : _FakeManager(),
-      );
+      final s = piperModelsStateFromPrefs(prefs);
       expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.downloaded);
-      expect(s.of(_us).localSizeBytes, 5000);
+      expect(s.of(_us).localSizeBytes, 0);
       expect(s.of(_uk).downloadStatus, AsrModelDownloadStatus.notDownloaded);
     });
 
-    test('标记真但文件缺失（有残留）→ failed', () async {
-      SharedPreferences.setMockInitialValues({
-        'piper_model_downloaded_$_us': true,
-      });
+    test('无完成标记保持 notDownloaded', () async {
+      SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      final s = await loadInitialPiperModelState(
-        prefs: prefs,
-        managerOf: (id) =>
-            id == _us ? _FakeManager(shouldFail: true) : _FakeManager(),
-      );
-      expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.failed);
+      final s = piperModelsStateFromPrefs(prefs);
+      expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.notDownloaded);
     });
-  });
-
-  test('首帧后恢复会用文件校验结果替换默认状态', () async {
-    SharedPreferences.setMockInitialValues({
-      'piper_model_downloaded_$_us': true,
-    });
-    final container = _container(
-      (_) => _FakeManager(downloaded: true, sizeAfterDownload: 5000),
-    );
-    addTearDown(container.dispose);
-
-    expect(container.read(piperModelProvider).of(_us).isReady, isFalse);
-    await container
-        .read(piperModelProvider.notifier)
-        .restoreInitialStateFromDisk();
-
-    expect(container.read(piperModelProvider).of(_us).isReady, isTrue);
   });
 }

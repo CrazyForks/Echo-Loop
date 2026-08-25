@@ -229,7 +229,9 @@ class _AsrSettingsScreenState extends ConsumerState<AsrSettingsScreen> {
     } else if (state.isReady) {
       children.add(
         Text(
-          l10n.speechModelReady(_formatBytes(state.localSizeBytes)),
+          l10n.speechModelReady(
+            state.localSizeBytes > 0 ? _formatBytes(state.localSizeBytes) : '—',
+          ),
           style: theme.textTheme.bodySmall?.copyWith(
             color: AppTheme.successColor,
             fontWeight: FontWeight.w500,

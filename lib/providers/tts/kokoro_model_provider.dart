@@ -10,6 +10,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/onboarding_survey/providers/onboarding_survey_provider.dart'
+    show sharedPreferencesProvider;
 import '../../services/app_logger.dart';
 import '../../services/download/download_failure.dart';
 import '../../services/reliable_http_downloader.dart';
@@ -19,16 +21,6 @@ import 'tts_settings_provider.dart';
 /// 每变体「已下载」持久化标记 key。
 String _downloadedKey(KokoroModelVariant v) =>
     'kokoro_model_downloaded_${v.name}';
-
-/// 由持久化标记 + 本地体积派生下载状态。
-AsrModelDownloadStatus _deriveStatus({
-  required bool fullyDownloaded,
-  required int localSizeBytes,
-}) {
-  if (fullyDownloaded) return AsrModelDownloadStatus.downloaded;
-  if (localSizeBytes > 0) return AsrModelDownloadStatus.failed;
-  return AsrModelDownloadStatus.notDownloaded;
-}
 
 // ---------------------------------------------------------------------------
 // State
@@ -104,10 +96,21 @@ final kokoroModelManagerProvider =
       return manager;
     });
 
-/// 启动期注入的初始状态（main() override；缺省为全未下载）。
+/// 从已初始化的 Preferences 构造初始状态，不访问模型目录。
 final initialKokoroModelStateProvider = Provider<KokoroModelsState>(
-  (ref) => KokoroModelsState.initial(),
+  (ref) => kokoroModelsStateFromPrefs(ref.read(sharedPreferencesProvider)),
 );
+
+/// 仅由下载完成标记恢复模型可用性；模型体积在本次进程下载完成前未知。
+KokoroModelsState kokoroModelsStateFromPrefs(SharedPreferences prefs) {
+  return KokoroModelsState({
+    for (final variant in KokoroModelVariant.values)
+      if (prefs.getBool(_downloadedKey(variant)) ?? false)
+        variant: const KokoroModelState(
+          downloadStatus: AsrModelDownloadStatus.downloaded,
+        ),
+  });
+}
 
 /// Kokoro 模型状态 Provider（keepAlive，全局单例）。
 final kokoroModelProvider =
@@ -140,15 +143,6 @@ class KokoroModelNotifier extends Notifier<KokoroModelsState> {
       }
     });
     return ref.read(initialKokoroModelStateProvider);
-  }
-
-  /// 首帧后按既有规则扫描本地模型目录，并用结果刷新当前状态。
-  Future<void> restoreInitialStateFromDisk() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = await loadInitialKokoroModelState(
-      prefs: prefs,
-      managerOf: (variant) => ref.read(kokoroModelManagerProvider(variant)),
-    );
   }
 
   void _set(KokoroModelVariant v, KokoroModelState s) {
@@ -330,29 +324,4 @@ class KokoroModelNotifier extends Notifier<KokoroModelsState> {
       AppLogger.log('KokoroModel', '写 SP 失败: $e');
     }
   }
-}
-
-/// 启动期从持久化 + 文件系统构建两个变体的初始状态。
-///
-/// [managerOf] 按变体返回对应管理器（main() 注入真实实现，测试注入 fake）。
-Future<KokoroModelsState> loadInitialKokoroModelState({
-  required SharedPreferences prefs,
-  required KokoroModelManager Function(KokoroModelVariant) managerOf,
-}) async {
-  final map = <KokoroModelVariant, KokoroModelState>{};
-  for (final variant in KokoroModelVariant.values) {
-    final manager = managerOf(variant);
-    final persisted = prefs.getBool(_downloadedKey(variant)) ?? false;
-    final localSize = await manager.modelLocalSize();
-    // 以文件系统校验为准：标记为真但关键文件缺失则降级。
-    final fullyDownloaded = persisted && await manager.isModelDownloaded();
-    map[variant] = KokoroModelState(
-      downloadStatus: _deriveStatus(
-        fullyDownloaded: fullyDownloaded,
-        localSizeBytes: localSize,
-      ),
-      localSizeBytes: localSize,
-    );
-  }
-  return KokoroModelsState(map);
 }

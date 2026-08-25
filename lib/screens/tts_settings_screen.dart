@@ -421,7 +421,11 @@ class _ModelRow extends ConsumerWidget {
     } else if (state.isReady) {
       children.add(
         Text(
-          l10n.speechModelReady(formatModelBytes(state.localSizeBytes)),
+          l10n.speechModelReady(
+            state.localSizeBytes > 0
+                ? formatModelBytes(state.localSizeBytes)
+                : '—',
+          ),
           style: theme.textTheme.bodySmall?.copyWith(
             color: AppTheme.successColor,
           ),
@@ -972,7 +976,9 @@ class _PiperVoiceRow extends ConsumerWidget {
       text = downloadFailureMessage(l10n, state.downloadError);
       color = theme.colorScheme.error;
     } else if (state.isReady) {
-      text = l10n.speechModelReady(formatModelBytes(state.localSizeBytes));
+      text = l10n.speechModelReady(
+        state.localSizeBytes > 0 ? formatModelBytes(state.localSizeBytes) : '—',
+      );
       color = AppTheme.successColor;
     } else {
       text = l10n.ttsModelNotDownloaded;

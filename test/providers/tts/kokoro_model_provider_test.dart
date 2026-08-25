@@ -102,8 +102,9 @@ ProviderContainer _container(
   return ProviderContainer(
     overrides: [
       kokoroModelManagerProvider.overrideWith((ref, variant) => manager),
-      if (initial != null)
-        initialKokoroModelStateProvider.overrideWithValue(initial),
+      initialKokoroModelStateProvider.overrideWithValue(
+        initial ?? KokoroModelsState.initial(),
+      ),
     ],
   );
 }
@@ -339,60 +340,22 @@ void main() {
     );
   });
 
-  group('loadInitialKokoroModelState', () {
-    test('标记真 + 文件齐全 → downloaded', () async {
+  group('kokoroModelsStateFromPrefs', () {
+    test('完成标记恢复 downloaded，且初始体积未知', () async {
       SharedPreferences.setMockInitialValues({
         'kokoro_model_downloaded_fp32': true,
       });
       final prefs = await SharedPreferences.getInstance();
-      final manager = _FakeManager(downloaded: true, sizeAfterDownload: 5000);
-      final s = await loadInitialKokoroModelState(
-        prefs: prefs,
-        managerOf: (_) => manager,
-      );
+      final s = kokoroModelsStateFromPrefs(prefs);
       expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.downloaded);
-      expect(s.of(_fp32).localSizeBytes, 5000);
+      expect(s.of(_fp32).localSizeBytes, 0);
     });
 
-    test('标记真但文件缺失（有残留）→ failed', () async {
-      SharedPreferences.setMockInitialValues({
-        'kokoro_model_downloaded_fp32': true,
-      });
+    test('无完成标记保持 notDownloaded', () async {
+      SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      // downloaded=false 但 shouldFail 让 modelLocalSize 返回 10（残留）。
-      final manager = _FakeManager(shouldFail: true);
-      final s = await loadInitialKokoroModelState(
-        prefs: prefs,
-        managerOf: (_) => manager,
-      );
-      expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.failed);
-    });
-
-    test('无标记无文件 → notDownloaded', () async {
-      final prefs = await SharedPreferences.getInstance();
-      final manager = _FakeManager();
-      final s = await loadInitialKokoroModelState(
-        prefs: prefs,
-        managerOf: (_) => manager,
-      );
+      final s = kokoroModelsStateFromPrefs(prefs);
       expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.notDownloaded);
     });
-  });
-
-  test('首帧后恢复会用文件校验结果替换默认状态', () async {
-    SharedPreferences.setMockInitialValues({
-      'kokoro_model_downloaded_fp32': true,
-    });
-    final container = _container(
-      _FakeManager(downloaded: true, sizeAfterDownload: 5000),
-    );
-    addTearDown(container.dispose);
-
-    expect(container.read(kokoroModelProvider).of(_fp32).isReady, isFalse);
-    await container
-        .read(kokoroModelProvider.notifier)
-        .restoreInitialStateFromDisk();
-
-    expect(container.read(kokoroModelProvider).of(_fp32).isReady, isTrue);
   });
 }
