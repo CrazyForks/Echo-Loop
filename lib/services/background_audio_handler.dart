@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:just_audio/just_audio.dart' as ja;
 
 import '../utils/app_data_dir.dart';
+import 'app_logger.dart';
 import 'media_session_router.dart';
 
 /// Echo Loop 全局后台播放控制器。
@@ -448,42 +449,128 @@ class EchoLoopAudioHandler extends BaseAudioHandler with SeekHandler {
 EchoLoopAudioHandler? _globalAudioHandler;
 MediaSessionRouter? _globalMediaSessionRouter;
 
-/// 初始化全局后台播放 handler。
-Future<EchoLoopAudioHandler> initEchoLoopAudioHandler() async {
-  if (_globalAudioHandler != null) return _globalAudioHandler!;
-  final handler = EchoLoopAudioHandler();
-  await handler.configureSession();
-  await handler.prepareArtwork();
-  final router = MediaSessionRouter(defaultHandler: handler);
-  if (!kIsWeb) {
-    await AudioService.init(
-      builder: () => router,
-      config: AudioServiceConfig(
-        androidNotificationChannelId: 'app.echoloop.audio',
-        androidNotificationChannelName: 'Echo Loop Playback',
-        androidStopForegroundOnPause: false,
-        // 通知 small icon：app logo 的白色剪影（Android 强制单色，彩色 logo 见封面图）。
-        androidNotificationIcon: 'drawable/ic_stat_logo',
-      ),
+/// 系统媒体会话注册器的可替换初始化函数，供启动编排和测试复用。
+typedef BackgroundMediaSessionInitializer =
+    Future<void> Function(MediaSessionRouter router);
+
+/// 后台媒体会话协调器。
+///
+/// 播放器 handler/router 是前台播放的基础对象；AudioService 注册只是后台、锁屏
+/// 和通知栏能力。两者分开初始化，避免系统媒体服务失败时连前台播放也被阻断。
+class BackgroundMediaSessionCoordinator {
+  BackgroundMediaSessionCoordinator({
+    BackgroundMediaSessionInitializer? initializeSystemSession,
+    Future<void> Function(EchoLoopAudioHandler handler)? prepareHandler,
+  }) : _initializeSystemSession =
+           initializeSystemSession ?? _initializeAudioService,
+       _prepareHandler = prepareHandler ?? _prepareAudioHandler;
+
+  final BackgroundMediaSessionInitializer _initializeSystemSession;
+  final Future<void> Function(EchoLoopAudioHandler handler) _prepareHandler;
+
+  EchoLoopAudioHandler? _handler;
+  MediaSessionRouter? _router;
+  Future<void>? _initialization;
+  bool _systemSessionReady = false;
+
+  /// 当前进程是否已经注册了 AudioService 系统媒体会话。
+  bool get isSystemSessionReady => _systemSessionReady;
+
+  /// 返回前台播放所需的 handler；首次读取时同步创建，不等待平台服务。
+  EchoLoopAudioHandler get handler => _handler ??= EchoLoopAudioHandler();
+
+  /// 返回前台视频播放所需的 router；即使 AudioService 失败也保持可用。
+  MediaSessionRouter get router =>
+      _router ??= MediaSessionRouter(defaultHandler: handler);
+
+  /// 尝试注册系统媒体会话；并发调用共享同一个 Future。
+  ///
+  /// 失败会保留前台播放核心并继续向上抛出，启动编排可把失败写入降级报告；
+  /// 下一次播放再次调用时会自动重试。
+  Future<void> initializeSystemSession() {
+    if (_systemSessionReady) return Future<void>.value();
+    final current = _initialization;
+    if (current != null) return current;
+
+    final operation = _initializeOnce();
+    _initialization = operation;
+    return operation.whenComplete(() => _initialization = null);
+  }
+
+  Future<void> _initializeOnce() async {
+    final currentHandler = handler;
+    final currentRouter = router;
+    try {
+      await _prepareHandler(currentHandler);
+      await _initializeSystemSession(currentRouter);
+      _systemSessionReady = true;
+      AppLogger.log('BackgroundAudio', 'system media session ready');
+    } catch (error, stackTrace) {
+      _systemSessionReady = false;
+      AppLogger.log(
+        'BackgroundAudio',
+        'system media session unavailable; foreground playback remains available: '
+            '$error\n$stackTrace',
+      );
+      rethrow;
+    }
+  }
+}
+
+Future<void> _prepareAudioHandler(EchoLoopAudioHandler handler) async {
+  try {
+    await handler.configureSession();
+  } catch (error, stackTrace) {
+    // audio_session 失败不应阻断 just_audio 前台播放或后续 AudioService 重试。
+    AppLogger.log(
+      'BackgroundAudio',
+      'audio session configuration degraded: $error\n$stackTrace',
     );
   }
+  await handler.prepareArtwork();
+}
+
+Future<void> _initializeAudioService(MediaSessionRouter router) async {
+  if (kIsWeb) return;
+  await AudioService.init(
+    builder: () => router,
+    config: AudioServiceConfig(
+      androidNotificationChannelId: 'app.echoloop.audio',
+      androidNotificationChannelName: 'Echo Loop Playback',
+      androidStopForegroundOnPause: false,
+      // 通知 small icon：app logo 的白色剪影（Android 强制单色，彩色 logo 见封面图）。
+      androidNotificationIcon: 'drawable/ic_stat_logo',
+    ),
+  );
+}
+
+final backgroundMediaSessionCoordinator = BackgroundMediaSessionCoordinator();
+
+/// 初始化全局后台播放 handler。
+Future<EchoLoopAudioHandler> initEchoLoopAudioHandler() async {
+  final handler = backgroundMediaSessionCoordinator.handler;
   _globalAudioHandler = handler;
-  _globalMediaSessionRouter = router;
+  _globalMediaSessionRouter = backgroundMediaSessionCoordinator.router;
+  await backgroundMediaSessionCoordinator.initializeSystemSession();
   return handler;
+}
+
+/// 播放入口触发后台媒体会话的静默重试，不阻塞当前前台播放。
+void retryEchoLoopAudioServiceOnPlayback() {
+  final handler = backgroundMediaSessionCoordinator.handler;
+  _globalAudioHandler = handler;
+  _globalMediaSessionRouter = backgroundMediaSessionCoordinator.router;
+  unawaited(
+    backgroundMediaSessionCoordinator.initializeSystemSession().catchError(
+      (_) {},
+    ),
+  );
 }
 
 EchoLoopAudioHandler get echoLoopAudioHandler {
-  final handler = _globalAudioHandler;
-  if (handler == null) {
-    throw StateError('EchoLoopAudioHandler has not been initialized');
-  }
-  return handler;
+  return _globalAudioHandler ??= backgroundMediaSessionCoordinator.handler;
 }
 
 MediaSessionRouter get echoLoopMediaSessionRouter {
-  final router = _globalMediaSessionRouter;
-  if (router == null) {
-    throw StateError('MediaSessionRouter has not been initialized');
-  }
-  return router;
+  return _globalMediaSessionRouter ??= backgroundMediaSessionCoordinator.router;
 }

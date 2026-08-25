@@ -115,6 +115,8 @@ class MediaEngine extends _$MediaEngine {
     double speed, {
     Duration initialPosition = Duration.zero,
   }) async {
+    // media_kit 前台播放不依赖 AudioService；这里仅静默尝试恢复锁屏媒体控制。
+    retryEchoLoopAudioServiceOnPlayback();
     await ensureChain();
     state = state.copyWith(
       isLoading: true,

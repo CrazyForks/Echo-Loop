@@ -110,6 +110,8 @@ class AudioEngine extends _$AudioEngine {
     double speed, {
     String? subtitle,
   }) async {
+    // AudioService 仅负责系统媒体会话；失败时后台能力降级，前台播放器继续工作。
+    retryEchoLoopAudioServiceOnPlayback();
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
 
@@ -159,6 +161,8 @@ class AudioEngine extends _$AudioEngine {
     Duration end, {
     required double speed,
   }) async {
+    // 分段播放也要触发后台服务重试，避免复用已加载音频时错过重试机会。
+    retryEchoLoopAudioServiceOnPlayback();
     if (state.currentAudioId != audioItemId) {
       await _ensureAudioLoaded(audioItemId, speed);
     }
@@ -243,7 +247,10 @@ class AudioEngine extends _$AudioEngine {
   // 引擎内部一律用 playPlayer/pausePlayer 直接驱动底层播放器；handler 的 play/pause
   // 留给系统命令（锁屏/耳机/中断）转交业务回调，避免「controller → engine → handler →
   // controller」回环。
-  Future<void> play() async => await _handler.playPlayer();
+  Future<void> play() async {
+    retryEchoLoopAudioServiceOnPlayback();
+    await _handler.playPlayer();
+  }
 
   Future<void> pause() async {
     state = state.copyWith(sessionId: state.sessionId + 1);
