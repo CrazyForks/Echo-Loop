@@ -5,7 +5,7 @@
 ///   （Android `wav` / iOS `caf`，两端均正确设 voice）；**macOS** 走自家原生通道
 ///   `top.echo-loop/tts_synth`（flutter_tts 4.2.5 的 macOS `synthesizeToFile` 漏设
 ///   voice、口音失效，见 §7.15/§7.20），由 `MacosTtsSynthHandler` 用
-///   `AVSpeechSynthesizer.write` 正确设 voice 后产 `caf`。
+///   `AVSpeechSynthesizer.write` 正确设 voice 后产 `wav`。
 /// - [speakLive] 实时朗读兜底，沿用旧 `TtsService` 的 §7.2 防竞态方案
 ///   （自管理 Completer + `_started` 过滤 stale cancel），用于 synthesize 失败时降级。
 ///
@@ -33,7 +33,7 @@ typedef SynthFormatResolver = String Function();
 /// 是否走 macOS 自家原生合成通道（绕过 flutter_tts 在 macOS 漏设 voice）。可被测试覆盖。
 typedef NativeMacosSynthResolver = bool Function();
 
-/// macOS 原生合成：把文本按口音合成 caf 到给定**绝对路径**，返回是否成功产出。
+/// macOS 原生合成：把文本按口音合成 wav 到给定**绝对路径**，返回是否成功产出。
 /// 默认走 `top.echo-loop/tts_synth` 方法通道；测试可注入 fake 不碰平台。
 typedef NativeMacosSynthesize =
     Future<bool> Function({
@@ -86,6 +86,9 @@ class PlatformTtsEngine implements TtsEngine {
 
   static String _defaultFormat() {
     if (kIsWeb) return 'wav';
+    // media_kit_libs_video 的 macOS 精简 FFmpeg 构建未启用 CAF demuxer；
+    // 原生 TTS 改写 WAV，继续复用统一 media_kit 播放链路。
+    if (Platform.isMacOS) return 'wav';
     return Platform.isAndroid ? 'wav' : 'caf';
   }
 
@@ -186,7 +189,7 @@ class PlatformTtsEngine implements TtsEngine {
     }
   }
 
-  /// macOS 原生合成到 [fullPath]（caf）。失败/产出为空返回 null，由协调器降级
+  /// macOS 原生合成到 [fullPath]（wav）。失败/产出为空返回 null，由协调器降级
   /// speakLive（speak 在 macOS 仍能按 setLanguage 选英/美音，口音不丢）。
   Future<TtsSynthesisResult?> _synthesizeViaNativeMacos(
     String text,
@@ -212,8 +215,8 @@ class PlatformTtsEngine implements TtsEngine {
         AppLogger.log('PlatformTtsEngine', 'macOS 原生合成产出为空: $fullPath');
         return null;
       }
-      // macOS 合成扩展名固定 caf（见 _defaultFormat）。
-      return TtsSynthesisResult(filePath: fullPath, format: 'caf');
+      // macOS 合成扩展名固定 wav（见 _defaultFormat）。
+      return TtsSynthesisResult(filePath: fullPath, format: 'wav');
     } catch (e) {
       AppLogger.log('PlatformTtsEngine', 'macOS 原生合成异常: $e');
       return null;

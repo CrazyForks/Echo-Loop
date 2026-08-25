@@ -66,6 +66,9 @@ class TtsCacheStore {
     String? modelTag,
   }) {
     final raw = [
+      // 输出格式兼容性发生变化时，旧文件不能继续命中（例如 macOS CAF → WAV）。
+      // 旧索引/文件无需迁移，后续清理会将不再引用的文件作为孤儿回收。
+      'tts-cache-v2',
       hashText(text),
       engine.name,
       voiceId,

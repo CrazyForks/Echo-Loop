@@ -6,7 +6,7 @@ import FlutterMacOS
 /// 绕过 flutter_tts 4.2.5 macOS 端的缺陷：其 `synthesizeToFile` 创建 utterance 后
 /// **从不设 voice/language**（见 CLAUDE.md §7.15/§7.20），产物永远是系统默认音色、
 /// 区分不出英/美音。本 handler 用 `AVSpeechSynthesizer.write` 自行合成，合成前正确
-/// 设 `utterance.voice = AVSpeechSynthesisVoice(language:)`，按 PCM buffer 写出 caf
+/// 设 `utterance.voice = AVSpeechSynthesisVoice(language:)`，按 PCM buffer 写出 wav
 /// 文件到调用方给定的**绝对路径**，使 macOS 平台 TTS 也能像 iOS/Android 一样缓存、
 /// 且口音正确。
 ///

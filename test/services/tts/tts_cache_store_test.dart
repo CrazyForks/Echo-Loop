@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/services/tts/tts_cache_store.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
+import 'package:echo_loop/utils/text_normalize.dart';
 
 AppDatabase _createTestDb() {
   return AppDatabase(NativeDatabase.memory());
@@ -87,6 +90,28 @@ void main() {
         speed: 0.45,
       );
       expect(p, isNot(k));
+    });
+
+    test('缓存命名空间升级 → 旧 CAF key 不会继续命中', () {
+      final current = store.deriveKey(
+        text: 'Hello',
+        engine: TtsEngineKind.platform,
+        voiceId: 'en-US',
+        speed: 0.45,
+      );
+      final legacy = sha256
+          .convert(
+            utf8.encode(
+              [
+                hashText('Hello'),
+                TtsEngineKind.platform.name,
+                'en-US',
+                0.45.toStringAsFixed(2),
+              ].join('|'),
+            ),
+          )
+          .toString();
+      expect(current, isNot(legacy));
     });
   });
 

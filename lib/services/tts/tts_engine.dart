@@ -161,7 +161,7 @@ abstract interface class TtsEngine {
   Future<void> applyConfig(TtsSpeechConfig config);
 
   /// 把 [text] 合成为本地音频文件，写入 [outputDir] 下、基名为 [baseName]
-  /// 的文件（扩展名由引擎按平台决定，如 Android `wav` / iOS·macOS `caf`）。
+  /// 的文件（扩展名由引擎按平台决定，如 Android/macOS `wav` / iOS `caf`）。
   ///
   /// [config] 为本次合成的完整配置（音色/口音/语速）。显式传入而非依赖引擎环境态，
   /// 使同一引擎可在并发下安全地为不同音色合成（试听/预热）——见 [TtsCoordinator]。
