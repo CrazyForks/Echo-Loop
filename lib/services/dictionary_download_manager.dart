@@ -130,43 +130,58 @@ class DictionaryDownloadManager {
     void Function(double progress)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    // 1. 获取下载地址
-    final versionInfo = await fetchVersionInfo(nativeLanguage);
-    if (versionInfo == null) {
-      throw StateError(
-        'Failed to fetch dictionary version info for $nativeLanguage',
+    final stopwatch = Stopwatch()..start();
+    try {
+      // 1. 获取下载地址
+      final versionInfo = await fetchVersionInfo(nativeLanguage);
+      if (versionInfo == null) {
+        throw StateError(
+          'Failed to fetch dictionary version info for $nativeLanguage',
+        );
+      }
+
+      // 2. 准备本地目录
+      final langKey = 'en_$nativeLanguage';
+      final dir = await _dictionaryDir(langKey);
+      await Directory(dir).create(recursive: true);
+      final dbPath = p.join(dir, 'dict.db');
+
+      // 3. 下载（allowResume: false——词典整库替换不需要跨调用续传，失败即清理，
+      // 与此前手写临时文件清理逻辑的既有语义一致）。
+      AppLogger.log('Dict', 'downloading url=${versionInfo.url} → $dbPath');
+      await _downloader.download(
+        uri: Uri.parse(versionInfo.url),
+        savePath: dbPath,
+        allowResume: false,
+        cancelToken: cancelToken,
+        onProgress: (received, total) {
+          if (total != null && total > 0) {
+            onProgress?.call((received / total).clamp(0.0, 1.0));
+          }
+        },
       );
+
+      // 4. 记录下载时间
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        '$_downloadedAtKeyPrefix$langKey',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+      AppLogger.log(
+        'Dict',
+        'download finished lang=$nativeLanguage '
+            'elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
+      return dbPath;
+    } catch (error) {
+      AppLogger.log(
+        'Dict',
+        'download failed lang=$nativeLanguage '
+            'elapsedMs=${stopwatch.elapsedMilliseconds} error=$error',
+      );
+      rethrow;
     }
-
-    // 2. 准备本地目录
-    final langKey = 'en_$nativeLanguage';
-    final dir = await _dictionaryDir(langKey);
-    await Directory(dir).create(recursive: true);
-    final dbPath = p.join(dir, 'dict.db');
-
-    // 3. 下载（allowResume: false——词典整库替换不需要跨调用续传，失败即清理，
-    // 与此前手写临时文件清理逻辑的既有语义一致）。
-    AppLogger.log('Dict', 'downloading url=${versionInfo.url} → $dbPath');
-    await _downloader.download(
-      uri: Uri.parse(versionInfo.url),
-      savePath: dbPath,
-      allowResume: false,
-      cancelToken: cancelToken,
-      onProgress: (received, total) {
-        if (total != null && total > 0) {
-          onProgress?.call((received / total).clamp(0.0, 1.0));
-        }
-      },
-    );
-
-    // 4. 记录下载时间
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      '$_downloadedAtKeyPrefix$langKey',
-      DateTime.now().millisecondsSinceEpoch,
-    );
-
-    return dbPath;
   }
 
   /// 删除非当前语言的词典文件（清缓存时调用）

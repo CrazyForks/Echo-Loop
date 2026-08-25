@@ -189,12 +189,14 @@ void main() {
       expect(isImportablePrimaryMediaExtension('.m4a'), isTrue);
       expect(isImportablePrimaryMediaExtension('mp4'), isTrue);
       expect(isImportablePrimaryMediaExtension('.MOV'), isTrue);
+      expect(isImportablePrimaryMediaExtension('.mkv'), isTrue);
       expect(isImportablePrimaryMediaExtension('txt'), isFalse);
     });
 
     test('isVideoImportExtension 只识别视频扩展名', () {
       expect(isVideoImportExtension('mp4'), isTrue);
       expect(isVideoImportExtension('.m4v'), isTrue);
+      expect(isVideoImportExtension('MKV'), isTrue);
       expect(isVideoImportExtension('mp3'), isFalse);
     });
   });
@@ -205,15 +207,18 @@ void main() {
       expect(result['clip.mp4'], 'clip.srt');
     });
 
-    test('mov/m4v 也参与配对', () {
+    test('mov/m4v/mkv 也参与配对', () {
       final result = matchSubtitlesForAudios([
         'a.mov',
         'a.vtt',
         'b.m4v',
         'b.lrc',
+        'c.mkv',
+        'c.srt',
       ]);
       expect(result['a.mov'], 'a.vtt');
       expect(result['b.m4v'], 'b.lrc');
+      expect(result['c.mkv'], 'c.srt');
     });
 
     test('音频+视频混选各自配对同名字幕', () {

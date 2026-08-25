@@ -11,6 +11,7 @@ import '../services/app_logger.dart';
 import '../services/dictionary_download_manager.dart';
 import '../services/dictionary_service.dart';
 import '../services/reliable_http_downloader.dart';
+import '../services/startup_trace.dart';
 import 'settings_provider.dart';
 
 part 'dictionary_provider.g.dart';
@@ -103,11 +104,16 @@ class Dictionary extends _$Dictionary {
     // 关闭旧数据库
     DictionaryService.instance.close();
 
-    final isDownloaded = await _manager.isDictionaryDownloaded(nativeLanguage);
+    final isDownloaded = await _runStartupStep(
+      'dictionary_local_check',
+      () => _manager.isDictionaryDownloaded(nativeLanguage),
+    );
     if (isDownloaded) {
       // 本地已有，直接打开
-      final path = await _manager.dictionaryPath(nativeLanguage);
-      DictionaryService.instance.openDatabase(path);
+      await _runStartupStep('dictionary_local_open', () async {
+        final path = await _manager.dictionaryPath(nativeLanguage);
+        DictionaryService.instance.openDatabase(path);
+      });
       _scheduleWarmUp();
       AppLogger.log('Dict', 'opened local dictionary lang=$nativeLanguage');
       state = state.copyWith(
@@ -116,7 +122,7 @@ class Dictionary extends _$Dictionary {
       );
 
       // 后台静默检查更新
-      _checkForUpdate(nativeLanguage);
+      await _checkForUpdate(nativeLanguage);
     } else {
       // 本地没有，开始下载
       AppLogger.log(
@@ -140,12 +146,15 @@ class Dictionary extends _$Dictionary {
     );
 
     try {
-      final path = await _manager.download(
-        nativeLanguage,
-        onProgress: (progress) {
-          state = state.copyWith(progress: progress);
-        },
-        cancelToken: _cancelToken,
+      final path = await _runStartupStep(
+        'dictionary_download',
+        () => _manager.download(
+          nativeLanguage,
+          onProgress: (progress) {
+            state = state.copyWith(progress: progress);
+          },
+          cancelToken: _cancelToken,
+        ),
       );
 
       // 下载完成，打开数据库
@@ -187,7 +196,10 @@ class Dictionary extends _$Dictionary {
   /// 后台检查词典更新
   Future<void> _checkForUpdate(String nativeLanguage) async {
     try {
-      final needsUpdate = await _manager.needsUpdate(nativeLanguage);
+      final needsUpdate = await _runStartupStep(
+        'dictionary_update_check',
+        () => _manager.needsUpdate(nativeLanguage),
+      );
       if (!needsUpdate) return;
 
       // 需要更新，静默下载
@@ -196,9 +208,9 @@ class Dictionary extends _$Dictionary {
         'update available for lang=$nativeLanguage, downloading...',
       );
       _cancelToken = CancelToken();
-      final path = await _manager.download(
-        nativeLanguage,
-        cancelToken: _cancelToken,
+      final path = await _runStartupStep(
+        'dictionary_update_download',
+        () => _manager.download(nativeLanguage, cancelToken: _cancelToken),
       );
 
       // 重新打开数据库
@@ -213,6 +225,12 @@ class Dictionary extends _$Dictionary {
         'update check failed lang=$nativeLanguage error=$e',
       );
     }
+  }
+
+  /// 将词典初始化与更新步骤接入统一启动时序日志；没有启动追踪器时保持原流程。
+  Future<T> _runStartupStep<T>(String step, Future<T> Function() operation) {
+    final trace = activeStartupTrace;
+    return trace == null ? operation() : trace.run(step, operation);
   }
 
   /// 词典打开后，启动空闲期预热

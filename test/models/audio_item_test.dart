@@ -638,10 +638,11 @@ void main() {
         expect(mediaTypeForPath('audios/a.m4a'), MediaType.audio);
       });
 
-      test('三种视频扩展名判定为 video', () {
+      test('四种视频扩展名判定为 video', () {
         expect(mediaTypeForPath('videos/a.mp4'), MediaType.video);
         expect(mediaTypeForPath('videos/a.mov'), MediaType.video);
         expect(mediaTypeForPath('videos/a.m4v'), MediaType.video);
+        expect(mediaTypeForPath('videos/a.mkv'), MediaType.video);
       });
 
       test('大写视频扩展名判定为 video', () {

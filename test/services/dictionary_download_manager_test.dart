@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/services/dictionary_download_manager.dart';
+import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/reliable_http_downloader.dart';
 
 /// 按路径分发的 mock adapter：`/version.json` 返回预置版本信息，
@@ -71,6 +72,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    AppLogger.instance.clear();
     fakeAppSupportDir = Directory.systemTemp.createTempSync(
       'dict_manager_support_',
     );
@@ -120,6 +122,15 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getInt('dictionary_downloaded_at_en_zh'), isNotNull);
+    expect(
+      AppLogger.instance.entries.any(
+        (entry) =>
+            entry.tag == 'Dict' &&
+            entry.message.contains('download finished lang=zh') &&
+            entry.message.contains('elapsedMs='),
+      ),
+      isTrue,
+    );
   });
 
   test('归档下载网络失败 → 抛结构化 ReliableDownloadException(httpStatus) 且不留残留', () async {
@@ -140,6 +151,15 @@ void main() {
           ReliableDownloadFailure.httpStatus,
         ),
       ),
+    );
+    expect(
+      AppLogger.instance.entries.any(
+        (entry) =>
+            entry.tag == 'Dict' &&
+            entry.message.contains('download failed lang=zh') &&
+            entry.message.contains('elapsedMs='),
+      ),
+      isTrue,
     );
 
     final dictDir = Directory(
