@@ -694,6 +694,29 @@ class SubscriptionController extends _$SubscriptionController {
     SubscriptionIdentity? previous,
     SubscriptionIdentity next,
   ) async {
+    final stopwatch = Stopwatch()..start();
+    AppLogger.log(
+      'Subscription',
+      'identity_sync_start previousUserId=${previous?.userId ?? "none"} '
+          'nextUserId=${next.userId ?? "none"} '
+          'hasToken=${next.accessToken != null}',
+    );
+    try {
+      await _syncIdentity(previous, next);
+    } finally {
+      AppLogger.log(
+        'Subscription',
+        'identity_sync_end nextUserId=${next.userId ?? "none"} '
+            'elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
+    }
+  }
+
+  /// 执行既有身份绑定和权益对账流程；外层仅负责记录完整耗时。
+  Future<void> _syncIdentity(
+    SubscriptionIdentity? previous,
+    SubscriptionIdentity next,
+  ) async {
     final isInitialIdentity = previous == null;
     final previousUserId = previous?.userId;
     final nextUserId = next.userId;

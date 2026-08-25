@@ -21,6 +21,7 @@ import '../providers/study_task_provider.dart';
 import '../providers/time_provider.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
+import '../services/app_logger.dart';
 import '../services/startup_trace.dart';
 import '../widgets/speech_permission_dialog.dart';
 import '../widgets/guide_flow.dart';
@@ -60,9 +61,11 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   void initState() {
     super.initState();
     activeStartupTrace?.mark('study_tab_mounted');
+    AppLogger.log('StartupLoad', 'study_screen_mounted');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         activeStartupTrace?.mark('study_tab_first_frame_rendered');
+        AppLogger.log('StartupLoad', 'study_screen_first_frame_rendered');
       }
     });
   }

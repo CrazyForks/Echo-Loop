@@ -291,11 +291,12 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
     if (!mounted || _didStartThirdPartyEffects) return;
     _didStartThirdPartyEffects = true;
 
-    // RevenueCat 与 Supabase 已完成后台串行初始化；现在才预热订阅状态，避免
-    // SDK 未 configure 时页面或 controller 直接访问原生通道。
+    // RevenueCat 与 Supabase 已完成后台串行初始化；先让 session provider
+    // 重新读取 SDK 当前快照，再创建订阅 controller，避免 controller 首次构造时
+    // 先按匿名身份发起一次无效权益对账。
+    ref.invalidate(supabaseSessionProvider);
     ref.read(subscriptionControllerProvider);
     ref.read(subscriptionPlansProvider);
-    ref.invalidate(supabaseSessionProvider);
     _authSessionSubscription = ref.listenManual<AsyncValue<Session?>>(
       supabaseSessionProvider,
       (previous, next) {
@@ -326,6 +327,11 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    activeStartupTrace?.mark(
+      'app_lifecycle_changed',
+      fields: {'state': state.name},
+    );
+    AppLogger.log('Lifecycle', 'state=${state.name}');
     switch (state) {
       case AppLifecycleState.resumed:
         if (ref.read(localStartupProvider).hasValue) {

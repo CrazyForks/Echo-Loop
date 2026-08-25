@@ -260,6 +260,10 @@ GoRoute _pdfPreviewRoute() => GoRoute(
 /// GoRouter Provider（keepAlive，不可 invalidate）
 final appRouterProvider = Provider<GoRouter>((ref) {
   final analyticsService = ref.read(analyticsServiceProvider);
+  AppLogger.log(
+    'Navigation',
+    'router_create initialLocation=${AppRoutes.study}',
+  );
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.study,
@@ -684,6 +688,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
   final detachNavigationLogger = AppRoutes.attachNavigationPathLogger(router);
+  AppLogger.log(
+    'Navigation',
+    'router_created currentUri=${router.routeInformationProvider.value.uri}',
+  );
   ref.onDispose(detachNavigationLogger);
   return router;
 });

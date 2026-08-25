@@ -350,12 +350,24 @@ final supabaseSessionProvider = StreamProvider<Session?>((ref) {
 
   final auth = Supabase.instance.client.auth;
   final controller = StreamController<Session?>();
-  controller.add(auth.currentSession);
-
-  final sub = auth.onAuthStateChange.listen(
-    (event) => controller.add(event.session),
-    onError: controller.addError,
+  final initialSession = auth.currentSession;
+  AppLogger.log(
+    'AuthSession',
+    'provider_created currentSession=${initialSession == null ? "anonymous" : "signedIn"} '
+        'userId=${initialSession?.user.id ?? "none"}',
   );
+  controller.add(initialSession);
+
+  final sub = auth.onAuthStateChange.listen((event) {
+    final session = event.session;
+    AppLogger.log(
+      'AuthSession',
+      'auth_state_changed event=${event.event.name} '
+          'session=${session == null ? "anonymous" : "signedIn"} '
+          'userId=${session?.user.id ?? "none"}',
+    );
+    controller.add(session);
+  }, onError: controller.addError);
 
   ref.onDispose(() {
     sub.cancel();
