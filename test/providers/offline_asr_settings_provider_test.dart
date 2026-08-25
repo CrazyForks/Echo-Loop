@@ -70,6 +70,16 @@ void main() {
     type: AsrModelType.whisper,
   );
 
+  test('推荐模型默认保持 Balanced，不依赖 availableModels 顺序', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final model = container.read(recommendedAsrModelProvider);
+
+    expect(model.id, 'whisper-base-en-int8');
+    expect(model.displayName, contains('Balanced'));
+  });
+
   test('完成标记恢复 downloaded，且初始体积未知', () async {
     SharedPreferences.setMockInitialValues({
       'offline_asr_downloaded_whisper-base-en-int8': true,
@@ -96,6 +106,20 @@ void main() {
     );
 
     expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
+  });
+
+  test('无效持久化模型选择回退到推荐模型', () async {
+    SharedPreferences.setMockInitialValues({
+      'offline_asr_selected_model_id': 'removed-model',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final state = offlineAsrSettingsStateFromPrefs(
+      prefs: prefs,
+      recommendedModel: recommendedModel,
+      defaultBackend: AsrBackend.offline,
+    );
+
+    expect(state.selectedModel.id, recommendedModel.id);
   });
 
   test('持久化后端和模型选择同步恢复', () async {

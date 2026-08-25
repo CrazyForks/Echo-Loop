@@ -262,7 +262,9 @@ final showOfflineAsrSectionProvider = Provider<bool>((ref) {
 
 /// 推荐的 ASR 模型。
 final recommendedAsrModelProvider = Provider<AsrModelInfo>(
-  (ref) => availableModels.first,
+  (ref) => availableModels.firstWhere(
+    (model) => model.id == 'whisper-base-en-int8',
+  ),
 );
 
 /// 离线 ASR 设置 Notifier。
