@@ -4674,6 +4674,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAppleAccount => 'Apple account';
 
   @override
+  String get authEmailUnavailable => 'Email unavailable';
+
+  @override
   String get authGoogleAccount => 'Google account';
 
   @override

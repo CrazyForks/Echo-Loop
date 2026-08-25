@@ -2348,6 +2348,7 @@
   "authSignedInWithApple": "Signed in with Apple",
   "authSignedInWithGoogle": "Signed in with Google",
   "authAppleAccount": "Apple account",
+  "authEmailUnavailable": "Email unavailable",
   "authGoogleAccount": "Google account",
   "authSignOut": "Sign Out",
   "editSubtitles": "Edit subtitles",

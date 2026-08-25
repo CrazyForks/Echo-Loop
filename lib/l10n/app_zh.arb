@@ -1872,6 +1872,7 @@
   "authSignedInWithApple": "已通过 Apple 登录",
   "authSignedInWithGoogle": "已通过 Google 登录",
   "authAppleAccount": "Apple 账号",
+  "authEmailUnavailable": "邮箱暂不可用",
   "authGoogleAccount": "Google 账号",
   "authSignOut": "退出登录",
   "editSubtitles": "编辑字幕",

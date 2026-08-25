@@ -4454,6 +4454,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authAppleAccount => 'Apple 账号';
 
   @override
+  String get authEmailUnavailable => '邮箱暂不可用';
+
+  @override
   String get authGoogleAccount => 'Google 账号';
 
   @override

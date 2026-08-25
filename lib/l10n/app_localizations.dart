@@ -8198,6 +8198,12 @@ abstract class AppLocalizations {
   /// **'Apple account'**
   String get authAppleAccount;
 
+  /// No description provided for @authEmailUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Email unavailable'**
+  String get authEmailUnavailable;
+
   /// No description provided for @authGoogleAccount.
   ///
   /// In en, this message translates to:

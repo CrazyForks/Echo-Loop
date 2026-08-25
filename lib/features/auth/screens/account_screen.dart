@@ -161,6 +161,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       return const Scaffold(body: SizedBox.shrink());
     }
     final user = session.user;
+    final email = user.email?.trim();
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.account)),
@@ -169,7 +170,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           padding: const EdgeInsets.all(AppSpacing.m),
           children: [
             _SignedInAccountCard(
-              email: user.email ?? user.id,
+              email: email,
               provider: authDisplayProviderForSession(session),
               isSigningOut: _isSigningOut,
               onSignOut: _signOut,
@@ -189,7 +190,7 @@ class _SignedInAccountCard extends StatelessWidget {
     required this.onSignOut,
   });
 
-  final String email;
+  final String? email;
   final AuthDisplayProvider provider;
   final bool isSigningOut;
   final Future<void> Function() onSignOut;
@@ -197,6 +198,9 @@ class _SignedInAccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final emailText = email?.isNotEmpty == true
+        ? email.toString()
+        : l10n.authEmailUnavailable;
     final title = switch (provider) {
       AuthDisplayProvider.apple => l10n.authAppleAccount,
       AuthDisplayProvider.google => l10n.authGoogleAccount,
@@ -208,7 +212,7 @@ class _SignedInAccountCard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.account_circle_outlined),
             title: Text(title),
-            subtitle: Text(email),
+            subtitle: Text(emailText),
           ),
           const Divider(height: 1),
           ListTile(

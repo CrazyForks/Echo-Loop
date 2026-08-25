@@ -861,6 +861,51 @@ void main() {
     expect(find.text('mbfpw8sd...@erelay.appleid.com'), findsNothing);
   });
 
+  testWidgets('账号页 Apple 邮箱不可用时显示邮箱暂不可用，不暴露用户 ID', (tester) async {
+    final user = User(
+      id: 'internal-user-id',
+      appMetadata: const {
+        'provider': 'apple',
+        'providers': ['apple'],
+      },
+      userMetadata: const {},
+      aud: 'authenticated',
+      email: '   ',
+      createdAt: '2026-06-04T00:00:00.000Z',
+    );
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: user,
+      refreshToken: 'refresh',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          supabaseSessionProvider.overrideWith((ref) => Stream.value(session)),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('zh')],
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          theme: AppTheme.light(),
+          home: const AccountScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Apple account'), findsOneWidget);
+    expect(find.text('Email unavailable'), findsOneWidget);
+    expect(find.text('internal-user-id'), findsNothing);
+  });
+
   testWidgets('账号页 Google 登录显示 Google 账户和完整邮箱', (tester) async {
     final user = User(
       id: 'user-1',
