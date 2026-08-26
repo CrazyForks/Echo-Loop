@@ -1,5 +1,19 @@
 # Echo Loop 任务清单
 
+- [x] 修复后台 TTS warmup 绕过模型门控：刷新状态同时校验安装清单与关键模型文件；未就绪时 warmup 只记录并跳过，不下载、不弹窗、不初始化引擎。**完成时间**: 2026-08-27
+
+- [x] 补充 TTS 模型目录、`install.json`、Provider 状态刷新、指定配置门控与预热决策日志，便于排查模型 ready 状态与实际文件不一致。**完成时间**: 2026-08-26
+
+- [x] TTS 音色试听接入按指定 Kokoro 变体/Piper 音色的无弹窗模型门控；模型未就绪时由设置页展示下载进度，本次试听不启动。**完成时间**: 2026-08-26
+
+- [x] TTS 设置页检查 `install.json` 时同步读取并保存每个 Kokoro/Piper 资源的安装清单，使用 `resourceSize` 显示已就绪模型的实际占用空间；下载完成与历史安装恢复共用同一大小来源。**完成时间**: 2026-08-26 22:25
+
+- [x] 将 TTS 模型 ready 判定改为首次使用门控检查对应安装目录 `install.json`，ready 仅保存在按资源 ID 隔离的内存状态；设置页进入和首次发音统一通过公共函数检查全部 Kokoro/Piper 模型；移除 Kokoro/Piper 下载 SP 标记依赖，并在 `ensureDownloaded()` 中防止已安装模型重复下载；旧模型目录迁移接入 App Update Migration v6。**完成时间**: 2026-08-26
+
+- [x] 统一 TTS `install.json` 格式，记录 `resourceId`、本地时间 `installAt` 和字节单位的 `resourceSize`；下载安装与历史目录迁移共用同一写入逻辑。**完成时间**: 2026-08-26
+
+- [x] 移除 App Update Migration 通过 StartupTrace 包装产生的重复启动步骤日志，避免版本迁移被误认为每次启动重复执行。**完成时间**: 2026-08-26
+
 - [x] 引入统一 `app_update_migration_version` 应用升级迁移链：按连续版本顺序执行文件目录、ASR、学习设置与 TTS 历史数据迁移，成功后记录版本、失败后下次启动重试；移除分散的迁移完成标记，补齐 runner、失败恢复、幂等回归测试及版本/步骤结构化日志。**完成时间**: 2026-08-26
 
 - [x] 将 TTS 引擎枚举与持久化值从产品名 `echoLoop` 收敛为实现名 `kokoro`，保留历史值迁移兼容，并补充 SP 读写及全链路回归测试。**完成时间**: 2026-08-26
@@ -1264,3 +1278,4 @@
 # CI 修复记录
 
 - [x] 2026-08-18：修复 GitHub CI 全量测试中的两处过期 UI 断言：跟读页收藏按钮右边距改为当前单层 `AppSpacing.m`；难句补练末句完成按钮改断言 `PlaybackNavButton.enabled`，不再依赖已移除的 `AnimatedOpacity`。**完成时间**: 2026-08-18
+- [x] 将 Kokoro/Piper 模型规格、下载地址、SHA-256、固定文件名和默认项分别集中到 `services/tts/kokoro_model_catalog.dart` 与 `piper_model_catalog.dart`；删除重复旧目录定义，保持下载、解包、校验及 TTS 行为等价。**完成时间**: 2026-08-26

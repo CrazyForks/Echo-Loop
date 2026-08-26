@@ -21,20 +21,12 @@ import '../app_logger.dart';
 import '../asr/asr_model_manager.dart'
     show AsrModelDownloadStatus, AsrModelDownloadProgress;
 import '../reliable_http_downloader.dart';
-import 'piper_voices.dart';
+import 'piper_model_catalog.dart';
+import '../resource_install_manifest.dart';
 
 // 复用 ASR 的下载状态/进度类型（已是通用命名，避免重复定义）。
 export '../asr/asr_model_manager.dart'
     show AsrModelDownloadStatus, AsrModelDownloadProgress;
-
-/// CDN 基础 URL（与 Kokoro 一致）。
-const _cdnBase = 'https://cdn.echo-loop.top';
-
-/// 解包后必须存在的关键文件名（在模型目录下递归定位）。
-const _piperTokensFile = 'tokens.txt';
-
-/// espeak-ng G2P 数据目录名（Piper 走 espeak 音素化，缺失则合成失败）。
-const _piperDataDirName = 'espeak-ng-data';
 
 /// Piper 引擎初始化所需的本地绝对路径集合（无 voices.bin）。
 class PiperModelPaths {
@@ -100,6 +92,45 @@ class PiperModelManager {
     return await _resolvePaths(dir) != null;
   }
 
+  /// 读取安装清单；ready 门控不读取 SharedPreferences。
+  Future<ResourceInstallManifest?> readInstallManifest() async {
+    final directory = Directory(await modelDir());
+    final manifestFile = File(p.join(directory.path, 'install.json'));
+    AppLogger.log(
+      'PiperModel',
+      '检查安装状态 resource=${voice.id} dir=${directory.path} '
+          'dirExists=${directory.existsSync()} '
+          'manifestExists=${manifestFile.existsSync()}',
+    );
+    final ResourceInstallManifest? manifest;
+    try {
+      manifest = await readResourceInstallManifest(directory);
+    } on FormatException catch (error) {
+      AppLogger.log('PiperModel', 'invalid install manifest: $error');
+      return null;
+    }
+    if (manifest == null) {
+      AppLogger.log('PiperModel', '检查结果 resource=${voice.id} manifest=null');
+      return null;
+    }
+    if (manifest.resourceId != voice.id) {
+      AppLogger.log(
+        'PiperModel',
+        '检查结果 resource=${voice.id} manifestResource=${manifest.resourceId} matched=false',
+      );
+      return null;
+    }
+    AppLogger.log(
+      'PiperModel',
+      '检查结果 resource=${voice.id} manifestResource=${manifest.resourceId} '
+          'resourceSize=${manifest.resourceSize} matched=true',
+    );
+    return manifest;
+  }
+
+  /// 兼容旧调用方的安装标记检查。
+  Future<bool> hasInstallMarker() async => await readInstallManifest() != null;
+
   /// 模型本地占用空间（字节，递归统计）。
   Future<int> modelLocalSize() async {
     final dir = Directory(await modelDir());
@@ -134,7 +165,7 @@ class PiperModelManager {
 
     // 临时归档名必须以 `.tar.gz` 结尾，extractFileToDisk 据扩展名识别格式。
     final archiveFile = File(p.join(root, '_dl_${voice.id}.tar.gz'));
-    final baseUrl = baseUrlOverride ?? _cdnBase;
+    final baseUrl = baseUrlOverride ?? piperCdnBaseUrl;
     final url = '$baseUrl/model/${voice.archivePath}';
     AppLogger.log('PiperModel', '┌ downloadModel dir=$dir url=$url');
 
@@ -166,7 +197,7 @@ class PiperModelManager {
       );
 
       // 2. 校验整包 SHA-256（音色目录的 sha256 为空串时跳过校验：开发期占位，
-      //    回填后才真正校验，见 piper_voices.dart 的 TODO）。
+      //    回填后才真正校验，见 piper_model_catalog.dart 的模型清单。
       if (voice.sha256.isNotEmpty) {
         final actual = await _computeSha256(archiveFile);
         if (actual != voice.sha256) {
@@ -189,6 +220,11 @@ class PiperModelManager {
       if (await _resolvePaths(modelDirectory) == null) {
         throw StateError('Piper key files missing after extraction in $dir');
       }
+      await writeResourceInstallManifest(
+        modelDirectory,
+        resourceId: voice.id,
+        installAt: DateTime.now(),
+      );
 
       onProgress?.call(
         const AsrModelDownloadProgress(
@@ -227,8 +263,8 @@ class PiperModelManager {
   /// （排除 sherpa 不需要的 `.onnx.json` 元数据）。
   Future<PiperModelPaths?> _resolvePaths(Directory dir) async {
     final model = await _findOnnx(dir);
-    final tokens = await _findFile(dir, _piperTokensFile);
-    final dataDir = await _findDir(dir, _piperDataDirName);
+    final tokens = await _findFile(dir, piperTokensFileName);
+    final dataDir = await _findDir(dir, piperDataDirectoryName);
     if (model == null || tokens == null || dataDir == null) {
       return null;
     }

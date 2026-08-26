@@ -67,11 +67,9 @@ void main() async {
     'shared_preferences',
     SharedPreferences.getInstance,
   );
-  await runAppUpdateMigrations(
-    prefs,
-    onMigration: (migration, action) =>
-        startupTrace.run(migration.name, action),
-  );
+  // 应用升级迁移由自身记录结构化日志，不包装成普通 StartupTrace 步骤，
+  // 避免日志看起来像启动阶段重复执行了一次迁移。
+  await runAppUpdateMigrations(prefs);
   // 路由 observer 在首帧构建时即会读取 analytics。先安装纯日志实现，第三方
   // 埋点 SDK 在后续后台阶段成功初始化后再替换，避免首帧依赖 Firebase/PostHog。
   initAnalytics(

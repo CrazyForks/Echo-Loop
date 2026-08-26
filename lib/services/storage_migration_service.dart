@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'resource_install_manifest.dart';
+
 /// Documents → Application Support 一次性数据迁移。
 ///
 /// iOS 会在「设置 > 存储」中展示 Documents 目录的内容，导致用户看到
@@ -27,6 +29,29 @@ Future<void> migrateToAppSupportDirectory() async {
   // 迁移媒体目录
   for (final name in _mediaDirs) {
     await _migrateDirectory(docsDir.path, appSupportDir.path, name);
+  }
+}
+
+/// 将旧版本仍位于 Documents 下的 TTS 模型目录移动到 Application Support。
+Future<void> migrateTtsModelInstallLayout() async {
+  final documents = await getApplicationDocumentsDirectory();
+  final support = await getApplicationSupportDirectory();
+  await _migrateDirectory(documents.path, support.path, 'tts-models');
+  final modelsRoot = Directory(p.join(support.path, 'tts-models'));
+  if (!await modelsRoot.exists()) return;
+  await for (final entity in modelsRoot.list(followLinks: false)) {
+    if (entity is! Directory || p.basename(entity.path).startsWith('_')) {
+      continue;
+    }
+    final marker = File(p.join(entity.path, 'install.json'));
+    if (!await marker.exists()) {
+      final stat = await entity.stat();
+      await writeResourceInstallManifest(
+        entity,
+        resourceId: p.basename(entity.path),
+        installAt: stat.changed,
+      );
+    }
   }
 }
 

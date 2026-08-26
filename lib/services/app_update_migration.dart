@@ -12,7 +12,7 @@ import 'storage_migration_service.dart';
 const appUpdateMigrationVersionKey = 'app_update_migration_version';
 
 /// 当前已注册的应用升级迁移版本。
-const currentAppUpdateMigrationVersion = 5;
+const currentAppUpdateMigrationVersion = 6;
 
 typedef AppUpdateMigrationAction = Future<void> Function();
 typedef AppUpdateMigrationRunnerCallback =
@@ -170,6 +170,11 @@ List<AppUpdateMigration> buildAppUpdateMigrations(
       action: isAndroid
           ? () => migrateAndroidPlatformTtsPreference(prefs)
           : () async {},
+    ),
+    AppUpdateMigration(
+      version: 6,
+      name: 'tts_model_install_layout_migration',
+      action: migrateTtsModelInstallLayout,
     ),
   ];
 }

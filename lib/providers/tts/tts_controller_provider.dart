@@ -19,7 +19,7 @@ import '../../services/app_logger.dart';
 import '../../services/tts/kokoro_tts_engine.dart';
 import '../../services/tts/kokoro_voices.dart';
 import '../../services/tts/piper_tts_engine.dart';
-import '../../services/tts/piper_voices.dart';
+import '../../services/tts/piper_model_catalog.dart';
 import '../../services/tts/platform_tts_engine.dart';
 import '../../services/tts/tts_cache_store.dart';
 import '../../services/tts/tts_coordinator.dart';
@@ -201,23 +201,8 @@ class TtsController extends Notifier<TtsControllerState> {
     final settings = ref.read(ttsSettingsProvider);
     final kokoroReady = ref.read(kokoroReadyProvider);
     final piperReady = ref.read(piperReadyProvider);
-    // 后台自愈：选中本地引擎但模型未就绪（含 App 启动恢复、下载失败后）时，
-    // fire-and-forget 触发下载（幂等：下载中/已就绪自动跳过）。发音仍保持用户
-    // 选择的本地引擎；失败则静默返回，不用系统语音兜底。
-    if (settings.engine == TtsEngineKind.kokoro && !kokoroReady) {
-      unawaited(
-        ref
-            .read(kokoroModelProvider.notifier)
-            .ensureDownloaded(settings.kokoroVariant),
-      );
-    }
-    if (settings.engine == TtsEngineKind.piper && !piperReady) {
-      unawaited(
-        ref
-            .read(piperModelProvider.notifier)
-            .ensureDownloaded(settings.activePiperVoice),
-      );
-    }
+    // 本地模型只由设置页显式下载或首次用户发音门控触发，不在 controller
+    // 创建/重配置时隐式下载，避免预热或页面构建提前改变模型状态。
     final effective = effectiveTtsEngine(
       settings.engine,
       kokoroReady: kokoroReady,
@@ -285,6 +270,13 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 供音色行显播放态。仅 Echo Loop 场景调用（音色弹层只在模型就绪时显示）。
   Future<void> previewVoice(KokoroVoice voice) async {
     final variant = ref.read(ttsSettingsProvider).kokoroVariant;
+    if (!await ensureTtsModelReadyForConfig(
+      ref,
+      engine: TtsEngineKind.kokoro,
+      kokoroVariant: variant,
+    )) {
+      return;
+    }
     final config = ttsVoicePreviewConfig(voice, variant);
     final key = ttsVoicePreviewKey(voice.id);
     final token = ++_speakingToken;
@@ -310,6 +302,13 @@ class TtsController extends Notifier<TtsControllerState> {
   /// [speakingKey] 为该音色的试听 key（与 Kokoro 复用同一命名空间，voiceId 不冲突），
   /// 供音色行显播放态。调用方须先确保该音色模型已下载（未下载则合成返回 null 静默）。
   Future<void> previewPiperVoice(PiperVoice voice) async {
+    if (!await ensureTtsModelReadyForConfig(
+      ref,
+      engine: TtsEngineKind.piper,
+      piperVoiceId: voice.id,
+    )) {
+      return;
+    }
     final config = ttsPiperVoicePreviewConfig(voice);
     final key = ttsVoicePreviewKey(voice.id);
     final token = ++_speakingToken;
@@ -425,6 +424,12 @@ class TtsController extends Notifier<TtsControllerState> {
     final settings = ref.read(ttsSettingsProvider);
     final ready = ref.read(kokoroReadyProvider);
     final variant = settings.kokoroVariant;
+    AppLogger.log(
+      'TtsController',
+      '预热门控检查 engine=${settings.engine.diagnosticName} '
+          'variant=${variant.name} ready=$ready '
+          'status=${ref.read(kokoroModelProvider).of(variant).downloadStatus}',
+    );
     if (settings.engine != TtsEngineKind.kokoro) {
       AppLogger.log('TtsController', '预热跳过：engine!=kokoro');
       return;
@@ -645,11 +650,19 @@ class TtsController extends Notifier<TtsControllerState> {
 
   /// 后台加载当前模型实例，不合成文本；供收藏词汇 Tab 降低首次未命中延迟。
   Future<void> warmUpCurrentEngine() async {
-    AppLogger.log(
-      'TtsController',
-      '请求预热当前 TTS 模型（不合成文本）',
-    );
+    AppLogger.log('TtsController', '请求预热当前 TTS 模型（不合成文本）');
     try {
+      final settings = ref.read(ttsSettingsProvider);
+      final ready = await isTtsModelReadyForConfig(
+        ref,
+        engine: settings.engine,
+        kokoroVariant: settings.kokoroVariant,
+        piperVoiceId: settings.activePiperVoice,
+      );
+      if (!ready) {
+        AppLogger.log('TtsController', '后台模型预热跳过：当前模型未就绪');
+        return;
+      }
       await _readyCoordinator.warmUpCurrentEngine();
     } catch (e, st) {
       AppLogger.log('TtsController', '✗ 模型预热异常：$e\n$st');

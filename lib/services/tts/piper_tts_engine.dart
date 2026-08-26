@@ -18,7 +18,7 @@ import 'package:path/path.dart' as p;
 import '../app_logger.dart';
 import 'piper_model_manager.dart' show PiperModelPaths;
 import 'piper_synthesizer.dart';
-import 'piper_voices.dart';
+import 'piper_model_catalog.dart';
 import 'tts_engine.dart';
 
 /// Piper 合成语速（sherpa 的 speed 为倍率，1.0 = 正常）。

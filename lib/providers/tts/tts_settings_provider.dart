@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/app_logger.dart';
 import '../../services/tts/kokoro_voices.dart';
-import '../../services/tts/piper_voices.dart';
+import '../../services/tts/piper_model_catalog.dart';
 import '../../services/tts/tts_engine.dart';
 
 /// 同步从 SP 预读的 TTS 设置初值，由 main() 通过 override 注入。
@@ -39,9 +39,7 @@ abstract final class TtsSettingsKeys {
 }
 
 /// 将所有平台历史写入的 Echo Loop 产品名值迁移为 Kokoro 实现名。
-Future<void> migrateLegacyEchoLoopTtsPreference(
-  SharedPreferences prefs,
-) async {
+Future<void> migrateLegacyEchoLoopTtsPreference(SharedPreferences prefs) async {
   if (prefs.getString(TtsSettingsKeys.engine) !=
       TtsSettingsKeys.legacyEchoLoopEngineValue) {
     return;
@@ -56,8 +54,7 @@ Future<void> migrateLegacyEchoLoopTtsPreference(
 Future<void> migrateAndroidPlatformTtsPreference(
   SharedPreferences prefs,
 ) async {
-  if (prefs.getString(TtsSettingsKeys.engine) !=
-      TtsEngineKind.platform.name) {
+  if (prefs.getString(TtsSettingsKeys.engine) != TtsEngineKind.platform.name) {
     return;
   }
   await prefs.setString(TtsSettingsKeys.engine, TtsEngineKind.kokoro.name);

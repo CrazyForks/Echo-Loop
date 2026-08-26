@@ -8,8 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/providers/tts/piper_model_provider.dart';
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
 import 'package:echo_loop/services/reliable_http_downloader.dart';
+import 'package:echo_loop/services/resource_install_manifest.dart';
 import 'package:echo_loop/services/tts/piper_model_manager.dart';
-import 'package:echo_loop/services/tts/piper_voices.dart';
+import 'package:echo_loop/services/tts/piper_model_catalog.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
 
 const _us = piperDefaultVoiceUs;
@@ -22,6 +23,7 @@ class _FakeManager extends PiperModelManager {
     this.shouldCancel = false,
     this.sizeAfterDownload = 1024,
     bool downloaded = false,
+    this.installMarker = false,
   }) : _downloaded = downloaded,
        super(
          voice: piperVoices.first,
@@ -32,6 +34,7 @@ class _FakeManager extends PiperModelManager {
   bool shouldCancel;
   int sizeAfterDownload;
   bool _downloaded;
+  bool installMarker;
   int downloadCount = 0;
   int deleteCount = 0;
 
@@ -67,6 +70,19 @@ class _FakeManager extends PiperModelManager {
 
   @override
   Future<bool> isModelDownloaded() async => _downloaded;
+
+  @override
+  Future<bool> hasInstallMarker() async => installMarker;
+
+  @override
+  Future<ResourceInstallManifest?> readInstallManifest() async {
+    if (!installMarker && !_downloaded) return null;
+    return ResourceInstallManifest(
+      resourceId: voice.id,
+      installAt: DateTime(2026, 8, 26),
+      resourceSize: sizeAfterDownload,
+    );
+  }
 
   @override
   Future<void> deleteModel() async {
@@ -116,7 +132,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('ensureDownloaded 成功 → ready + 进度 1.0 + 体积 + SP 标记', () async {
+  test('ensureDownloaded 成功 → ready + 进度 1.0 + 体积', () async {
     final c = _container((_) => _FakeManager());
     addTearDown(c.dispose);
 
@@ -126,9 +142,46 @@ void main() {
     expect(s.isReady, isTrue);
     expect(s.downloadProgress, 1.0);
     expect(s.localSizeBytes, 1024);
+  });
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('piper_model_downloaded_$_us'), isTrue);
+  test('已有 install.json → 同步 ready 且不重复下载', () async {
+    final manager = _FakeManager(downloaded: true, installMarker: true);
+    final c = _container((_) => manager);
+    addTearDown(c.dispose);
+
+    await c.read(piperModelProvider.notifier).ensureDownloaded(_us);
+
+    expect(manager.downloadCount, 0);
+    expect(c.read(piperModelProvider).of(_us).isReady, isTrue);
+    expect(c.read(piperModelProvider).of(_us).localSizeBytes, 1024);
+    expect(
+      c.read(piperModelProvider).of(_us).installManifest?.resourceSize,
+      1024,
+    );
+  });
+
+  test('refreshInstalledStates 检查全部音色且不下载', () async {
+    final managers = <String, _FakeManager>{};
+    final c = _container((voiceId) {
+      return managers.putIfAbsent(
+        voiceId,
+        () => _FakeManager(downloaded: true, installMarker: true),
+      );
+    });
+    addTearDown(c.dispose);
+
+    await c.read(piperModelProvider.notifier).refreshInstalledStates();
+
+    expect(
+      piperVoices.every(
+        (voice) => c.read(piperModelProvider).of(voice.id).isReady,
+      ),
+      isTrue,
+    );
+    expect(
+      managers.values.every((manager) => manager.downloadCount == 0),
+      isTrue,
+    );
   });
 
   test('piperReadyProvider 跟随「当前口音选中音色」就绪态', () async {
@@ -218,8 +271,6 @@ void main() {
     await downloading;
 
     expect(manager.deleteCount, 1);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('piper_model_downloaded_$_us'), isFalse);
   });
 
   test('音色互相独立：下载美音不影响英音', () async {
@@ -242,25 +293,5 @@ void main() {
     final s = c.read(piperModelProvider).of(_us);
     expect(s.downloadStatus, AsrModelDownloadStatus.notDownloaded);
     expect(s.localSizeBytes, 0);
-  });
-
-  group('piperModelsStateFromPrefs', () {
-    test('完成标记恢复 downloaded，且初始体积未知', () async {
-      SharedPreferences.setMockInitialValues({
-        'piper_model_downloaded_$_us': true,
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final s = piperModelsStateFromPrefs(prefs);
-      expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.downloaded);
-      expect(s.of(_us).localSizeBytes, 0);
-      expect(s.of(_uk).downloadStatus, AsrModelDownloadStatus.notDownloaded);
-    });
-
-    test('无完成标记保持 notDownloaded', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final s = piperModelsStateFromPrefs(prefs);
-      expect(s.of(_us).downloadStatus, AsrModelDownloadStatus.notDownloaded);
-    });
   });
 }

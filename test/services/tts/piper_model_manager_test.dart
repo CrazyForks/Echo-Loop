@@ -9,7 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:echo_loop/services/tts/piper_model_manager.dart';
-import 'package:echo_loop/services/tts/piper_voices.dart';
+import 'package:echo_loop/services/tts/piper_model_catalog.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
 
 /// 返回预置归档字节的 mock dio adapter（任何 .tar.gz 请求都返回该字节）。

@@ -9,19 +9,13 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../features/onboarding_survey/providers/onboarding_survey_provider.dart'
-    show sharedPreferencesProvider;
 import '../../services/app_logger.dart';
 import '../../services/download/download_failure.dart';
 import '../../services/reliable_http_downloader.dart';
+import '../../services/resource_install_manifest.dart';
 import '../../services/tts/piper_model_manager.dart';
-import '../../services/tts/piper_voices.dart';
+import '../../services/tts/piper_model_catalog.dart';
 import 'tts_settings_provider.dart';
-
-/// 每音色「已下载」持久化标记 key。
-String _downloadedKey(String voiceId) => 'piper_model_downloaded_$voiceId';
 
 // ---------------------------------------------------------------------------
 // State
@@ -32,6 +26,7 @@ class PiperModelState {
   final AsrModelDownloadStatus downloadStatus;
   final double downloadProgress;
   final int localSizeBytes;
+  final ResourceInstallManifest? installManifest;
 
   /// 失败时的归类原因（供 UI 显本地化文案）；非失败态为 null。
   final DownloadFailureKind? downloadError;
@@ -40,6 +35,7 @@ class PiperModelState {
     this.downloadStatus = AsrModelDownloadStatus.notDownloaded,
     this.downloadProgress = 0,
     this.localSizeBytes = 0,
+    this.installManifest,
     this.downloadError,
   });
 
@@ -54,6 +50,8 @@ class PiperModelState {
     AsrModelDownloadStatus? downloadStatus,
     double? downloadProgress,
     int? localSizeBytes,
+    ResourceInstallManifest? installManifest,
+    bool clearInstallManifest = false,
     DownloadFailureKind? downloadError,
     bool clearError = false,
   }) {
@@ -61,6 +59,9 @@ class PiperModelState {
       downloadStatus: downloadStatus ?? this.downloadStatus,
       downloadProgress: downloadProgress ?? this.downloadProgress,
       localSizeBytes: localSizeBytes ?? this.localSizeBytes,
+      installManifest: clearInstallManifest
+          ? null
+          : (installManifest ?? this.installManifest),
       downloadError: clearError ? null : (downloadError ?? this.downloadError),
     );
   }
@@ -89,6 +90,11 @@ class PiperModelsState {
 // Providers
 // ---------------------------------------------------------------------------
 
+/// TTS 模型状态只在当前进程内存中维护，启动时不从 SP 恢复。
+final initialPiperModelStateProvider = Provider<PiperModelsState>(
+  (ref) => PiperModelsState.initial(),
+);
+
 /// Piper 模型管理器（按音色 id 的 family，各自绑定音色）。
 final piperModelManagerProvider = Provider.family<PiperModelManager, String>((
   ref,
@@ -99,22 +105,6 @@ final piperModelManagerProvider = Provider.family<PiperModelManager, String>((
   ref.onDispose(manager.dispose);
   return manager;
 });
-
-/// 从已初始化的 Preferences 构造初始状态，不访问模型目录。
-final initialPiperModelStateProvider = Provider<PiperModelsState>(
-  (ref) => piperModelsStateFromPrefs(ref.read(sharedPreferencesProvider)),
-);
-
-/// 仅由下载完成标记恢复模型可用性；模型体积在本次进程下载完成前未知。
-PiperModelsState piperModelsStateFromPrefs(SharedPreferences prefs) {
-  return PiperModelsState({
-    for (final voice in piperVoices)
-      if (prefs.getBool(_downloadedKey(voice.id)) ?? false)
-        voice.id: const PiperModelState(
-          downloadStatus: AsrModelDownloadStatus.downloaded,
-        ),
-  });
-}
 
 /// Piper 模型状态 Provider（全局单例）。
 final piperModelProvider =
@@ -137,6 +127,7 @@ final piperReadyProvider = Provider<bool>((ref) {
 class PiperModelNotifier extends Notifier<PiperModelsState> {
   final Map<String, CancelToken> _cancelTokens = {};
   final Map<String, Future<void>> _downloadTasks = {};
+  final Set<String> _checkingInstallMarkers = {};
   final Map<String, int> _downloadSessions = {};
   final Set<String> _cancellingVoiceIds = {};
   int _nextDownloadSession = 0;
@@ -155,6 +146,54 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
     state = state.withVoice(voiceId, s);
   }
 
+  /// 将磁盘安装标记同步到本次进程内存状态。
+  void markReady(String voiceId, ResourceInstallManifest manifest) {
+    _set(
+      voiceId,
+      state
+          .of(voiceId)
+          .copyWith(
+            downloadStatus: AsrModelDownloadStatus.downloaded,
+            downloadProgress: 1,
+            localSizeBytes: manifest.resourceSize,
+            installManifest: manifest,
+          ),
+    );
+  }
+
+  /// 检查全部音色的安装标记并同步本次进程内存状态，不触发下载。
+  Future<void> refreshInstalledStates() async {
+    await Future.wait(
+      piperVoices.map((voice) async {
+        final manager = ref.read(piperModelManagerProvider(voice.id));
+        final before = state.of(voice.id).downloadStatus;
+        final manifest = await manager.readInstallManifest();
+        final filesReady = await manager.isModelDownloaded();
+        if (manifest != null && filesReady) {
+          markReady(voice.id, manifest);
+        } else if (before != AsrModelDownloadStatus.downloading) {
+          _set(
+            voice.id,
+            state
+                .of(voice.id)
+                .copyWith(
+                  downloadStatus: AsrModelDownloadStatus.notDownloaded,
+                  downloadProgress: 0,
+                  clearInstallManifest: true,
+                ),
+          );
+        }
+        AppLogger.log(
+          'PiperModel',
+          '刷新内存状态 voice=${voice.id} before=$before '
+              'manifest=${manifest == null ? 'missing' : 'matched'} '
+              'filesReady=$filesReady '
+              'after=${state.of(voice.id).downloadStatus}',
+        );
+      }),
+    );
+  }
+
   /// 确保某音色就绪：未就绪且未在下载则触发下载。
   Future<void> ensureDownloaded(String voiceId) async {
     final s = state.of(voiceId);
@@ -164,7 +203,18 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
         _cancellingVoiceIds.contains(voiceId)) {
       return;
     }
-    await _download(voiceId);
+    if (!_checkingInstallMarkers.add(voiceId)) return;
+    try {
+      final manager = ref.read(piperModelManagerProvider(voiceId));
+      final manifest = await manager.readInstallManifest();
+      if (manifest != null) {
+        markReady(voiceId, manifest);
+        return;
+      }
+      await _download(voiceId);
+    } finally {
+      _checkingInstallMarkers.remove(voiceId);
+    }
   }
 
   /// 重试下载（清除错误后重新下载）。
@@ -187,7 +237,6 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
         downloadStatus: AsrModelDownloadStatus.notDownloaded,
       ),
     );
-    await _persistDownloaded(voiceId, false);
     // 等待归档下载退出后再清理，避免取消残留被错误归类为下载失败。
     try {
       await task;
@@ -208,7 +257,6 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
         downloadStatus: AsrModelDownloadStatus.notDownloaded,
       ),
     );
-    await _persistDownloaded(voiceId, false);
   }
 
   Future<void> _download(String voiceId) async {
@@ -222,6 +270,7 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
             downloadStatus: AsrModelDownloadStatus.downloading,
             downloadProgress: 0,
             clearError: true,
+            clearInstallManifest: true,
           ),
     );
     final session = ++_nextDownloadSession;
@@ -248,7 +297,6 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
     int session,
     CancelToken cancelToken,
   ) async {
-    await _persistDownloaded(voiceId, false);
     final manager = ref.read(piperModelManagerProvider(voiceId));
     try {
       await manager.downloadModel(
@@ -262,7 +310,10 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
         },
       );
       if (!_isCurrent(voiceId, session, cancelToken)) return;
-      final localSize = await manager.modelLocalSize();
+      final manifest = await manager.readInstallManifest();
+      if (manifest == null) {
+        throw StateError('Piper install manifest missing after download');
+      }
       if (!_isCurrent(voiceId, session, cancelToken)) return;
       _set(
         voiceId,
@@ -271,10 +322,10 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
             .copyWith(
               downloadStatus: AsrModelDownloadStatus.downloaded,
               downloadProgress: 1.0,
-              localSizeBytes: localSize,
+              localSizeBytes: manifest.resourceSize,
+              installManifest: manifest,
             ),
       );
-      await _persistDownloaded(voiceId, true);
       if (_isCurrent(voiceId, session, cancelToken)) {
         _cancelTokens.remove(voiceId);
         _downloadSessions.remove(voiceId);
@@ -310,16 +361,6 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
       }
       _cancelTokens.remove(voiceId);
       _downloadSessions.remove(voiceId);
-      await _persistDownloaded(voiceId, false);
-    }
-  }
-
-  Future<void> _persistDownloaded(String voiceId, bool value) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_downloadedKey(voiceId), value);
-    } catch (e) {
-      AppLogger.log('PiperModel', '写 SP 失败: $e');
     }
   }
 }

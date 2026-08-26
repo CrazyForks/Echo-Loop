@@ -15,11 +15,12 @@ import '../l10n/app_localizations.dart';
 import '../providers/tts/kokoro_model_provider.dart';
 import '../providers/tts/piper_model_provider.dart';
 import '../providers/tts/tts_controller_provider.dart';
+import '../providers/tts/tts_model_installation_provider.dart';
 import '../providers/tts/tts_settings_provider.dart';
 import '../services/tts/kokoro_model_manager.dart'
     show AsrModelDownloadStatus, KokoroModelVariant;
 import '../services/tts/kokoro_voices.dart';
-import '../services/tts/piper_voices.dart';
+import '../services/tts/piper_model_catalog.dart';
 import '../services/tts/tts_engine.dart';
 import '../theme/app_theme.dart';
 import '../utils/download_failure_message.dart';
@@ -47,25 +48,19 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // 进页时按引擎后台预热试听片段，使点击口音/音色可秒播：
-    // - Echo Loop：若模型未就绪（含上次失败）先确保下载，就绪则预热各音色；
+    // 进页时先检查全部本地 TTS 模型的安装标记，再按引擎后台预热试听片段：
+    // - Echo Loop：模型已安装则预热各音色；
     // - 平台 TTS：预热美/英两个口音（无需模型，恒就绪）。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final settings = ref.read(ttsSettingsProvider);
       final controller = ref.read(ttsControllerProvider.notifier);
+      await refreshTtsModelInstallStates(ref.read);
+      if (!mounted) return;
       if (settings.engine == TtsEngineKind.kokoro) {
-        ref
-            .read(kokoroModelProvider.notifier)
-            .ensureDownloaded(settings.kokoroVariant);
         controller.prewarmVoicePreviews();
       } else if (settings.engine == TtsEngineKind.piper) {
-        // Piper：确保当前口音选中音色已下载，并预热该音色试听（仅当前音色，不批量——
-        // 换音色=换独立模型，批量不经济）。就绪则即时预热；未就绪由下方 piperReady
-        // 监听在下载完成后补触发。其余音色仍走点击 on-demand。
-        ref
-            .read(piperModelProvider.notifier)
-            .ensureDownloaded(settings.activePiperVoice);
+        // Piper：仅预热当前音色，其余音色仍走点击 on-demand。
         controller.prewarmActivePiperVoice();
       } else {
         controller.prewarmAccentPreviews();

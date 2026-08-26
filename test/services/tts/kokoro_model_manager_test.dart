@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:echo_loop/services/reliable_http_downloader.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart';
+import 'package:echo_loop/services/tts/kokoro_model_catalog.dart';
 
 /// 返回预置归档字节的 mock dio adapter（按 URL 末段匹配）。
 class _MockArchiveAdapter implements HttpClientAdapter {

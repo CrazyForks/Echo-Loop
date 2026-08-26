@@ -19,7 +19,7 @@ import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart'
     show AsrModelDownloadStatus;
 import 'package:echo_loop/services/tts/kokoro_voices.dart';
-import 'package:echo_loop/services/tts/piper_voices.dart';
+import 'package:echo_loop/services/tts/piper_model_catalog.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
 
 /// 受控 Kokoro notifier：注入初值，下载相关方法仅占位（不做真实下载）。
@@ -129,6 +129,9 @@ class _FakePathProvider extends PathProviderPlatform
 
   @override
   Future<String?> getApplicationCachePath() async => rootPath;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => rootPath;
 }
 
 KokoroModelsState _ready() => const KokoroModelsState({

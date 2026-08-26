@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/providers/tts/kokoro_model_provider.dart';
 import 'package:echo_loop/services/download/download_failure.dart';
 import 'package:echo_loop/services/reliable_http_downloader.dart';
+import 'package:echo_loop/services/resource_install_manifest.dart';
 import 'package:echo_loop/services/tts/kokoro_model_manager.dart';
 
 const _fp32 = KokoroModelVariant.fp32;
@@ -18,19 +19,20 @@ class _FakeManager extends KokoroModelManager {
   _FakeManager({
     this.shouldFail = false,
     this.shouldCancel = false,
-    this.sizeAfterDownload = 1024,
     this.failError,
     bool downloaded = false,
+    this.installMarker = false,
   }) : _downloaded = downloaded,
        super(modelsRootResolver: () async => '/tmp/none');
 
   bool shouldFail;
   bool shouldCancel;
-  int sizeAfterDownload;
 
   /// shouldFail 时抛出的异常（默认 StateError('boom')，供归类测试自定义）。
   Object? failError;
   bool _downloaded;
+  bool installMarker;
+  int manifestSize = 1024;
   int downloadCount = 0;
   int deleteCount = 0;
 
@@ -64,10 +66,23 @@ class _FakeManager extends KokoroModelManager {
 
   @override
   Future<int> modelLocalSize() async =>
-      _downloaded ? sizeAfterDownload : (shouldFail ? 10 : 0);
+      _downloaded ? 1024 : (shouldFail ? 10 : 0);
 
   @override
   Future<bool> isModelDownloaded() async => _downloaded;
+
+  @override
+  Future<bool> hasInstallMarker() async => installMarker;
+
+  @override
+  Future<ResourceInstallManifest?> readInstallManifest() async {
+    if (!installMarker && !_downloaded) return null;
+    return ResourceInstallManifest(
+      resourceId: spec.id,
+      installAt: DateTime(2026, 8, 26),
+      resourceSize: manifestSize,
+    );
+  }
 
   @override
   Future<void> deleteModel() async {
@@ -114,7 +129,7 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('ensureDownloaded 成功 → ready + 进度 1.0 + 体积 + SP 标记', () async {
+  test('ensureDownloaded 成功 → ready + 进度 1.0 + 体积', () async {
     final c = _container(_FakeManager());
     addTearDown(c.dispose);
 
@@ -125,9 +140,38 @@ void main() {
     expect(s.downloadProgress, 1.0);
     expect(s.localSizeBytes, 1024);
     expect(c.read(kokoroReadyProvider), isTrue);
+  });
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('kokoro_model_downloaded_fp32'), isTrue);
+  test('已有 install.json → 同步 ready 且不重复下载', () async {
+    final manager = _FakeManager(downloaded: true, installMarker: true);
+    final c = _container(manager);
+    addTearDown(c.dispose);
+
+    await c.read(kokoroModelProvider.notifier).ensureDownloaded(_fp32);
+
+    expect(manager.downloadCount, 0);
+    expect(c.read(kokoroModelProvider).of(_fp32).isReady, isTrue);
+    expect(c.read(kokoroModelProvider).of(_fp32).localSizeBytes, 1024);
+    expect(
+      c.read(kokoroModelProvider).of(_fp32).installManifest?.resourceSize,
+      1024,
+    );
+  });
+
+  test('refreshInstalledStates 检查全部变体且不下载', () async {
+    final manager = _FakeManager(downloaded: true, installMarker: true);
+    final c = _container(manager);
+    addTearDown(c.dispose);
+
+    await c.read(kokoroModelProvider.notifier).refreshInstalledStates();
+
+    expect(
+      KokoroModelVariant.values.every(
+        (variant) => c.read(kokoroModelProvider).of(variant).isReady,
+      ),
+      isTrue,
+    );
+    expect(manager.downloadCount, 0);
   });
 
   test('ensureDownloaded 已就绪 → 不重复下载', () async {
@@ -285,8 +329,6 @@ void main() {
     await downloading;
 
     expect(manager.deleteCount, 1);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('kokoro_model_downloaded_fp32'), isFalse);
   });
 
   test('retryDownload 清错误后成功', () async {
@@ -338,24 +380,5 @@ void main() {
       c.read(kokoroModelProvider).of(KokoroModelVariant.int8).isReady,
       isFalse,
     );
-  });
-
-  group('kokoroModelsStateFromPrefs', () {
-    test('完成标记恢复 downloaded，且初始体积未知', () async {
-      SharedPreferences.setMockInitialValues({
-        'kokoro_model_downloaded_fp32': true,
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final s = kokoroModelsStateFromPrefs(prefs);
-      expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.downloaded);
-      expect(s.of(_fp32).localSizeBytes, 0);
-    });
-
-    test('无完成标记保持 notDownloaded', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final s = kokoroModelsStateFromPrefs(prefs);
-      expect(s.of(_fp32).downloadStatus, AsrModelDownloadStatus.notDownloaded);
-    });
   });
 }

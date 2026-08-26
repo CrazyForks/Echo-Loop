@@ -5,7 +5,7 @@
 library;
 
 import 'package:echo_loop/providers/tts/tts_settings_provider.dart';
-import 'package:echo_loop/services/tts/piper_voices.dart';
+import 'package:echo_loop/services/tts/piper_model_catalog.dart';
 import 'package:echo_loop/services/tts/tts_engine.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

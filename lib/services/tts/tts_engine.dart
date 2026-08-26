@@ -19,7 +19,7 @@ enum TtsEngineKind {
   kokoro,
 
   /// Piper VITS（本地，均衡档）。质量优于系统 TTS、速度远快于 Kokoro；
-  /// 每个音色为一个独立单说话人模型，按音色单独下载（见 `piper_voices.dart`）。
+  /// 每个音色为一个独立单说话人模型，按音色单独下载（见 `piper_model_catalog.dart`）。
   piper,
 }
 
