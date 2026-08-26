@@ -85,7 +85,7 @@ void main() {
       );
       final k = store.deriveKey(
         text: 'Hello',
-        engine: TtsEngineKind.echoLoop,
+        engine: TtsEngineKind.kokoro,
         voiceId: 'en-US',
         speed: 0.45,
       );

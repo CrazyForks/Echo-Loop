@@ -31,7 +31,7 @@ Duration _synthTimeoutFor(TtsEngineKind kind, String text) {
   final int perCharMs;
   final int maxMs;
   switch (kind) {
-    case TtsEngineKind.echoLoop:
+    case TtsEngineKind.kokoro:
       baseMs = 10000;
       perCharMs = 300;
       maxMs = 90000;

@@ -186,7 +186,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
       );
@@ -212,7 +212,7 @@ void main() {
       final c = ProviderContainer(
         overrides: [
           initialTtsSettingsProvider.overrideWithValue(
-            const TtsSettings(engine: TtsEngineKind.echoLoop),
+            const TtsSettings(engine: TtsEngineKind.kokoro),
           ),
           kokoroModelProvider.overrideWith(
             () => _FixedKokoroNotifier(_ready()),
@@ -294,7 +294,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
       );
@@ -310,7 +310,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
       );
@@ -338,7 +338,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: KokoroModelsState.initial(),
         factory: factory,
       );
@@ -352,7 +352,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
       );
@@ -368,7 +368,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
       );
@@ -407,7 +407,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+        settings: const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _ready(),
         factory: factory,
         piperModels: piperReadyState(),

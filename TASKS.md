@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 将 TTS 引擎枚举与持久化值从产品名 `echoLoop` 收敛为实现名 `kokoro`，保留历史值迁移兼容，并补充 SP 读写及全链路回归测试。**完成时间**: 2026-08-26
+
 - [x] 修复第三方启动编排先创建订阅 controller 后刷新 Supabase session provider 导致的匿名权益对账：先失效 session provider，再预热订阅状态，避免启动时重复请求并短暂显示 free。**完成时间**: 2026-08-26
 
 - [x] 为热重启后学习 Tab 延迟进入问题补充生命周期、Supabase session、订阅 identity sync、路由与学习页首帧定位日志；不改变 session、token 或路由行为。**完成时间**: 2026-08-25

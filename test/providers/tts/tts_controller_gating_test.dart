@@ -49,22 +49,22 @@ void main() {
     test('选 Echo Loop 但未就绪 → 仍使用 Echo Loop，不回退平台', () {
       expect(
         effectiveTtsEngine(
-          TtsEngineKind.echoLoop,
+          TtsEngineKind.kokoro,
           kokoroReady: false,
           piperReady: true,
         ),
-        TtsEngineKind.echoLoop,
+        TtsEngineKind.kokoro,
       );
     });
 
     test('选 Echo Loop 且已就绪 → Echo Loop', () {
       expect(
         effectiveTtsEngine(
-          TtsEngineKind.echoLoop,
+          TtsEngineKind.kokoro,
           kokoroReady: true,
           piperReady: false,
         ),
-        TtsEngineKind.echoLoop,
+        TtsEngineKind.kokoro,
       );
     });
 
@@ -108,7 +108,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final notifier = _CountingKokoroNotifier(KokoroModelsState.initial());
       final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier,
       );
       addTearDown(c.dispose);
@@ -146,7 +146,7 @@ void main() {
         }),
       );
       final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier,
       );
       addTearDown(c.dispose);

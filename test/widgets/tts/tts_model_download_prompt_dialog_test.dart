@@ -12,7 +12,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         initialTtsSettingsProvider.overrideWithValue(
-          const TtsSettings(engine: TtsEngineKind.echoLoop),
+          const TtsSettings(engine: TtsEngineKind.kokoro),
         ),
         initialKokoroModelStateProvider.overrideWithValue(
           const KokoroModelsState({
@@ -28,7 +28,7 @@ void main() {
 
     final state = container.read(ttsPlaybackModelStateProvider);
 
-    expect(state.engine, TtsEngineKind.echoLoop);
+    expect(state.engine, TtsEngineKind.kokoro);
     expect(state.status, AsrModelDownloadStatus.downloading);
     expect(state.progress, 0.42);
     expect(state.isReady, isFalse);

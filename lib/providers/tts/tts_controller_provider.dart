@@ -38,7 +38,7 @@ final ttsEngineFactoryProvider = Provider<TtsEngineFactory>((ref) {
     switch (kind) {
       case TtsEngineKind.platform:
         return PlatformTtsEngine();
-      case TtsEngineKind.echoLoop:
+      case TtsEngineKind.kokoro:
         // 模型路径在引擎首次合成时惰性解析：按当前选中变体取对应管理器，
         // 仅在该变体模型就绪后才会被构造。
         return KokoroTtsEngine(
@@ -204,7 +204,7 @@ class TtsController extends Notifier<TtsControllerState> {
     // 后台自愈：选中本地引擎但模型未就绪（含 App 启动恢复、下载失败后）时，
     // fire-and-forget 触发下载（幂等：下载中/已就绪自动跳过）。发音仍保持用户
     // 选择的本地引擎；失败则静默返回，不用系统语音兜底。
-    if (settings.engine == TtsEngineKind.echoLoop && !kokoroReady) {
+    if (settings.engine == TtsEngineKind.kokoro && !kokoroReady) {
       unawaited(
         ref
             .read(kokoroModelProvider.notifier)
@@ -225,7 +225,7 @@ class TtsController extends Notifier<TtsControllerState> {
     );
     // Kokoro 模型变体切换（两变体均已就绪、引擎种类不变）时，作废旧引擎使下次发音
     // 用新变体模型重建（configure 只热更新配置、不会重建引擎）。
-    if (effective == TtsEngineKind.echoLoop &&
+    if (effective == TtsEngineKind.kokoro &&
         _lastVariant != null &&
         _lastVariant != settings.kokoroVariant) {
       unawaited(_readyCoordinator.invalidateEngine());
@@ -243,11 +243,11 @@ class TtsController extends Notifier<TtsControllerState> {
     final config = TtsSpeechConfig(
       languageTag: settings.languageTag,
       voiceName: switch (effective) {
-        TtsEngineKind.echoLoop => settings.activeKokoroVoice,
+        TtsEngineKind.kokoro => settings.activeKokoroVoice,
         TtsEngineKind.piper => settings.activePiperVoice,
         TtsEngineKind.platform => null,
       },
-      modelTag: effective == TtsEngineKind.echoLoop
+      modelTag: effective == TtsEngineKind.kokoro
           ? settings.kokoroVariant.name
           : null,
     );
@@ -292,7 +292,7 @@ class TtsController extends Notifier<TtsControllerState> {
     try {
       await _readyCoordinator.speakWith(
         kTtsPreviewText,
-        TtsEngineKind.echoLoop,
+        TtsEngineKind.kokoro,
         config,
       );
     } catch (e, st) {
@@ -425,7 +425,7 @@ class TtsController extends Notifier<TtsControllerState> {
     final settings = ref.read(ttsSettingsProvider);
     final ready = ref.read(kokoroReadyProvider);
     final variant = settings.kokoroVariant;
-    if (settings.engine != TtsEngineKind.echoLoop) {
+    if (settings.engine != TtsEngineKind.kokoro) {
       AppLogger.log('TtsController', '预热跳过：engine!=kokoro');
       return;
     }
@@ -463,7 +463,7 @@ class TtsController extends Notifier<TtsControllerState> {
         try {
           await _readyCoordinator.prewarm(
             kTtsPreviewText,
-            TtsEngineKind.echoLoop,
+            TtsEngineKind.kokoro,
             config,
           );
           done++;

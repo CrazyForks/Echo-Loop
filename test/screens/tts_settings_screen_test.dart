@@ -121,27 +121,27 @@ void main() {
     expect(showPlatformTtsEngine(false), isTrue);
   });
 
-  testWidgets('选 Echo Loop → engine 更新为 echoLoop 且触发 ensureDownloaded', (
+  testWidgets('选 Echo Loop → engine 更新为 kokoro 且触发 ensureDownloaded', (
     tester,
   ) async {
     final notifier = _TestKokoroNotifier(const KokoroModelsState({}));
     await tester.pumpWidget(_wrap(const TtsSettings(), notifier: notifier));
     await tester.pumpAndSettle();
 
-    // echoLoop = Advanced 档（Kokoro）。
+    // kokoro = Advanced 档（Kokoro）。
     await tester.tap(find.text('Echo Loop AI (Advanced)').first);
     await tester.pumpAndSettle();
 
     expect(
       _containerOf(tester).read(ttsSettingsProvider).engine,
-      TtsEngineKind.echoLoop,
+      TtsEngineKind.kokoro,
     );
     expect(notifier.ensured, contains(KokoroModelVariant.fp32));
   });
 
   testWidgets('Echo Loop → 显示两个模型变体（高质量带推荐徽标 / 轻量）', (tester) async {
     await tester.pumpWidget(
-      _wrap(const TtsSettings(engine: TtsEngineKind.echoLoop)),
+      _wrap(const TtsSettings(engine: TtsEngineKind.kokoro)),
     );
     await tester.pumpAndSettle();
 
@@ -158,7 +158,7 @@ void main() {
     final notifier = _TestKokoroNotifier(const KokoroModelsState({}));
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier: notifier,
       ),
     );
@@ -185,7 +185,7 @@ void main() {
     );
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier: notifier,
       ),
     );
@@ -206,7 +206,7 @@ void main() {
     );
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier: notifier,
       ),
     );
@@ -228,7 +228,7 @@ void main() {
     );
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier: notifier,
       ),
     );
@@ -265,7 +265,7 @@ void main() {
   testWidgets('存储空间不足 → 显清晰的空间不足文案（非原始异常）', (tester) async {
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _models(
           fp32: const KokoroModelState(
             downloadStatus: AsrModelDownloadStatus.failed,
@@ -285,7 +285,7 @@ void main() {
   testWidgets('就绪（fp32 选中）→ 音色行 + 点开弹层显全部 11 个（分组），使用中变体不显删除', (tester) async {
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _models(fp32: readyState),
       ),
     );
@@ -318,7 +318,7 @@ void main() {
     // fp32 使用中（不可删），int8 已下载但非使用中（可删）。
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _models(fp32: readyState, int8: readyState),
       ),
     );
@@ -331,7 +331,7 @@ void main() {
   testWidgets('就绪 + 弹层选英音音色 → 口音设为英音 + 写入英音音色', (tester) async {
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _models(fp32: readyState),
       ),
     );
@@ -352,7 +352,7 @@ void main() {
   testWidgets('就绪 + 弹层点音色 → setKokoroVoice 更新', (tester) async {
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         models: _models(fp32: readyState),
       ),
     );
@@ -403,7 +403,7 @@ void main() {
     final notifier = _TestKokoroNotifier(_models(fp32: readyState));
     await tester.pumpWidget(
       _wrap(
-        const TtsSettings(engine: TtsEngineKind.echoLoop),
+        const TtsSettings(engine: TtsEngineKind.kokoro),
         notifier: notifier,
       ),
     );

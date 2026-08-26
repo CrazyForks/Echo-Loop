@@ -54,7 +54,7 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
       if (!mounted) return;
       final settings = ref.read(ttsSettingsProvider);
       final controller = ref.read(ttsControllerProvider.notifier);
-      if (settings.engine == TtsEngineKind.echoLoop) {
+      if (settings.engine == TtsEngineKind.kokoro) {
         ref
             .read(kokoroModelProvider.notifier)
             .ensureDownloaded(settings.kokoroVariant);
@@ -118,7 +118,7 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final settings = ref.watch(ttsSettingsProvider);
-    final isEchoLoop = settings.engine == TtsEngineKind.echoLoop;
+    final isEchoLoop = settings.engine == TtsEngineKind.kokoro;
     final isPiper = settings.engine == TtsEngineKind.piper;
     final showPlatformEngine = showPlatformTtsEngine(Platform.isAndroid);
     // 任一已下载模型（Advanced/Kokoro 变体 或 Balanced/Piper 音色）即提供管理入口
@@ -202,8 +202,8 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
                         ),
                       ),
                     ),
-                    value: TtsEngineKind.echoLoop,
-                    selected: settings.engine == TtsEngineKind.echoLoop,
+                    value: TtsEngineKind.kokoro,
+                    selected: settings.engine == TtsEngineKind.kokoro,
                   ),
                 ],
               ),
@@ -270,7 +270,7 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
     // 继续播到尾。
     ref.read(ttsControllerProvider.notifier).stop();
     ref.read(ttsSettingsProvider.notifier).setEngine(value);
-    if (value == TtsEngineKind.echoLoop) {
+    if (value == TtsEngineKind.kokoro) {
       final variant = ref.read(ttsSettingsProvider).kokoroVariant;
       ref.read(kokoroModelProvider.notifier).ensureDownloaded(variant);
       // 切到 Echo Loop：立即预热各音色（与平台分支对称）。模型已就绪则即时开跑；

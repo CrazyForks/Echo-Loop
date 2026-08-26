@@ -740,7 +740,7 @@ void main() {
           createTestScreen(
             const SettingsScreen(),
             overrides: buildOverrides(
-              ttsSettings: const TtsSettings(engine: TtsEngineKind.echoLoop),
+              ttsSettings: const TtsSettings(engine: TtsEngineKind.kokoro),
             ),
           ),
         );

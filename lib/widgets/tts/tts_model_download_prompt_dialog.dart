@@ -49,7 +49,7 @@ final ttsPlaybackModelStateProvider = Provider<TtsPlaybackModelState>((ref) {
         progress: 1,
         failure: null,
       );
-    case TtsEngineKind.echoLoop:
+    case TtsEngineKind.kokoro:
       final state = ref.watch(kokoroModelProvider).of(settings.kokoroVariant);
       return TtsPlaybackModelState(
         engine: settings.engine,
@@ -93,7 +93,7 @@ void _ensureBackgroundDownload(Ref ref, TtsEngineKind engine) {
   switch (engine) {
     case TtsEngineKind.platform:
       return;
-    case TtsEngineKind.echoLoop:
+    case TtsEngineKind.kokoro:
       unawaited(
         ref
             .read(kokoroModelProvider.notifier)
@@ -122,7 +122,7 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
         progress: 1,
         failure: null,
       ),
-      TtsEngineKind.echoLoop => _kokoroState(ref, settings),
+      TtsEngineKind.kokoro => _kokoroState(ref, settings),
       TtsEngineKind.piper => _piperState(ref, settings),
     };
 
@@ -192,7 +192,7 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
     switch (engine) {
       case TtsEngineKind.platform:
         return;
-      case TtsEngineKind.echoLoop:
+      case TtsEngineKind.kokoro:
         ref
             .read(kokoroModelProvider.notifier)
             .retryDownload(settings.kokoroVariant);

@@ -27,6 +27,9 @@ final initialTtsSettingsProvider = Provider<TtsSettings>((ref) {
 /// TTS 设置 SP key 常量。
 abstract final class TtsSettingsKeys {
   static const engine = 'tts_engine';
+
+  /// 历史版本写入的 Echo Loop 产品名值，读取时保留兼容。
+  static const legacyEchoLoopEngineValue = 'echoLoop';
   static const accent = 'tts_accent';
   static const kokoroVoiceUs = 'tts_kokoro_voice_us';
   static const kokoroVoiceUk = 'tts_kokoro_voice_uk';
@@ -35,17 +38,29 @@ abstract final class TtsSettingsKeys {
   static const piperVoiceUk = 'tts_piper_voice_uk';
 }
 
-/// 将 Android 历史“系统语音”偏好迁移到默认的 Echo Loop AI Advanced。
-///
-/// Android 不再提供系统语音入口，启动期调用方仅在 Android 执行此迁移，避免
-/// 已保存的 [TtsEngineKind.platform] 使设置页出现无对应选项的状态。
-Future<void> migrateAndroidPlatformTtsToEchoLoop(
+/// 将所有平台历史写入的 Echo Loop 产品名值迁移为 Kokoro 实现名。
+Future<void> migrateLegacyEchoLoopTtsPreference(
   SharedPreferences prefs,
 ) async {
-  if (prefs.getString(TtsSettingsKeys.engine) != TtsEngineKind.platform.name) {
+  if (prefs.getString(TtsSettingsKeys.engine) !=
+      TtsSettingsKeys.legacyEchoLoopEngineValue) {
     return;
   }
-  await prefs.setString(TtsSettingsKeys.engine, TtsEngineKind.echoLoop.name);
+  await prefs.setString(TtsSettingsKeys.engine, TtsEngineKind.kokoro.name);
+}
+
+/// 将 Android 历史系统 TTS 偏好迁移为 Echo Loop AI Advanced。
+///
+/// 仅 Android 执行：iOS/macOS 仍可能合法使用平台 TTS，不能全平台迁移
+/// [TtsEngineKind.platform]。
+Future<void> migrateAndroidPlatformTtsPreference(
+  SharedPreferences prefs,
+) async {
+  if (prefs.getString(TtsSettingsKeys.engine) !=
+      TtsEngineKind.platform.name) {
+    return;
+  }
+  await prefs.setString(TtsSettingsKeys.engine, TtsEngineKind.kokoro.name);
 }
 
 /// TTS 设置不可变值对象。
@@ -72,7 +87,7 @@ class TtsSettings {
   final String piperVoiceUk;
 
   const TtsSettings({
-    this.engine = TtsEngineKind.echoLoop,
+    this.engine = TtsEngineKind.kokoro,
     this.accent = TtsAccent.us,
     this.kokoroVoiceUs = kokoroDefaultVoiceUs,
     this.kokoroVoiceUk = kokoroDefaultVoiceUk,
@@ -100,11 +115,11 @@ class TtsSettings {
   TtsSpeechConfig toSpeechConfig() => TtsSpeechConfig(
     languageTag: languageTag,
     voiceName: switch (engine) {
-      TtsEngineKind.echoLoop => activeKokoroVoice,
+      TtsEngineKind.kokoro => activeKokoroVoice,
       TtsEngineKind.piper => activePiperVoice,
       TtsEngineKind.platform => null,
     },
-    modelTag: engine == TtsEngineKind.echoLoop ? kokoroVariant.name : null,
+    modelTag: engine == TtsEngineKind.kokoro ? kokoroVariant.name : null,
   );
 
   /// 同步从 [SharedPreferences] 派生当前状态，用于启动期 override 注入。
@@ -156,9 +171,12 @@ class TtsSettings {
   }
 
   static TtsEngineKind _engineFromName(String? name) {
+    if (name == TtsSettingsKeys.legacyEchoLoopEngineValue) {
+      return TtsEngineKind.kokoro;
+    }
     return TtsEngineKind.values.firstWhere(
       (e) => e.name == name,
-      orElse: () => TtsEngineKind.echoLoop,
+      orElse: () => TtsEngineKind.kokoro,
     );
   }
 

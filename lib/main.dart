@@ -115,11 +115,17 @@ void main() async {
     () => cleanupLegacyLearningSettingsKeys(prefs),
   );
 
-  // Android 不再提供系统语音入口；先迁移历史偏好，再同步预读。
+  // 历史 Echo Loop 产品名值在所有平台迁移；Android 的系统 TTS 值单独处理。
+  await startupTrace.run(
+    'legacy_tts_settings_migration',
+    () => migrateLegacyEchoLoopTtsPreference(prefs),
+  );
+
+  // Android 不再提供系统语音入口；仅 Android 迁移 platform 偏好。
   if (!kIsWeb && Platform.isAndroid) {
     await startupTrace.run(
       'android_tts_settings_migration',
-      () => migrateAndroidPlatformTtsToEchoLoop(prefs),
+      () => migrateAndroidPlatformTtsPreference(prefs),
     );
   }
 

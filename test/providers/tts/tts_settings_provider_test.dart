@@ -1,6 +1,6 @@
 /// TtsSettings Provider 单元测试
 ///
-/// 覆盖：默认值、SP 同步预读、setEngine（echoLoop 回退）、setAccent 持久化、
+/// 覆盖：默认值、SP 同步预读、setEngine（kokoro 持久化）、setAccent 持久化、
 /// languageTag / toSpeechConfig 派生、copyWith / ==。
 library;
 
@@ -29,14 +29,14 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final s = TtsSettings.fromPrefsSync(prefs);
-      expect(s.engine, TtsEngineKind.echoLoop);
+      expect(s.engine, TtsEngineKind.kokoro);
       expect(s.accent, TtsAccent.us);
       expect(s.languageTag, 'en-US');
     });
 
     test('SP 已写 → 同步返回保存值', () async {
       SharedPreferences.setMockInitialValues({
-        TtsSettingsKeys.engine: TtsEngineKind.platform.name,
+        TtsSettingsKeys.engine: 'kokoro',
         TtsSettingsKeys.accent: TtsAccent.uk.name,
       });
       final prefs = await SharedPreferences.getInstance();
@@ -52,7 +52,7 @@ void main() {
       });
       final prefs = await SharedPreferences.getInstance();
       final s = TtsSettings.fromPrefsSync(prefs);
-      expect(s.engine, TtsEngineKind.echoLoop);
+      expect(s.engine, TtsEngineKind.kokoro);
       expect(s.accent, TtsAccent.us);
     });
 
@@ -62,25 +62,54 @@ void main() {
       });
       final prefs = await SharedPreferences.getInstance();
 
-      await migrateAndroidPlatformTtsToEchoLoop(prefs);
+      await migrateAndroidPlatformTtsPreference(prefs);
 
-      expect(
-        prefs.getString(TtsSettingsKeys.engine),
-        TtsEngineKind.echoLoop.name,
-      );
-      expect(TtsSettings.fromPrefsSync(prefs).engine, TtsEngineKind.echoLoop);
+      expect(prefs.getString(TtsSettingsKeys.engine), 'kokoro');
+      expect(TtsSettings.fromPrefsSync(prefs).engine, TtsEngineKind.kokoro);
     });
 
-    test('Android TTS migration keeps a non-platform preference unchanged', () async {
+    test('历史 echoLoop 值迁移为 kokoro', () async {
       SharedPreferences.setMockInitialValues({
-        TtsSettingsKeys.engine: TtsEngineKind.piper.name,
+        TtsSettingsKeys.engine: TtsSettingsKeys.legacyEchoLoopEngineValue,
       });
       final prefs = await SharedPreferences.getInstance();
 
-      await migrateAndroidPlatformTtsToEchoLoop(prefs);
+      await migrateLegacyEchoLoopTtsPreference(prefs);
 
-      expect(prefs.getString(TtsSettingsKeys.engine), TtsEngineKind.piper.name);
+      expect(prefs.getString(TtsSettingsKeys.engine), 'kokoro');
+      expect(TtsSettings.fromPrefsSync(prefs).engine, TtsEngineKind.kokoro);
     });
+
+    test('全平台旧值迁移不会处理 platform', () async {
+      SharedPreferences.setMockInitialValues({
+        TtsSettingsKeys.engine: TtsEngineKind.platform.name,
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      await migrateLegacyEchoLoopTtsPreference(prefs);
+
+      expect(
+        prefs.getString(TtsSettingsKeys.engine),
+        TtsEngineKind.platform.name,
+      );
+    });
+
+    test(
+      'Android TTS migration keeps a non-platform preference unchanged',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          TtsSettingsKeys.engine: TtsEngineKind.piper.name,
+        });
+        final prefs = await SharedPreferences.getInstance();
+
+        await migrateAndroidPlatformTtsPreference(prefs);
+
+        expect(
+          prefs.getString(TtsSettingsKeys.engine),
+          TtsEngineKind.piper.name,
+        );
+      },
+    );
   });
 
   group('toSpeechConfig', () {
@@ -114,22 +143,21 @@ void main() {
       expect(saved.getString(TtsSettingsKeys.accent), TtsAccent.uk.name);
     });
 
-    test('setEngine(echoLoop) 从其他引擎切换时持久化', () async {
+    test('setEngine(kokoro) 以 kokoro 持久化', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final c = makeContainer(prefs);
       addTearDown(c.dispose);
 
-      await c.read(ttsSettingsProvider.notifier).setEngine(TtsEngineKind.platform);
       await c
           .read(ttsSettingsProvider.notifier)
-          .setEngine(TtsEngineKind.echoLoop);
-      expect(c.read(ttsSettingsProvider).engine, TtsEngineKind.echoLoop);
+          .setEngine(TtsEngineKind.platform);
+      await c
+          .read(ttsSettingsProvider.notifier)
+          .setEngine(TtsEngineKind.kokoro);
+      expect(c.read(ttsSettingsProvider).engine, TtsEngineKind.kokoro);
       final saved = await SharedPreferences.getInstance();
-      expect(
-        saved.getString(TtsSettingsKeys.engine),
-        TtsEngineKind.echoLoop.name,
-      );
+      expect(saved.getString(TtsSettingsKeys.engine), 'kokoro');
     });
 
     test('setKokoroVoice 写对应口音字段 + SP；口音不匹配忽略', () async {
@@ -166,9 +194,9 @@ void main() {
       );
     });
 
-    test('echoLoop 引擎 → config 带 voiceName（当前口音音色）', () {
+    test('kokoro 引擎 → config 带 voiceName（当前口音音色）', () {
       const s = TtsSettings(
-        engine: TtsEngineKind.echoLoop,
+        engine: TtsEngineKind.kokoro,
         accent: TtsAccent.uk,
         kokoroVoiceUk: 'bm_george',
       );
@@ -197,11 +225,11 @@ void main() {
       expect(const TtsSettings().kokoroVariant, KokoroModelVariant.fp32);
     });
 
-    test('echoLoop → config.modelTag 为变体名；平台 → null', () {
-      const fp = TtsSettings(engine: TtsEngineKind.echoLoop);
+    test('kokoro → config.modelTag 为变体名；平台 → null', () {
+      const fp = TtsSettings(engine: TtsEngineKind.kokoro);
       expect(fp.toSpeechConfig().modelTag, 'fp32');
       const i8 = TtsSettings(
-        engine: TtsEngineKind.echoLoop,
+        engine: TtsEngineKind.kokoro,
         kokoroVariant: KokoroModelVariant.int8,
       );
       expect(i8.toSpeechConfig().modelTag, 'int8');

@@ -48,7 +48,7 @@ class _FakeTtsController extends TtsController {
 
 Widget _wrap(
   String? speakingKey, {
-  TtsEngineKind engine = TtsEngineKind.echoLoop,
+  TtsEngineKind engine = TtsEngineKind.kokoro,
 }) {
   return ProviderScope(
     overrides: [
