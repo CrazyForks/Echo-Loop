@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -37,6 +35,7 @@ import 'providers/difficult_practice_prefs_provider.dart';
 import 'providers/new_user_guide_provider.dart';
 import 'services/app_logger.dart';
 import 'services/startup_trace.dart';
+import 'services/app_update_migration.dart';
 import 'services/media_kit_debug_initializer.dart';
 import 'widgets/app_notice_presenter.dart';
 import 'features/official_collections/data/official_catalog_service.dart';
@@ -67,6 +66,11 @@ void main() async {
   final prefs = await startupTrace.run(
     'shared_preferences',
     SharedPreferences.getInstance,
+  );
+  await runAppUpdateMigrations(
+    prefs,
+    onMigration: (migration, action) =>
+        startupTrace.run(migration.name, action),
   );
   // 路由 observer 在首帧构建时即会读取 analytics。先安装纯日志实现，第三方
   // 埋点 SDK 在后续后台阶段成功初始化后再替换，避免首帧依赖 Firebase/PostHog。
@@ -101,33 +105,8 @@ void main() async {
     prefs,
   );
 
-  // 旧“语音识别总开关”迁移到两个练习评分开关，须在学习设置预读前完成。
-  await startupTrace.run(
-    'legacy_offline_asr_settings_migration',
-    () => migrateLegacyOfflineAsrEnabledToRatingSettings(prefs),
-  );
-
   // 学习设置（自动跳过复述）同步预读：plan / progress 启动期就需要拿到值。
   final initialLearningSettings = LearningSettings.fromPrefsSync(prefs);
-  // 清理历史 SP key（开发期数据卫生，幂等无副作用）。
-  await startupTrace.run(
-    'legacy_learning_settings_cleanup',
-    () => cleanupLegacyLearningSettingsKeys(prefs),
-  );
-
-  // 历史 Echo Loop 产品名值在所有平台迁移；Android 的系统 TTS 值单独处理。
-  await startupTrace.run(
-    'legacy_tts_settings_migration',
-    () => migrateLegacyEchoLoopTtsPreference(prefs),
-  );
-
-  // Android 不再提供系统语音入口；仅 Android 迁移 platform 偏好。
-  if (!kIsWeb && Platform.isAndroid) {
-    await startupTrace.run(
-      'android_tts_settings_migration',
-      () => migrateAndroidPlatformTtsPreference(prefs),
-    );
-  }
 
   // 语音合成设置（引擎/口音）同步预读：闪卡翻面等同步发音路径需立即拿到口音，
   // 避免异步 hydrate 前先用默认美音发声。

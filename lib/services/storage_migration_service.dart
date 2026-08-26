@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Documents → Application Support 一次性数据迁移。
 ///
@@ -12,9 +11,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// 必须在数据库初始化之前调用。迁移是幂等的：中断后下次启动自动重试。
 Future<void> migrateToAppSupportDirectory() async {
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool(_kMigratedKey) == true) return;
-
   final docsDir = await getApplicationDocumentsDirectory();
   final appSupportDir = await getApplicationSupportDirectory();
 
@@ -32,11 +28,7 @@ Future<void> migrateToAppSupportDirectory() async {
   for (final name in _mediaDirs) {
     await _migrateDirectory(docsDir.path, appSupportDir.path, name);
   }
-
-  await prefs.setBool(_kMigratedKey, true);
 }
-
-const _kMigratedKey = 'data_dir_migrated';
 
 /// 需要迁移的数据库相关文件。
 const _dbFiles = [

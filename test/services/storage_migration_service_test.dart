@@ -99,20 +99,17 @@ void main() {
       );
     });
 
-    test('已迁移时跳过（幂等）', () async {
-      SharedPreferences.setMockInitialValues({'data_dir_migrated': true});
-
-      // 即使 Documents 有文件也不会迁移
+    test('目标文件已存在时保持幂等', () async {
       File('${fakeDocsDir.path}/echo_loop.db').writeAsStringSync('db');
+      File('${fakeAppSupportDir.path}/echo_loop.db').writeAsStringSync('new');
 
       await migrateToAppSupportDirectory();
 
-      // 文件仍在 Documents（未被移走）
+      // 目标保持不变，源文件也保留
       expect(File('${fakeDocsDir.path}/echo_loop.db').existsSync(), isTrue);
-      // Application Support 没有该文件
       expect(
-        File('${fakeAppSupportDir.path}/echo_loop.db').existsSync(),
-        isFalse,
+        File('${fakeAppSupportDir.path}/echo_loop.db').readAsStringSync(),
+        'new',
       );
     });
 
@@ -136,9 +133,7 @@ void main() {
       // Documents 为空
       await migrateToAppSupportDirectory();
 
-      // 仅设置了迁移标记
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('data_dir_migrated'), isTrue);
+      // 无文件时也能成功完成，完成状态由 app update runner 记录。
     });
 
     test('迁移旧版本数据库文件名', () async {

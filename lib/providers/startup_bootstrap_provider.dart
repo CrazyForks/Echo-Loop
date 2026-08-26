@@ -40,7 +40,6 @@ import '../services/bundled_example_installer.dart';
 import '../services/network_permission_trigger.dart';
 import '../services/speech_practice_platform.dart';
 import '../services/startup_trace.dart';
-import '../services/storage_migration_service.dart';
 import '../services/temp_cleanup_service.dart';
 import '../services/tts/tts_cache_store.dart';
 import '../services/user_id_service.dart';
@@ -171,8 +170,6 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
     final issues = <StartupIssue>[];
     await _configurePersistentLogs(issues);
 
-    // 数据目录迁移失败时继续启动会让升级用户看到空库，必须 fail-closed。
-    await _trace('data_directory_migration', migrateToAppSupportDirectory);
     // 显式打开数据库，确保 Drift schema upgrade 的异常不会被旧数据导入吞掉。
     await _trace('database_open_and_schema_check', () async {
       await _database.customSelect('SELECT 1').get();
