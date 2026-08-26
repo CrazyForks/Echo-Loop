@@ -52,7 +52,7 @@ void main() {
 
   TtsCoordinator build() {
     return TtsCoordinator(
-      factory: (_) => engine,
+      factory: (_, __) => engine,
       cacheStore: store,
       player: player,
     );
@@ -124,8 +124,8 @@ void main() {
       verify(() => engine.initialize()).called(1);
       verify(() => engine.applyConfig(_config)).called(1);
       final logs = AppLogger.instance.entries.map((entry) => entry.message);
-      expect(logs, contains('模型预热开始加载：引擎=platform'));
-      expect(logs, contains(contains('模型预热完成：引擎=platform')));
+      expect(logs, contains(contains('模型预热开始加载：目标=platform/system')));
+      expect(logs, contains(contains('模型预热完成：目标=platform/system')));
     });
 
     test('Kokoro 实现日志不暴露 Echo Loop 产品名', () async {
@@ -134,7 +134,7 @@ void main() {
       await c.speak('hi');
 
       final logs = AppLogger.instance.entries.map((entry) => entry.message);
-      expect(logs, contains('模型预热开始加载：引擎=kokoro'));
+      expect(logs, contains(contains('模型预热开始加载：目标=kokoro/system')));
       expect(logs, isNot(contains('模型预热开始加载：引擎=echoLoop')));
     });
 
@@ -167,7 +167,8 @@ void main() {
         ).thenAnswer((_) async => null);
       }
       final c = TtsCoordinator(
-        factory: (kind) => kind == TtsEngineKind.platform ? engineA : engineB,
+        factory: (kind, _) =>
+            kind == TtsEngineKind.platform ? engineA : engineB,
         cacheStore: store,
         player: player,
       );
@@ -336,7 +337,7 @@ void main() {
       }
 
       final c = TtsCoordinator(
-        factory: (_) => makeEngine(created++),
+        factory: (_, __) => makeEngine(created++),
         cacheStore: store,
         player: player,
       );
@@ -348,6 +349,114 @@ void main() {
       // 仅构建并初始化了一个引擎（无 worker isolate 泄漏）。
       expect(created, 1, reason: '并发构建应复用同一引擎');
       expect(initStarted.length, 1, reason: 'initialize 只应执行一次');
+    });
+
+    test('模型加载期间切换目标 → 新目标独立加载，旧完成后不得回写当前引擎', () async {
+      final oldInit = Completer<void>();
+      final old = MockTtsEngine();
+      final next = MockTtsEngine();
+      _stubEngine(old);
+      _stubEngine(next, filePath: '/tmp/next.wav');
+      when(() => old.initialize()).thenAnswer((_) => oldInit.future);
+
+      final c = TtsCoordinator(
+        factory: (kind, config) => config.modelTag == 'fp32' ? old : next,
+        cacheStore: store,
+        player: player,
+      );
+      const oldConfig = TtsSpeechConfig(languageTag: 'en-US', modelTag: 'fp32');
+      const nextConfig = TtsSpeechConfig(
+        languageTag: 'en-US',
+        modelTag: 'int8',
+      );
+      await c.configure(TtsEngineKind.kokoro, oldConfig);
+      final oldWarmup = c.warmUpCurrentEngine();
+      await Future<void>.delayed(Duration.zero);
+
+      await c.configure(TtsEngineKind.kokoro, nextConfig);
+      expect(await c.speak('new'), isTrue);
+      verify(() => next.initialize()).called(1);
+      verify(
+        () => next.synthesize(
+          'new',
+          outputDir: any(named: 'outputDir'),
+          baseName: any(named: 'baseName'),
+          config: nextConfig,
+        ),
+      ).called(1);
+
+      oldInit.complete();
+      await oldWarmup;
+      verify(() => old.dispose()).called(1);
+      verifyNever(
+        () => old.synthesize(
+          any(),
+          outputDir: any(named: 'outputDir'),
+          baseName: any(named: 'baseName'),
+          config: any(named: 'config'),
+        ),
+      );
+    });
+
+    test('旧模型合成期间切换 → 新模型可独立播放，旧结果不播放且完成后释放旧引擎', () async {
+      final oldSynthStarted = Completer<void>();
+      final releaseOldSynth = Completer<void>();
+      final old = MockTtsEngine();
+      final next = MockTtsEngine();
+      _stubEngine(old, filePath: '/tmp/old.wav');
+      _stubEngine(next, filePath: '/tmp/next.wav');
+      when(
+        () => old.synthesize(
+          any(),
+          outputDir: any(named: 'outputDir'),
+          baseName: any(named: 'baseName'),
+          config: any(named: 'config'),
+        ),
+      ).thenAnswer((_) async {
+        oldSynthStarted.complete();
+        await releaseOldSynth.future;
+        return const TtsSynthesisResult(
+          filePath: '/tmp/old.wav',
+          format: 'wav',
+        );
+      });
+      when(
+        () => store.deriveKey(
+          text: any(named: 'text'),
+          engine: any(named: 'engine'),
+          voiceId: any(named: 'voiceId'),
+          speed: any(named: 'speed'),
+          modelTag: any(named: 'modelTag'),
+        ),
+      ).thenAnswer((invocation) {
+        final text = invocation.namedArguments[#text] as String;
+        return 'key-$text';
+      });
+
+      final c = TtsCoordinator(
+        factory: (kind, config) => config.modelTag == 'fp32' ? old : next,
+        cacheStore: store,
+        player: player,
+      );
+      const oldConfig = TtsSpeechConfig(languageTag: 'en-US', modelTag: 'fp32');
+      const nextConfig = TtsSpeechConfig(
+        languageTag: 'en-US',
+        modelTag: 'int8',
+      );
+      await c.configure(TtsEngineKind.kokoro, oldConfig);
+      final oldSpeak = c.speak('old');
+      await oldSynthStarted.future;
+
+      await c.configure(TtsEngineKind.kokoro, nextConfig);
+      final nextSpeak = c.speak('next');
+      await Future<void>.delayed(Duration.zero);
+      releaseOldSynth.complete();
+
+      expect(await oldSpeak, isFalse);
+      expect(await nextSpeak, isTrue);
+      verify(() => player.playFile('/tmp/next.wav')).called(1);
+      verifyNever(() => player.playFile('/tmp/old.wav'));
+      verify(() => old.dispose()).called(1);
     });
   });
 
@@ -402,7 +511,7 @@ void main() {
       _stubEngine(platformEngine, filePath: '/tmp/platform.wav');
       _stubEngine(echoEngine, filePath: '/tmp/echo.wav');
       final c = TtsCoordinator(
-        factory: (kind) =>
+        factory: (kind, _) =>
             kind == TtsEngineKind.platform ? platformEngine : echoEngine,
         cacheStore: store,
         player: player,
@@ -503,7 +612,7 @@ void main() {
       _stubEngine(platformEngine, filePath: '/tmp/platform.wav');
       _stubEngine(piperEngine, filePath: '/tmp/piper.wav');
       final c = TtsCoordinator(
-        factory: (kind) =>
+        factory: (kind, _) =>
             kind == TtsEngineKind.platform ? platformEngine : piperEngine,
         cacheStore: store,
         player: player,

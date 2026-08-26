@@ -189,4 +189,5 @@ abstract interface class TtsEngine {
 }
 
 /// 引擎工厂：按种类创建引擎实例。
-typedef TtsEngineFactory = TtsEngine Function(TtsEngineKind kind);
+typedef TtsEngineFactory =
+    TtsEngine Function(TtsEngineKind kind, TtsSpeechConfig config);

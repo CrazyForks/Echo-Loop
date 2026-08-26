@@ -34,7 +34,7 @@ import 'tts_settings_provider.dart';
 ///
 /// 默认按种类创建真实引擎；测试可 override 注入 mock 引擎。
 final ttsEngineFactoryProvider = Provider<TtsEngineFactory>((ref) {
-  return (kind) {
+  return (kind, config) {
     switch (kind) {
       case TtsEngineKind.platform:
         return PlatformTtsEngine();
@@ -43,7 +43,10 @@ final ttsEngineFactoryProvider = Provider<TtsEngineFactory>((ref) {
         // 仅在该变体模型就绪后才会被构造。
         return KokoroTtsEngine(
           resolvePaths: () {
-            final variant = ref.read(ttsSettingsProvider).kokoroVariant;
+            final variant = switch (config.modelTag) {
+              'int8' => KokoroModelVariant.int8,
+              _ => KokoroModelVariant.fp32,
+            };
             return ref
                 .read(kokoroModelManagerProvider(variant))
                 .kokoroConfigPaths();
@@ -140,13 +143,6 @@ class TtsController extends Notifier<TtsControllerState> {
     return _coordinator;
   }
 
-  /// 上次重配时的 Kokoro 变体，用于检测变体切换以作废重建引擎。
-  KokoroModelVariant? _lastVariant;
-
-  /// 上次重配时的 Piper 音色，用于检测音色切换以作废重建引擎
-  /// （Piper 换音色 = 换模型，必须重建 OfflineTts）。
-  String? _lastPiperVoice;
-
   /// 试听预热代际：每次发起/取消预热递增，在途循环据此放弃过期任务
   /// （离开页面、切换变体时不再继续预热旧批次）。
   int _prewarmToken = 0;
@@ -208,21 +204,7 @@ class TtsController extends Notifier<TtsControllerState> {
       kokoroReady: kokoroReady,
       piperReady: piperReady,
     );
-    // Kokoro 模型变体切换（两变体均已就绪、引擎种类不变）时，作废旧引擎使下次发音
-    // 用新变体模型重建（configure 只热更新配置、不会重建引擎）。
-    if (effective == TtsEngineKind.kokoro &&
-        _lastVariant != null &&
-        _lastVariant != settings.kokoroVariant) {
-      unawaited(_readyCoordinator.invalidateEngine());
-    }
-    _lastVariant = settings.kokoroVariant;
-    // Piper 音色切换（引擎种类不变）时同理作废重建——Piper 换音色 = 换独立模型。
-    if (effective == TtsEngineKind.piper &&
-        _lastPiperVoice != null &&
-        _lastPiperVoice != settings.activePiperVoice) {
-      unawaited(_readyCoordinator.invalidateEngine());
-    }
-    _lastPiperVoice = settings.activePiperVoice;
+    // Kokoro 变体、Piper 音色和引擎切换均由协调器根据配置目标统一处理。
     // 配置须匹配用户选中的有效引擎；本地引擎即使模型未就绪也保留 voiceName/modelTag，
     // 使下载完成后的后续发音直接落入正确缓存桶。
     final config = TtsSpeechConfig(

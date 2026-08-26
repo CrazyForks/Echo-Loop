@@ -124,7 +124,7 @@ void main() {
       overrides: [
         initialTtsSettingsProvider.overrideWithValue(settings),
         kokoroModelProvider.overrideWith(() => _FixedKokoroNotifier(_ready())),
-        ttsEngineFactoryProvider.overrideWithValue((_) => engine),
+        ttsEngineFactoryProvider.overrideWithValue((_, __) => engine),
         ttsCacheDaoProvider.overrideWithValue(dao),
         shortAudioPlayerProvider.overrideWithValue(
           LocalAudioClipPlayer(backend: _NoopShortAudioBackend()),
@@ -163,9 +163,7 @@ void main() {
 
   group('prewarmTexts', () {
     test('按顺序逐条合成（单词 + 例句）', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
 
       // 等 build 的 microtask 首次 configure 落定（生产中预热恒在配置之后触发，
@@ -178,9 +176,7 @@ void main() {
     });
 
     test('空串/纯空白文本跳过', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
 
       final notifier = c.read(ttsControllerProvider.notifier);
@@ -191,9 +187,7 @@ void main() {
     });
 
     test('cancelTextsPrewarm 中途取消 → 剩余文本不再合成', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定
@@ -213,9 +207,7 @@ void main() {
     });
 
     test('词典 token 与试听预热 token 独立（取消试听不影响词典批次）', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定
@@ -235,9 +227,7 @@ void main() {
 
   group('prewarmTextsIncremental（流式逐帧预热）', () {
     test('初始配置前跳过且不占用 seen，配置完成后同文本可预热', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
 
@@ -257,9 +247,7 @@ void main() {
     });
 
     test('同一文本多帧重复 → 只合成一次', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定
@@ -273,9 +261,7 @@ void main() {
     });
 
     test('逐帧递增列表 → 只对新出现的例句合成', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定
@@ -291,9 +277,7 @@ void main() {
     });
 
     test('cancelTextsPrewarm 清空 seen-set → 切词后同一文本可再次预热', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定
@@ -309,9 +293,7 @@ void main() {
     });
 
     test('cancelTextsPrewarm 中途取消 → 已在途例句结束后剩余不再合成', () async {
-      final c = makeContainer(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-      );
+      final c = makeContainer(const TtsSettings(engine: TtsEngineKind.kokoro));
       addTearDown(c.dispose);
       final notifier = c.read(ttsControllerProvider.notifier);
       await Future<void>(() {}); // 等首次 configure 落定

@@ -137,6 +137,19 @@ class _QueuedSynth {
   final Completer<String?> completer;
 }
 
+class _EngineKey {
+  const _EngineKey(this.kind, this.modelId);
+  final TtsEngineKind kind;
+  final String? modelId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _EngineKey && kind == other.kind && modelId == other.modelId;
+
+  @override
+  int get hashCode => Object.hash(kind, modelId);
+}
+
 class TtsCoordinator {
   TtsCoordinator({
     required TtsEngineFactory factory,
@@ -152,7 +165,7 @@ class TtsCoordinator {
 
   TtsEngine? _engine;
 
-  /// 已构建引擎的种类（与 [_desiredKind] 不一致时需重建）。
+  /// 当前可用引擎。旧会话在有合成任务时保留在后台，但不会再被新请求选中。
   TtsEngineKind? _engineKind;
 
   /// 已应用到引擎的配置。
@@ -168,12 +181,18 @@ class TtsCoordinator {
   /// 这不代表模型或引擎已初始化；它只保证文本预热能够获得正确的缓存键和合成配置。
   bool get isConfigured => _desiredKind != null && _desiredConfig != null;
 
-  /// 抢占代际计数。speak/stop/configure 递增，过期操作据此放弃。
+  /// 播放抢占代际计数。旧播放/渲染在 stop 后据此放弃。
   int _generation = 0;
 
   /// 引擎构建在途 Future：并发 [speak]/[configure] 共享同一次构建，
   /// 避免 `_engine==null` 窗口内重复建引擎 + worker isolate 泄漏（见 PLAN）。
-  Future<void>? _ensuring;
+  final Map<_EngineKey, Future<TtsEngine?>> _ensuring = {};
+
+  /// 配置代际；旧模型加载完成后若代际已变化，不得发布为当前引擎。
+  int _configurationGeneration = 0;
+
+  final Map<TtsEngine, int> _engineUsers = {};
+  final Set<TtsEngine> _retiredEngines = {};
 
   /// 按 cacheKey 记录「合成在途」的渲染 Future。
   ///
@@ -193,15 +212,55 @@ class TtsCoordinator {
   /// 不在此处创建/初始化引擎（避免无谓的平台调用）；若引擎已存在则即时热更新，
   /// 否则留待首次 [speak] 惰性构建。
   Future<void> configure(TtsEngineKind kind, TtsSpeechConfig config) async {
+    final hadCurrentEngine = _engine != null;
+    final previousKind = _desiredKind;
+    final previousConfig = _desiredConfig;
     _desiredKind = kind;
     _desiredConfig = config;
-    if (_engine != null) {
+    final key = _engineKey(kind, config);
+    final previousKey = previousKind == null || previousConfig == null
+        ? null
+        : _engineKey(previousKind, previousConfig);
+    if (previousKey != key) _configurationGeneration++;
+    AppLogger.log(
+      'TtsCoordinator',
+      '配置目标变更：${_engineLabel(previousKind, previousConfig)} → '
+          '${_engineLabel(kind, config)} 配置代际=$_configurationGeneration',
+    );
+    final currentKind = _engineKind;
+    final currentConfig = _appliedConfig;
+    if (_engine != null &&
+        (currentKind == null ||
+            currentConfig == null ||
+            _engineKey(currentKind, currentConfig) != key)) {
+      final old = _engine;
+      _engine = null;
+      _engineKind = null;
+      _appliedConfig = null;
+      await _retireEngine(old);
+    }
+    if (hadCurrentEngine) {
       try {
         await _ensureEngine(kind, config);
       } catch (e) {
         AppLogger.log('TtsCoordinator', 'configure 热更新失败: $e');
       }
     }
+  }
+
+  _EngineKey _engineKey(TtsEngineKind kind, TtsSpeechConfig config) {
+    final modelId = switch (kind) {
+      TtsEngineKind.kokoro => config.modelTag,
+      TtsEngineKind.piper => config.voiceName,
+      TtsEngineKind.platform => null,
+    };
+    return _EngineKey(kind, modelId);
+  }
+
+  String _engineLabel(TtsEngineKind? kind, TtsSpeechConfig? config) {
+    if (kind == null || config == null) return '未配置';
+    final modelId = _engineKey(kind, config).modelId ?? 'system';
+    return '${kind.diagnosticName}/$modelId';
   }
 
   /// 确保引擎已按目标配置就绪（惰性创建/重建/热更新）。
@@ -212,60 +271,122 @@ class TtsCoordinator {
     TtsEngineKind kind,
     TtsSpeechConfig config,
   ) async {
-    if (_engine == null || _engineKind != kind) {
-      // 已有在途构建：等它完成后按需热更新配置再返回。
-      final inFlight = _ensuring;
-      if (inFlight != null) {
-        AppLogger.log(
-          'TtsCoordinator',
-          '模型预热复用进行中的加载：引擎=${kind.diagnosticName}',
-        );
-        await inFlight;
-        if (_engine == null || _engineKind != kind) {
-          return _ensureEngine(kind, config);
-        }
-      } else {
-        AppLogger.log('TtsCoordinator', '模型预热开始加载：引擎=${kind.diagnosticName}');
-        final future = _buildEngine(kind, config);
-        _ensuring = future;
-        try {
-          await future;
-        } finally {
-          if (identical(_ensuring, future)) _ensuring = null;
-        }
-        return _engine;
+    final key = _engineKey(kind, config);
+    final currentKind = _engineKind;
+    final currentConfig = _appliedConfig;
+    if (_engine != null &&
+        currentKind == kind &&
+        currentConfig != null &&
+        _engineKey(kind, currentConfig) == key) {
+      AppLogger.log(
+        'TtsCoordinator',
+        '模型已就绪，无需重复加载：目标=${_engineLabel(kind, config)}',
+      );
+      if (_appliedConfig != config) {
+        _appliedConfig = config;
+        await _engine!.applyConfig(config);
       }
+      return _engine;
     }
-    AppLogger.log('TtsCoordinator', '模型已就绪，无需重复加载：引擎=${kind.diagnosticName}');
-    if (_engine != null && _appliedConfig != config) {
-      _appliedConfig = config;
-      await _engine!.applyConfig(config);
+
+    var future = _ensuring[key];
+    if (future == null) {
+      final buildGeneration = _configurationGeneration;
+      AppLogger.log(
+        'TtsCoordinator',
+        '模型预热开始加载：目标=${_engineLabel(kind, config)} '
+            '配置代际=$_configurationGeneration',
+      );
+      future = _buildEngine(kind, config, buildGeneration);
+      _ensuring[key] = future;
+    } else {
+      AppLogger.log(
+        'TtsCoordinator',
+        '模型预热复用进行中的加载：目标=${_engineLabel(kind, config)} '
+            '配置代际=$_configurationGeneration',
+      );
     }
-    return _engine;
+    final engine = await future;
+    if (identical(_ensuring[key], future)) _ensuring.remove(key);
+    if (engine == null) return null;
+    final old = _engine;
+    if (old != null && !identical(old, engine)) _retireEngine(old);
+    _engine = engine;
+    _engineKind = kind;
+    _appliedConfig = config;
+    return engine;
   }
 
-  /// 物理新建引擎并初始化（仅由 [_ensureEngine] 经 [_ensuring] 串行调用）。
-  Future<void> _buildEngine(TtsEngineKind kind, TtsSpeechConfig config) async {
-    final stopwatch = Stopwatch()..start();
-    final old = _engine;
-    _engine = null;
-    if (old != null) {
-      await old.stop();
-      await old.dispose();
+  /// 旧引擎不能在仍有 native 合成时强制 dispose；任务结束后再安全释放。
+  Future<void> _retireEngine(TtsEngine? engine) {
+    if (engine == null) return Future<void>.value();
+    _retiredEngines.add(engine);
+    if ((_engineUsers[engine] ?? 0) == 0) {
+      AppLogger.log('TtsCoordinator', '释放旧 TTS 引擎：当前无活跃合成任务');
+      return _disposeRetiredEngine(engine);
     }
+    AppLogger.log(
+      'TtsCoordinator',
+      '延迟释放旧 TTS 引擎：活跃合成任务=${_engineUsers[engine]}',
+    );
+    return Future<void>.value();
+  }
+
+  Future<void> _disposeRetiredEngine(TtsEngine engine) async {
+    if (!_retiredEngines.contains(engine)) return;
+    _retiredEngines.remove(engine);
     try {
-      final engine = _factory(kind);
+      await engine.stop();
+      await engine.dispose();
+    } catch (e, st) {
+      AppLogger.log('TtsCoordinator', '✗ 过期 TTS 引擎释放失败：$e\n$st');
+    }
+  }
+
+  void _acquireEngine(TtsEngine engine) {
+    _engineUsers[engine] = (_engineUsers[engine] ?? 0) + 1;
+  }
+
+  void _releaseEngine(TtsEngine engine) {
+    final users = (_engineUsers[engine] ?? 1) - 1;
+    if (users == 0) {
+      _engineUsers.remove(engine);
+      if (_retiredEngines.contains(engine)) {
+        AppLogger.log('TtsCoordinator', '旧 TTS 引擎合成任务结束，开始释放');
+        unawaited(_disposeRetiredEngine(engine));
+      }
+    } else {
+      _engineUsers[engine] = users;
+    }
+  }
+
+  /// 物理新建引擎并初始化；过期构建完成后立即释放且不发布。
+  Future<TtsEngine?> _buildEngine(
+    TtsEngineKind kind,
+    TtsSpeechConfig config,
+    int buildGeneration,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final engine = _factory(kind, config);
       await engine.initialize();
       await engine.applyConfig(config);
-      _engine = engine;
-      _engineKind = kind;
-      _appliedConfig = config;
+      if (buildGeneration != _configurationGeneration) {
+        AppLogger.log(
+          'TtsCoordinator',
+          '丢弃过期模型：目标=${_engineLabel(kind, config)} '
+              '加载代际=$buildGeneration 当前代际=$_configurationGeneration',
+        );
+        await engine.dispose();
+        return null;
+      }
       stopwatch.stop();
       AppLogger.log(
         'TtsCoordinator',
-        '模型预热完成：引擎=${kind.diagnosticName} '
-            '耗时=${stopwatch.elapsedMilliseconds}ms',
+        '模型预热完成：目标=${_engineLabel(kind, config)} '
+            '配置代际=$buildGeneration 耗时=${stopwatch.elapsedMilliseconds}ms',
       );
+      return engine;
     } catch (error) {
       stopwatch.stop();
       AppLogger.log(
@@ -285,7 +406,12 @@ class TtsCoordinator {
     final kind = _desiredKind;
     final config = _desiredConfig;
     if (kind == null || config == null) return false;
-    return _renderAndPlay(text, kind, config);
+    return _renderAndPlay(
+      text,
+      kind,
+      config,
+      configurationGeneration: _configurationGeneration,
+    );
   }
 
   /// 用**指定**引擎/配置发音（如音色试听）：与 [speak] 同管线，但用传入配置而非
@@ -294,7 +420,12 @@ class TtsCoordinator {
     String text,
     TtsEngineKind kind,
     TtsSpeechConfig config,
-  ) => _renderAndPlay(text, kind, config);
+  ) => _renderAndPlay(
+    text,
+    kind,
+    config,
+    configurationGeneration: _configurationGeneration,
+  );
 
   /// 预热：为给定引擎/配置合成并入库，**不播放**。已有缓存则跳过（去重）。
   ///
@@ -438,15 +569,19 @@ class TtsCoordinator {
     AppLogger.log(
       'TtsCoordinator',
       '${priority == TtsSynthPriority.background ? '文本预热' : '用户发音'}缓存未命中，准备合成：'
-          '引擎=${kind.diagnosticName} 音色=${config.voiceId} '
+          '目标=${_engineLabel(kind, config)} 音色=${config.voiceId} '
           '模型确认=${swEnsure.elapsedMilliseconds}ms '
           '缓存查询=${lookupElapsed.inMilliseconds}ms 文本长度=${text.length} '
           '缓存键=$cacheKey',
     );
-    return _scheduler.submit(
-      priority,
-      () => _synthAndStore(engine, text, kind, config, cacheKey),
-    );
+    _acquireEngine(engine);
+    return _scheduler.submit(priority, () async {
+      try {
+        return await _synthAndStore(engine, text, kind, config, cacheKey);
+      } finally {
+        _releaseEngine(engine);
+      }
+    });
   }
 
   /// 合成产文件并入库，返回文件路径（失败返回 null）。被 [_render] 经在途表去重调用。
@@ -478,7 +613,7 @@ class TtsCoordinator {
       AppLogger.log(
         'TtsCoordinator',
         '⏱ 文本合成超时：耗时=${swSynth.elapsedMilliseconds}ms '
-            '引擎=${kind.diagnosticName} 文本长度=${text.length}，将降级处理',
+            '目标=${_engineLabel(kind, config)} 文本长度=${text.length}，将降级处理',
       );
       return null;
     }
@@ -502,7 +637,8 @@ class TtsCoordinator {
     AppLogger.log(
       'TtsCoordinator',
       '文本预热/合成已写入缓存：引擎=${kind.diagnosticName} 缓存键=$cacheKey '
-          '文本长度=${text.length} 合成耗时=${swSynth.elapsedMilliseconds}ms',
+          '目标=${_engineLabel(kind, config)} 文本长度=${text.length} '
+          '合成耗时=${swSynth.elapsedMilliseconds}ms',
     );
     return result.filePath;
   }
@@ -516,6 +652,7 @@ class TtsCoordinator {
     TtsEngineKind kind,
     TtsSpeechConfig config, {
     TtsSynthPriority priority = TtsSynthPriority.user,
+    int? configurationGeneration,
   }) async {
     if (text.trim().isEmpty) return false;
     // 抢占语义只作用于**播放**：递增代际，并立即停止上一段播放（player.stop 只动
@@ -532,7 +669,16 @@ class TtsCoordinator {
     // synthesizeToFile，其完成回调可能永不到达 → 复用方永久挂起（CLAUDE.md §7.18）。
     // 故先拿到可播放文件，再按需停引擎。
     final path = await _render(text, kind, config, priority: priority);
-    if (myGen != _generation) return false;
+    if (myGen != _generation ||
+        (configurationGeneration != null &&
+            configurationGeneration != _configurationGeneration)) {
+      AppLogger.log(
+        'TtsCoordinator',
+        '丢弃过期发音结果：播放代际=$myGen 当前播放代际=$_generation '
+            '配置代际=$configurationGeneration 当前配置代际=$_configurationGeneration',
+      );
+      return false;
+    }
 
     // 仅当无任何在途合成时才停引擎：避免 engine.stop() 误杀其他在途合成（如另一口音
     // 的预热）使其 Future 挂起、后续复用方卡死。有在途合成时跳过——抢占已由 generation
@@ -544,8 +690,16 @@ class TtsCoordinator {
 
     // 播放前最终代际校验：上面「有在途合成时」会跳过 engine.stop 及其代际复查，
     // 故此处必须再判一次，否则被 stop()（如离开设置页）抢占的本次仍会播出。
-    if (myGen != _generation) return false;
+    if (myGen != _generation ||
+        (configurationGeneration != null &&
+            configurationGeneration != _configurationGeneration)) {
+      return false;
+    }
 
+    if (configurationGeneration != null &&
+        configurationGeneration != _configurationGeneration) {
+      return false;
+    }
     if (path != null) {
       AppLogger.log('TtsCoordinator', '开始播放已生成的语音文件');
       final result = await _player.playFile(path);
@@ -573,19 +727,25 @@ class TtsCoordinator {
   /// 故由上层在变体变化时显式调用。
   Future<void> invalidateEngine() async {
     _generation++;
+    _configurationGeneration++;
     final old = _engine;
     _engine = null;
     _engineKind = null;
     _appliedConfig = null;
-    if (old != null) {
-      await old.stop();
-      await old.dispose();
-    }
+    _retireEngine(old);
   }
 
   Future<void> dispose() async {
     _generation++;
-    await _engine?.dispose();
+    final current = _engine;
+    _engine = null;
+    _engineKind = null;
+    _appliedConfig = null;
+    _retireEngine(current);
+    for (final future in _ensuring.values.toList()) {
+      final engine = await future;
+      if (engine != null) _retireEngine(engine);
+    }
     _engine = null;
   }
 }

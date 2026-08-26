@@ -49,7 +49,7 @@ class _FixedPiperNotifier extends PiperModelNotifier {
 /// 记录是否被调用的引擎工厂；返回空操作引擎（合成返回 null，不播放/不入库）。
 class _RecordingFactory {
   int calls = 0;
-  TtsEngine make(TtsEngineKind kind) {
+  TtsEngine make(TtsEngineKind kind, TtsSpeechConfig config) {
     calls++;
     return _NoopEngine();
   }
@@ -223,7 +223,7 @@ void main() {
           piperModelProvider.overrideWith(
             () => _FixedPiperNotifier(PiperModelsState.initial()),
           ),
-          ttsEngineFactoryProvider.overrideWithValue((_) => engine),
+          ttsEngineFactoryProvider.overrideWithValue((_, __) => engine),
           ttsCacheDaoProvider.overrideWithValue(dao),
         ],
       );
