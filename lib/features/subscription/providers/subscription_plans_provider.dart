@@ -51,7 +51,7 @@ class PaddleSubscriptionPlansController
 
   @override
   AsyncValue<List<SubscriptionPlan>> build() {
-    _settled = Future<void>.microtask(() => _refresh(force: true));
+    _settled = Future<void>.microtask(() => _refresh(force: false));
     return const AsyncLoading();
   }
 
@@ -125,7 +125,7 @@ class SubscriptionPlansController
 
   @override
   AsyncValue<List<SubscriptionPlan>> build() {
-    _settled = Future<void>.microtask(() => _refresh(force: true));
+    _settled = Future<void>.microtask(() => _refresh(force: false));
     return const AsyncLoading();
   }
 

@@ -250,7 +250,7 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
 
     Future.delayed(
       const Duration(seconds: 3),
-      () => _triggerCatalogSync(force: true),
+      _triggerCatalogSync,
     );
   }
 

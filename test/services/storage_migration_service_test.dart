@@ -166,4 +166,27 @@ void main() {
     final manifest = await readResourceInstallManifest(directory);
     expect(manifest?.resourceId, 'dict-en_zh-TW-v1');
   });
+
+  test('迁移旧 pronunciation/v2 到固定目录并统一安装清单', () async {
+    final legacy = Directory(
+      p.join(fakeAppSupportDir.path, 'pronunciation', 'v2'),
+    )..createSync(recursive: true);
+    File(p.join(legacy.path, 'pronunciation.sqlite')).writeAsBytesSync([1, 2]);
+    Directory(p.join(legacy.path, 'audio')).createSync();
+    File(
+      p.join(legacy.path, 'install.json'),
+    ).writeAsStringSync('{"version":"v2","sha256":"old"}');
+
+    await migrateLegacyPronunciationInstallLayout();
+
+    final root = Directory(p.join(fakeAppSupportDir.path, 'pronunciation'));
+    expect(legacy.existsSync(), isFalse);
+    expect(
+      File(p.join(root.path, 'pronunciation.sqlite')).existsSync(),
+      isTrue,
+    );
+    final manifest = await readResourceInstallManifest(root);
+    expect(manifest?.resourceId, 'pronunciation-v2');
+    expect(manifest?.resourceSize, greaterThan(2));
+  });
 }

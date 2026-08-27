@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'resource_install_manifest.dart';
 import 'dictionary/dictionary_catalog.dart';
+import 'pronunciation/pronunciation_catalog.dart';
 import 'app_logger.dart';
 
 /// Documents → Application Support 一次性数据迁移。
@@ -110,6 +111,48 @@ Future<void> migrateLegacyDictionaryInstallLayout() async {
             'resource=${spec.resourceId}',
       );
     }
+  }
+}
+
+/// 将旧版 `pronunciation/v2` 发音包迁移到固定的 pronunciation 目录。
+Future<void> migrateLegacyPronunciationInstallLayout() async {
+  final support = await getApplicationSupportDirectory();
+  final root = Directory(p.join(support.path, 'pronunciation'));
+  final legacy = Directory(p.join(root.path, 'v2'));
+  if (await legacy.exists()) {
+    await _migrateDirectoryContents(legacy, root);
+    if (await legacy.exists()) await legacy.delete(recursive: true);
+  }
+  final database = File(p.join(root.path, 'pronunciation.sqlite'));
+  if (!await database.exists()) return;
+
+  ResourceInstallManifest? manifest;
+  try {
+    manifest = await readResourceInstallManifest(root);
+  } on FormatException {
+    manifest = null;
+  }
+  if (manifest?.resourceId == pronunciationSpec.resourceId) return;
+  final stat = await database.stat();
+  await writeResourceInstallManifest(
+    root,
+    resourceId: pronunciationSpec.resourceId,
+    installAt: stat.changed,
+  );
+}
+
+Future<void> _migrateDirectoryContents(
+  Directory source,
+  Directory target,
+) async {
+  await target.create(recursive: true);
+  await for (final entity in source.list(followLinks: false)) {
+    final destination = p.join(target.path, p.basename(entity.path));
+    if (FileSystemEntity.typeSync(destination) !=
+        FileSystemEntityType.notFound) {
+      continue;
+    }
+    await entity.rename(destination);
   }
 }
 

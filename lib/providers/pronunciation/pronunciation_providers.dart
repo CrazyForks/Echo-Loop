@@ -11,7 +11,6 @@ import '../../services/pronunciation/pronunciation_library_manager.dart';
 import '../../services/pronunciation/pronunciation_repository.dart';
 import '../../services/reliable_http_downloader.dart';
 import '../../utils/text_normalize.dart';
-import '../dictionary_provider.dart';
 import '../short_audio_player_provider.dart';
 import '../tts/tts_controller_provider.dart';
 
@@ -67,18 +66,11 @@ class PronunciationLibraryNotifier extends Notifier<PronunciationLibraryState> {
   @override
   PronunciationLibraryState build() {
     ref.onDispose(() => _cancelToken?.cancel('provider disposed'));
-    ref.listen<DictionaryState>(dictionaryProvider, (_, next) {
-      if (next.status == DictionaryStatus.downloaded) {
-        unawaited(ensureDownloaded());
-      }
-    }, fireImmediately: true);
+    unawaited(ensureDownloaded());
     return const PronunciationLibraryState();
   }
 
   Future<void> ensureDownloaded() async {
-    if (ref.read(dictionaryProvider).status != DictionaryStatus.downloaded) {
-      return;
-    }
     return _runTask(_ensureInstalled);
   }
 
@@ -101,12 +93,6 @@ class PronunciationLibraryNotifier extends Notifier<PronunciationLibraryState> {
 
   Future<void> _ensureInstalled() async {
     final manager = ref.read(pronunciationLibraryManagerProvider);
-    await manager.recoverInterruptedInstall();
-    // 重新下载在旧库可用时也必须恢复，不能被已安装版本短路。
-    if (await manager.hasPendingInstall()) {
-      await _download();
-      return;
-    }
     final paths = await manager.installedPaths();
     if (paths != null) {
       _open(paths);

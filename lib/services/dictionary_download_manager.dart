@@ -6,7 +6,6 @@ library;
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
@@ -14,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dictionary/dictionary_catalog.dart';
 import 'app_logger.dart';
 import 'reliable_http_downloader.dart';
+import 'resource_archive_installer.dart';
 import 'resource_install_manifest.dart';
 
 /// 词典下载管理器
@@ -26,12 +26,14 @@ class DictionaryDownloadManager {
         ),
       ) {
     _downloader = DioReliableHttpDownloader(dio: _dio);
+    _installer = ResourceArchiveInstaller(_downloader);
   }
 
   /// 测试用构造器
   @visibleForTesting
   DictionaryDownloadManager.withDio(this._dio, {this.specs = dictionarySpecs}) {
     _downloader = DioReliableHttpDownloader(dio: _dio);
+    _installer = ResourceArchiveInstaller(_downloader);
   }
 
   final Dio _dio;
@@ -40,6 +42,7 @@ class DictionaryDownloadManager {
   /// `ReliableHttpDownloader` 接口本身不提供释放能力，[dispose] 需要靠持有
   /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
   late final ReliableHttpDownloader _downloader;
+  late final ResourceArchiveInstaller _installer;
 
   /// 获取词典本地存储目录
   Future<String> _dictionaryDir(String langKey) async {
@@ -89,89 +92,29 @@ class DictionaryDownloadManager {
       // 2. 准备本地目录
       final langKey = 'en_$nativeLanguage';
       final dir = await _dictionaryDir(langKey);
-      final root = Directory(p.dirname(dir));
-      await root.create(recursive: true);
-      final archiveFile = File(
-        p.join(root.path, '_download_${spec.resourceId}.zip'),
-      );
-      final databaseDirectory = Directory(
-        p.join(root.path, '_staging_${spec.resourceId}'),
-      );
       final dbPath = p.join(dir, 'dict.sqlite');
-
-      // 下载与发音包保持一致，允许可靠下载器从 .part 文件断点续传；
-      // 安装前仍会完整校验归档，避免半成品被识别为已安装。
-      AppLogger.log('Dict', 'downloading url=${spec.archiveUrl} → $dbPath');
-      await _downloader.download(
+      final root = Directory(p.dirname(dir));
+      await _installer.install(
+        root: root,
+        target: Directory(dir),
+        resourceId: spec.resourceId,
         uri: Uri.parse(spec.archiveUrl),
-        savePath: archiveFile.path,
-        allowResume: true,
-        identityKey: spec.archiveSha256,
+        expectedSha256: spec.archiveSha256,
         cancelToken: cancelToken,
-        onProgress: (received, total) {
-          if (total != null && total > 0) {
-            onProgress?.call((received / total).clamp(0.0, 1.0));
+        onProgress: onProgress,
+        extractAndValidate: (archive, staging) async {
+          await extractFileToDisk(archive.path, staging.path);
+          await _removeMacOsMetadata(staging);
+          final extracted = await _findDatabaseFile(staging);
+          if (extracted == null) {
+            throw StateError('Dictionary database missing after extraction');
+          }
+          final installedDatabase = File(p.join(staging.path, 'dict.sqlite'));
+          if (extracted.path != installedDatabase.path) {
+            await extracted.rename(installedDatabase.path);
           }
         },
       );
-
-      final actualSha256 = await sha256.bind(archiveFile.openRead()).first;
-      if (actualSha256.toString() != spec.archiveSha256) {
-        AppLogger.log(
-          'Dict',
-          'archive sha256 mismatch lang=$nativeLanguage '
-              'expected=${spec.archiveSha256} actual=$actualSha256',
-        );
-        throw StateError(
-          'Dictionary archive SHA-256 mismatch: expected=${spec.archiveSha256} '
-          'actual=$actualSha256',
-        );
-      }
-      AppLogger.log(
-        'Dict',
-        'archive verified lang=$nativeLanguage bytes=${await archiveFile.length()}',
-      );
-
-      if (databaseDirectory.existsSync()) {
-        await databaseDirectory.delete(recursive: true);
-      }
-      await databaseDirectory.create(recursive: true);
-      await extractFileToDisk(archiveFile.path, databaseDirectory.path);
-      await _removeMacOsMetadata(databaseDirectory);
-      AppLogger.log('Dict', 'archive extracted lang=$nativeLanguage');
-      final extracted = await _findDatabaseFile(databaseDirectory);
-      if (extracted == null) {
-        throw StateError('Dictionary database missing after extraction');
-      }
-      final installedDatabase = File(
-        p.join(databaseDirectory.path, 'dict.sqlite'),
-      );
-      if (extracted.path != installedDatabase.path) {
-        await extracted.rename(installedDatabase.path);
-      }
-      await writeResourceInstallManifest(
-        databaseDirectory,
-        resourceId: spec.resourceId,
-        installAt: DateTime.now(),
-      );
-      AppLogger.log(
-        'Dict',
-        'install manifest written lang=$nativeLanguage resource=${spec.resourceId}',
-      );
-
-      final target = Directory(dir);
-      final previous = Directory('$dir.previous');
-      if (previous.existsSync()) await previous.delete(recursive: true);
-      if (target.existsSync()) await target.rename(previous.path);
-      try {
-        await databaseDirectory.rename(target.path);
-      } catch (_) {
-        if (previous.existsSync() && !target.existsSync()) {
-          await previous.rename(target.path);
-        }
-        rethrow;
-      }
-      if (previous.existsSync()) await previous.delete(recursive: true);
 
       AppLogger.log(
         'Dict',
