@@ -71,7 +71,16 @@ class PiperModelManager {
     this.baseUrlOverride,
     this.modelsRootResolver,
   }) {
-    _dio = dio ?? Dio();
+    // TTS 模型下载体积较大，但断网时不能无限等待；接收超时只限制长时间无数据。
+    _dio =
+        dio ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 15),
+            sendTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
+          ),
+        );
     _downloader = DioReliableHttpDownloader(dio: _dio);
   }
 

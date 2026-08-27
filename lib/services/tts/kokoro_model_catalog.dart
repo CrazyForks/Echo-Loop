@@ -14,12 +14,16 @@ class KokoroModelSpec {
   final String sha256;
   final String modelFileName;
 
+  /// CDN 压缩归档的预计下载大小（字节），仅用于下载前展示近似流量。
+  final int estimatedDownloadBytes;
+
   const KokoroModelSpec({
     required this.variant,
     required this.id,
     required this.archivePath,
     required this.sha256,
     required this.modelFileName,
+    required this.estimatedDownloadBytes,
   });
 }
 
@@ -42,6 +46,7 @@ const kokoroModelSpecs = <KokoroModelVariant, KokoroModelSpec>{
     archivePath: 'tts/kokoro-en-v0_19.tar.gz',
     sha256: 'd97c85ba5777bc226eca3a40312bb29dd8fd0e77546d4100abb7243b9b6ad137',
     modelFileName: 'model.onnx',
+    estimatedDownloadBytes: 313785757,
   ),
   KokoroModelVariant.int8: KokoroModelSpec(
     variant: KokoroModelVariant.int8,
@@ -49,6 +54,7 @@ const kokoroModelSpecs = <KokoroModelVariant, KokoroModelSpec>{
     archivePath: 'tts/kokoro-en-v0_19-int8-v2.tar.gz',
     sha256: '70fd7ff687d08245f9409557f58072f43eb8a5bf8a90e98dd3bb7f60e05b4b07',
     modelFileName: 'model.int8.onnx',
+    estimatedDownloadBytes: 102614756,
   ),
 };
 

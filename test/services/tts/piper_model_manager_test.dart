@@ -85,6 +85,7 @@ PiperModelManager _manager(Directory root, List<int> archive, {String? sha}) {
       isFemale: true,
       archivePath: 'tts/vits-piper-en_US-amy-medium.tar.gz',
       sha256: sha ?? sha256.convert(archive).toString(),
+      estimatedDownloadBytes: 1024,
     ),
     modelsRootResolver: () async => root.path,
   );
@@ -141,6 +142,7 @@ void main() {
         isFemale: true,
         archivePath: 'tts/vits-piper-en_US-amy-medium.tar.gz',
         sha256: 'irrelevant',
+        estimatedDownloadBytes: 1024,
       ),
       modelsRootResolver: () async => root.path,
     );

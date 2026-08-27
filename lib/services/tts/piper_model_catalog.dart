@@ -40,6 +40,9 @@ class PiperVoice {
   /// 归档整包 SHA-256。换归档须同步改此值（先传 CDN 再改常量，见 §7.17）。
   final String sha256;
 
+  /// CDN 压缩归档的预计下载大小（字节），仅用于下载前展示近似流量。
+  final int estimatedDownloadBytes;
+
   const PiperVoice({
     required this.id,
     required this.displayName,
@@ -47,6 +50,7 @@ class PiperVoice {
     required this.isFemale,
     required this.archivePath,
     required this.sha256,
+    required this.estimatedDownloadBytes,
   });
 
   @override
@@ -59,11 +63,19 @@ class PiperVoice {
           accent == other.accent &&
           isFemale == other.isFemale &&
           archivePath == other.archivePath &&
-          sha256 == other.sha256;
+          sha256 == other.sha256 &&
+          estimatedDownloadBytes == other.estimatedDownloadBytes;
 
   @override
-  int get hashCode =>
-      Object.hash(id, displayName, accent, isFemale, archivePath, sha256);
+  int get hashCode => Object.hash(
+    id,
+    displayName,
+    accent,
+    isFemale,
+    archivePath,
+    sha256,
+    estimatedDownloadBytes,
+  );
 }
 
 /// 全部 9 个 Piper 音色（6 美音 + 3 英音）。
@@ -79,6 +91,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_US-amy-medium.tar.gz',
+    estimatedDownloadBytes: 67347129,
     sha256: 'ce4fc13a01c2b670f744c5d944469ac2c01b144f8f98ff7985d67d7402695c29',
   ),
   PiperVoice(
@@ -87,6 +100,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_US-lessac-medium.tar.gz',
+    estimatedDownloadBytes: 67358584,
     sha256: 'd0fd375de4be84199813d3c69b94ebf5b14ae5c291bda61315d0307eed039065',
   ),
   PiperVoice(
@@ -95,6 +109,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: false,
     archivePath: 'tts/vits-piper-en_US-ryan-medium.tar.gz',
+    estimatedDownloadBytes: 67370820,
     sha256: '49e5065dd3f17c27be2d29310887dbd17b924ebfb0fc24a6f82b7e96a34a44d4',
   ),
   PiperVoice(
@@ -103,6 +118,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: false,
     archivePath: 'tts/vits-piper-en_US-joe-medium.tar.gz',
+    estimatedDownloadBytes: 67329430,
     sha256: 'c13190297212663f4371e365e239f7208ceeaae0e2d8ce5994456b42bb1e6799',
   ),
   PiperVoice(
@@ -111,6 +127,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_US-kristin-medium.tar.gz',
+    estimatedDownloadBytes: 67424191,
     sha256: '58988662c21850d05b5687043dc710a6c41bbf15814aff34e4be32c32cb377a8',
   ),
   PiperVoice(
@@ -119,6 +136,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.us,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_US-hfc_female-medium.tar.gz',
+    estimatedDownloadBytes: 67359748,
     sha256: 'b849044f82219e2b0d990d81e75b80cecedda53608b182299beffbeadfac33f0',
   ),
   // 英音（en_GB）
@@ -128,6 +146,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.uk,
     isFemale: false,
     archivePath: 'tts/vits-piper-en_GB-alan-medium.tar.gz',
+    estimatedDownloadBytes: 67339791,
     sha256: '29c62a69788b0533ef3ce1488eea1e1a90d6f7a0a7ece2a3ae7aadc78bd043e7',
   ),
   PiperVoice(
@@ -136,6 +155,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.uk,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_GB-cori-medium.tar.gz',
+    estimatedDownloadBytes: 67431659,
     sha256: 'd49b0cc0353ceabc8cb15a4781b7c4f5cb858ecad52fbfb5591b2577b21b77e8',
   ),
   PiperVoice(
@@ -144,6 +164,7 @@ const List<PiperVoice> piperVoices = [
     accent: TtsAccent.uk,
     isFemale: true,
     archivePath: 'tts/vits-piper-en_GB-alba-medium.tar.gz',
+    estimatedDownloadBytes: 67356380,
     sha256: '3f2685f7c34ec9e025a05297e294a7dad0e373acefd4a796d872e7cee1e8a696',
   ),
 ];

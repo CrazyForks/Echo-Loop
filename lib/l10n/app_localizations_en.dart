@@ -5092,6 +5092,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsModelNotDownloaded => 'Not downloaded';
 
   @override
+  String get ttsModelDownloadRequiredTitle => 'Speech Synthesis Model Required';
+
+  @override
+  String get ttsModelDownloadIntro =>
+      'This voice needs a one-time model download.';
+
+  @override
+  String ttsModelDownloadEstimate(Object size) {
+    return 'Estimated download: ~$size';
+  }
+
+  @override
+  String get ttsModelDownloadSettingsHint =>
+      'You can also choose another speech model in Settings.';
+
+  @override
+  String get ttsModelDownloadingTitle => 'Downloading Speech Synthesis Model';
+
+  @override
+  String ttsModelDownloadingMessage(Object size) {
+    return 'Estimated download: ~$size';
+  }
+
+  @override
+  String ttsModelDownloadProgress(Object progress) {
+    return '$progress complete';
+  }
+
+  @override
+  String get ttsModelDownloadFailedTitle =>
+      'Speech Synthesis Model Download Failed';
+
+  @override
+  String ttsModelDownloadFailedMessage(Object size) {
+    return 'The download did not finish. Estimated download: ~$size\nYou can retry, or choose another speech model in Settings.';
+  }
+
+  @override
+  String get ttsDownloadModel => 'Download model';
+
+  @override
   String get ttsAccent => 'Accent';
 
   @override

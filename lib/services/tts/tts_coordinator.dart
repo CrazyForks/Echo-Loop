@@ -221,7 +221,12 @@ class TtsCoordinator {
     final previousKey = previousKind == null || previousConfig == null
         ? null
         : _engineKey(previousKind, previousConfig);
-    if (previousKey != key) _configurationGeneration++;
+    if (previousKey != key) {
+      _configurationGeneration++;
+      // 配置目标变化后，旧后台预热不能继续排队或重新拉起旧模型；用户任务
+      // 不受影响，仍由播放/配置代际决定最终是否丢弃结果。
+      cancelPendingPrewarm();
+    }
     AppLogger.log(
       'TtsCoordinator',
       '配置目标变更：${_engineLabel(previousKind, previousConfig)} → '
@@ -239,11 +244,18 @@ class TtsCoordinator {
       _appliedConfig = null;
       await _retireEngine(old);
     }
-    if (hadCurrentEngine) {
-      try {
-        await _ensureEngine(kind, config);
-      } catch (e) {
-        AppLogger.log('TtsCoordinator', 'configure 热更新失败: $e');
+    // 配置变更不主动初始化新引擎。模型 ready 门控由 TtsController 统一负责，
+    // 真正需要发音或预热时再经 ensureEngineReady() 加载，避免下载完成前访问模型目录。
+    if (hadCurrentEngine && _engine != null) {
+      final current = _engine!;
+      final currentConfig = _appliedConfig;
+      if (currentConfig != null && _engineKey(kind, currentConfig) == key) {
+        try {
+          _appliedConfig = config;
+          await current.applyConfig(config);
+        } catch (e) {
+          AppLogger.log('TtsCoordinator', 'configure 热更新失败: $e');
+        }
       }
     }
   }
@@ -306,8 +318,14 @@ class TtsCoordinator {
             '配置代际=$_configurationGeneration',
       );
     }
-    final engine = await future;
-    if (identical(_ensuring[key], future)) _ensuring.remove(key);
+    TtsEngine? engine;
+    try {
+      engine = await future;
+    } finally {
+      // 初始化失败也必须释放 in-flight 记录，否则后续模型下载完成后会永久复用
+      // 同一个已失败 Future，表现为模型明明存在却持续报目录不存在。
+      if (identical(_ensuring[key], future)) _ensuring.remove(key);
+    }
     if (engine == null) return null;
     final old = _engine;
     if (old != null && !identical(old, engine)) _retireEngine(old);

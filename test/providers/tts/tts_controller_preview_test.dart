@@ -30,6 +30,8 @@ class _FixedKokoroNotifier extends KokoroModelNotifier {
   @override
   KokoroModelsState build() => _initial;
 
+  void updateState(KokoroModelsState next) => state = next;
+
   @override
   Future<void> ensureDownloaded(KokoroModelVariant variant) async {}
 
@@ -315,6 +317,40 @@ void main() {
   });
 
   group('prewarmVoicePreviews 门控', () {
+    test('模型下载完成后 ready 变化会自动加载当前引擎', () async {
+      SharedPreferences.setMockInitialValues({});
+      final factory = _RecordingFactory();
+      final kokoroNotifier = _FixedKokoroNotifier(
+        KokoroModelsState.initial(),
+      );
+      final c = ProviderContainer(
+        overrides: [
+          initialTtsSettingsProvider.overrideWithValue(
+            const TtsSettings(engine: TtsEngineKind.kokoro),
+          ),
+          kokoroModelProvider.overrideWith(() => kokoroNotifier),
+          piperModelProvider.overrideWith(
+            () => _FixedPiperNotifier(PiperModelsState.initial()),
+          ),
+          ttsEngineFactoryProvider.overrideWithValue(factory.make),
+          ttsCacheDaoProvider.overrideWithValue(dao),
+        ],
+      );
+      addTearDown(c.dispose);
+
+      c.read(ttsControllerProvider.notifier);
+      await Future<void>.delayed(Duration.zero);
+      expect(factory.calls, 0);
+
+      kokoroNotifier.updateState(_ready());
+      await expectLater(
+        Stream<void>.periodic(const Duration(milliseconds: 1)).map(
+          (_) => factory.calls,
+        ),
+        emitsThrough(greaterThanOrEqualTo(1)),
+      );
+    });
+
     test('Echo Loop 且就绪 → 触发合成路径（构建引擎）', () async {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();

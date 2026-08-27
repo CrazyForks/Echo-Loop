@@ -1,7 +1,7 @@
 /// TTS 发音前的本地模型就绪门控。
 ///
-/// 模型下载仍由设置和控制器在后台自动触发；本文件只复用全局下载状态展示进度、
-/// 失败与重试。用户点击发音时模型未就绪，本次发音不会在下载完成后自动继续。
+/// 模型下载由设置页或本弹窗的显式按钮触发；用户点击发音时模型未就绪，本次发音
+/// 不会在下载完成后自动继续。
 library;
 
 import 'dart:async';
@@ -17,8 +17,11 @@ import '../../providers/tts/tts_model_installation_provider.dart';
 import '../../router/app_router.dart';
 import '../../services/app_logger.dart';
 import '../../services/download/download_failure.dart';
+import '../../services/tts/kokoro_model_catalog.dart';
 import '../../services/tts/kokoro_model_manager.dart';
+import '../../services/tts/piper_model_catalog.dart';
 import '../../services/tts/tts_engine.dart';
+import '../../utils/file_size.dart';
 import '../../utils/download_failure_message.dart';
 
 /// 当前 TTS 选中引擎所依赖的本地模型状态。
@@ -27,12 +30,14 @@ class TtsPlaybackModelState {
   final AsrModelDownloadStatus status;
   final double progress;
   final DownloadFailureKind? failure;
+  final int estimatedDownloadBytes;
 
   const TtsPlaybackModelState({
     required this.engine,
     required this.status,
     required this.progress,
     required this.failure,
+    required this.estimatedDownloadBytes,
   });
 
   bool get isReady =>
@@ -50,6 +55,7 @@ final ttsPlaybackModelStateProvider = Provider<TtsPlaybackModelState>((ref) {
         status: AsrModelDownloadStatus.downloaded,
         progress: 1,
         failure: null,
+        estimatedDownloadBytes: 0,
       );
     case TtsEngineKind.kokoro:
       final state = ref.watch(kokoroModelProvider).of(settings.kokoroVariant);
@@ -58,6 +64,9 @@ final ttsPlaybackModelStateProvider = Provider<TtsPlaybackModelState>((ref) {
         status: state.downloadStatus,
         progress: state.downloadProgress,
         failure: state.downloadError,
+        estimatedDownloadBytes: kokoroSpecOf(
+          settings.kokoroVariant,
+        ).estimatedDownloadBytes,
       );
     case TtsEngineKind.piper:
       final state = ref.watch(piperModelProvider).of(settings.activePiperVoice);
@@ -66,6 +75,9 @@ final ttsPlaybackModelStateProvider = Provider<TtsPlaybackModelState>((ref) {
         status: state.downloadStatus,
         progress: state.downloadProgress,
         failure: state.downloadError,
+        estimatedDownloadBytes:
+            piperVoiceById(settings.activePiperVoice)?.estimatedDownloadBytes ??
+            0,
       );
   }
 });
@@ -80,15 +92,12 @@ Future<bool> ensureTtsModelReadyForPlayback(Ref ref) async {
   final state = ref.read(ttsPlaybackModelStateProvider);
   if (state.isReady) return true;
 
-  if (state.status == AsrModelDownloadStatus.notDownloaded) {
-    _ensureBackgroundDownload(ref, state.engine);
-  }
   final context = rootNavigatorKey.currentContext;
   if (context == null || !context.mounted) return false;
   await showDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => const _TtsModelDownloadDialog(),
+    builder: (_) => const TtsModelDownloadDialog(),
   );
   return false;
 }
@@ -201,28 +210,8 @@ Future<bool> ensureTtsModelReadyForConfig(
   }
 }
 
-void _ensureBackgroundDownload(Ref ref, TtsEngineKind engine) {
-  final settings = ref.read(ttsSettingsProvider);
-  switch (engine) {
-    case TtsEngineKind.platform:
-      return;
-    case TtsEngineKind.kokoro:
-      unawaited(
-        ref
-            .read(kokoroModelProvider.notifier)
-            .ensureDownloaded(settings.kokoroVariant),
-      );
-    case TtsEngineKind.piper:
-      unawaited(
-        ref
-            .read(piperModelProvider.notifier)
-            .ensureDownloaded(settings.activePiperVoice),
-      );
-  }
-}
-
-class _TtsModelDownloadDialog extends ConsumerWidget {
-  const _TtsModelDownloadDialog();
+class TtsModelDownloadDialog extends ConsumerWidget {
+  const TtsModelDownloadDialog();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -234,6 +223,7 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
         status: AsrModelDownloadStatus.downloaded,
         progress: 1,
         failure: null,
+        estimatedDownloadBytes: 0,
       ),
       TtsEngineKind.kokoro => _kokoroState(ref, settings),
       TtsEngineKind.piper => _piperState(ref, settings),
@@ -245,35 +235,84 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
       });
     }
     final failed = model.status == AsrModelDownloadStatus.failed;
+    final notDownloaded = model.status == AsrModelDownloadStatus.notDownloaded;
+    final downloading = model.status == AsrModelDownloadStatus.downloading;
     final progress = '${(model.progress * 100).toStringAsFixed(0)}%';
+    final size = formatBytes(model.estimatedDownloadBytes);
+    final title = switch (model.status) {
+      AsrModelDownloadStatus.notDownloaded =>
+        l10n.ttsModelDownloadRequiredTitle,
+      AsrModelDownloadStatus.downloading => l10n.ttsModelDownloadingTitle,
+      AsrModelDownloadStatus.failed => l10n.ttsModelDownloadFailedTitle,
+      AsrModelDownloadStatus.downloaded => l10n.ttsModel,
+    };
     return AlertDialog(
-      title: Text(failed ? l10n.retryDownload : l10n.ttsModel),
+      title: Text(title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            failed ? l10n.ttsModelNotDownloaded : progress,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          if (!failed) ...[
+          if (notDownloaded)
+            _DownloadMessage(
+              children: [
+                Text(l10n.ttsModelDownloadIntro),
+                Text(l10n.ttsModelDownloadEstimate(size)),
+                Text(l10n.ttsModelDownloadSettingsHint),
+              ],
+            ),
+          if (downloading) ...[
+            _DownloadMessage(
+              children: [Text(l10n.ttsModelDownloadingMessage(size))],
+            ),
             const SizedBox(height: 16),
             LinearProgressIndicator(value: model.progress),
-          ],
-          if (failed && model.failure != null) ...[
             const SizedBox(height: 8),
             Text(
-              downloadFailureMessage(l10n, model.failure),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              l10n.ttsModelDownloadProgress(progress),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
+          ],
+          if (failed) ...[
+            const SizedBox(height: 8),
+            _DownloadMessage(
+              children: [
+                Text(l10n.ttsModelDownloadFailedMessage(size)),
+                Text(l10n.ttsModelDownloadSettingsHint),
+              ],
+            ),
+            if (model.failure != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                downloadFailureMessage(l10n, model.failure),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
           ],
         ],
       ),
-      actions: failed
+      actions: downloading
+          ? [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // 先关闭弹窗，避免取消下载触发状态刷新时短暂显示“下载模型”按钮。
+                  unawaited(_cancelDownload(ref, settings.engine));
+                },
+                child: Text(l10n.downloadCancel),
+              ),
+            ]
+          : failed
           ? [
               FilledButton(
                 onPressed: () => _retryDownload(ref, settings.engine),
                 child: Text(l10n.retryDownload),
+              ),
+            ]
+          : model.status == AsrModelDownloadStatus.notDownloaded
+          ? [
+              FilledButton(
+                onPressed: () => _startDownload(ref, settings.engine),
+                child: Text(l10n.ttsDownloadModel),
               ),
             ]
           : const [],
@@ -287,6 +326,9 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
       status: state.downloadStatus,
       progress: state.downloadProgress,
       failure: state.downloadError,
+      estimatedDownloadBytes: kokoroSpecOf(
+        settings.kokoroVariant,
+      ).estimatedDownloadBytes,
     );
   }
 
@@ -297,6 +339,9 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
       status: state.downloadStatus,
       progress: state.downloadProgress,
       failure: state.downloadError,
+      estimatedDownloadBytes:
+          piperVoiceById(settings.activePiperVoice)?.estimatedDownloadBytes ??
+          0,
     );
   }
 
@@ -314,5 +359,58 @@ class _TtsModelDownloadDialog extends ConsumerWidget {
             .read(piperModelProvider.notifier)
             .retryDownload(settings.activePiperVoice);
     }
+  }
+
+  void _startDownload(WidgetRef ref, TtsEngineKind engine) {
+    final settings = ref.read(ttsSettingsProvider);
+    switch (engine) {
+      case TtsEngineKind.platform:
+        return;
+      case TtsEngineKind.kokoro:
+        ref
+            .read(kokoroModelProvider.notifier)
+            .ensureDownloaded(settings.kokoroVariant);
+      case TtsEngineKind.piper:
+        ref
+            .read(piperModelProvider.notifier)
+            .ensureDownloaded(settings.activePiperVoice);
+    }
+  }
+
+  Future<void> _cancelDownload(WidgetRef ref, TtsEngineKind engine) async {
+    final settings = ref.read(ttsSettingsProvider);
+    switch (engine) {
+      case TtsEngineKind.platform:
+        return;
+      case TtsEngineKind.kokoro:
+        await ref
+            .read(kokoroModelProvider.notifier)
+            .cancelDownload(settings.kokoroVariant);
+      case TtsEngineKind.piper:
+        await ref
+            .read(piperModelProvider.notifier)
+            .cancelDownload(settings.activePiperVoice);
+    }
+  }
+}
+
+/// 将下载说明拆成有间距的段落，避免英文长句在弹窗中连续挤压换行。
+class _DownloadMessage extends StatelessWidget {
+  const _DownloadMessage({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          if (index > 0) const SizedBox(height: 10),
+          DefaultTextStyle.merge(style: style, child: children[index]),
+        ],
+      ],
+    );
   }
 }

@@ -4854,6 +4854,44 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsModelNotDownloaded => '未下载';
 
   @override
+  String get ttsModelDownloadRequiredTitle => '需要下载语音合成模型';
+
+  @override
+  String get ttsModelDownloadIntro => '首次使用此语音需要下载模型。';
+
+  @override
+  String ttsModelDownloadEstimate(Object size) {
+    return '预计下载量：约 $size';
+  }
+
+  @override
+  String get ttsModelDownloadSettingsHint => '你也可以前往设置选择其他语音合成模型。';
+
+  @override
+  String get ttsModelDownloadingTitle => '正在下载语音合成模型';
+
+  @override
+  String ttsModelDownloadingMessage(Object size) {
+    return '预计下载量：约 $size';
+  }
+
+  @override
+  String ttsModelDownloadProgress(Object progress) {
+    return '已完成 $progress';
+  }
+
+  @override
+  String get ttsModelDownloadFailedTitle => '语音合成模型下载失败';
+
+  @override
+  String ttsModelDownloadFailedMessage(Object size) {
+    return '下载未完成。预计下载量：约 $size\n你可以重试，或前往设置选择其他语音合成模型。';
+  }
+
+  @override
+  String get ttsDownloadModel => '下载模型';
+
+  @override
   String get ttsAccent => '口音';
 
   @override

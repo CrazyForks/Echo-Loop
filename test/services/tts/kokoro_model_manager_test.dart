@@ -81,6 +81,7 @@ KokoroModelManager _manager(Directory root, List<int> archive, {String? sha}) {
       archivePath: 'tts/test.tar.gz',
       sha256: sha ?? sha256.convert(archive).toString(),
       modelFileName: 'model.int8.onnx',
+      estimatedDownloadBytes: 1024,
     ),
     modelsRootResolver: () async => root.path,
   );
@@ -140,6 +141,7 @@ void main() {
         archivePath: 'tts/test.tar.gz',
         sha256: 'irrelevant',
         modelFileName: 'model.int8.onnx',
+        estimatedDownloadBytes: 1024,
       ),
       modelsRootResolver: () async => root.path,
     );

@@ -8930,6 +8930,66 @@ abstract class AppLocalizations {
   /// **'Not downloaded'**
   String get ttsModelNotDownloaded;
 
+  /// No description provided for @ttsModelDownloadRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Synthesis Model Required'**
+  String get ttsModelDownloadRequiredTitle;
+
+  /// No description provided for @ttsModelDownloadIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'This voice needs a one-time model download.'**
+  String get ttsModelDownloadIntro;
+
+  /// No description provided for @ttsModelDownloadEstimate.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated download: ~{size}'**
+  String ttsModelDownloadEstimate(Object size);
+
+  /// No description provided for @ttsModelDownloadSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can also choose another speech model in Settings.'**
+  String get ttsModelDownloadSettingsHint;
+
+  /// No description provided for @ttsModelDownloadingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading Speech Synthesis Model'**
+  String get ttsModelDownloadingTitle;
+
+  /// No description provided for @ttsModelDownloadingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated download: ~{size}'**
+  String ttsModelDownloadingMessage(Object size);
+
+  /// No description provided for @ttsModelDownloadProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{progress} complete'**
+  String ttsModelDownloadProgress(Object progress);
+
+  /// No description provided for @ttsModelDownloadFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Synthesis Model Download Failed'**
+  String get ttsModelDownloadFailedTitle;
+
+  /// No description provided for @ttsModelDownloadFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The download did not finish. Estimated download: ~{size}\nYou can retry, or choose another speech model in Settings.'**
+  String ttsModelDownloadFailedMessage(Object size);
+
+  /// No description provided for @ttsDownloadModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Download model'**
+  String get ttsDownloadModel;
+
   /// No description provided for @ttsAccent.
   ///
   /// In en, this message translates to:

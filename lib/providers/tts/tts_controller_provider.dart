@@ -185,11 +185,16 @@ class TtsController extends Notifier<TtsControllerState> {
 
     // 设置（引擎/口音/音色）或本地引擎就绪态变化 → 重算有效引擎并热重配。
     ref.listen<TtsSettings>(ttsSettingsProvider, (_, __) => _reconfigure());
-    ref.listen<bool>(kokoroReadyProvider, (_, __) => _reconfigure());
-    ref.listen<bool>(piperReadyProvider, (_, __) => _reconfigure());
-    // 首次配置（仅记录目标，不创建引擎/不连库）。延到 build 之后执行：_reconfigure
-    // 会触发本地引擎模型 ensureDownloaded（同步修改 kokoro/piperModelProvider 状态），
-    // 在 build 期间直接调用会违反 Riverpod「初始化中不得修改其他 provider」。
+    ref.listen<bool>(kokoroReadyProvider, (_, isReady) {
+      _reconfigure();
+      if (isReady) unawaited(warmUpCurrentEngine());
+    });
+    ref.listen<bool>(piperReadyProvider, (_, isReady) {
+      _reconfigure();
+      if (isReady) unawaited(warmUpCurrentEngine());
+    });
+    // 首次配置只记录目标，不创建引擎/不连库；实际加载统一由模型 ready 门控触发。
+    // 延到 build 之后执行，避免在 build 期间修改其它 provider。
     Future.microtask(_reconfigure);
 
     ref.onDispose(_coordinator.dispose);

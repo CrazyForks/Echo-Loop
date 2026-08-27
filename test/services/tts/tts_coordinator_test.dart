@@ -174,9 +174,51 @@ void main() {
       );
       await c.configure(TtsEngineKind.platform, _config);
       await c.speak('hi'); // 建 engineA
-      await c.configure(TtsEngineKind.kokoro, _config); // 引擎已存在 → 切换重建
+      await c.configure(TtsEngineKind.kokoro, _config);
       verify(() => engineA.dispose()).called(1);
+      verifyNever(() => engineB.initialize());
+
+      // 新模型的实际加载统一由显式 ready 屏障触发。
+      expect(
+        await c.ensureEngineReady(TtsEngineKind.kokoro, _config),
+        isTrue,
+      );
       verify(() => engineB.initialize()).called(1);
+    });
+
+    test('引擎初始化失败后清理 in-flight，后续可重新加载', () async {
+      final first = MockTtsEngine();
+      final second = MockTtsEngine();
+      _stubEngine(first);
+      _stubEngine(second);
+      when(
+        () => first.initialize(),
+      ).thenThrow(
+        const PathNotFoundException(
+          'Directory listing failed',
+          OSError('No such file or directory', 2),
+          '/missing/model',
+        ),
+      );
+      var created = 0;
+      final c = TtsCoordinator(
+        factory: (_, __) => created++ == 0 ? first : second,
+        cacheStore: store,
+        player: player,
+      );
+
+      await c.configure(TtsEngineKind.kokoro, _config);
+      await expectLater(
+        c.ensureEngineReady(TtsEngineKind.kokoro, _config),
+        throwsA(isA<PathNotFoundException>()),
+      );
+
+      expect(
+        await c.ensureEngineReady(TtsEngineKind.kokoro, _config),
+        isTrue,
+      );
+      verify(() => first.initialize()).called(1);
+      verify(() => second.initialize()).called(1);
     });
   });
 

@@ -11,6 +11,7 @@ void main() {
     for (final voice in piperVoices) {
       expect(voice.archivePath, endsWith('.tar.gz'));
       expect(voice.sha256, hasLength(64));
+      expect(voice.estimatedDownloadBytes, greaterThan(0));
     }
   });
 
