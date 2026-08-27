@@ -74,7 +74,9 @@ final ttsPlaybackModelStateProvider = Provider<TtsPlaybackModelState>((ref) {
 ///
 /// 返回 true 才允许本次发音；下载中、未下载或失败均只展示全局状态弹窗，返回 false。
 Future<bool> ensureTtsModelReadyForPlayback(Ref ref) async {
-  await refreshTtsModelInstallStates(ref.read);
+  await ref
+      .read(ttsModelInstallationGateProvider)
+      .ensureInstallationStatesLoaded();
   final state = ref.read(ttsPlaybackModelStateProvider);
   if (state.isReady) return true;
 
@@ -99,7 +101,9 @@ Future<bool> isTtsModelReadyForConfig(
   String? piperVoiceId,
 }) async {
   if (engine == TtsEngineKind.platform) return true;
-  await refreshTtsModelInstallStates(ref.read);
+  await ref
+      .read(ttsModelInstallationGateProvider)
+      .ensureInstallationStatesLoaded();
   final ready = switch (engine) {
     TtsEngineKind.platform => true,
     TtsEngineKind.kokoro =>
@@ -157,7 +161,9 @@ Future<bool> ensureTtsModelReadyForConfig(
         return true;
       }
   }
-  await refreshTtsModelInstallStates(ref.read);
+  await ref
+      .read(ttsModelInstallationGateProvider)
+      .ensureInstallationStatesLoaded();
   switch (engine) {
     case TtsEngineKind.platform:
       AppLogger.log('TtsModelGate', '指定配置刷新后结果 ready=true engine=platform');

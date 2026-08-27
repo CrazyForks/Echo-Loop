@@ -32,6 +32,9 @@ class _FixedKokoroNotifier extends KokoroModelNotifier {
 
   @override
   Future<void> ensureDownloaded(KokoroModelVariant variant) async {}
+
+  @override
+  Future<void> refreshInstalledStates({bool Function()? shouldCommit}) async {}
 }
 
 /// 受控 Piper notifier：注入初值，下载相关方法仅占位（不做真实下载）。
@@ -44,6 +47,9 @@ class _FixedPiperNotifier extends PiperModelNotifier {
 
   @override
   Future<void> ensureDownloaded(String voiceId) async {}
+
+  @override
+  Future<void> refreshInstalledStates({bool Function()? shouldCommit}) async {}
 }
 
 /// 记录是否被调用的引擎工厂；返回空操作引擎（合成返回 null，不播放/不入库）。
@@ -256,7 +262,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(), // 平台 TTS
+        settings: const TtsSettings(engine: TtsEngineKind.platform),
         models: _ready(),
         factory: factory,
       );
@@ -283,7 +289,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(), // 平台 TTS
+        settings: const TtsSettings(engine: TtsEngineKind.platform),
         models: _ready(),
         factory: factory,
       );
@@ -327,7 +333,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final factory = _RecordingFactory();
       final c = makeContainer(
-        settings: const TtsSettings(), // 平台 TTS
+        settings: const TtsSettings(engine: TtsEngineKind.platform),
         models: _ready(),
         factory: factory,
       );

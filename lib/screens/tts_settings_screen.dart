@@ -6,6 +6,7 @@
 /// 页面。切换立即生效（写 SP → 协调器热重配）。
 library;
 
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -55,7 +56,13 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
       if (!mounted) return;
       final settings = ref.read(ttsSettingsProvider);
       final controller = ref.read(ttsControllerProvider.notifier);
-      await refreshTtsModelInstallStates(ref.read);
+      await ref
+          .read(ttsModelInstallationGateProvider)
+          .ensureInstallationStatesLoaded();
+      if (!mounted) return;
+      // 预热是后台任务；各具体预热方法会复用同一个 Future 并等待引擎加载完成。
+      // 不在页面首帧回调中等待，避免页面销毁后仍持有一条长生命周期异步链。
+      unawaited(controller.warmUpCurrentEngine());
       if (!mounted) return;
       if (settings.engine == TtsEngineKind.kokoro) {
         controller.prewarmVoicePreviews();

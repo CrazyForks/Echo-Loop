@@ -153,6 +153,10 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 导致谁也跑不完。批次结束（正常/异常/取消）置回 null。
   String? _prewarmSignature;
 
+  /// 当前引擎 warmup 屏障。相同配置的播放、试听和后台预热共享一次模型加载。
+  Future<bool>? _currentWarmup;
+  String? _currentWarmupSignature;
+
   /// 发音 UI 状态代际。仅比较 speakingKey 无法区分「同一音色连续重播」的新旧调用，
   /// 旧调用完成时会误清掉新调用的小喇叭；每次发音/停止递增以精确归属复位权。
   int _speakingToken = 0;
@@ -230,6 +234,7 @@ class TtsController extends Notifier<TtsControllerState> {
   /// fire-and-forget 调用方无需 await；连续调用由协调器打断重播。
   Future<void> speak(String text, {String? key}) async {
     if (!await ensureTtsModelReadyForPlayback(ref)) return;
+    if (!await warmUpCurrentEngine()) return;
     final k = key ?? text;
     final token = ++_speakingToken;
     state = _stateWithSpeaking(k);
@@ -252,17 +257,30 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 供音色行显播放态。仅 Echo Loop 场景调用（音色弹层只在模型就绪时显示）。
   Future<void> previewVoice(KokoroVoice voice) async {
     final variant = ref.read(ttsSettingsProvider).kokoroVariant;
+    final key = ttsVoicePreviewKey(voice.id);
+    final token = ++_speakingToken;
+    state = _stateWithSpeaking(key);
     if (!await ensureTtsModelReadyForConfig(
       ref,
       engine: TtsEngineKind.kokoro,
       kokoroVariant: variant,
     )) {
+      if (token == _speakingToken && state.speakingKey == key) {
+        state = _stateWithSpeaking(null);
+      }
       return;
     }
     final config = ttsVoicePreviewConfig(voice, variant);
-    final key = ttsVoicePreviewKey(voice.id);
-    final token = ++_speakingToken;
-    state = _stateWithSpeaking(key);
+    if (!await _ensureEngineReady(
+      TtsEngineKind.kokoro,
+      config,
+      signature: 'kokoro|${variant.name}',
+    )) {
+      if (token == _speakingToken && state.speakingKey == key) {
+        state = _stateWithSpeaking(null);
+      }
+      return;
+    }
     try {
       await _readyCoordinator.speakWith(
         kTtsPreviewText,
@@ -284,17 +302,30 @@ class TtsController extends Notifier<TtsControllerState> {
   /// [speakingKey] 为该音色的试听 key（与 Kokoro 复用同一命名空间，voiceId 不冲突），
   /// 供音色行显播放态。调用方须先确保该音色模型已下载（未下载则合成返回 null 静默）。
   Future<void> previewPiperVoice(PiperVoice voice) async {
+    final key = ttsVoicePreviewKey(voice.id);
+    final token = ++_speakingToken;
+    state = _stateWithSpeaking(key);
     if (!await ensureTtsModelReadyForConfig(
       ref,
       engine: TtsEngineKind.piper,
       piperVoiceId: voice.id,
     )) {
+      if (token == _speakingToken && state.speakingKey == key) {
+        state = _stateWithSpeaking(null);
+      }
       return;
     }
     final config = ttsPiperVoicePreviewConfig(voice);
-    final key = ttsVoicePreviewKey(voice.id);
-    final token = ++_speakingToken;
-    state = _stateWithSpeaking(key);
+    if (!await _ensureEngineReady(
+      TtsEngineKind.piper,
+      config,
+      signature: 'piper|${voice.id}',
+    )) {
+      if (token == _speakingToken && state.speakingKey == key) {
+        state = _stateWithSpeaking(null);
+      }
+      return;
+    }
     try {
       await _readyCoordinator.speakWith(
         kTtsPreviewText,
@@ -421,6 +452,8 @@ class TtsController extends Notifier<TtsControllerState> {
       return;
     }
 
+    if (!await warmUpCurrentEngine()) return;
+
     // 幂等：同签名（引擎+变体）批次已在跑则不重启，避免触发点竞相 bump token 掐断。
     final signature = 'kokoro|${variant.name}';
     if (_prewarmSignature == signature) {
@@ -492,6 +525,7 @@ class TtsController extends Notifier<TtsControllerState> {
     }
     final voice = piperVoiceById(settings.activePiperVoice);
     if (voice == null) return;
+    if (!await warmUpCurrentEngine()) return;
 
     // 幂等：同签名（引擎+音色）批次已在跑则不重启，避免触发点竞相 bump token 掐断。
     final signature = 'piper|${voice.id}';
@@ -551,6 +585,7 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 点击即命中。顺序 await（worker 本就串行），每轮校验 [_textsPrewarmToken]，页面
   /// 离开后旧批次自动停止。失败静默（与发音一致），不阻塞、不弹窗。
   Future<void> prewarmTexts(List<String> texts) async {
+    if (!await warmUpCurrentEngine()) return;
     final token = ++_textsPrewarmToken;
     for (final text in texts) {
       if (token != _textsPrewarmToken) return; // 已取消/被新批次接管：停止旧批次
@@ -572,6 +607,16 @@ class TtsController extends Notifier<TtsControllerState> {
   /// 重复提交；worker 串行由协调器内部排队。取消经 [cancelTextsPrewarm] 统一处理。
   Future<void> prewarmTextsIncremental(List<String> texts) async {
     final token = _textsPrewarmToken; // 沿用当前，不 ++
+    if (!_readyCoordinator.isConfigured) {
+      AppLogger.log(
+        'TtsController',
+        '增量文本预热跳过：TTS 尚未配置 '
+            '批次=$token 请求数=${texts.length} 已提交=${_incrementalPrewarmed.length}',
+      );
+      return;
+    }
+    if (!await warmUpCurrentEngine()) return;
+    if (token != _textsPrewarmToken) return;
     var accepted = 0;
     var skipped = 0;
     for (final text in texts) {
@@ -631,10 +676,33 @@ class TtsController extends Notifier<TtsControllerState> {
   }
 
   /// 后台加载当前模型实例，不合成文本；供收藏词汇 Tab 降低首次未命中延迟。
-  Future<void> warmUpCurrentEngine() async {
+  Future<bool> warmUpCurrentEngine() {
+    final settings = ref.read(ttsSettingsProvider);
+    final signature = _warmupSignature(settings);
+    final inFlight = _currentWarmup;
+    if (inFlight != null && _currentWarmupSignature == signature) {
+      AppLogger.log('TtsController', '模型预热复用进行中的加载：目标=$signature');
+      return inFlight;
+    }
+
+    final future = _warmUpCurrentEngine(settings);
+    _currentWarmupSignature = signature;
+    _currentWarmup = future;
+    _trackWarmup(future, signature);
+    return future;
+  }
+
+  String _warmupSignature(TtsSettings settings) {
+    return switch (settings.engine) {
+      TtsEngineKind.platform => 'platform',
+      TtsEngineKind.kokoro => 'kokoro|${settings.kokoroVariant.name}',
+      TtsEngineKind.piper => 'piper|${settings.activePiperVoice}',
+    };
+  }
+
+  Future<bool> _warmUpCurrentEngine(TtsSettings settings) async {
     AppLogger.log('TtsController', '请求预热当前 TTS 模型（不合成文本）');
     try {
-      final settings = ref.read(ttsSettingsProvider);
       final ready = await isTtsModelReadyForConfig(
         ref,
         engine: settings.engine,
@@ -643,11 +711,66 @@ class TtsController extends Notifier<TtsControllerState> {
       );
       if (!ready) {
         AppLogger.log('TtsController', '后台模型预热跳过：当前模型未就绪');
-        return;
+        return false;
       }
-      await _readyCoordinator.warmUpCurrentEngine();
+      final config = TtsSpeechConfig(
+        languageTag: settings.languageTag,
+        voiceName: switch (settings.engine) {
+          TtsEngineKind.kokoro => settings.activeKokoroVoice,
+          TtsEngineKind.piper => settings.activePiperVoice,
+          TtsEngineKind.platform => null,
+        },
+        modelTag: settings.engine == TtsEngineKind.kokoro
+            ? settings.kokoroVariant.name
+            : null,
+      );
+      final loaded = await _readyCoordinator.ensureEngineReady(
+        settings.engine,
+        config,
+      );
+      AppLogger.log(
+        'TtsController',
+        '后台模型预热结果 target=${_warmupSignature(settings)} loaded=$loaded',
+      );
+      return loaded;
     } catch (e, st) {
       AppLogger.log('TtsController', '✗ 模型预热异常：$e\n$st');
+      return false;
+    }
+  }
+
+  Future<bool> _ensureEngineReady(
+    TtsEngineKind kind,
+    TtsSpeechConfig config, {
+    required String signature,
+  }) async {
+    final inFlight = _currentWarmup;
+    if (inFlight != null && _currentWarmupSignature == signature) {
+      return inFlight;
+    }
+    final future = _readyCoordinator.ensureEngineReady(kind, config);
+    _currentWarmupSignature = signature;
+    _currentWarmup = future;
+    _trackWarmup(future, signature);
+    return future;
+  }
+
+  /// 记录共享的引擎加载任务，并在成功或失败后安全释放引用。
+  void _trackWarmup(Future<bool> future, String signature) {
+    _currentWarmupSignature = signature;
+    _currentWarmup = future;
+    future.then<void>(
+      (_) => _clearWarmup(future),
+      onError: (Object _, StackTrace __) {
+        _clearWarmup(future);
+      },
+    );
+  }
+
+  void _clearWarmup(Future<bool> future) {
+    if (identical(_currentWarmup, future)) {
+      _currentWarmup = null;
+      _currentWarmupSignature = null;
     }
   }
 

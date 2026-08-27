@@ -474,6 +474,18 @@ class TtsCoordinator {
     await _ensureEngine(kind, config);
   }
 
+  /// 确保指定配置对应的引擎已加载到内存，供 Controller 在播放和后台预热前复用。
+  ///
+  /// 实际加载仍由 [_ensureEngine] 按引擎配置去重；调用方只需等待本方法完成即可，
+  /// 不必再直接依赖惰性合成流程触发模型初始化。
+  Future<bool> ensureEngineReady(
+    TtsEngineKind kind,
+    TtsSpeechConfig config,
+  ) async {
+    final engine = await _ensureEngine(kind, config);
+    return engine != null;
+  }
+
   /// 取消尚未开始的文本预热；运行中的初始化/推理不能被安全打断。
   void cancelPendingPrewarm() {
     _backgroundGeneration++;

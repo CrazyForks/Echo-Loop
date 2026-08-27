@@ -156,16 +156,18 @@ class KokoroModelNotifier extends Notifier<KokoroModelsState> {
   }
 
   /// 检查全部变体的安装标记并同步本次进程内存状态，不触发下载。
-  Future<void> refreshInstalledStates() async {
+  Future<void> refreshInstalledStates({bool Function()? shouldCommit}) async {
     await Future.wait(
       KokoroModelVariant.values.map((variant) async {
         final manager = ref.read(kokoroModelManagerProvider(variant));
         final before = state.of(variant).downloadStatus;
         final manifest = await manager.readInstallManifest();
         final filesReady = await manager.isModelDownloaded();
+        if (shouldCommit != null && !shouldCommit()) return;
+        final current = state.of(variant);
         if (manifest != null && filesReady) {
           markReady(variant, manifest);
-        } else if (before != AsrModelDownloadStatus.downloading) {
+        } else if (!current.isDownloading) {
           _set(
             variant,
             state

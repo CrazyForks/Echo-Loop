@@ -32,6 +32,9 @@ class _FixedKokoroNotifier extends KokoroModelNotifier {
 
   @override
   Future<void> ensureDownloaded(KokoroModelVariant variant) async {}
+
+  @override
+  Future<void> refreshInstalledStates({bool Function()? shouldCommit}) async {}
 }
 
 /// 记录每次合成文本的引擎；合成返回 null（不入库/不播放），可按文本设闸门拦住。
@@ -87,6 +90,9 @@ class _FakePathProvider extends PathProviderPlatform
 
   @override
   Future<String?> getApplicationCachePath() async => rootPath;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => rootPath;
 }
 
 class _NoopShortAudioBackend implements AudioClipPlayerBackend {

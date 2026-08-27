@@ -112,6 +112,10 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   void initState() {
     super.initState();
     _watchEntryAnimation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(ttsControllerProvider.notifier).warmUpCurrentEngine();
+    });
   }
 
   /// 监听入场动画：结束时启用内容区过渡。无动画（测试直连）视为已入场。

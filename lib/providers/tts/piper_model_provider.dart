@@ -162,16 +162,18 @@ class PiperModelNotifier extends Notifier<PiperModelsState> {
   }
 
   /// 检查全部音色的安装标记并同步本次进程内存状态，不触发下载。
-  Future<void> refreshInstalledStates() async {
+  Future<void> refreshInstalledStates({bool Function()? shouldCommit}) async {
     await Future.wait(
       piperVoices.map((voice) async {
         final manager = ref.read(piperModelManagerProvider(voice.id));
         final before = state.of(voice.id).downloadStatus;
         final manifest = await manager.readInstallManifest();
         final filesReady = await manager.isModelDownloaded();
+        if (shouldCommit != null && !shouldCommit()) return;
+        final current = state.of(voice.id);
         if (manifest != null && filesReady) {
           markReady(voice.id, manifest);
-        } else if (before != AsrModelDownloadStatus.downloading) {
+        } else if (!current.isDownloading) {
           _set(
             voice.id,
             state
