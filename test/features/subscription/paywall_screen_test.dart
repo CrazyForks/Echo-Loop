@@ -110,6 +110,12 @@ class _FixedPlansController extends SubscriptionPlansController {
   Future<void> refresh({bool force = false}) async {}
 }
 
+class _ErrorPlansController extends SubscriptionPlansController {
+  @override
+  AsyncValue<List<SubscriptionPlan>> build() =>
+      AsyncError(StateError('store plans unavailable'), StackTrace.current);
+}
+
 class _FixedPaddlePlansController extends PaddleSubscriptionPlansController {
   _FixedPaddlePlansController(this._plans);
 
@@ -242,6 +248,7 @@ Widget _harness({
   // 网页支付渠道（侧载 APK / 桌面）：切换到浏览器结账购买态。
   bool webCheckout = false,
   bool showStoreWebCheckoutFallback = false,
+  bool storePlansError = false,
   _SpyRemoteConfigService? remoteConfigService,
   SubscriptionIdentity? identity,
   ThemeMode themeMode = ThemeMode.light,
@@ -261,7 +268,9 @@ Widget _harness({
         controller ?? () => _FixedController(state),
       ),
       subscriptionPlansProvider.overrideWith(
-        () => _FixedPlansController(plans),
+        () => storePlansError
+            ? _ErrorPlansController()
+            : _FixedPlansController(plans),
       ),
       paddleSubscriptionPlansProvider.overrideWith(
         () => _FixedPaddlePlansController(paddlePlans),
@@ -550,6 +559,44 @@ void main() {
       findsNothing,
     );
     expect(find.text('Continue with store payment'), findsNothing);
+  });
+
+  testWidgets('商店套餐为空时仍展示 Web 支付兜底入口', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.free(),
+        plans: const [],
+        showStoreWebCheckoutFallback: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Store payment not working? Use web checkout'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Store payment not working? Use web checkout'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Continue with store payment'), findsOneWidget);
+    expect(find.text(r'$49.99'), findsOneWidget);
+  });
+
+  testWidgets('商店套餐获取失败时仍展示 Web 支付兜底入口', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        state: const EntitlementState.free(),
+        storePlansError: true,
+        showStoreWebCheckoutFallback: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Store payment not working? Use web checkout'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('direct 渠道：未登录点击订阅不创建 Paddle checkout', (tester) async {

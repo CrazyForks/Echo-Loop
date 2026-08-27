@@ -381,23 +381,43 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       ),
       error: (error, _) {
         AppLogger.log('Subscription', 'paywall 套餐区错误态: error=$error');
-        return _NoPlans(
-          l10n: l10n,
-          onRetry: () {
-            AppLogger.log('Subscription', 'paywall 套餐重试点击');
-            ref.invalidate(subscriptionPlansProvider);
-          },
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _NoPlans(
+              l10n: l10n,
+              onRetry: () {
+                AppLogger.log('Subscription', 'paywall 套餐重试点击');
+                _invalidatePlans(usingStoreWebCheckoutFallback);
+              },
+            ),
+            if (showStoreWebCheckoutFallback)
+              _buildStoreWebCheckoutSwitch(
+                l10n,
+                usingWebCheckout: usingStoreWebCheckoutFallback,
+              ),
+          ],
         );
       },
       data: (plans) {
         if (plans.isEmpty) {
           AppLogger.log('Subscription', 'paywall 套餐为空，展示重试');
-          return _NoPlans(
-            l10n: l10n,
-            onRetry: () {
-              AppLogger.log('Subscription', 'paywall 空套餐重试点击');
-              ref.invalidate(subscriptionPlansProvider);
-            },
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _NoPlans(
+                l10n: l10n,
+                onRetry: () {
+                  AppLogger.log('Subscription', 'paywall 空套餐重试点击');
+                  _invalidatePlans(usingStoreWebCheckoutFallback);
+                },
+              ),
+              if (showStoreWebCheckoutFallback)
+                _buildStoreWebCheckoutSwitch(
+                  l10n,
+                  usingWebCheckout: usingStoreWebCheckoutFallback,
+                ),
+            ],
           );
         }
         final selectedId = _effectiveSelection(plans);
@@ -444,32 +464,49 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 child: _ctaChild(l10n, selected),
               ),
             ),
-            if (showStoreWebCheckoutFallback) ...[
-              const SizedBox(height: 6),
-              _StoreWebCheckoutSwitch(
+            if (showStoreWebCheckoutFallback)
+              _buildStoreWebCheckoutSwitch(
+                l10n,
                 usingWebCheckout: usingStoreWebCheckoutFallback,
-                onPressed: _busy || _waitingForWeb
-                    ? null
-                    : () {
-                        setState(
-                          () => _useWebCheckoutFallback =
-                              !usingStoreWebCheckoutFallback,
-                        );
-                        AppLogger.log(
-                          'Subscription',
-                          '商店包 Web 支付切换: enabled=${!usingStoreWebCheckoutFallback}',
-                        );
-                      },
-                l10n: l10n,
-              ),
-              const SizedBox(height: 2),
-            ] else
+              )
+            else
               const SizedBox(height: 2),
             _LegalFooter(l10n: l10n),
           ],
         );
       },
     );
+  }
+
+  /// 商店套餐不可用时仍保留 Web 支付兜底；切换后由同一 Paywall 重建为 Paddle 套餐。
+  Widget _buildStoreWebCheckoutSwitch(
+    AppLocalizations l10n, {
+    required bool usingWebCheckout,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: _StoreWebCheckoutSwitch(
+        usingWebCheckout: usingWebCheckout,
+        onPressed: _busy || _waitingForWeb
+            ? null
+            : () {
+                setState(() => _useWebCheckoutFallback = !usingWebCheckout);
+                AppLogger.log(
+                  'Subscription',
+                  '商店包 Web 支付切换: enabled=${!usingWebCheckout}',
+                );
+              },
+        l10n: l10n,
+      ),
+    );
+  }
+
+  void _invalidatePlans(bool usingStoreWebCheckoutFallback) {
+    if (usingStoreWebCheckoutFallback) {
+      ref.invalidate(paddleSubscriptionPlansProvider);
+    } else {
+      ref.invalidate(subscriptionPlansProvider);
+    }
   }
 
   /// 发起 Paddle 结账：登录 → 服务端创建 transaction → 系统浏览器打开 →
