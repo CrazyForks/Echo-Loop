@@ -302,7 +302,7 @@ void main() {
         p.join(tempDir.path, 'tts-models', 'voice', 'model.onnx'),
       );
       final dictFile = File(
-        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.db'),
+        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.sqlite'),
       );
       final partial = File(
         p.join(tempDir.path, 'tts-models', '_dl_voice.tar.gz'),
@@ -323,7 +323,10 @@ void main() {
       );
       expect(archive.findFile('resources/asr-models/small/model.onnx'), isNull);
       expect(archive.findFile('resources/tts-models/voice/model.onnx'), isNull);
-      expect(archive.findFile('resources/dictionary/en_zh/dict.db'), isNotNull);
+      expect(
+        archive.findFile('resources/dictionary/en_zh/dict.sqlite'),
+        isNotNull,
+      );
       expect(archive.findFile('resources/tts-models/_dl_voice.tar.gz'), isNull);
 
       final manifestEntry = archive.findFile('manifest.json');
@@ -357,7 +360,7 @@ void main() {
         p.join(tempDir.path, 'tts-models', 'voice', 'model.onnx'),
       );
       final dictFile = File(
-        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.db'),
+        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.sqlite'),
       );
       await asrFile.parent.create(recursive: true);
       await ttsFile.parent.create(recursive: true);

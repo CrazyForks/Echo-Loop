@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 将离线词典改为固定 CDN ZIP 下载：复用 TTS 资源下载/校验/安装清单机制，解压后统一安装为 `dict.sqlite`，资源 ID 增加 `dict` 类型前缀并记录预计下载字节数，移除 `version.json` 和后台更新，并通过 App Update Migration v7 迁移旧用户的 `dict.db`。**完成时间**: 2026-08-27
+
 - [x] 修复 v47→v51 迁移测试 fixture：使用完整业务表模拟真实数据库，移除仅为后续版本创建的调度/TTS 表，避免生产收藏回填逻辑被精简 fixture 的缺表保护绕过。**完成时间**: 2026-08-27
 
 - [x] 修复 media_kit 测试隔离：注入 fake media backend 时不初始化原生 media_kit 与 AudioService，避免 flutter_tester 因缺少 macOS 原生库失败。**完成时间**: 2026-08-27

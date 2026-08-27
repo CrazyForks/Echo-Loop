@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:echo_loop/services/resource_install_manifest.dart';
 import 'package:echo_loop/services/storage_migration_service.dart';
 
 void main() {
@@ -17,10 +19,7 @@ void main() {
     fakeAppSupportDir = Directory.systemTemp.createTempSync(
       'migration_support_',
     );
-
     SharedPreferences.setMockInitialValues({});
-
-    // Mock path_provider 返回伪目录
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           const MethodChannel('plugins.flutter.io/path_provider'),
@@ -50,19 +49,16 @@ void main() {
 
   group('migrateToAppSupportDirectory', () {
     test('迁移数据库文件到 Application Support', () async {
-      // 在 Documents 创建数据库文件
       File('${fakeDocsDir.path}/echo_loop.db').writeAsStringSync('db-data');
       File('${fakeDocsDir.path}/echo_loop.db-wal').writeAsStringSync('wal');
 
       await migrateToAppSupportDirectory();
 
-      // 源文件已移走
       expect(File('${fakeDocsDir.path}/echo_loop.db').existsSync(), isFalse);
       expect(
         File('${fakeDocsDir.path}/echo_loop.db-wal').existsSync(),
         isFalse,
       );
-      // 目标文件存在
       expect(
         File('${fakeAppSupportDir.path}/echo_loop.db').readAsStringSync(),
         'db-data',
@@ -74,7 +70,6 @@ void main() {
     });
 
     test('迁移媒体目录到 Application Support', () async {
-      // 在 Documents 创建媒体目录和文件
       final audiosDir = Directory('${fakeDocsDir.path}/audios')..createSync();
       File('${audiosDir.path}/test.mp3').writeAsStringSync('audio');
       final transcriptsDir = Directory('${fakeDocsDir.path}/transcripts')
@@ -83,10 +78,8 @@ void main() {
 
       await migrateToAppSupportDirectory();
 
-      // 源目录已移走
       expect(audiosDir.existsSync(), isFalse);
       expect(transcriptsDir.existsSync(), isFalse);
-      // 目标目录和文件存在
       expect(
         File('${fakeAppSupportDir.path}/audios/test.mp3').readAsStringSync(),
         'audio',
@@ -105,7 +98,6 @@ void main() {
 
       await migrateToAppSupportDirectory();
 
-      // 目标保持不变，源文件也保留
       expect(File('${fakeDocsDir.path}/echo_loop.db').existsSync(), isTrue);
       expect(
         File('${fakeAppSupportDir.path}/echo_loop.db').readAsStringSync(),
@@ -114,26 +106,20 @@ void main() {
     });
 
     test('目标已存在时不覆盖', () async {
-      // 两个目录都有同名文件
       File('${fakeDocsDir.path}/echo_loop.db').writeAsStringSync('old');
       File('${fakeAppSupportDir.path}/echo_loop.db').writeAsStringSync('new');
 
       await migrateToAppSupportDirectory();
 
-      // 目标保持不变
       expect(
         File('${fakeAppSupportDir.path}/echo_loop.db').readAsStringSync(),
         'new',
       );
-      // 源文件未被删除（因为没有移动）
       expect(File('${fakeDocsDir.path}/echo_loop.db').existsSync(), isTrue);
     });
 
     test('全新安装无文件时正常完成', () async {
-      // Documents 为空
       await migrateToAppSupportDirectory();
-
-      // 无文件时也能成功完成，完成状态由 app update runner 记录。
     });
 
     test('迁移旧版本数据库文件名', () async {
@@ -147,5 +133,37 @@ void main() {
         'legacy',
       );
     });
+  });
+
+  test('迁移旧 dict.db 为 dict.sqlite 并写入统一安装清单', () async {
+    final directory = Directory(
+      p.join(fakeAppSupportDir.path, 'dictionary', 'en_zh-CN'),
+    )..createSync(recursive: true);
+    final legacy = File(p.join(directory.path, 'dict.db'))
+      ..writeAsBytesSync(List<int>.filled(8, 1));
+
+    await migrateLegacyDictionaryInstallLayout();
+
+    expect(legacy.existsSync(), isFalse);
+    final database = File(p.join(directory.path, 'dict.sqlite'));
+    expect(database.existsSync(), isTrue);
+    final manifest = await readResourceInstallManifest(directory);
+    expect(manifest?.resourceId, 'dict-en_zh-CN-v1');
+    expect(manifest?.resourceSize, 8);
+  });
+
+  test('词典迁移可重复执行且不会覆盖已有 dict.sqlite', () async {
+    final directory = Directory(
+      p.join(fakeAppSupportDir.path, 'dictionary', 'en_zh-TW'),
+    )..createSync(recursive: true);
+    final database = File(p.join(directory.path, 'dict.sqlite'))
+      ..writeAsBytesSync(List<int>.filled(4, 2));
+
+    await migrateLegacyDictionaryInstallLayout();
+    await migrateLegacyDictionaryInstallLayout();
+
+    expect(database.readAsBytesSync(), List<int>.filled(4, 2));
+    final manifest = await readResourceInstallManifest(directory);
+    expect(manifest?.resourceId, 'dict-en_zh-TW-v1');
   });
 }

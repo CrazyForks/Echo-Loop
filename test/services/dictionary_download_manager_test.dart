@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,21 +9,20 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:echo_loop/services/dictionary_download_manager.dart';
+import 'package:echo_loop/services/dictionary/dictionary_catalog.dart';
 import 'package:echo_loop/services/app_logger.dart';
 import 'package:echo_loop/services/reliable_http_downloader.dart';
+import 'package:echo_loop/services/resource_install_manifest.dart';
 
-/// 按路径分发的 mock adapter：`/version.json` 返回预置版本信息，
-/// `/dict.db.gz`（或其它约定路径）返回预置字节；其余 404。
+/// 按固定下载 URL 返回预置 ZIP；其余请求 404。
 class _MockAdapter implements HttpClientAdapter {
   _MockAdapter({
     required this.downloadUrl,
-    required this.updatedAtIso,
     this.payload,
     this.downloadStatusCode = 200,
   });
 
   final String downloadUrl;
-  final String updatedAtIso;
   final List<int>? payload;
   final int downloadStatusCode;
 
@@ -31,17 +32,6 @@ class _MockAdapter implements HttpClientAdapter {
     Stream<List<int>>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    if (options.path.endsWith('/version.json')) {
-      final body =
-          '{"dictionary":{"en_zh":{"url":"$downloadUrl","updatedAt":"$updatedAtIso"}}}';
-      return ResponseBody.fromString(
-        body,
-        200,
-        headers: {
-          'content-type': ['application/json'],
-        },
-      );
-    }
     if (options.path == downloadUrl) {
       if (downloadStatusCode != 200 || payload == null) {
         return ResponseBody(
@@ -67,6 +57,21 @@ class _MockAdapter implements HttpClientAdapter {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('catalog 包含当前两种语言的固定版本资源', () {
+    expect(
+      dictionarySpecOf('zh-CN').archiveUrl,
+      'https://cdn.echo-loop.top/dictionary/en_zh-CN/'
+      'dict_en_zh-CN-v1.sqlite.zip',
+    );
+    expect(
+      dictionarySpecOf('zh-CN').archiveSha256,
+      '2acfc22aae4658b707973c508e1356d4c8ce4bc07c502c6d2c3030a95bc5f5e9',
+    );
+    expect(dictionarySpecOf('zh-TW').resourceId, 'dict-en_zh-TW-v1');
+    expect(dictionarySpecOf('zh-CN').estimatedDownloadBytes, 12552930);
+    expect(dictionarySpecOf('zh-TW').estimatedDownloadBytes, 12552893);
+  });
 
   late Directory fakeAppSupportDir;
 
@@ -102,15 +107,35 @@ void main() {
   DictionaryDownloadManager manager(_MockAdapter adapter) {
     final dio = Dio();
     dio.httpClientAdapter = adapter;
-    return DictionaryDownloadManager.withDio(dio);
+    final archive = Archive()
+      ..addFile(
+        ArchiveFile('dict_en_zh-v1.sqlite', 16, List<int>.filled(16, 7)),
+      );
+    final zip = ZipEncoder().encode(archive);
+    final sha = sha256.convert(zip).toString();
+    return DictionaryDownloadManager.withDio(
+      dio,
+      specs: {
+        'zh': DictionarySpec(
+          nativeLanguage: 'zh',
+          resourceId: 'dict-en_zh-v1',
+          archiveUrl: adapter.downloadUrl,
+          archiveSha256: sha,
+          estimatedDownloadBytes: zip.length,
+        ),
+      },
+    );
   }
 
-  test('download 成功 → 落盘 dict.db 且记录下载时间', () async {
-    final payload = List<int>.filled(16, 7);
+  test('download 成功 → 固定 URL 解压为 dict.sqlite 并写入安装清单', () async {
+    final archive = Archive()
+      ..addFile(
+        ArchiveFile('dict_en_zh-v1.sqlite', 16, List<int>.filled(16, 7)),
+      );
+    final payload = ZipEncoder().encode(archive);
     final m = manager(
       _MockAdapter(
-        downloadUrl: 'http://mock.local/dict.db.gz',
-        updatedAtIso: '2026-01-01T00:00:00Z',
+        downloadUrl: 'http://mock.local/dict-v1.sqlite.zip',
         payload: payload,
       ),
     );
@@ -118,10 +143,12 @@ void main() {
     final path = await m.download('zh');
 
     expect(File(path).existsSync(), isTrue);
-    expect(File(path).readAsBytesSync(), payload);
-
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getInt('dictionary_downloaded_at_en_zh'), isNotNull);
+    expect(File(path).readAsBytesSync(), List<int>.filled(16, 7));
+    final manifest = await readResourceInstallManifest(
+      Directory(p.dirname(path)),
+    );
+    expect(manifest?.resourceId, 'dict-en_zh-v1');
+    expect(manifest?.resourceSize, 16);
     expect(
       AppLogger.instance.entries.any(
         (entry) =>
@@ -136,8 +163,7 @@ void main() {
   test('归档下载网络失败 → 抛结构化 ReliableDownloadException(httpStatus) 且不留残留', () async {
     final m = manager(
       _MockAdapter(
-        downloadUrl: 'http://mock.local/dict.db.gz',
-        updatedAtIso: '2026-01-01T00:00:00Z',
+        downloadUrl: 'http://mock.local/dict-v1.sqlite.zip',
         downloadStatusCode: 404,
       ),
     );

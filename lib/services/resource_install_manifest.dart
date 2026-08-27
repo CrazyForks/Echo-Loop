@@ -19,14 +19,20 @@ class ResourceInstallManifest {
     final installAt = json['installAt'];
     final resourceSize = json['resourceSize'];
     if (resourceId is! String || resourceId.isEmpty) {
-      throw const FormatException('Invalid TTS install manifest resourceId');
+      throw const FormatException(
+        'Invalid resource install manifest resourceId',
+      );
     }
     if (installAt is! String) {
-      throw const FormatException('Invalid TTS install manifest installAt');
+      throw const FormatException(
+        'Invalid resource install manifest installAt',
+      );
     }
     final parsedInstallAt = DateTime.tryParse(installAt);
     if (parsedInstallAt == null) {
-      throw const FormatException('Invalid TTS install manifest installAt');
+      throw const FormatException(
+        'Invalid resource install manifest installAt',
+      );
     }
     if (resourceSize is! int || resourceSize < 0) {
       throw const FormatException(

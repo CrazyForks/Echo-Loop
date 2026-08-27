@@ -121,8 +121,6 @@ class Dictionary extends _$Dictionary {
         nativeLanguage: nativeLanguage,
       );
 
-      // 后台静默检查更新
-      await _checkForUpdate(nativeLanguage);
     } else {
       // 本地没有，开始下载
       AppLogger.log(
@@ -190,40 +188,6 @@ class Dictionary extends _$Dictionary {
           error: e.toString(),
         );
       }
-    }
-  }
-
-  /// 后台检查词典更新
-  Future<void> _checkForUpdate(String nativeLanguage) async {
-    try {
-      final needsUpdate = await _runStartupStep(
-        'dictionary_update_check',
-        () => _manager.needsUpdate(nativeLanguage),
-      );
-      if (!needsUpdate) return;
-
-      // 需要更新，静默下载
-      AppLogger.log(
-        'Dict',
-        'update available for lang=$nativeLanguage, downloading...',
-      );
-      _cancelToken = CancelToken();
-      final path = await _runStartupStep(
-        'dictionary_update_download',
-        () => _manager.download(nativeLanguage, cancelToken: _cancelToken),
-      );
-
-      // 重新打开数据库
-      DictionaryService.instance.close();
-      DictionaryService.instance.openDatabase(path);
-      _scheduleWarmUp();
-      AppLogger.log('Dict', 'update complete lang=$nativeLanguage');
-    } catch (e) {
-      // 更新失败不影响当前已有词典的使用
-      AppLogger.log(
-        'Dict',
-        'update check failed lang=$nativeLanguage error=$e',
-      );
     }
   }
 

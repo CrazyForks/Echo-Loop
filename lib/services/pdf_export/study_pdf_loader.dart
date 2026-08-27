@@ -32,7 +32,7 @@ import '../../widgets/practice/sentence_word_selection.dart'
 
 /// 本地词典**批量**查询函数签名（注入 `DictionaryService.instance.lookupAll`）
 ///
-/// 单词逐个查会对 dict.db 反复全表扫描（`WHERE word=? COLLATE NOCASE`，
+/// 单词逐个查会对 dict.sqlite 反复全表扫描（`WHERE word=? COLLATE NOCASE`，
 /// 索引常因 NOCASE 用不上），几十词即秒级。改为一次性批量查（单条 IN 查询），
 /// 把 N 次全表扫描收敛为 1 次。返回 `原始输入词 → 词条` 映射，未命中不含。
 typedef LocalDictLookup = Map<String, DictEntry> Function(List<String> words);

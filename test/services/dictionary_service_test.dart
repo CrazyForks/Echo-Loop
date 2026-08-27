@@ -64,7 +64,7 @@ void main() {
   group('openDatabase 补建 NOCASE 索引 + 预热', () {
     test('打开文件库时补建 idx_words_word_nocase，大小写不敏感查询命中', () async {
       final dir = await Directory.systemTemp.createTemp('dict_test');
-      final path = p.join(dir.path, 'dict.db');
+      final path = p.join(dir.path, 'dict.sqlite');
       // 预置一个无索引的 words 表文件库（headword 含大写）
       final seed = sqlite3.open(path);
       seed.execute(

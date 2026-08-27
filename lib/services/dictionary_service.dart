@@ -1,6 +1,6 @@
 /// 本地词典查询服务
 ///
-/// 基于 SQLite 的离线词典，由 [DictionaryProvider] 负责下载和打开数据库，
+/// 基于 SQLite 的离线词典，由 [DictionaryProvider] 负责下载和打开 `dict.sqlite`，
 /// 本服务仅提供查询能力。数据库未就绪时，查询方法返回 null / 空 map。
 library;
 

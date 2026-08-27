@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'resource_install_manifest.dart';
+import 'dictionary/dictionary_catalog.dart';
+import 'app_logger.dart';
 
 /// Documents → Application Support 一次性数据迁移。
 ///
@@ -50,6 +52,62 @@ Future<void> migrateTtsModelInstallLayout() async {
         entity,
         resourceId: p.basename(entity.path),
         installAt: stat.changed,
+      );
+    }
+  }
+}
+
+/// 将旧版按需下载的词典文件迁移到统一资源安装布局。
+///
+/// 迁移只处理本地文件，不联网；重命名和写入清单分别可安全重试。
+Future<void> migrateLegacyDictionaryInstallLayout() async {
+  final support = await getApplicationSupportDirectory();
+  final root = Directory(p.join(support.path, 'dictionary'));
+  for (final spec in dictionarySpecs.values) {
+    final directory = Directory(p.join(root.path, 'en_${spec.nativeLanguage}'));
+    if (!await directory.exists()) continue;
+
+    final legacy = File(p.join(directory.path, 'dict.db'));
+    final database = File(p.join(directory.path, 'dict.sqlite'));
+    if (await legacy.exists() && !await database.exists()) {
+      await legacy.rename(database.path);
+      AppLogger.log(
+        'DictMigration',
+        'renamed legacy dictionary lang=${spec.nativeLanguage} '
+            'from=dict.db to=dict.sqlite',
+      );
+    }
+    if (!await database.exists()) {
+      AppLogger.log(
+        'DictMigration',
+        'no dictionary to migrate lang=${spec.nativeLanguage}',
+      );
+      continue;
+    }
+
+    ResourceInstallManifest? manifest;
+    try {
+      manifest = await readResourceInstallManifest(directory);
+    } on FormatException {
+      manifest = null;
+    }
+    if (manifest == null || manifest.resourceId != spec.resourceId) {
+      final stat = await database.stat();
+      await writeResourceInstallManifest(
+        directory,
+        resourceId: spec.resourceId,
+        installAt: stat.changed,
+      );
+      AppLogger.log(
+        'DictMigration',
+        'install manifest migrated lang=${spec.nativeLanguage} '
+            'resource=${spec.resourceId}',
+      );
+    } else {
+      AppLogger.log(
+        'DictMigration',
+        'dictionary install already current lang=${spec.nativeLanguage} '
+            'resource=${spec.resourceId}',
       );
     }
   }
