@@ -31,6 +31,7 @@ class _FakePurchaseService implements PurchaseService {
   String? storefront = 'CHN';
   int fastFetches = 0;
   int fullFetches = 0;
+  final List<bool> forceCalls = [];
   Future<List<SubscriptionPlan>> Function(bool includeIntroEligibility)?
   onFetch;
 
@@ -39,6 +40,7 @@ class _FakePurchaseService implements PurchaseService {
     bool includeIntroEligibility = true,
     bool force = false,
   }) async {
+    forceCalls.add(force);
     if (includeIntroEligibility) {
       fullFetches++;
     } else {
@@ -88,6 +90,9 @@ void main() {
       overrides: [
         purchaseServiceProvider.overrideWithValue(purchases),
         subscriptionPlansNowProvider.overrideWithValue(() => now),
+        subscriptionPlansTimeoutProvider.overrideWithValue(
+          const Duration(milliseconds: 20),
+        ),
       ],
     );
   });
@@ -121,6 +126,18 @@ void main() {
     pending.complete(_usPlans);
     await refresh;
     expect(container.read(subscriptionPlansProvider).valueOrNull, _usPlans);
+  });
+
+  test('强制刷新将 force 传递给基础套餐请求，但不重复强制补充请求', () async {
+    container.read(subscriptionPlansProvider);
+    await container.read(subscriptionPlansProvider.notifier).settled;
+    purchases.forceCalls.clear();
+
+    await container
+        .read(subscriptionPlansProvider.notifier)
+        .refresh(force: true);
+
+    expect(purchases.forceCalls, [true, false]);
   });
 
   test('同 storefront 刷新失败时保留本会话最后成功价格', () async {
@@ -200,5 +217,57 @@ void main() {
 
     expect(container.read(subscriptionPlansProvider).valueOrNull, _usPlans);
     expect(purchases.fastFetches, 2);
+  });
+
+  test('无缓存套餐请求超时后进入错误态', () async {
+    final pending = Completer<List<SubscriptionPlan>>();
+    purchases.onFetch = (_) => pending.future;
+
+    container.read(subscriptionPlansProvider);
+    await container.read(subscriptionPlansProvider.notifier).settled;
+
+    expect(container.read(subscriptionPlansProvider).hasError, isTrue);
+  });
+
+  test('套餐请求超时后重试可以恢复，旧请求不能覆盖新结果', () async {
+    final pending = Completer<List<SubscriptionPlan>>();
+    var firstRequest = true;
+    purchases.onFetch = (_) {
+      if (firstRequest) {
+        firstRequest = false;
+        return pending.future;
+      }
+      return Future<List<SubscriptionPlan>>.value(_usPlans);
+    };
+
+    container.read(subscriptionPlansProvider);
+    await container.read(subscriptionPlansProvider.notifier).settled;
+    expect(container.read(subscriptionPlansProvider).hasError, isTrue);
+
+    await container
+        .read(subscriptionPlansProvider.notifier)
+        .refresh(force: true);
+    expect(container.read(subscriptionPlansProvider).valueOrNull, _usPlans);
+
+    pending.complete(_chinaPlans);
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(subscriptionPlansProvider).valueOrNull, _usPlans);
+  });
+
+  test('基础套餐成功后促销查询超时仍保留基础套餐', () async {
+    var fullRequest = false;
+    purchases.onFetch = (includeIntroEligibility) {
+      if (includeIntroEligibility) {
+        fullRequest = true;
+        return Completer<List<SubscriptionPlan>>().future;
+      }
+      return Future<List<SubscriptionPlan>>.value(_chinaPlans);
+    };
+
+    container.read(subscriptionPlansProvider);
+    await container.read(subscriptionPlansProvider.notifier).settled;
+
+    expect(fullRequest, isTrue);
+    expect(container.read(subscriptionPlansProvider).valueOrNull, _chinaPlans);
   });
 }

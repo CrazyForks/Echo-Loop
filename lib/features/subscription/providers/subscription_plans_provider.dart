@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +14,14 @@ import '../services/revenuecat_purchase_service.dart';
 
 /// 同一 storefront 下套餐自动刷新的最长期限。
 const subscriptionPlansRefreshInterval = Duration(days: 1);
+
+/// 原生商店套餐一次刷新允许占用的最长时间。
+const subscriptionPlansRequestTimeout = Duration(seconds: 15);
+
+/// 套餐刷新超时配置注入点，测试可缩短等待时间。
+final subscriptionPlansTimeoutProvider = Provider<Duration>((ref) {
+  return subscriptionPlansRequestTimeout;
+});
 
 /// 当前时间注入点，便于稳定验证缓存过期行为。
 final subscriptionPlansNowProvider = Provider<DateTime Function()>((ref) {
@@ -135,12 +144,34 @@ class SubscriptionPlansController
   Future<void> _refresh({required bool force}) async {
     // generation 必须在任何 await 前创建，保证后发请求始终拥有提交权。
     final generation = ++_generation;
+    final stopwatch = Stopwatch()..start();
     AppLogger.log(
       'Subscription',
       '套餐刷新开始: generation=$generation force=$force',
     );
     final service = ref.read(purchaseServiceProvider);
-    final storefront = await _readStorefront(service);
+    final timeout = ref.read(subscriptionPlansTimeoutProvider);
+    final previousPlans = state.valueOrNull;
+    late final String? storefront;
+    try {
+      storefront = await _readStorefront(
+        service,
+        remaining: _remaining(timeout, stopwatch),
+      );
+    } catch (error, stackTrace) {
+      if (!_isCurrent(generation)) return;
+      if (previousPlans != null) {
+        state = AsyncData(previousPlans);
+        AppLogger.log('Subscription', '套餐 storefront 刷新失败，保留会话缓存: $error');
+      } else {
+        state = AsyncError(error, stackTrace);
+        AppLogger.log(
+          'Subscription',
+          '套餐 storefront 刷新失败，进入错误态: generation=$generation error=$error',
+        );
+      }
+      return;
+    }
     if (!_isCurrent(generation)) {
       AppLogger.log(
         'Subscription',
@@ -167,7 +198,6 @@ class SubscriptionPlansController
       return;
     }
 
-    final previousPlans = state.valueOrNull;
     if (storefrontChanged || previousPlans == null) {
       state = const AsyncLoading();
     }
@@ -180,9 +210,9 @@ class SubscriptionPlansController
 
     try {
       // 先提交不依赖 iOS 促销资格查询的基础价格，缩短首次可见时间。
-      final fastPlans = await service.fetchPlans(
-        includeIntroEligibility: false,
-      );
+      final fastPlans = await service
+          .fetchPlans(includeIntroEligibility: false, force: force)
+          .timeout(_remaining(timeout, stopwatch));
       if (!_isCurrent(generation)) {
         AppLogger.log(
           'Subscription',
@@ -190,7 +220,10 @@ class SubscriptionPlansController
         );
         return;
       }
-      final storefrontAfterFetch = await _readStorefront(service);
+      final storefrontAfterFetch = await _readStorefront(
+        service,
+        remaining: _remaining(timeout, stopwatch),
+      );
       if (!_isCurrent(generation)) {
         AppLogger.log(
           'Subscription',
@@ -223,7 +256,9 @@ class SubscriptionPlansController
 
       // 再从 SDK 缓存补全促销资格；失败时继续保留已可用的基础价格。
       try {
-        final completePlans = await service.fetchPlans();
+        final completePlans = await service.fetchPlans().timeout(
+          _remaining(timeout, stopwatch),
+        );
         if (!_isCurrent(generation)) {
           AppLogger.log(
             'Subscription',
@@ -266,12 +301,26 @@ class SubscriptionPlansController
 
   bool _isCurrent(int generation) => generation == _generation;
 
-  Future<String?> _readStorefront(PurchaseService service) async {
+  Future<String?> _readStorefront(
+    PurchaseService service, {
+    required Duration remaining,
+  }) async {
     try {
-      return await service.storefrontCountryCode();
+      return await service.storefrontCountryCode().timeout(remaining);
+    } on TimeoutException {
+      AppLogger.log(
+        'Subscription',
+        'storefront 获取超时: timeout=${remaining.inMilliseconds}ms',
+      );
+      rethrow;
     } catch (error) {
       AppLogger.log('Subscription', 'storefront 获取失败，沿用已有套餐区域: $error');
       return null;
     }
+  }
+
+  Duration _remaining(Duration timeout, Stopwatch stopwatch) {
+    final remainingMs = timeout.inMilliseconds - stopwatch.elapsedMilliseconds;
+    return Duration(milliseconds: math.max(1, remainingMs));
   }
 }
