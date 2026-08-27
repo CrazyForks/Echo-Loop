@@ -14,6 +14,18 @@ const appUpdateMigrationVersionKey = 'app_update_migration_version';
 /// 当前已注册的应用升级迁移版本。
 const currentAppUpdateMigrationVersion = 6;
 
+/// 删除已废弃的 TTS 模型下载状态缓存；模型状态现在以安装清单和文件校验为准。
+Future<void> removeLegacyTtsModelDownloadFlags(SharedPreferences prefs) async {
+  final legacyKeys = prefs.getKeys().where(
+    (key) =>
+        key.startsWith('kokoro_model_downloaded_') ||
+        key.startsWith('piper_model_downloaded_'),
+  );
+  for (final key in legacyKeys) {
+    await prefs.remove(key);
+  }
+}
+
 typedef AppUpdateMigrationAction = Future<void> Function();
 typedef AppUpdateMigrationRunnerCallback =
     Future<void> Function(
@@ -174,7 +186,10 @@ List<AppUpdateMigration> buildAppUpdateMigrations(
     AppUpdateMigration(
       version: 6,
       name: 'tts_model_install_layout_migration',
-      action: migrateTtsModelInstallLayout,
+      action: () async {
+        await migrateTtsModelInstallLayout();
+        await removeLegacyTtsModelDownloadFlags(prefs);
+      },
     ),
   ];
 }

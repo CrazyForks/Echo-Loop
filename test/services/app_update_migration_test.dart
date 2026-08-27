@@ -5,6 +5,32 @@ import 'package:echo_loop/services/app_update_migration.dart';
 
 void main() {
   group('AppUpdateMigrationRunner', () {
+    test('清理已废弃的 TTS 模型下载状态，不影响其它偏好', () async {
+      SharedPreferences.setMockInitialValues({
+        'kokoro_model_downloaded_fp32': true,
+        'piper_model_downloaded_en_US-amy-medium': true,
+        'offline_asr_downloaded_whisper-base-en-int8': true,
+        'offline_asr_selected_model_id': 'whisper-base-en-int8',
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      await removeLegacyTtsModelDownloadFlags(prefs);
+
+      expect(prefs.containsKey('kokoro_model_downloaded_fp32'), isFalse);
+      expect(
+        prefs.containsKey('piper_model_downloaded_en_US-amy-medium'),
+        isFalse,
+      );
+      expect(
+        prefs.getBool('offline_asr_downloaded_whisper-base-en-int8'),
+        isTrue,
+      );
+      expect(
+        prefs.getString('offline_asr_selected_model_id'),
+        'whisper-base-en-int8',
+      );
+    });
+
     test('按顺序执行未完成迁移并记录最新版本', () async {
       SharedPreferences.setMockInitialValues({appUpdateMigrationVersionKey: 1});
       final prefs = await SharedPreferences.getInstance();
