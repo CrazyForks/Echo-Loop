@@ -1119,6 +1119,10 @@ class _PiperVoiceRow extends ConsumerWidget {
     settingsNotifier.setPiperVoice(voice.accent, voice.id);
     final st = ref.read(piperModelProvider).of(voice.id);
     final notifier = ref.read(piperModelProvider.notifier);
+    if (!st.isReady) {
+      // 点击未下载音色会切换当前配置并启动下载；先停止旧音色试听，避免下载期间继续播放旧音频。
+      unawaited(ref.read(ttsControllerProvider.notifier).stop());
+    }
     if (st.isReady) {
       ref.read(ttsControllerProvider.notifier).previewPiperVoice(voice);
     } else if (st.downloadStatus == AsrModelDownloadStatus.failed) {
