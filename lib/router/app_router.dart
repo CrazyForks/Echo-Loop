@@ -55,6 +55,9 @@ import 'main_shell.dart';
 /// 全局根导航器 key
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// 监听 MainShell 所在 root route 被全屏页面覆盖与恢复。
+final rootRouteObserver = RouteObserver<ModalRoute<void>>();
+
 /// 路由路径常量 + 类型安全的路径构建方法
 abstract class AppRoutes {
   static const collections = '/collections';
@@ -267,7 +270,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.study,
-    observers: [AnalyticsObserver(analyticsService)],
+    observers: [rootRouteObserver, AnalyticsObserver(analyticsService)],
     redirect: (context, state) {
       final isAuthenticated = ref.read(isAuthenticatedProvider);
       final isAuthRoute =

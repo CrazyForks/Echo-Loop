@@ -31,6 +31,7 @@ import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/services/pronunciation/local_audio_clip_player.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/utils/app_data_dir.dart';
+import 'package:echo_loop/widgets/common/prewarm_visibility.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../helpers/mock_providers.dart';
@@ -105,7 +106,10 @@ class _RecordingTtsController extends TtsController {
   }
 
   @override
-  Future<void> warmUpCurrentEngine() async => engineWarmupCount++;
+  Future<bool> warmUpCurrentEngine() async {
+    engineWarmupCount++;
+    return true;
+  }
 
   @override
   Future<void> speak(String text, {String? key}) async {
@@ -282,6 +286,7 @@ void main() {
   late Directory appDataDir;
   late _RecordingShortAudioPlayer shortAudioPlayer;
   late _MockAudioItemDao audioItemDao;
+  late ValueNotifier<int> activeMainTab;
 
   setUp(() {
     bookmarkC = StreamController<List<BookmarkWithAudio>>.broadcast();
@@ -297,6 +302,7 @@ void main() {
     appDataDirectoryOverride = appDataDir;
     shortAudioPlayer = _RecordingShortAudioPlayer();
     audioItemDao = _MockAudioItemDao();
+    activeMainTab = ValueNotifier<int>(2);
   });
 
   tearDown(() {
@@ -307,6 +313,7 @@ void main() {
     dictionaryDatabase.dispose();
     appDataDirectoryOverride = null;
     if (appDataDir.existsSync()) appDataDir.deleteSync(recursive: true);
+    activeMainTab.dispose();
   });
 
   Widget createWidget({Set<String> locallyPronouncedWords = const {}}) {
@@ -322,6 +329,18 @@ void main() {
           builder: (context, state) => const Scaffold(body: Text('Other')),
         ),
       ],
+    );
+    final app = MaterialApp.router(
+      locale: const Locale('en'),
+      supportedLocales: const [Locale('en'), Locale('zh')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: AppTheme.light(),
+      routerConfig: router,
     );
     return ProviderScope(
       overrides: [
@@ -357,17 +376,13 @@ void main() {
         ttsControllerProvider.overrideWith(() => rec),
         textPlaybackProvider.overrideWith(() => pronunciationPlayback),
       ],
-      child: MaterialApp.router(
-        locale: const Locale('en'),
-        supportedLocales: const [Locale('en'), Locale('zh')],
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        theme: AppTheme.light(),
-        routerConfig: router,
+      child: ValueListenableBuilder<int>(
+        valueListenable: activeMainTab,
+        builder: (context, index, _) => MainTabVisibilityScope(
+          currentIndex: index,
+          rootRouteVisible: true,
+          child: app,
+        ),
       ),
     );
   }
@@ -536,6 +551,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rec.cancelCount, greaterThan(cancelsBefore));
+  });
+
+  testWidgets('切离主 tab 取消预热，返回主 tab 后重新预热', (tester) async {
+    await tester.pumpWidget(createWidget());
+    bookmarkC.add([]);
+    wordC.add([_word(1, 'tomorrow')]);
+    phraseC.add([_phrase(1, 'can I book a table')]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Vocabulary'));
+    await tester.pumpAndSettle();
+    final callsBeforeLeave = rec.prewarmCalls.length;
+    final cancelsBeforeLeave = rec.cancelCount;
+
+    activeMainTab.value = 1;
+    await tester.pumpAndSettle();
+    expect(rec.cancelCount, greaterThan(cancelsBeforeLeave));
+
+    activeMainTab.value = 2;
+    await tester.pumpAndSettle();
+    expect(rec.prewarmCalls.length, greaterThan(callsBeforeLeave));
   });
 
   testWidgets('数据流重发相同列表不重复提交已创建 tile', (tester) async {

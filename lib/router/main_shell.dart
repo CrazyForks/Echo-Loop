@@ -44,8 +44,9 @@ import '../theme/app_theme.dart';
 import '../widgets/app_update_dialog.dart';
 import '../widgets/guide_flow.dart';
 import '../widgets/notification_permission_dialog.dart';
+import '../widgets/common/prewarm_visibility.dart';
 import '../widgets/startup_splash_screen.dart';
-import 'app_router.dart' show rootNavigatorKey;
+import 'app_router.dart' show rootNavigatorKey, rootRouteObserver;
 
 /// 主导航壳组件 — 包含 NavigationRail / NavigationBar + 内容区域
 class MainShell extends ConsumerStatefulWidget {
@@ -58,7 +59,8 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> with RouteAware {
+  ModalRoute<void>? _observedRoute;
   ProviderSubscription<int>? _pendingTaskCountSubscription;
   ProviderSubscription<Map<String, LearningProgress>>? _progressMapSubscription;
   ProviderSubscription<AppUpdateState>? _appUpdateSubscription;
@@ -69,6 +71,39 @@ class _MainShellState extends ConsumerState<MainShell> {
   late final RemoteConfigController _remoteConfigController;
   late final AppLifecycleListener _lifecycleListener;
   bool _didStartPostLocalTasks = false;
+  bool _rootRouteVisible = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route == null || identical(route, _observedRoute)) return;
+    if (_observedRoute != null) {
+      rootRouteObserver.unsubscribe(this);
+    }
+    _observedRoute = route;
+    rootRouteObserver.subscribe(this, route);
+  }
+
+  @override
+  void didPushNext() {
+    if (!mounted || !_rootRouteVisible) return;
+    AppLogger.log(
+      'PrewarmVisibility',
+      'MainShell covered by root route: rootRouteVisible=false',
+    );
+    setState(() => _rootRouteVisible = false);
+  }
+
+  @override
+  void didPopNext() {
+    if (!mounted || _rootRouteVisible) return;
+    AppLogger.log(
+      'PrewarmVisibility',
+      'MainShell uncovered by root route: rootRouteVisible=true',
+    );
+    setState(() => _rootRouteVisible = true);
+  }
 
   /// 资源库 tab 图标的引导 target key；在整个 shell 生命周期内保持稳定。
   final GlobalKey _keyLibraryNav = GlobalKey();
@@ -321,6 +356,9 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   void dispose() {
+    if (_observedRoute != null) {
+      rootRouteObserver.unsubscribe(this);
+    }
     _remoteConfigController.stopPeriodicRefresh();
     _lifecycleListener.dispose();
     _pendingTaskCountSubscription?.close();
@@ -730,7 +768,13 @@ class _MainShellState extends ConsumerState<MainShell> {
                       ),
                     ],
                   ),
-                Expanded(child: widget.navigationShell),
+                Expanded(
+                  child: MainTabVisibilityScope(
+                    currentIndex: widget.navigationShell.currentIndex,
+                    rootRouteVisible: _rootRouteVisible,
+                    child: widget.navigationShell,
+                  ),
+                ),
               ],
             ),
             bottomNavigationBar: isWideScreen

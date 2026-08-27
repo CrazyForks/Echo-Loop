@@ -45,6 +45,7 @@ import '../widgets/favorites/sentence_recycle_bin_sheet.dart';
 import '../widgets/favorites/vocabulary_recycle_bin_sheet.dart';
 import '../widgets/bookmark_review/bookmark_review_settings_sheet.dart';
 import '../widgets/common/app_popup_menu.dart';
+import '../widgets/common/prewarm_visibility.dart';
 import '../widgets/guide_flow.dart';
 
 /// 判断 tile 是否真实位于最近滚动视口内；`cacheExtent` 保留的离屏 widget 不预热。
@@ -287,6 +288,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final isMainTabActive = MainTabVisibilityScope.isVisible(context, 2);
 
     // 获取收藏数量
     final bookmarksAsync = ref.watch(bookmarkListProvider);
@@ -469,7 +471,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         firstItemStep: stepWordsList,
                         // 仅词汇 tab 激活时才预热（IndexedStack 会同时构建两个 tab，
                         // 不门控则停在句子 tab 也会为词汇起引擎合成、浪费 CPU）。
-                        isActive: _currentView == _FavoritesView.words,
+                        isActive:
+                            isMainTabActive &&
+                            _currentView == _FavoritesView.words,
                       ),
                     ],
                   ),
@@ -1479,7 +1483,10 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
     _lastPrewarmConfigurationVersion = configurationVersion;
     final text = widget.savedPhrase.displayText;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _isInScrollableViewport(context)) {
+      if (mounted &&
+          widget.isActive &&
+          !widget.isScrolling &&
+          _isInScrollableViewport(context)) {
         ref.read(ttsControllerProvider.notifier).prewarmTextsIncremental([
           text,
         ]);
@@ -1848,6 +1855,8 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
     final word = widget.savedWord.word;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
+          !widget.isActive ||
+          widget.isScrolling ||
           !_isInScrollableViewport(context) ||
           ref.read(pronunciationClipsProvider(word)).isNotEmpty) {
         return;

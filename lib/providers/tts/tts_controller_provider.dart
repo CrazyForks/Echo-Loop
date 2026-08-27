@@ -568,8 +568,15 @@ class TtsController extends Notifier<TtsControllerState> {
 
   /// 取消在途试听预热（音色与口音共用，离开设置页时调用），使预热循环下轮即停。
   void cancelVoicePreviewPrewarm() {
+    final previousToken = _prewarmToken;
+    final previousSignature = _prewarmSignature;
     _prewarmToken++;
     _prewarmSignature = null;
+    AppLogger.log(
+      'TtsController',
+      '取消试听预热：批次=$previousToken→$_prewarmToken '
+          '签名=${previousSignature ?? 'none'}',
+    );
   }
 
   /// 批量文本预热代际：每次发起/取消递增，在途循环据此放弃过期批次。

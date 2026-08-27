@@ -10,6 +10,8 @@
 /// controller 订阅、预热新词 TTS），不重播面板入场动画。
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,6 +38,7 @@ import 'dictionary_panel_host.dart';
 import 'dictionary_result_view.dart';
 import 'pronunciation_controls.dart';
 import 'source_switcher.dart';
+import '../common/prewarm_visibility.dart';
 
 /// 词典面板内容
 class DictionaryPanel extends ConsumerStatefulWidget {
@@ -77,6 +80,9 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
 
   /// 当前单词及其离线发音命中状态的预热签名，避免 build 重复调度。
   String? _headwordPrewarmSignature;
+  bool _isPrewarmVisible = false;
+  int _prewarmVisibilityEpoch = 0;
+  List<String> _lastDictionaryPrewarmTexts = const [];
 
   /// 可拉伸源面板的当前高度（像素）。默认 3/5 屏高（真机反馈：1/2 偏低、
   /// 2/3 偏高），
@@ -112,9 +118,31 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   void initState() {
     super.initState();
     _watchEntryAnimation();
+  }
+
+  /// 面板每次重新可见都重新开始当前查询的模型和文本预热。
+  void _onPrewarmVisibilityChanged(bool visible) {
+    _isPrewarmVisible = visible;
+    final epoch = ++_prewarmVisibilityEpoch;
+    if (!visible) {
+      _ttsController?.cancelTextsPrewarm();
+      _headwordPrewarmSignature = null;
+      unawaited(_ttsController?.stop() ?? Future<void>.value());
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(ttsControllerProvider.notifier).warmUpCurrentEngine();
+      if (!mounted || !_isPrewarmVisible || epoch != _prewarmVisibilityEpoch) {
+        return;
+      }
+      _ttsController?.warmUpCurrentEngine();
+      _headwordPrewarmSignature = null;
+      _scheduleHeadwordPrewarm(
+        ref.read(pronunciationClipsProvider(_normalizedWord)).isNotEmpty,
+        ref.read(
+          ttsControllerProvider.select((state) => state.configurationVersion),
+        ),
+      );
+      _prewarmDictionaryTexts(_lastDictionaryPrewarmTexts);
     });
   }
 
@@ -146,6 +174,8 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       _ttsController?.stop();
       _textPlaybackController?.stop();
       _headwordPrewarmSignature = null;
+      _lastDictionaryPrewarmTexts = const [];
+      _prewarmVisibilityEpoch++;
     }
   }
 
@@ -276,17 +306,19 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
 
   /// 将共享编排筛选后的词典文本提交到统一 TTS 后台队列。
   void _prewarmDictionaryTexts(List<String> texts) {
-    if (texts.isEmpty) return;
+    _lastDictionaryPrewarmTexts = List.unmodifiable(texts);
+    if (texts.isEmpty || !_isPrewarmVisible) return;
     _ttsController?.prewarmTextsIncremental(texts);
   }
 
   /// 在订阅离线发音命中结果后再调度标题预热，确保已有本地音频不进入 TTS 队列。
-  void _scheduleHeadwordPrewarm(bool hasLocalClip) {
-    final signature = '$_normalizedWord|$hasLocalClip';
+  void _scheduleHeadwordPrewarm(bool hasLocalClip, int configurationVersion) {
+    final signature =
+        '$_normalizedWord|$hasLocalClip|$configurationVersion|$_prewarmVisibilityEpoch';
     if (_headwordPrewarmSignature == signature) return;
     _headwordPrewarmSignature = signature;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || !_isPrewarmVisible) return;
       if (hasLocalClip) return;
       _ttsController?.prewarmTextsIncremental([_normalizedWord]);
     });
@@ -300,6 +332,9 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     final pronunciationClips = ref.watch(pronunciationClipsProvider(word));
     final controllerProvider = _controllerProvider(lookupQuery);
     final state = ref.watch(controllerProvider);
+    final ttsConfigurationVersion = ref.watch(
+      ttsControllerProvider.select((state) => state.configurationVersion),
+    );
     final notifier = ref.read(controllerProvider.notifier);
 
     // 缓存 TTS 控制器与会话粘滞源供 dispose 使用（dispose 内不可用 ref，§7.14）。
@@ -307,7 +342,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     _textPlaybackController = ref.read(textPlaybackProvider.notifier);
     _sessionSource = ref.read(dictionarySessionSourceProvider.notifier);
     final hasLocalClip = pronunciationClips.isNotEmpty;
-    _scheduleHeadwordPrewarm(hasLocalClip);
+    _scheduleHeadwordPrewarm(hasLocalClip, ttsConfigurationVersion);
 
     // 本地词典下载完成后，若当前选中本地源，自动重新查询
     ref.listen(dictionaryProvider, (prev, next) {
@@ -352,54 +387,57 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
         isWeb || state.selectedSourceId == AiDictionarySource.sourceId;
 
     // 非 modal 嵌入渲染：自带表面（顶部圆角 + 阴影），原 modal 容器不复存在。
-    return Material(
-      color: theme.colorScheme.surface,
-      elevation: 12,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          key: const Key('dict_sheet_sizer'),
-          // 可拉伸源用显式高度（默认 3/5，可拖拽指示条调整）；本地源按内容自适应。
-          height: isResizable ? (_sheetHeight ?? _defaultSheetHeight) : null,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.l,
-              6,
-              AppSpacing.l,
-              AppSpacing.s,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // header（指示条 + 数据源行 + 标题行）：可拉伸源时整块可上下拖拽调整高度
-                // 标题跨源恒用清洗后的原查询文本（保留大小写，不用各源词形还原/
-                // headword 后的原形）；收藏仍用归一化小写词形，保证正文匹配一致。
-                _buildHeader(
-                  theme,
-                  state,
-                  notifier,
-                  word,
-                  lookupQuery,
-                  isResizable,
-                  pronunciationClips,
-                ),
-                const SizedBox(height: AppSpacing.s),
+    return PrewarmVisibility(
+      onChanged: _onPrewarmVisibilityChanged,
+      child: Material(
+        color: theme.colorScheme.surface,
+        elevation: 12,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            key: const Key('dict_sheet_sizer'),
+            // 可拉伸源用显式高度（默认 3/5，可拖拽指示条调整）；本地源按内容自适应。
+            height: isResizable ? (_sheetHeight ?? _defaultSheetHeight) : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.l,
+                6,
+                AppSpacing.l,
+                AppSpacing.s,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // header（指示条 + 数据源行 + 标题行）：可拉伸源时整块可上下拖拽调整高度
+                  // 标题跨源恒用清洗后的原查询文本（保留大小写，不用各源词形还原/
+                  // headword 后的原形）；收藏仍用归一化小写词形，保证正文匹配一致。
+                  _buildHeader(
+                    theme,
+                    state,
+                    notifier,
+                    word,
+                    lookupQuery,
+                    isResizable,
+                    pronunciationClips,
+                  ),
+                  const SizedBox(height: AppSpacing.s),
 
-                // 内容区：按选中源渲染。
-                _buildResultArea(
-                  state,
-                  word,
-                  lookupQuery,
-                  notifier,
-                  isWeb,
-                  isResizable,
-                ),
-              ],
+                  // 内容区：按选中源渲染。
+                  _buildResultArea(
+                    state,
+                    word,
+                    lookupQuery,
+                    notifier,
+                    isWeb,
+                    isResizable,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
