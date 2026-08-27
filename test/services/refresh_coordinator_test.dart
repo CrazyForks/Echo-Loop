@@ -185,5 +185,22 @@ void main() {
       expect(calls, 2);
       expect((result as RefreshCompleted<String>).result, 'fresh');
     });
+
+    test('一小时窗口可用于版本检查节流', () async {
+      var calls = 0;
+      final result = await coordinator.run(
+        key: 'app-update',
+        force: false,
+        lastRefreshedAt: now.subtract(const Duration(minutes: 59)),
+        throttleWindow: const Duration(hours: 1),
+        refresh: () async {
+          calls++;
+          return 'fresh';
+        },
+      );
+
+      expect(result, isA<RefreshThrottled<String>>());
+      expect(calls, 0);
+    });
   });
 }

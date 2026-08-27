@@ -21,6 +21,7 @@ import '../features/subscription/services/revenuecat_purchase_service.dart'
 import '../models/app_update_info.dart';
 import '../services/app_logger.dart';
 import '../services/app_update_checker.dart';
+import '../services/refresh_coordinator.dart';
 import '../utils/app_store_country.dart';
 import '../utils/version_compare.dart';
 import 'dev_version_override_provider.dart';
@@ -33,11 +34,14 @@ const _logTag = 'AppUpdate';
 
 /// SharedPreferences key: 用户已忽略的版本号
 const _keyDismissedVersion = 'app_update_dismissed_version';
+const _keyLastCheckedAt = 'app_update_last_checked_at';
+const _appUpdateThrottleWindow = Duration(hours: 1);
 
 /// App 版本更新 Provider
 @Riverpod(keepAlive: true)
 class AppUpdate extends _$AppUpdate {
   AppUpdateChecker? _checker;
+  late final RefreshCoordinator<String, AppUpdateInfo?> _refresh;
 
   /// 后台检查是否正在进行，避免并发重复请求
   bool _backgroundChecking = false;
@@ -47,6 +51,7 @@ class AppUpdate extends _$AppUpdate {
     // bundleId 仅 iOS 路径使用（Lookup API），其他平台忽略
     final bundleId = ref.read(packageInfoProvider).packageName;
     _checker = AppUpdateChecker(bundleId: bundleId);
+    _refresh = RefreshCoordinator<String, AppUpdateInfo?>();
     ref.onDispose(() => _checker?.dispose());
     // build() 返回前 state 未初始化，checkInBackground 第一行就读 state 会抛
     // "Tried to read the state of an uninitialized provider"。延迟到下一个 microtask 执行。
@@ -75,9 +80,21 @@ class AppUpdate extends _$AppUpdate {
     AppLogger.log(_logTag, 'checkInBackground start');
     try {
       final prefs = await SharedPreferences.getInstance();
-      final info = await _checker?.check(
-        country: await _resolveAppStoreCountry(),
+      final run = await _refresh.run(
+        key: 'app-update',
+        force: false,
+        lastRefreshedAt: _readLastCheckedAt(prefs),
+        throttleWindow: _appUpdateThrottleWindow,
+        refresh: () => _fetchAndRecord(prefs),
       );
+      if (run is RefreshThrottled<AppUpdateInfo?>) {
+        AppLogger.log(_logTag, 'checkInBackground skipped: throttle window');
+        return;
+      }
+      final info = switch (run) {
+        RefreshCompleted<AppUpdateInfo?>(:final result) => result,
+        RefreshThrottled<AppUpdateInfo?>() => null,
+      };
       if (state is AppUpdateChecking) {
         AppLogger.log(
           _logTag,
@@ -109,9 +126,18 @@ class AppUpdate extends _$AppUpdate {
     AppLogger.log(_logTag, 'manualCheck start');
     state = const AppUpdateChecking();
 
-    final info = await _checker?.check(
-      country: await _resolveAppStoreCountry(),
+    final prefs = await SharedPreferences.getInstance();
+    final run = await _refresh.run(
+      key: 'app-update',
+      force: true,
+      lastRefreshedAt: _readLastCheckedAt(prefs),
+      throttleWindow: _appUpdateThrottleWindow,
+      refresh: () => _fetchAndRecord(prefs),
     );
+    final info = switch (run) {
+      RefreshCompleted<AppUpdateInfo?>(:final result) => result,
+      RefreshThrottled<AppUpdateInfo?>() => null,
+    };
     final result = _buildResult(info: info, isManual: true);
     AppLogger.log(
       _logTag,
@@ -122,6 +148,26 @@ class AppUpdate extends _$AppUpdate {
     // 手动检查结束后恢复为初始状态，不触发 MainShell listener
     state = const AppUpdateInitial();
     return result;
+  }
+
+  /// 请求远端版本信息；只有成功解析到有效结果时才更新时间戳。
+  Future<AppUpdateInfo?> _fetchAndRecord(SharedPreferences prefs) async {
+    final info = await _checker?.check(
+      country: await _resolveAppStoreCountry(),
+    );
+    if (info != null) {
+      await prefs.setString(
+        _keyLastCheckedAt,
+        DateTime.now().toIso8601String(),
+      );
+    }
+    return info;
+  }
+
+  DateTime? _readLastCheckedAt(SharedPreferences prefs) {
+    final raw = prefs.getString(_keyLastCheckedAt);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
   }
 
   /// 根据用户真实 App Store storefront 推断 iTunes Lookup 的区域代码。
