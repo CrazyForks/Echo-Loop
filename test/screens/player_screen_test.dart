@@ -204,9 +204,11 @@ List<Override> _restoreProgressOverrides({
 /// Future(...) 和 _HotkeyTipsCarousel 的 periodic Timer 全部完成/取消
 Future<void> _disposeTree(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
-  // 额外 pump 让 deactivate 中 Future 微任务执行完毕
-  await tester.pump();
-  await tester.pump();
+  // Drift 查询流的关闭会在 dispose 后再排入零时长 timer，连续推进事件循环
+  // 直到 provider/container 的异步清理完成，避免测试框架误报 pending timer。
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 1));
+  }
 }
 
 void main() {

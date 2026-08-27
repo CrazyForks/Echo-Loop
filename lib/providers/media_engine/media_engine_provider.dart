@@ -47,8 +47,12 @@ class MediaEngine extends _$MediaEngine {
 
   Future<void> ensureChain() async {
     if (_backend != null && _handler != null) return;
-    ensureMediaKitInitialized();
     final backend = ref.read(mediaBackendFactoryProvider)();
+    // 测试可注入纯 Dart backend；只有真实 media_kit backend 才需要加载原生库。
+    // 这样状态机单测不会因为 flutter_tester 不携带 Runner 的 Mpv.framework 失败。
+    if (backend is MediaKitPlayerBackend) {
+      ensureMediaKitInitialized();
+    }
     final handler = EchoLoopMediaHandler(backend);
     final router = ref.read(mediaSessionRouterProvider);
     _backend = backend;
@@ -115,9 +119,12 @@ class MediaEngine extends _$MediaEngine {
     double speed, {
     Duration initialPosition = Duration.zero,
   }) async {
-    // media_kit 前台播放不依赖 AudioService；这里仅静默尝试恢复锁屏媒体控制。
-    retryEchoLoopAudioServiceOnPlayback();
     await ensureChain();
+    // media_kit 前台播放不依赖 AudioService；测试 fake backend 也不应触发
+    // 真实平台媒体会话初始化，否则 flutter_tester 会访问不存在的平台插件。
+    if (_backend is MediaKitPlayerBackend) {
+      retryEchoLoopAudioServiceOnPlayback();
+    }
     state = state.copyWith(
       isLoading: true,
       clearErrorMessage: true,

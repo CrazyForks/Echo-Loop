@@ -96,7 +96,7 @@ void main() {
       expect(confetti, findsOneWidget);
       expect(find.byType(LottieBuilder), findsOneWidget);
       final animation = tester.widget<LottieBuilder>(confetti);
-      expect(animation.repeat, isFalse);
+      expect(animation.repeat, isTrue);
       expect(animation.animate, isFalse);
       expect(tester.getSize(confetti), const Size(160, 160));
       await tester.pump(const Duration(milliseconds: 499));

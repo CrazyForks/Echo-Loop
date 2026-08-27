@@ -13,7 +13,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV47Fixture(file);
+    await _createV47Fixture(file);
 
     final db = AppDatabase(
       NativeDatabase(
@@ -73,9 +73,20 @@ void main() {
   });
 }
 
-void _createV47Fixture(File file) {
+Future<void> _createV47Fixture(File file) async {
+  // 先用当前 schema 创建完整业务表，再移除 v47 之后才引入的表。
+  // 这样 fixture 仍然只验证 v47 起的迁移，但不会因 v50 回填读取收藏表时
+  // 把测试专用的“只含目标表”数据库误当成真实用户数据库。
+  final seedDb = AppDatabase(NativeDatabase(file));
+  await seedDb.customSelect('SELECT 1').get();
+  await seedDb.close();
+
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE IF EXISTS memory_review_events');
+    raw.execute('DROP TABLE IF EXISTS memory_schedules');
+    raw.execute('DROP TABLE IF EXISTS memory_review_queue_entries');
+    raw.execute('DROP TABLE IF EXISTS tts_cache');
     raw.execute('CREATE TABLE legacy_fixture (id TEXT PRIMARY KEY)');
     raw.execute('PRAGMA user_version = 47');
   } finally {
