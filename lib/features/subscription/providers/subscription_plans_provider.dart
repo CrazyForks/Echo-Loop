@@ -42,7 +42,6 @@ final paddleSubscriptionPlansProvider =
 
 class PaddleSubscriptionPlansController
     extends Notifier<AsyncValue<List<SubscriptionPlan>>> {
-  DateTime? _lastSuccessAt;
   int _generation = 0;
   Future<void> _settled = Future<void>.value();
 
@@ -63,16 +62,6 @@ class PaddleSubscriptionPlansController
 
   Future<void> _refresh({required bool force}) async {
     final generation = ++_generation;
-    final lastSuccessAt = _lastSuccessAt;
-    final isFresh =
-        lastSuccessAt != null &&
-        ref.read(subscriptionPlansNowProvider)().difference(lastSuccessAt) <
-            subscriptionPlansRefreshInterval;
-    if (!force && isFresh) {
-      AppLogger.log('Subscription', 'Paddle plans 刷新跳过: reason=freshCache');
-      return;
-    }
-
     final previousPlans = state.valueOrNull;
     if (previousPlans == null) state = const AsyncLoading();
     AppLogger.log(
@@ -82,7 +71,7 @@ class PaddleSubscriptionPlansController
     try {
       final plans = await ref
           .read(paddleBillingRepositoryProvider)
-          .fetchPlans();
+          .fetchPlans(force: force);
       if (generation != _generation) {
         AppLogger.log(
           'Subscription',
@@ -91,7 +80,6 @@ class PaddleSubscriptionPlansController
         return;
       }
       state = AsyncData(plans);
-      _lastSuccessAt = ref.read(subscriptionPlansNowProvider)();
       AppLogger.log(
         'Subscription',
         'Paddle plans 刷新成功: generation=$generation count=${plans.length} '

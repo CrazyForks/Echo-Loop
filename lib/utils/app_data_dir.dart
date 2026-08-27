@@ -14,6 +14,14 @@ Future<Directory> getAppDataDirectory() async {
   return _cached ??= await _resolve();
 }
 
+/// 应用级缓存根目录；各 feature 必须在此目录下使用独立命名空间。
+Future<Directory> resolveAppCacheDirectory() async {
+  final base = await getApplicationSupportDirectory();
+  final dir = Directory('${base.path}/cache');
+  if (!await dir.exists()) await dir.create(recursive: true);
+  return dir;
+}
+
 /// 仅用于测试：覆盖 [getAppDataDirectory] 的返回值。
 ///
 /// 设为 `null` 恢复默认行为。

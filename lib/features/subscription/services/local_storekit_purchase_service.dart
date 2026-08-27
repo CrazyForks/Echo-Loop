@@ -117,6 +117,7 @@ class LocalStoreKitPurchaseService implements PurchaseService {
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async {
     final available = await _iap.isAvailable();
     if (!available) {

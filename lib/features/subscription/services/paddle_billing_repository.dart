@@ -17,6 +17,7 @@ import '../../../services/supabase_token_coordinator.dart';
 import '../models/subscription_plan.dart';
 import 'purchase_service.dart';
 import '../utils/plan_pricing.dart';
+import 'paddle_plans_service.dart';
 
 const _uuid = Uuid();
 
@@ -37,65 +38,61 @@ class PaddleBillingRepository {
     required String baseUrl,
     String? appVersion,
     SupabaseTokenCoordinator? tokenCoordinator,
-  }) : _publicDio = createBackendDio(
-         baseUrl: baseUrl,
-         appVersion: appVersion,
-         connectTimeout: const Duration(seconds: 15),
-         receiveTimeout: const Duration(seconds: 30),
-         apiLogTag: 'PADDLE',
-       ),
-       _authenticatedDio = createAuthenticatedBackendDio(
+  }) : _authenticatedDio = createAuthenticatedBackendDio(
          tokenCoordinator: tokenCoordinator,
          baseUrl: baseUrl,
          appVersion: appVersion,
          connectTimeout: const Duration(seconds: 15),
          receiveTimeout: const Duration(seconds: 30),
          apiLogTag: 'PADDLE',
+       ),
+       _plans = PaddlePlansService(
+         dio: createBackendDio(
+           baseUrl: baseUrl,
+           appVersion: appVersion,
+           connectTimeout: const Duration(seconds: 15),
+           receiveTimeout: const Duration(seconds: 30),
+           apiLogTag: 'PADDLE-PLANS',
+         ),
        );
 
   @visibleForTesting
   PaddleBillingRepository.withDio(Dio dio)
-    : _publicDio = dio,
-      _authenticatedDio = dio;
+    : _authenticatedDio = dio,
+      _plans = PaddlePlansService(dio: dio, persist: false);
 
-  final Dio _publicDio;
   final Dio _authenticatedDio;
+  final PaddlePlansService _plans;
 
   /// 从服务端读取 Paddle 套餐，地区化价格由后端按请求来源判定。
-  Future<List<SubscriptionPlan>> fetchPlans() async {
-    AppLogger.log('Subscription', 'Paddle plans 请求开始');
-    try {
-      final response = await _publicDio.get<Map<String, dynamic>>(
-        '/api/paddle/plans',
-      );
-      final data = response.data;
-      final rawPlans = data?['plans'];
-      if (rawPlans is! List) {
-        AppLogger.log(
-          'Subscription',
-          'Paddle plans 响应无效: status=${response.statusCode} '
-              'keys=${data?.keys.toList() ?? const []}',
-        );
-        throw StateError('Paddle plans response is invalid');
-      }
-      final subscriptionPlans = rawPlans
-          .whereType<Map>()
-          .map((raw) => _planFrom(Map<String, dynamic>.from(raw)))
-          .toList(growable: false);
-      final oneTimePlans = _oneTimePlansFrom(data?['oneTimePlans']);
-      final plans = [...subscriptionPlans, ...oneTimePlans];
-      AppLogger.log(
-        'Subscription',
-        'Paddle plans 请求成功: status=${response.statusCode} '
-            'subscriptionCount=${subscriptionPlans.length} '
-            'oneTimeCount=${oneTimePlans.length} '
-            'ids=${plans.map((p) => p.planId).toList()}',
-      );
-      return plans;
-    } catch (error) {
-      AppLogger.log('Subscription', 'Paddle plans 请求失败: error=$error');
-      rethrow;
+  Future<List<SubscriptionPlan>> fetchPlans({bool force = false}) async {
+    if (!_plans.hasInitialized) await _plans.loadCachedPlans();
+    await _plans.refresh(force: force);
+    final data = _plans.cached;
+    if (data == null) {
+      throw StateError('Paddle plans unavailable');
     }
+    return _plansFrom(data);
+  }
+
+  List<SubscriptionPlan> _plansFrom(Map<String, dynamic> data) {
+    final rawPlans = data['plans'];
+    if (rawPlans is! List) {
+      throw StateError('Paddle plans response is invalid');
+    }
+    final subscriptionPlans = rawPlans
+        .whereType<Map>()
+        .map((raw) => _planFrom(Map<String, dynamic>.from(raw)))
+        .toList(growable: false);
+    final oneTimePlans = _oneTimePlansFrom(data['oneTimePlans']);
+    final plans = [...subscriptionPlans, ...oneTimePlans];
+    AppLogger.log(
+      'Subscription',
+      'Paddle plans 映射完成: subscriptionCount=${subscriptionPlans.length} '
+          'oneTimeCount=${oneTimePlans.length} '
+          'ids=${plans.map((p) => p.planId).toList()}',
+    );
+    return plans;
   }
 
   /// 创建服务端 Paddle transaction；客户端不能提交 discount 或 redirect URL。

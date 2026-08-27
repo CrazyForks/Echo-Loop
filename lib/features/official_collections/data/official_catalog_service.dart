@@ -16,6 +16,7 @@ import '../../../providers/package_info_provider.dart';
 import '../../../services/app_logger.dart';
 import '../../../services/backend_dio.dart';
 import '../../../services/refresh_coordinator.dart';
+import '../../../utils/app_data_dir.dart';
 import '../models/catalog.dart';
 
 part 'official_catalog_service.g.dart';
@@ -64,9 +65,11 @@ const _kThrottleWindow = Duration(hours: 2);
 ///   保证 5 个触发点（冷启动 / resumed / 详情页 init / Discover init / 下拉刷新）
 ///   即便重叠触发，最多只发 1 个并发 HTTP
 ///
-/// 文件存储：`<applicationSupport>/official_catalog/`
+/// 文件存储：`<applicationSupport>/cache/official_catalog/`
 /// - `catalog.json`：data
 /// - `catalog.meta.json`：`{ lastFetchedAt, contentHash, serverTime }`
+///
+/// 读取时兼容旧的 `<applicationSupport>/official_catalog/`；成功迁移并验证后会删除旧目录。
 ///
 /// 状态唯一来源：[cached] 字段。`cachedCatalogProvider` 只读不写，
 /// service 内 cached 变更通过 `ref.invalidate(serviceProvider)` 让 watcher 重 build。
@@ -114,7 +117,7 @@ class OfficialCatalogService {
   }
 
   static Future<Directory> _defaultDir() async {
-    final base = await getApplicationSupportDirectory();
+    final base = await resolveAppCacheDirectory();
     final dir = Directory(p.join(base.path, 'official_catalog'));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
@@ -129,10 +132,36 @@ class OfficialCatalogService {
   /// 失败（文件不存在 / 解析错误）静默返回 null。
   Future<CatalogSnapshot?> loadCachedCatalog() async {
     try {
-      final metaFile = await _metaFile();
-      final catalogFile = await _catalogFile();
+      var metaFile = await _metaFile();
+      var catalogFile = await _catalogFile();
+      Directory? legacyDirectory;
+      var legacyMigrationSucceeded = false;
       if (!await metaFile.exists() || !await catalogFile.exists()) {
-        return null;
+        final support = await getApplicationSupportDirectory();
+        final legacy = Directory(p.join(support.path, 'official_catalog'));
+        final legacyMeta = File(p.join(legacy.path, 'catalog.meta.json'));
+        final legacyCatalog = File(p.join(legacy.path, 'catalog.json'));
+        if (!await legacyMeta.exists() || !await legacyCatalog.exists()) {
+          AppLogger.log(_logTag, 'loadCachedCatalog: no cache found');
+          return null;
+        }
+        legacyDirectory = legacy;
+        metaFile = legacyMeta;
+        catalogFile = legacyCatalog;
+        try {
+          final target = await _resolveDir();
+          await target.create(recursive: true);
+          await File(
+            p.join(target.path, 'catalog.json'),
+          ).writeAsBytes(await legacyCatalog.readAsBytes());
+          await File(
+            p.join(target.path, 'catalog.meta.json'),
+          ).writeAsBytes(await legacyMeta.readAsBytes());
+          AppLogger.log(_logTag, 'legacy catalog cache migrated');
+          legacyMigrationSucceeded = true;
+        } catch (error) {
+          AppLogger.log(_logTag, 'legacy catalog migration failed: $error');
+        }
       }
       final metaJson =
           jsonDecode(await metaFile.readAsString()) as Map<String, dynamic>;
@@ -151,6 +180,14 @@ class OfficialCatalogService {
         contentHash: metaJson['contentHash'] as String? ?? '',
         fetchedAt: DateTime.parse(metaJson['lastFetchedAt'] as String),
       );
+      if (legacyDirectory != null && legacyMigrationSucceeded) {
+        try {
+          await legacyDirectory.delete(recursive: true);
+          AppLogger.log(_logTag, 'legacy catalog cache removed');
+        } catch (error) {
+          AppLogger.log(_logTag, 'legacy catalog cleanup failed: $error');
+        }
+      }
       _cached = snapshot;
       _hasInitialized = true;
       AppLogger.log(

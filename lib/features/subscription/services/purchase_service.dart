@@ -68,6 +68,7 @@ abstract class PurchaseService {
   /// 阻塞 paywall 首屏；购买行为始终由平台在成交时应用真实可用 offer。
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   });
 
   /// 当前权益快照（来自平台 / RevenueCat 已校验的 CustomerInfo）。
@@ -129,6 +130,7 @@ class StubPurchaseService implements PurchaseService {
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async => const [];
 
   @override

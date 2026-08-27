@@ -37,6 +37,7 @@ class _FakePurchaseService implements PurchaseService {
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async {
     if (includeIntroEligibility) {
       fullFetches++;

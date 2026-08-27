@@ -43,6 +43,7 @@ class RevenueCatPurchaseService implements PurchaseService {
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async {
     try {
       if (kDebugMode) {

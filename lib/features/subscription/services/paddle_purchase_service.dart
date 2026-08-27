@@ -17,27 +17,18 @@ class PaddlePurchaseService implements PurchaseService {
 
   final PaddleBillingRepository _repository;
   final String? Function() _accessToken;
-  List<SubscriptionPlan>? _latestPlans;
 
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async {
-    final cached = _latestPlans;
-    if (includeIntroEligibility && cached != null) {
-      AppLogger.log(
-        'Subscription',
-        'Paddle plans 命中会话缓存: count=${cached.length} '
-            'ids=${cached.map((p) => p.planId).toList()}',
-      );
-      return cached;
-    }
     AppLogger.log(
       'Subscription',
-      'Paddle plans 拉取入口: includeIntroEligibility=$includeIntroEligibility',
+      'Paddle plans 拉取入口: includeIntroEligibility=$includeIntroEligibility '
+          'force=$force',
     );
-    final plans = await _repository.fetchPlans();
-    _latestPlans = plans;
+    final plans = await _repository.fetchPlans(force: force);
     AppLogger.log(
       'Subscription',
       'Paddle plans 拉取完成: count=${plans.length} '
