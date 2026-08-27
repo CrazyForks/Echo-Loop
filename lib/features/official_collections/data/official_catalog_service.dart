@@ -28,7 +28,7 @@ sealed class CatalogRefreshOutcome {
   const CatalogRefreshOutcome();
 }
 
-/// 节流命中（距上次成功 refresh < 2 小时），未发请求。
+/// 节流命中（距上次成功 refresh < 1 天），未发请求。
 class CatalogThrottled extends CatalogRefreshOutcome {
   const CatalogThrottled();
 }
@@ -52,15 +52,15 @@ class CatalogFailed extends CatalogRefreshOutcome {
   const CatalogFailed(this.error);
 }
 
-/// 节流窗口（2 小时）。force=true 可绕过。
-const _kThrottleWindow = Duration(hours: 2);
+/// 普通刷新节流窗口（1 天）。force=true 可绕过。
+const _kThrottleWindow = Duration(days: 1);
 
 /// 官方合集 catalog 的本地缓存服务。
 ///
 /// 职责：
 /// - 拉远端 `/api/v1/catalog` → 计算 body sha256 → 仅在变化时写本地文件
 /// - 读本地文件 → 反序列化为 [CatalogSnapshot]
-/// - 节流：2 小时内不重复发请求（force 可绕过）
+/// - 节流：1 天内不重复发请求（force 可绕过）
 /// - inflight 防重入：并发 refresh 调用复用同一个 future，
 ///   保证 5 个触发点（冷启动 / resumed / 详情页 init / Discover init / 下拉刷新）
 ///   即便重叠触发，最多只发 1 个并发 HTTP
@@ -208,7 +208,7 @@ class OfficialCatalogService {
 
   /// 拉远端 catalog；按 outcome 决定是否更新本地文件。
   ///
-  /// - force=false 且距上次 < 2h → throttled
+  /// - force=false 且距上次 < 1d → throttled
   /// - 已有 inflight → 复用同一个 future
   /// - 网络失败 → failed，本地不动
   /// - body hash 与上次一致 → unchanged，仅刷新 lastFetchedAt
@@ -253,7 +253,7 @@ class OfficialCatalogService {
     final now = DateTime.now();
 
     if (newHash == oldHash) {
-      // 仅更新 meta.lastFetchedAt（让 2h 节流以"上次发请求"为基准）
+      // 仅更新 meta.lastFetchedAt（让 1d 节流以上次发请求为基准）
       // 不重写 catalog.json，文件 mtime 不变
       try {
         await _writeMeta(

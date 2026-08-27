@@ -40,23 +40,30 @@ class _FakeCatalogService extends OfficialCatalogService {
 class _FakeAppDatabase extends Fake implements db.AppDatabase {}
 
 class _NoopOfficialSyncService extends OfficialSyncService {
-  _NoopOfficialSyncService(OfficialCatalogService catalog)
+  final void Function(bool force)? onSync;
+
+  _NoopOfficialSyncService(OfficialCatalogService catalog, {this.onSync})
     : super(database: _FakeAppDatabase(), catalog: catalog);
 
   @override
   Future<OfficialSyncStats> syncAll({bool force = false}) async {
+    onSync?.call(force);
     return OfficialSyncStats.noop(const CatalogThrottled());
   }
 }
 
-Override _noopSyncOverride() {
+Override _noopSyncOverride({void Function(bool force)? onSync}) {
   return officialSyncServiceProvider.overrideWith(
-    (ref) => _NoopOfficialSyncService(ref.read(officialCatalogServiceProvider)),
+    (ref) => _NoopOfficialSyncService(
+      ref.read(officialCatalogServiceProvider),
+      onSync: onSync,
+    ),
   );
 }
 
 void main() {
   testWidgets('未加入官方空合集详情页仍保留可下拉刷新的滚动区域', (tester) async {
+    var forceRefresh = false;
     final snapshot = makeSnapshot(
       collections: [
         makeCatalogCollection(
@@ -87,7 +94,7 @@ void main() {
           ),
           learningSessionProvider.overrideWith(() => TestLearningSession()),
           blindListenPlayerProvider.overrideWith(() => TestBlindListenPlayer()),
-          _noopSyncOverride(),
+          _noopSyncOverride(onSync: (force) => forceRefresh = force),
         ],
       ),
     );
@@ -99,6 +106,7 @@ void main() {
 
     final listView = tester.widget<ListView>(find.byType(ListView));
     expect(listView.physics, isA<AlwaysScrollableScrollPhysics>());
+    expect(forceRefresh, isTrue);
   });
 
   testWidgets('未登录点击详情页添加按钮时先显示登录提示', (tester) async {

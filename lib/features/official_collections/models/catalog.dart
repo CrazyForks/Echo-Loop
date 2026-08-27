@@ -119,7 +119,7 @@ class CatalogPodcast {
 ///
 /// `contentHash` 用于 `OfficialCatalogService.refresh` 的 sha256 比对：
 /// 后端响应 body 的 hash 与上次缓存一致即跳过文件重写 + 后续 sync diff。
-/// `fetchedAt` 用于 10 分钟节流判断。
+/// `fetchedAt` 用于 catalog 普通刷新节流判断。
 class CatalogSnapshot {
   final List<CatalogCollection> collections;
   final List<CatalogPodcast> podcastCatalogs;

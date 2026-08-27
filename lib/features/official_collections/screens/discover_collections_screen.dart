@@ -33,7 +33,7 @@ const _podcastEntryImageUrl =
 /// - catalog 有 collections → list + RefreshIndicator
 ///
 /// 触发同步：
-/// - initState 时若 `!hasInitialized` → 主动 fire-and-forget syncAll（兜底冷启动失败）
+/// - initState → 强制 fire-and-forget syncAll；先展示缓存，更新后刷新页面
 /// - 下拉刷新 → await syncAll(force: true)
 /// - 不在此处单独触发任何 API 请求
 class DiscoverCollectionsScreen extends ConsumerStatefulWidget {
@@ -52,10 +52,10 @@ class _DiscoverCollectionsScreenState
   @override
   void initState() {
     super.initState();
-    // 进入发现页走普通同步：是否真正发请求由通用刷新策略节流决定。
-    // inflight 防重入保证不会和 main.dart 启动时那次重复发请求。
-    AppLogger.log(_logTag, 'initState: triggering syncAll(force=false)');
-    unawaited(_syncCatalog());
+    // 先由缓存立即渲染页面，再在后台强制拉取最新 catalog。
+    // inflight 防重入保证不会和其它入口并发发起重复请求。
+    AppLogger.log(_logTag, 'initState: triggering syncAll(force=true)');
+    unawaited(_syncCatalog(force: true));
   }
 
   /// 触发全局唯一同步；helper 内部处理 outcome=updated 后的

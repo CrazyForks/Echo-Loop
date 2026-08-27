@@ -33,7 +33,7 @@ const _logTag = 'OfficialDetail';
 /// - 找到 → 渲染详情；未加入显示远端 audios 预览，已加入复用 [AudioListView]
 ///
 /// 触发同步：
-/// - initState 时若 `!hasInitialized` → 主动 fire-and-forget syncAll
+/// - initState → 强制 fire-and-forget syncAll；先展示缓存，更新后刷新页面
 /// - 下拉刷新 → await syncAll(force: true)
 /// - **不再**用 `_maybeSyncToLocal` 单独触发同步（plan §核心原则 §3：唯一入口）
 class OfficialCollectionDetailScreen extends ConsumerStatefulWidget {
@@ -53,9 +53,9 @@ class _OfficialCollectionDetailScreenState
   @override
   void initState() {
     super.initState();
-    // 进入精选合集详情走普通同步：是否真正发请求由通用刷新策略节流决定。
-    AppLogger.log(_logTag, 'initState: triggering syncAll(force=false)');
-    unawaited(_syncCatalog());
+    // 先由缓存立即渲染页面，再在后台强制拉取最新 catalog。
+    AppLogger.log(_logTag, 'initState: triggering syncAll(force=true)');
+    unawaited(_syncCatalog(force: true));
     // 延迟埋点，确保 detail 数据可用
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _trackDetailView();

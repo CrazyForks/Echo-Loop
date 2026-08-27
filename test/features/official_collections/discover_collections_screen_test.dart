@@ -33,23 +33,30 @@ class _FakeCatalogService extends OfficialCatalogService {
 class _FakeAppDatabase extends Fake implements db.AppDatabase {}
 
 class _NoopOfficialSyncService extends OfficialSyncService {
-  _NoopOfficialSyncService(OfficialCatalogService catalog)
+  final void Function(bool force)? onSync;
+
+  _NoopOfficialSyncService(OfficialCatalogService catalog, {this.onSync})
     : super(database: _FakeAppDatabase(), catalog: catalog);
 
   @override
   Future<OfficialSyncStats> syncAll({bool force = false}) async {
+    onSync?.call(force);
     return OfficialSyncStats.noop(const CatalogThrottled());
   }
 }
 
-Override _noopSyncOverride() {
+Override _noopSyncOverride({void Function(bool force)? onSync}) {
   return officialSyncServiceProvider.overrideWith(
-    (ref) => _NoopOfficialSyncService(ref.read(officialCatalogServiceProvider)),
+    (ref) => _NoopOfficialSyncService(
+      ref.read(officialCatalogServiceProvider),
+      onSync: onSync,
+    ),
   );
 }
 
 void main() {
   testWidgets('发现页顶部展示精选播客入口', (tester) async {
+    var forceRefresh = false;
     final snapshot = makeSnapshot(
       collections: [
         makeCatalogCollection(id: 'official-1', name: 'Official Collection'),
@@ -68,7 +75,7 @@ void main() {
             _FakeCatalogService(snapshot),
           ),
           collectionListProvider.overrideWith(() => TestCollectionList()),
-          _noopSyncOverride(),
+          _noopSyncOverride(onSync: (force) => forceRefresh = force),
         ],
       ),
     );
@@ -78,6 +85,7 @@ void main() {
     expect(find.textContaining('2 podcasts'), findsNothing);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
     expect(find.text('Official Collection'), findsOneWidget);
+    expect(forceRefresh, isTrue);
 
     final entryImage = tester.widget<CachedNetworkImage>(
       find.byType(CachedNetworkImage).first,
