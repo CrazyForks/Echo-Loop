@@ -3804,7 +3804,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discoverRetry => '重试';
 
   @override
-  String get discoverPodcastEntryTitle => '播客';
+  String get discoverPodcastEntryTitle => 'Apple 播客';
 
   @override
   String discoverPodcastEntrySubtitle(int count) {

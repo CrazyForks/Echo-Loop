@@ -6947,7 +6947,7 @@ abstract class AppLocalizations {
   /// No description provided for @discoverPodcastEntryTitle.
   ///
   /// In en, this message translates to:
-  /// **'Podcasts'**
+  /// **'Apple Podcasts'**
   String get discoverPodcastEntryTitle;
 
   /// No description provided for @discoverPodcastEntrySubtitle.

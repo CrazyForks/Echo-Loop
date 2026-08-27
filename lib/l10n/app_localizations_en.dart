@@ -3984,7 +3984,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discoverRetry => 'Retry';
 
   @override
-  String get discoverPodcastEntryTitle => 'Podcasts';
+  String get discoverPodcastEntryTitle => 'Apple Podcasts';
 
   @override
   String discoverPodcastEntrySubtitle(int count) {

@@ -2087,7 +2087,7 @@
   "discoverEmpty": "No curated collections yet",
   "discoverLoadFailed": "Failed to load, tap to retry",
   "discoverRetry": "Retry",
-  "discoverPodcastEntryTitle": "Podcasts",
+  "discoverPodcastEntryTitle": "Apple Podcasts",
   "discoverPodcastEntrySubtitle": "{count} podcasts. Subscribe to keep new episodes in your library.",
   "@discoverPodcastEntrySubtitle": {
     "placeholders": {

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:echo_loop/database/app_database.dart' as db;
 import 'package:echo_loop/features/auth/providers/auth_providers.dart';
@@ -11,6 +10,7 @@ import 'package:echo_loop/features/official_collections/screens/discover_collect
 import 'package:echo_loop/providers/collection_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/mock_providers.dart';
@@ -81,19 +81,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Podcasts'), findsOneWidget);
+    expect(find.text('Apple Podcasts'), findsOneWidget);
     expect(find.textContaining('2 podcasts'), findsNothing);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
     expect(find.text('Official Collection'), findsOneWidget);
     expect(forceRefresh, isTrue);
 
-    final entryImage = tester.widget<CachedNetworkImage>(
-      find.byType(CachedNetworkImage).first,
-    );
-    expect(
-      entryImage.imageUrl,
-      'https://i.postimg.cc/t4fTVSWw/Apple-Podcasts.png',
-    );
+    final entryIcon = tester.widget<SvgPicture>(find.byType(SvgPicture).first);
+    expect(entryIcon.bytesLoader, isA<AssetBytesLoader>());
   });
 
   testWidgets('只有精选播客时不显示精选合集空态', (tester) async {
@@ -116,7 +111,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Podcasts'), findsOneWidget);
+    expect(find.text('Apple Podcasts'), findsOneWidget);
     expect(find.text('No curated collections yet'), findsNothing);
   });
 

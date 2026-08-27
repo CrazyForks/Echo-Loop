@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/sign_in_required_dialog.dart';
@@ -10,7 +10,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../providers/collection_provider.dart';
 import '../../../router/app_router.dart';
 import '../../../services/app_logger.dart';
-import '../../../services/app_network_image_cache.dart';
 import '../data/official_catalog_service.dart';
 import '../data/trigger_official_sync.dart';
 import '../models/catalog.dart';
@@ -20,8 +19,7 @@ import '../providers/official_enrollment_provider.dart';
 import '../widgets/official_collection_card.dart';
 
 const _logTag = 'DiscoverScreen';
-const _podcastEntryImageUrl =
-    'https://i.postimg.cc/t4fTVSWw/Apple-Podcasts.png';
+const _podcastEntryIconAsset = 'assets/icon/apple-podcasts.svg';
 
 /// 发现官方合集页。
 ///
@@ -261,12 +259,10 @@ class _PodcastEntryImage extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: 56,
-        child: CachedNetworkImage(
-          imageUrl: _podcastEntryImageUrl,
-          cacheManager: AppNetworkImageCache.instance,
+        child: SvgPicture.asset(
+          _podcastEntryIconAsset,
           fit: BoxFit.cover,
-          placeholder: (_, __) => placeholder,
-          errorWidget: (_, __, ___) => placeholder,
+          placeholderBuilder: (_) => placeholder,
         ),
       ),
     );

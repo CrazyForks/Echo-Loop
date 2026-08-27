@@ -1611,7 +1611,7 @@
   "discoverEmpty": "暂无精选合集",
   "discoverLoadFailed": "加载失败，点击重试",
   "discoverRetry": "重试",
-  "discoverPodcastEntryTitle": "播客",
+  "discoverPodcastEntryTitle": "Apple 播客",
   "discoverPodcastEntrySubtitle": "共 {count} 个播客，订阅后可自动获取最新单集",
   "@discoverPodcastEntrySubtitle": {
     "placeholders": {
