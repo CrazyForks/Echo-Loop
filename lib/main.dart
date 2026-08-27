@@ -278,6 +278,17 @@ class _EchoLoopAppState extends ConsumerState<EchoLoopApp>
     // 重新读取 SDK 当前快照，再创建订阅 controller，避免 controller 首次构造时
     // 先按匿名身份发起一次无效权益对账。
     ref.invalidate(supabaseSessionProvider);
+    try {
+      // Supabase.initialize() 返回不代表 auth.currentSession 已完成恢复；
+      // 等待 provider 收到 initialSession，避免启动预热仍抢跑到匿名态。
+      await ref.read(supabaseSessionProvider.future);
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'AuthSession',
+        '等待 initialSession 失败，保留 pending 语义 error=$error stack=$stackTrace',
+      );
+    }
+    if (!mounted) return;
     ref.read(subscriptionControllerProvider);
     ref.read(subscriptionPlansProvider);
     _authSessionSubscription = ref.listenManual<AsyncValue<Session?>>(

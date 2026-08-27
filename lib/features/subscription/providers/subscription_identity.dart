@@ -12,34 +12,49 @@ import '../../auth/providers/auth_providers.dart';
 
 /// 对账所需的用户身份快照。
 class SubscriptionIdentity {
+  /// 是否已经收到认证初始化结果。false 表示仍在等待 Supabase initialSession。
+  final bool isResolved;
+
   /// Supabase user.id；匿名 / 未登录为 null。
   final String? userId;
 
   /// Supabase access token（用于后端鉴权）；未登录为 null。
   final String? accessToken;
 
-  const SubscriptionIdentity({this.userId, this.accessToken});
+  const SubscriptionIdentity({
+    this.userId,
+    this.accessToken,
+    this.isResolved = true,
+  });
+
+  /// Supabase 尚未完成首次认证解析。
+  static const SubscriptionIdentity pending = SubscriptionIdentity(
+    isResolved: false,
+  );
 
   /// 匿名 / 未登录身份。
   static const SubscriptionIdentity anonymous = SubscriptionIdentity();
 
   /// 是否已登录。
-  bool get isSignedIn => userId != null;
+  bool get isSignedIn => isResolved && userId != null;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SubscriptionIdentity &&
+          isResolved == other.isResolved &&
           userId == other.userId &&
           accessToken == other.accessToken;
 
   @override
-  int get hashCode => Object.hash(userId, accessToken);
+  int get hashCode => Object.hash(isResolved, userId, accessToken);
 }
 
 /// 当前订阅身份（派生自 [supabaseSessionProvider]，身份单一来源不变）。
 final subscriptionIdentityProvider = Provider<SubscriptionIdentity>((ref) {
-  final session = ref.watch(supabaseSessionProvider).valueOrNull;
+  final sessionState = ref.watch(supabaseSessionProvider);
+  if (!sessionState.hasValue) return SubscriptionIdentity.pending;
+  final session = sessionState.valueOrNull;
   if (session == null) return SubscriptionIdentity.anonymous;
   return SubscriptionIdentity(
     userId: session.user.id,

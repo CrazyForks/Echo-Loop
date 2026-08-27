@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../analytics/analytics_providers.dart';
 import '../../../config/auth_config.dart' as auth_config;
+import '../../../providers/startup_bootstrap_provider.dart';
 import '../../../services/app_logger.dart';
 import '../../../services/supabase_token_coordinator.dart';
 import '../../../services/user_id_service.dart';
@@ -337,14 +338,22 @@ final authControllerProvider = Provider<AuthController>((ref) {
 
 /// 当前 Supabase Session 的响应式来源。
 ///
-/// 首值：启动时 SDK 已恢复的 `currentSession`（可能为 null）。
-/// 后续：`onAuthStateChange` 的每个事件（signedIn / signedOut / tokenRefreshed
-/// 等都会带 `session`）。
+/// 首值：SDK 启动完成后 `onAuthStateChange` 发出的 `initialSession` 事件。
+/// 后续：该流的每个认证事件（signedIn / signedOut / tokenRefreshed 等都会带
+/// `session`）。不会把 SDK 恢复期间暂时为空的 `currentSession` 当作匿名首值。
 ///
 /// Supabase 未配置（`isAuthConfigured == false`）时永远 emit `null`，
 /// 等价于匿名态，调用方无需特殊判断。
 final supabaseSessionProvider = StreamProvider<Session?>((ref) {
-  if (!auth_config.isAuthConfigured || !ref.watch(supabaseSdkReadyProvider)) {
+  if (!auth_config.isAuthConfigured) {
+    return Stream<Session?>.value(null);
+  }
+
+  // SDK 尚未完成第三方启动时，不能把「尚未解析」误当成「确认匿名」。
+  // 否则订阅控制器会提前以匿名身份对账，登录用户随后会出现 free 闪烁。
+  final startup = ref.watch(thirdPartyStartupProvider);
+  if (!startup.hasValue) return const Stream<Session?>.empty();
+  if (!(startup.value?.isSupabaseReady ?? false)) {
     return Stream<Session?>.value(null);
   }
 
@@ -353,11 +362,12 @@ final supabaseSessionProvider = StreamProvider<Session?>((ref) {
   final initialSession = auth.currentSession;
   AppLogger.log(
     'AuthSession',
-    'provider_created currentSession=${initialSession == null ? "anonymous" : "signedIn"} '
+    'provider_created currentSession=${initialSession == null ? "unresolved_or_anonymous" : "signedIn"} '
         'userId=${initialSession?.user.id ?? "none"}',
   );
-  controller.add(initialSession);
 
+  // currentSession 可能在 Supabase.initialize() 返回时仍为空；必须先监听
+  // onAuthStateChange，等待 initialSession 事件作为首次认证结果。
   final sub = auth.onAuthStateChange.listen((event) {
     final session = event.session;
     AppLogger.log(

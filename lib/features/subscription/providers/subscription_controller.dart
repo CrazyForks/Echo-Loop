@@ -717,8 +717,16 @@ class SubscriptionController extends _$SubscriptionController {
     SubscriptionIdentity? previous,
     SubscriptionIdentity next,
   ) async {
+    if (!next.isResolved) {
+      AppLogger.log(
+        'Subscription',
+        'identity_sync_pending 等待 Supabase initialSession',
+      );
+      return;
+    }
     final isInitialIdentity = previous == null;
     final previousUserId = previous?.userId;
+    final previousResolved = previous?.isResolved ?? false;
     final nextUserId = next.userId;
     if (!isInitialIdentity && previousUserId == nextUserId) {
       if (previous.accessToken != next.accessToken &&
@@ -730,8 +738,8 @@ class SubscriptionController extends _$SubscriptionController {
 
     _generation++; // 作废在途对账。
     if (nextUserId == null) {
-      if (isInitialIdentity) {
-        // 匿名冷启动没有身份要绑定，但仍要做一次对账，避免 state 停在 unknown。
+      if (isInitialIdentity || !previousResolved) {
+        // 只有明确收到匿名结果才对账；pending → anonymous 也属于首次解析。
         await _refreshOnline();
         return;
       }

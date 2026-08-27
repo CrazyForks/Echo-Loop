@@ -108,6 +108,7 @@ class FakePurchaseService implements PurchaseService {
 
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
+    bool force = false,
     bool includeIntroEligibility = true,
   }) async => const [];
 
@@ -436,6 +437,47 @@ void main() {
       expect(state.isStale, isFalse);
       expect(cache.stored?.userId, 'u1');
       expect(cache.stored?.entitlement.isPremium, isTrue);
+    });
+  });
+
+  test('认证未解析期间保持 unknown，随后登录不执行匿名 free 对账', () async {
+    await withClock(Clock.fixed(now), () async {
+      final repo = FakeEntitlementRepository((_) async => proEntitlement);
+      final cache = FakeEntitlementCache();
+      final container = ProviderContainer(
+        overrides: [
+          entitlementRepositoryProvider.overrideWithValue(repo),
+          entitlementCacheProvider.overrideWithValue(cache),
+          purchaseServiceProvider.overrideWithValue(FakePurchaseService()),
+          subscriptionIdentityProvider.overrideWith(
+            (ref) => ref.watch(testIdentityProvider),
+          ),
+          subscriptionPaymentChannelProvider.overrideWithValue(
+            ClientPaymentChannel.web,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(testIdentityProvider.notifier).state =
+          SubscriptionIdentity.pending;
+      container.read(subscriptionControllerProvider);
+      await pumpEventQueue();
+
+      expect(
+        container.read(subscriptionControllerProvider).status,
+        EntitlementStatus.unknown,
+      );
+      expect(repo.calls, isEmpty);
+
+      container.read(testIdentityProvider.notifier).state = signedIn;
+      await pumpEventQueue();
+
+      expect(
+        container.read(subscriptionControllerProvider).status,
+        EntitlementStatus.premium,
+      );
+      expect(repo.calls, ['u1']);
     });
   });
 
