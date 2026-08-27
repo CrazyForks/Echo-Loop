@@ -152,16 +152,16 @@ void main() {
     expect(container.read(subscriptionPlansProvider).valueOrNull, _usPlans);
   });
 
-  test('同 storefront 在五分钟内不重复刷新，过期后刷新', () async {
+  test('同 storefront 在一天内不重复刷新，过期后刷新', () async {
     container.read(subscriptionPlansProvider);
     await container.read(subscriptionPlansProvider.notifier).settled;
     expect(purchases.fastFetches, 1);
 
-    now = now.add(const Duration(minutes: 4));
+    now = now.add(const Duration(hours: 23));
     await container.read(subscriptionPlansProvider.notifier).refreshIfStale();
     expect(purchases.fastFetches, 1);
 
-    now = now.add(const Duration(minutes: 2));
+    now = now.add(const Duration(hours: 2));
     await container.read(subscriptionPlansProvider.notifier).refreshIfStale();
     expect(purchases.fastFetches, 2);
   });

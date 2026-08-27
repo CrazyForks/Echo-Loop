@@ -12,7 +12,7 @@ import '../services/purchase_service.dart';
 import '../services/revenuecat_purchase_service.dart';
 
 /// 同一 storefront 下套餐自动刷新的最长期限。
-const subscriptionPlansRefreshInterval = Duration(minutes: 5);
+const subscriptionPlansRefreshInterval = Duration(days: 1);
 
 /// 当前时间注入点，便于稳定验证缓存过期行为。
 final subscriptionPlansNowProvider = Provider<DateTime Function()>((ref) {

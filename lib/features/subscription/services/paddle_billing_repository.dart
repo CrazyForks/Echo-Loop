@@ -40,16 +40,16 @@ class PaddleBillingRepository {
   }) : _publicDio = createBackendDio(
          baseUrl: baseUrl,
          appVersion: appVersion,
-         connectTimeout: const Duration(seconds: 10),
-         receiveTimeout: const Duration(seconds: 20),
+         connectTimeout: const Duration(seconds: 15),
+         receiveTimeout: const Duration(seconds: 30),
          apiLogTag: 'PADDLE',
        ),
        _authenticatedDio = createAuthenticatedBackendDio(
          tokenCoordinator: tokenCoordinator,
          baseUrl: baseUrl,
          appVersion: appVersion,
-         connectTimeout: const Duration(seconds: 10),
-         receiveTimeout: const Duration(seconds: 20),
+         connectTimeout: const Duration(seconds: 15),
+         receiveTimeout: const Duration(seconds: 30),
          apiLogTag: 'PADDLE',
        );
 
