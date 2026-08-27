@@ -1472,6 +1472,7 @@
     "placeholders": {"count": {"type": "String"}}
   },
   "reviewStatisticsCurrentDueExplanation": "已到期，可立即开始复习",
+  "reviewStatisticsCurrentDueBreakdown": "其中 {overdue} 项逾期，{today} 项今天已到期",
   "reviewStatisticsStreak": "连续复习",
   "reviewStatisticsStreakExplanation": "连续 {count} 天都有复习记录",
   "@reviewStatisticsStreakExplanation": {

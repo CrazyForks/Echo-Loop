@@ -1907,6 +1907,7 @@
     "placeholders": {"count": {"type": "String"}}
   },
   "reviewStatisticsCurrentDueExplanation": "Already due and ready to start",
+  "reviewStatisticsCurrentDueBreakdown": "{overdue} overdue, {today} due today",
   "reviewStatisticsStreak": "Review streak",
   "reviewStatisticsStreakExplanation": "Reviewed on {count} consecutive days",
   "@reviewStatisticsStreakExplanation": {

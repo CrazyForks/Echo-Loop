@@ -333,7 +333,10 @@ class _CurrentDueNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  l10n.reviewStatisticsCurrentDueExplanation,
+                  l10n.reviewStatisticsCurrentDueBreakdown(
+                    stats.overdueNow,
+                    stats.dueNow - stats.overdueNow,
+                  ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

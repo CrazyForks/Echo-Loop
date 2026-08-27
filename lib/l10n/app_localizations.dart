@@ -6326,6 +6326,12 @@ abstract class AppLocalizations {
   /// **'Already due and ready to start'**
   String get reviewStatisticsCurrentDueExplanation;
 
+  /// No description provided for @reviewStatisticsCurrentDueBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'{overdue} overdue, {today} due today'**
+  String reviewStatisticsCurrentDueBreakdown(Object overdue, Object today);
+
   /// No description provided for @reviewStatisticsStreak.
   ///
   /// In en, this message translates to:

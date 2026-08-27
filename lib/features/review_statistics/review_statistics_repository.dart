@@ -44,6 +44,7 @@ class ReviewStatistics {
   final int todayReviewedCards;
   final int todaySeconds;
   final int dueNow;
+  final int overdueNow;
   final int streak;
   final double retentionRate;
   final ReviewRatingDistribution ratings;
@@ -56,6 +57,7 @@ class ReviewStatistics {
     this.todayReviewedCards = 0,
     this.todaySeconds = 0,
     this.dueNow = 0,
+    this.overdueNow = 0,
     this.streak = 0,
     this.retentionRate = 0,
     this.ratings = const ReviewRatingDistribution(),
@@ -197,6 +199,13 @@ class ReviewStatisticsRepository {
             local.day == date.day;
       }).length;
     });
+    final overdueNow = active
+        .where(
+          (row) => row.dueAt.toLocal().isBefore(
+            DateTime(today.year, today.month, today.day),
+          ),
+        )
+        .length;
     final reviewedDays = <DateTime>{};
     for (final event in filteredAllEvents) {
       final local = event.reviewedAt.toLocal();
@@ -221,6 +230,7 @@ class ReviewStatisticsRepository {
       todayReviewedCards: todayEvents.map((e) => e.scheduleId).toSet().length,
       todaySeconds: secondsByDay[today] ?? 0,
       dueNow: dueNow,
+      overdueNow: overdueNow,
       streak: streak,
       retentionRate: retention.retentionRate,
       ratings: ratings,

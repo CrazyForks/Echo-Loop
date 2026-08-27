@@ -98,8 +98,37 @@ void main() {
     expect(stats.ratings.easy, 0);
     expect(stats.retentionRate, 0.5);
     expect(stats.dueNow, 1);
+    expect(stats.overdueNow, 0);
     expect(stats.upcomingDue[0], 1);
     expect(stats.upcomingDue[1], 1);
+  });
+
+  test('当前待复习数明确拆分逾期与今天到期', () async {
+    final now = DateTime(2026, 8, 22, 10);
+    await _insertSchedule(
+      db,
+      id: 'overdue',
+      namespace: 'saved_sentence',
+      dueAt: DateTime(2026, 8, 21, 23),
+    );
+    await _insertSchedule(
+      db,
+      id: 'today',
+      namespace: 'saved_sentence',
+      dueAt: DateTime(2026, 8, 22, 23),
+    );
+    await _insertSchedule(
+      db,
+      id: 'today-later',
+      namespace: 'saved_sentence',
+      dueAt: DateTime(2026, 8, 22, 23, 30),
+    );
+
+    final stats = await ReviewStatisticsRepository(db).load(now: now);
+
+    expect(stats.dueNow, 1);
+    expect(stats.overdueNow, 1);
+    expect(stats.upcomingDue[0], 2);
   });
 
   test('全部时长仅汇总收藏句子和收藏词汇复习阶段', () async {

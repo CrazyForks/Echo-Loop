@@ -3603,6 +3603,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Already due and ready to start';
 
   @override
+  String reviewStatisticsCurrentDueBreakdown(Object overdue, Object today) {
+    return '$overdue overdue, $today due today';
+  }
+
+  @override
   String get reviewStatisticsStreak => 'Review streak';
 
   @override

@@ -3446,6 +3446,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reviewStatisticsCurrentDueExplanation => '已到期，可立即开始复习';
 
   @override
+  String reviewStatisticsCurrentDueBreakdown(Object overdue, Object today) {
+    return '其中 $overdue 项逾期，$today 项今天已到期';
+  }
+
+  @override
   String get reviewStatisticsStreak => '连续复习';
 
   @override
