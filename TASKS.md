@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 将收藏词汇复习的来源句播放按钮移至评分栏上方，复用收藏句复习的满宽播放/停止控件，移除来源句卡片冗余标题并补充切换回归测试。**完成时间**: 2026-08-28
+
 - [x] 清理 macOS Runner 音频解码中的 Swift warning：移除未使用的 `recognizer` 绑定，并将 AVFoundation 废弃的同步资源访问迁移到现代异步 API。**完成时间**: 2026-08-28
 
 - [x] 修复进入订阅页时 Paywall 的 `force=true` 未传递到 Paddle Plans 基础套餐请求，确保 `/api/paddle/plans` 强制刷新可绕过 1 天节流，并补充 force 参数传播回归测试。**完成时间**: 2026-08-28

@@ -462,10 +462,10 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
       !widget.card.displayText.trim().contains(RegExp(r'\s')) &&
       widget.card is FlashcardWordItem;
 
-  Future<void> _playSource() async {
+  Future<void> _toggleSourcePlayback() async {
     await ref
         .read(favoriteVocabularyReviewProvider.notifier)
-        .playSourceSentence();
+        .toggleSourcePlayback();
   }
 
   Future<void> _signInAndRetryAi() async {
@@ -528,6 +528,17 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
     final pronunciationClips = _isSingleWord
         ? ref.watch(pronunciationClipsProvider(card.displayText))
         : const [];
+    final sourcePlaybackState = ref.watch(
+      favoriteVocabularyReviewProvider.select(
+        (state) => state.sourcePlaybackState,
+      ),
+    );
+    final sourceSentenceText = card.sentenceText?.trim();
+    final hasSourceSentence =
+        sourceSentenceText != null && sourceSentenceText.isNotEmpty;
+    final isSourcePlaying =
+        sourcePlaybackState == FavoriteVocabularyReviewPlaybackState.loading ||
+        sourcePlaybackState == FavoriteVocabularyReviewPlaybackState.playing;
     final aiLookup = _showAi
         ? ref.watch(
             dictionaryLookupControllerProvider(
@@ -606,21 +617,15 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                   const SizedBox(height: AppSpacing.s),
                   _LocalDictionarySection(word: card.displayText),
                 ],
-                if (card.sentenceText?.trim() case final String sentenceText
-                    when sentenceText.isNotEmpty) ...[
+                if (sourceSentenceText != null &&
+                    sourceSentenceText.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.m),
                   _SourceSentenceCard(
-                    sentenceText: sentenceText,
+                    sentenceText: sourceSentenceText,
                     audioItemId: card.audioItemId,
                     sentenceIndex: card.sentenceIndex,
                     sentenceStartMs: card.sentenceStartMs,
                     sentenceEndMs: card.sentenceEndMs,
-                    playbackState: ref.watch(
-                      favoriteVocabularyReviewProvider.select(
-                        (state) => state.sourcePlaybackState,
-                      ),
-                    ),
-                    onPlay: _playSource,
                   ),
                 ],
                 const SizedBox(height: AppSpacing.m),
@@ -661,42 +666,71 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
             AppSpacing.m,
             AppSpacing.xs,
           ),
-          child: FlashcardRatingActionBar(
-            key: const Key('favorite-vocabulary-review-rating-bar'),
-            actions: [
-              FlashcardRatingAction(
-                rating: MemoryRating.again,
-                emoji: '😕',
-                label: l10n.bookmarkReviewRatingAgain,
-                detail: formatNextReviewTimeDetail(
-                  context,
-                  showNextReviewTime: widget.showNextReviewTime,
-                  dueAt: widget.preview?.again.dueAt,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasSourceSentence) ...[
+                SizedBox(
+                  key: const Key('favorite-vocabulary-review-source-playback'),
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton.tonalIcon(
+                    key: const Key(
+                      'favorite-vocabulary-review-source-playback-toggle',
+                    ),
+                    onPressed: _toggleSourcePlayback,
+                    icon: Icon(
+                      isSourcePlaying
+                          ? Icons.stop_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(
+                      isSourcePlaying
+                          ? l10n.stopPlayback
+                          : l10n.bookmarkReviewPlayOriginal,
+                    ),
+                  ),
                 ),
-              ),
-              FlashcardRatingAction(
-                rating: MemoryRating.good,
-                emoji: '🙂',
-                label: l10n.bookmarkReviewRatingGood,
-                detail: formatNextReviewTimeDetail(
-                  context,
-                  showNextReviewTime: widget.showNextReviewTime,
-                  dueAt: widget.preview?.good.dueAt,
-                ),
-              ),
-              FlashcardRatingAction(
-                rating: MemoryRating.easy,
-                emoji: '😎',
-                label: l10n.bookmarkReviewRatingEasy,
-                detail: formatNextReviewTimeDetail(
-                  context,
-                  showNextReviewTime: widget.showNextReviewTime,
-                  dueAt: widget.preview?.easy.dueAt,
-                ),
+                const SizedBox(height: AppSpacing.s),
+              ],
+              FlashcardRatingActionBar(
+                key: const Key('favorite-vocabulary-review-rating-bar'),
+                actions: [
+                  FlashcardRatingAction(
+                    rating: MemoryRating.again,
+                    emoji: '😕',
+                    label: l10n.bookmarkReviewRatingAgain,
+                    detail: formatNextReviewTimeDetail(
+                      context,
+                      showNextReviewTime: widget.showNextReviewTime,
+                      dueAt: widget.preview?.again.dueAt,
+                    ),
+                  ),
+                  FlashcardRatingAction(
+                    rating: MemoryRating.good,
+                    emoji: '🙂',
+                    label: l10n.bookmarkReviewRatingGood,
+                    detail: formatNextReviewTimeDetail(
+                      context,
+                      showNextReviewTime: widget.showNextReviewTime,
+                      dueAt: widget.preview?.good.dueAt,
+                    ),
+                  ),
+                  FlashcardRatingAction(
+                    rating: MemoryRating.easy,
+                    emoji: '😎',
+                    label: l10n.bookmarkReviewRatingEasy,
+                    detail: formatNextReviewTimeDetail(
+                      context,
+                      showNextReviewTime: widget.showNextReviewTime,
+                      dueAt: widget.preview?.easy.dueAt,
+                    ),
+                  ),
+                ],
+                enabled: widget.preview != null && !widget.isSubmitting,
+                onSelected: (action) => widget.onRating(action.rating),
               ),
             ],
-            enabled: widget.preview != null && !widget.isSubmitting,
-            onSelected: (action) => widget.onRating(action.rating),
           ),
         ),
       ],
@@ -712,8 +746,6 @@ class _SourceSentenceCard extends StatelessWidget {
     required this.sentenceIndex,
     required this.sentenceStartMs,
     required this.sentenceEndMs,
-    required this.playbackState,
-    required this.onPlay,
   });
 
   final String sentenceText;
@@ -721,17 +753,11 @@ class _SourceSentenceCard extends StatelessWidget {
   final int? sentenceIndex;
   final int? sentenceStartMs;
   final int? sentenceEndMs;
-  final FavoriteVocabularyReviewPlaybackState playbackState;
-  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final isPlaying =
-        playbackState == FavoriteVocabularyReviewPlaybackState.playing;
-    final isLoading =
-        playbackState == FavoriteVocabularyReviewPlaybackState.loading;
     return Material(
       key: const Key('favorite-vocabulary-review-source'),
       color: colors.surfaceContainerLow,
@@ -745,40 +771,6 @@ class _SourceSentenceCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '来源句子',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-                Semantics(
-                  button: true,
-                  label: '播放来源句子',
-                  child: IconButton(
-                    key: const Key('favorite-vocabulary-review-source-play'),
-                    tooltip: isPlaying ? '停止播放' : '播放句子',
-                    onPressed: isLoading ? null : onPlay,
-                    icon: Icon(
-                      isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                    ),
-                    color: isPlaying ? colors.error : colors.primary,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 36,
-                      height: 36,
-                    ),
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
             SelectableSentenceText(
               text: sentenceText,
               style: theme.textTheme.bodyLarge?.copyWith(
@@ -1004,6 +996,7 @@ class _SourceMaterialLink extends ConsumerWidget {
     future: ref.read(audioItemDaoProvider).getById(audioItemId),
     builder: (context, snapshot) {
       final title = snapshot.data?.name ?? '来源材料';
+      final l10n = AppLocalizations.of(context)!;
       final theme = Theme.of(context);
       final colors = theme.colorScheme;
       return Semantics(
@@ -1035,7 +1028,7 @@ class _SourceMaterialLink extends ConsumerWidget {
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 220),
                       child: Text(
-                        title,
+                        l10n.bookmarkReviewFromAudio(title),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(

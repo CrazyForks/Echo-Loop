@@ -133,7 +133,7 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
   }
 
   @override
-  Future<void> playSourceSentence() async {
+  Future<void> toggleSourcePlayback() async {
     state = state.copyWith(
       wordPlaybackState: FavoriteVocabularyReviewPlaybackState.idle,
       sourcePlaybackState:
@@ -413,7 +413,7 @@ void main() {
     expect(find.text('查看智能释义与例句'), findsNothing);
   });
 
-  testWidgets('来源句子、来源材料和 AI 查词入口使用分组内容层级', (tester) async {
+  testWidgets('来源句、来源材料和 AI 查词入口使用分组内容层级', (tester) async {
     await tester.pumpWidget(_app(withSource: true));
     await tester.pump();
     await tester.tap(
@@ -421,7 +421,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('来源句子'), findsOneWidget);
+    expect(find.text('来源句子'), findsNothing);
     expect(
       find.byKey(const Key('favorite-vocabulary-review-source')),
       findsOneWidget,
@@ -440,11 +440,15 @@ void main() {
     expect(find.byType(SelectableSentenceText), findsOneWidget);
     expect(
       find.byKey(const Key('favorite-vocabulary-review-source-play')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-source-playback')),
       findsOneWidget,
     );
   });
 
-  testWidgets('来源句播放按钮独立切换播放与停止图标', (tester) async {
+  testWidgets('来源句播放控件位于评分栏上方并切换播放与停止图标', (tester) async {
     await tester.pumpWidget(_app(withSource: true));
     await tester.pump();
     await tester.tap(
@@ -453,14 +457,31 @@ void main() {
     await tester.pump();
 
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    final playback = find.byKey(
+      const Key('favorite-vocabulary-review-source-playback'),
+    );
+    final ratings = find.byKey(
+      const Key('favorite-vocabulary-review-rating-bar'),
+    );
+    expect(tester.getSize(playback).height, 44);
+    expect(tester.getSize(playback).width, tester.getSize(ratings).width);
+    expect(
+      tester.getBottomLeft(playback).dy,
+      lessThan(tester.getTopLeft(ratings).dy),
+    );
+
     await tester.tap(
-      find.byKey(const Key('favorite-vocabulary-review-source-play')),
+      find.byKey(
+        const Key('favorite-vocabulary-review-source-playback-toggle'),
+      ),
     );
     await tester.pump();
     expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('favorite-vocabulary-review-source-play')),
+      find.byKey(
+        const Key('favorite-vocabulary-review-source-playback-toggle'),
+      ),
     );
     await tester.pump();
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
@@ -482,7 +503,9 @@ void main() {
     expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('favorite-vocabulary-review-source-play')),
+      find.byKey(
+        const Key('favorite-vocabulary-review-source-playback-toggle'),
+      ),
     );
     await tester.pump();
     expect(find.byIcon(Icons.stop_rounded), findsOneWidget);

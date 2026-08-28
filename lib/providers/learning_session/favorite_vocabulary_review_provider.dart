@@ -321,6 +321,17 @@ class FavoriteVocabularyReview extends _$FavoriteVocabularyReview {
     }
   }
 
+  /// 切换当前来源句播放；播放中再次点击会停止，空闲时从头播放。
+  Future<void> toggleSourcePlayback() async {
+    final playbackState = state.sourcePlaybackState;
+    if (playbackState == FavoriteVocabularyReviewPlaybackState.loading ||
+        playbackState == FavoriteVocabularyReviewPlaybackState.playing) {
+      await interruptPlayback();
+      return;
+    }
+    await playSourceSentence();
+  }
+
   /// 提交评分前先中断单词、来源句和 TTS 播放，避免最后一张卡进入完成页后
   /// 仍有共享播放器继续运行；成功后推进队列，失败保留当前背面以便重试。
   Future<void> selectRating(MemoryRating rating) async {

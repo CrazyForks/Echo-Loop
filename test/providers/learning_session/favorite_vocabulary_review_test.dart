@@ -60,17 +60,19 @@ class _FailingSavedWordDao extends SavedWordDao {
   Future<void> removeWord(String word) => throw StateError('remove failed');
 }
 
-db.SavedWord _word(String subjectId, String text) => db.SavedWord(
-  id: subjectId.hashCode,
-  word: text,
-  memorySubjectId: subjectId,
-  practiceCount: 0,
-  totalStudyMs: 0,
-  viewedBack: false,
-  createdAt: DateTime.utc(2026, 1, 1),
-  updatedAt: DateTime.utc(2026, 1, 1),
-  syncStatus: 0,
-);
+db.SavedWord _word(String subjectId, String text, {String? sentenceText}) =>
+    db.SavedWord(
+      id: subjectId.hashCode,
+      word: text,
+      memorySubjectId: subjectId,
+      practiceCount: 0,
+      totalStudyMs: 0,
+      viewedBack: false,
+      createdAt: DateTime.utc(2026, 1, 1),
+      updatedAt: DateTime.utc(2026, 1, 1),
+      syncStatus: 0,
+      sentenceText: sentenceText,
+    );
 
 void main() {
   late db.AppDatabase database;
@@ -157,6 +159,30 @@ void main() {
     await notifier.initialize([_word('w1', 'apple')], []);
     await notifier.startCurrentCard();
     expect(fakePlayback.spoken, isEmpty);
+  });
+
+  test('source playback toggles between replay and stop', () async {
+    final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
+    await notifier.initialize([
+      _word('w1', 'apple', sentenceText: 'I ate an apple.'),
+    ], []);
+    await notifier.revealBack();
+
+    fakePlayback.holdSpeak = true;
+    final playback = notifier.toggleSourcePlayback();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(
+      container.read(favoriteVocabularyReviewProvider).sourcePlaybackState,
+      FavoriteVocabularyReviewPlaybackState.playing,
+    );
+
+    await notifier.toggleSourcePlayback();
+    expect(
+      container.read(favoriteVocabularyReviewProvider).sourcePlaybackState,
+      FavoriteVocabularyReviewPlaybackState.idle,
+    );
+    expect(fakePlayback.stops, greaterThan(0));
+    await playback;
   });
 
   test('revealBack fetches ratings and submitting advances the deck', () async {
