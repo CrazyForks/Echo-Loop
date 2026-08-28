@@ -158,7 +158,7 @@ class _AsrWorker {
   ///
   /// 初始化失败时抛出 [StateError]。
   static Future<_AsrWorker> spawn(AsrModelConfig config) async {
-    // Worker 日志统一回传主 isolate，由唯一文件输出处理轮转；native 崩溃面包屑
+    // Worker 日志统一回传主 isolate，由唯一文件输出处理轮转；推理 pending
     // 仍保留独立同步文件，避免进程被杀前的消息来不及送达。
     final logPort = ReceivePort();
     logPort.listen((message) {
@@ -166,7 +166,7 @@ class _AsrWorker {
         AppLogger.log(message.tag, message.message);
       }
     });
-    final crashMarkerPath = await asrCrashMarkerPath();
+    final inferenceLogDirectory = await asrInferenceLogDirectoryPath();
 
     final initPort = ReceivePort();
     final isolate = await Isolate.spawn(
@@ -175,7 +175,7 @@ class _AsrWorker {
         sendPort: initPort.sendPort,
         config: config,
         logPort: logPort.sendPort,
-        crashMarkerPath: crashMarkerPath,
+        inferenceLogDirectory: inferenceLogDirectory,
       ),
     );
 
@@ -288,14 +288,14 @@ class _InitPayload {
   /// Worker 日志回传主 isolate，避免与轮转输出并发写入同一文件。
   final SendPort logPort;
 
-  /// 崩溃面包屑文件路径（native 推理前同步写、成功后清除）。
-  final String? crashMarkerPath;
+  /// ASR 推理 pending 文件所在目录。
+  final String? inferenceLogDirectory;
 
   const _InitPayload({
     required this.sendPort,
     required this.config,
     required this.logPort,
-    this.crashMarkerPath,
+    this.inferenceLogDirectory,
   });
 }
 
@@ -376,8 +376,8 @@ class _WorkerLog {
 /// 然后循环处理转录请求直到收到释放指令。
 void _isolateEntryPoint(_InitPayload init) {
   final logPort = init.logPort;
-  final crashMarkerPath = init.crashMarkerPath;
-  // 诊断标识：写入崩溃面包屑，便于区分崩在哪个模型/provider。
+  final inferenceLogDirectory = init.inferenceLogDirectory;
+  // 诊断标识：写入推理 pending，便于区分崩在哪个模型/provider。
   final diag =
       'model=${init.config.model.id} '
       'provider=${init.config.provider ?? _platformProvider()}';
@@ -397,7 +397,7 @@ void _isolateEntryPoint(_InitPayload init) {
           vad,
           message,
           logPort: logPort,
-          crashMarkerPath: crashMarkerPath,
+          inferenceLogDirectory: inferenceLogDirectory,
           diag: diag,
         );
       } else if (message is _TranscribeSegmentsRequest) {
@@ -406,7 +406,7 @@ void _isolateEntryPoint(_InitPayload init) {
           recognizer,
           message,
           logPort: logPort,
-          crashMarkerPath: crashMarkerPath,
+          inferenceLogDirectory: inferenceLogDirectory,
           diag: diag,
         );
       } else if (message is _DisposeRequest) {
@@ -430,19 +430,31 @@ void _workerLog(SendPort logPort, String tag, String message) {
   logPort.send(_WorkerLog(tag: tag, message: message));
 }
 
-/// 在调用 native 推理前同步写崩溃面包屑并 flush。
+/// 在调用 native 推理前同步写 pending 文件并 flush。
 ///
 /// 若进程在 native 层 abort 被杀，该文件残留，下次启动据此判定"崩在 ASR 推理"。
-void _writeCrashMarker(String? path, String info) {
-  if (path == null) return;
+String? _writeInferencePending(String? directory, String info) {
+  if (directory == null) return null;
   try {
+    final timestamp = DateTime.now().toIso8601String().replaceAll(
+      RegExp(r'[:.]'),
+      '-',
+    );
+    final path = p.join(directory, 'asr_inference-$timestamp.pending');
     File(path).writeAsStringSync(info, flush: true);
-  } catch (_) {}
+    return path;
+  } catch (_) {
+    return null;
+  }
 }
 
-/// 保留崩溃面包屑，供后续日志导出和问题定位使用。
-void _clearCrashMarker(String? path) {
-  // 故意不删除：即使推理正常结束，也保留最近一次 ASR 推理上下文。
+/// 正常推理结束后删除 pending 文件；native 崩溃时不会执行到这里。
+void _clearInferencePending(String? path) {
+  if (path == null) return;
+  try {
+    final file = File(path);
+    if (file.existsSync()) file.deleteSync();
+  } catch (_) {}
 }
 
 /// 创建 Silero VAD 实例（可选）。
@@ -548,9 +560,10 @@ void _handleTranscribe(
   sherpa.VoiceActivityDetector? vad,
   _TranscribeRequest request, {
   required SendPort logPort,
-  String? crashMarkerPath,
+  String? inferenceLogDirectory,
   String diag = '',
 }) {
+  String? pendingPath;
   try {
     final audioData = readAudioFile(request.wavPath);
     if (audioData.samples.isEmpty) {
@@ -560,11 +573,11 @@ void _handleTranscribe(
       return;
     }
 
-    // 即将进入 native 推理（VAD + decode）。先写崩溃面包屑：
+    // 即将进入 native 推理（VAD + decode）。先写 pending 文件：
     // 若 native abort 杀进程，finally 不会执行，文件残留→下次启动可定位。
     final durationSec = audioData.samples.length / audioData.sampleRate;
-    _writeCrashMarker(
-      crashMarkerPath,
+    pendingPath = _writeInferencePending(
+      inferenceLogDirectory,
       AppLogger.formatLine(
         DateTime.now(),
         'ASRCrash',
@@ -664,9 +677,9 @@ void _handleTranscribe(
   } catch (e) {
     request.replyPort.send('Transcribe failed: $e');
   } finally {
-    // 推理正常结束（含 Dart 异常被捕获）→ 清除面包屑。
-    // 仅当 native abort 杀进程、finally 未执行时，面包屑才残留。
-    _clearCrashMarker(crashMarkerPath);
+    // 推理正常结束（含 Dart 异常被捕获）→ 清除 pending。
+    // 仅当 native abort 杀进程、finally 未执行时，pending 才残留。
+    _clearInferencePending(pendingPath);
   }
 }
 
@@ -687,16 +700,17 @@ void _handleTranscribeSegments(
   sherpa.OfflineRecognizer recognizer,
   _TranscribeSegmentsRequest request, {
   required SendPort logPort,
-  String? crashMarkerPath,
+  String? inferenceLogDirectory,
   String diag = '',
 }) {
+  String? pendingPath;
   try {
     // ── 首选：可 seek 流式读取（标准 16kHz 单声道 PCM16 WAV，内存与时长解耦）──
     final reader = Pcm16WavStreamReader.open(request.wavPath);
     if (reader != null && reader.sampleRate == _asrSampleRate) {
       final total = reader.totalSamples;
-      _writeCrashMarker(
-        crashMarkerPath,
+      pendingPath = _writeInferencePending(
+        inferenceLogDirectory,
         AppLogger.formatLine(
           DateTime.now(),
           'ASRCrash',
@@ -734,8 +748,8 @@ void _handleTranscribeSegments(
         ? downsample(audioData.samples, audioData.sampleRate, _asrSampleRate)
         : audioData.samples;
     final total = samples16k.length;
-    _writeCrashMarker(
-      crashMarkerPath,
+    pendingPath = _writeInferencePending(
+      inferenceLogDirectory,
       AppLogger.formatLine(
         DateTime.now(),
         'ASRCrash',
@@ -758,7 +772,7 @@ void _handleTranscribeSegments(
   } catch (e) {
     request.replyPort.send('Transcribe segments failed: $e');
   } finally {
-    _clearCrashMarker(crashMarkerPath);
+    _clearInferencePending(pendingPath);
   }
 }
 

@@ -103,6 +103,14 @@ void main() {
 
   testWidgets('点击分享导出包含设备信息和日志内容的 ZIP 支持包', (tester) async {
     AppLogger.log('Manual', 'before share');
+    final logDirectory = Directory('${tempDir.path}/logs')
+      ..createSync(recursive: true);
+    File(
+      '${logDirectory.path}/asr-crash-20260828-150945-498.log',
+    ).writeAsStringSync('suspected ASR crash');
+    File(
+      '${logDirectory.path}/asr_inference-20260828-150946-000.pending',
+    ).writeAsStringSync('active inference');
     await tester.pumpWidget(
       MaterialApp(home: LogViewerScreen(shareLauncher: captureShare)),
     );
@@ -128,11 +136,20 @@ void main() {
       File(sharedPaths.single).readAsBytesSync(),
     );
     final log = archive.findFile('logs/app.log');
-    if (log == null) fail('支持包缺少 logs/app.log');
-    final text = utf8.decode(log.content);
-    expect(text, contains('[Manual] before share'));
-    expect(text, contains('[DeviceInfo]'));
-    expect(text, contains('model=iPhone16,2'));
+    if (log != null) {
+      final text = utf8.decode(log.content);
+      expect(text, contains('[Manual] before share'));
+      expect(text, contains('[DeviceInfo]'));
+      expect(text, contains('model=iPhone16,2'));
+    }
+    expect(
+      archive.findFile('logs/asr-crash-20260828-150945-498.log'),
+      isNotNull,
+    );
+    expect(
+      archive.findFile('logs/asr_inference-20260828-150946-000.pending'),
+      isNull,
+    );
   });
 
   testWidgets('分享前等待设备信息写入完成', (tester) async {

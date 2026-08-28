@@ -575,24 +575,41 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
     }
   }
 
-  /// 检查上次是否疑似崩溃在 ASR 推理（残留面包屑），有则记录+上报后清除。
+  /// 检查上次是否疑似崩溃在 ASR 推理，有则转成日志并上报。
   ///
   /// 进程内只检查一次。放在引擎初始化前——即真正再次跑 native 推理之前。
   Future<void> _reportPreviousAsrCrashIfAny() async {
     if (_asrCrashMarkerChecked) return;
     _asrCrashMarkerChecked = true;
     try {
-      final f = File(await asrCrashMarkerPath());
-      if (!await f.exists()) return;
-      final info = (await f.readAsString()).trim();
-      await f.delete();
-      AppLogger.log('ASRCrash', '⚠ 检测到上次疑似崩溃在 ASR 推理: $info');
-      ref.read(analyticsServiceProvider).track(
-        Events.asrInferenceCrashSuspected,
-        {'detail': info},
+      final directory = Directory(await asrInferenceLogDirectoryPath());
+      final pendingFiles = directory.listSync().whereType<File>().where(
+        (file) => file.path.endsWith('.pending'),
       );
+      for (final pending in pendingFiles) {
+        final fileName = pending.uri.pathSegments.last;
+        if (!fileName.startsWith('asr_inference-') ||
+            !fileName.endsWith('.pending')) {
+          continue;
+        }
+        final timestamp = fileName.substring(
+          'asr_inference-'.length,
+          fileName.length - '.pending'.length,
+        );
+        final crashLog = File('${directory.path}/asr-crash-$timestamp.log');
+        if (await crashLog.exists()) continue;
+        final info = (await pending.readAsString()).trim();
+        await pending.rename(crashLog.path);
+        AppLogger.log('ASRCrash', '⚠ 检测到上次疑似崩溃在 ASR 推理: $info');
+        ref.read(analyticsServiceProvider).track(
+          Events.asrInferenceCrashSuspected,
+          {'detail': info},
+        );
+      }
+      final legacyMarker = File('${directory.path}/asr_crash.marker');
+      if (await legacyMarker.exists()) await legacyMarker.delete();
     } catch (_) {
-      // 忽略：面包屑检查不应影响引擎初始化。
+      // 忽略：pending 检查不应影响引擎初始化。
     }
   }
 

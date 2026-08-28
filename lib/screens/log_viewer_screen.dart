@@ -32,7 +32,6 @@ typedef LogShareLauncher =
 void _packLogSupportArchive({
   required String archivePath,
   required String logDirectory,
-  required String crashMarkerPath,
   required String fallbackLog,
 }) {
   final archive = Archive();
@@ -40,25 +39,18 @@ void _packLogSupportArchive({
   if (directory.existsSync()) {
     for (final entity in directory.listSync()) {
       if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      if (name == 'asr_crash.marker' ||
+          (name.startsWith('asr_inference-') && name.endsWith('.pending'))) {
+        continue;
+      }
       final bytes = entity.readAsBytesSync();
-      archive.addFile(
-        ArchiveFile(
-          p.join('logs', p.basename(entity.path)),
-          bytes.length,
-          bytes,
-        ),
-      );
+      archive.addFile(ArchiveFile(p.join('logs', name), bytes.length, bytes));
     }
   }
   if (archive.isEmpty) {
     final bytes = utf8.encode(fallbackLog);
     archive.addFile(ArchiveFile('logs/app.log', bytes.length, bytes));
-  }
-
-  final crashMarker = File(crashMarkerPath);
-  if (crashMarker.existsSync()) {
-    final bytes = crashMarker.readAsBytesSync();
-    archive.addFile(ArchiveFile('asr_crash.marker', bytes.length, bytes));
   }
 
   final encoded = ZipEncoder().encode(archive);
@@ -164,7 +156,7 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
   /// 分享日志支持包：保留轮转日志的原文件边界并压缩为一个 ZIP。
   ///
   /// 日志目录不可用时，用当前内存日志生成 `logs/app.log` 兜底；若 ASR 崩溃
-  /// marker 尚未被启动诊断流程处理，也一并放入支持包。
+  /// ASR 推理 pending 文件仅在推理进行中存在，不放入支持包。
   Future<void> _shareAll() async {
     AppLogger.log('LogViewer', 'share logs start');
     try {
@@ -210,7 +202,6 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
     await dir.create(recursive: true);
     final archivePath = p.join(dir.path, 'echo_loop_logs_$timestamp.zip');
     final logDirectory = await appLogDirectoryPath();
-    final crashMarkerPath = await asrCrashMarkerPath();
     final fallbackLog = AppLogger.instance.entries
         .map((entry) => entry.toString())
         .join('\n');
@@ -218,7 +209,6 @@ class _LogViewerScreenState extends State<LogViewerScreen> {
       () => _packLogSupportArchive(
         archivePath: archivePath,
         logDirectory: logDirectory,
-        crashMarkerPath: crashMarkerPath,
         fallbackLog: fallbackLog,
       ),
     );

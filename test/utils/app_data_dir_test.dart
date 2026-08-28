@@ -13,9 +13,9 @@ void main() {
     });
     appDataDirectoryOverride = tempDir;
 
-    final path = await asrCrashMarkerPath();
+    final path = await asrInferenceLogDirectoryPath();
 
-    expect(path, '${tempDir.path}/logs/asr_crash.marker');
+    expect(path, '${tempDir.path}/logs');
     expect(await Directory('${tempDir.path}/logs').exists(), isTrue);
   });
 }
