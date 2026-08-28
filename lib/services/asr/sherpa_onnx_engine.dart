@@ -440,13 +440,9 @@ void _writeCrashMarker(String? path, String info) {
   } catch (_) {}
 }
 
-/// 清除崩溃面包屑（native 推理正常返回后调用）。
+/// 保留崩溃面包屑，供后续日志导出和问题定位使用。
 void _clearCrashMarker(String? path) {
-  if (path == null) return;
-  try {
-    final f = File(path);
-    if (f.existsSync()) f.deleteSync();
-  } catch (_) {}
+  // 故意不删除：即使推理正常结束，也保留最近一次 ASR 推理上下文。
 }
 
 /// 创建 Silero VAD 实例（可选）。

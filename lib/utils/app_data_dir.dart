@@ -52,10 +52,11 @@ Future<String> appLogDirectoryPath() async {
 
 /// ASR 推理崩溃面包屑文件路径。
 ///
-/// Worker isolate 在调用 native 推理前同步写入、成功后清除；
+/// Worker isolate 在调用 native 推理前同步写入，并在后续保留；
 /// 若进程在 native 层 abort（SIGABRT，不可捕获）被杀，该文件残留，
 /// 下次启动据此判定"上次疑似崩在 ASR 推理"。
 Future<String> asrCrashMarkerPath() async {
-  final dir = await getAppDataDirectory();
+  final dir = Directory('${(await getAppDataDirectory()).path}/logs');
+  if (!await dir.exists()) await dir.create(recursive: true);
   return '${dir.path}/asr_crash.marker';
 }

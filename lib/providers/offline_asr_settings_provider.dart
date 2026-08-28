@@ -572,7 +572,6 @@ class OfflineAsrSettingsNotifier extends Notifier<OfflineAsrSettingsState> {
               ),
         );
       }
-      await _persistDownloadCompleted(modelId, false);
     }
   }
 
