@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 /// v37 → v38 迁移：podcast 合集与 episode 字段。
 void main() {
@@ -13,7 +14,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV37Fixture(file);
+    await _createV37Fixture(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -76,7 +77,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV37Fixture(file, userVersion: 38);
+    await _createV37Fixture(file, userVersion: 38);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -107,9 +108,12 @@ void main() {
   });
 }
 
-void _createV37Fixture(File file, {int userVersion = 37}) {
+Future<void> _createV37Fixture(File file, {int userVersion = 37}) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE collections');
+    raw.execute('DROP TABLE audio_items');
     raw.execute('''
       CREATE TABLE collections (
         id TEXT NOT NULL PRIMARY KEY,

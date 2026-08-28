@@ -22,6 +22,7 @@ class _FakePurchaseService implements PurchaseService {
   @override
   Future<List<SubscriptionPlan>> fetchPlans({
     bool includeIntroEligibility = true,
+    bool force = false,
   }) async => const [];
   @override
   Future<Entitlement> currentEntitlement() async => current;

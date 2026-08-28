@@ -34,7 +34,6 @@
 2. 在备忘录、短信或 Safari 中打开以下任一链接：
    - `https://echo-loop.top/study`
    - `https://echo-loop.top/favorites`
-   - `https://echo-loop.top/flashcard`
 3. 如果系统直接拉起 App，说明 Universal Links 已生效
 4. 如果仍然停留在 Safari，优先检查：
    - 域名上的 AASA 文件是否可直接访问
@@ -58,6 +57,5 @@ curl https://echo-loop.top/apple-app-site-association
 - `/collections/*`
 - `/audio/*`
 - `/bookmark-review`
-- `/flashcard`
 
 `/api/*` 已明确排除，避免站点 API 链接被 App 截获。

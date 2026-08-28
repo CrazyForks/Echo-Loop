@@ -106,7 +106,6 @@ void main() {
 
     test('全屏功能页路径可用于 Universal Links', () {
       expect(AppRoutes.bookmarkReview, '/bookmark-review');
-      expect(AppRoutes.flashcard, '/flashcard');
     });
 
     test('讲解页 / PDF 预览为相对路径段（嵌套子路由，防塌栈 §7.17）', () {

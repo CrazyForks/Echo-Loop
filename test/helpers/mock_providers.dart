@@ -120,7 +120,6 @@ class TestForegroundAudioEngine extends FakeForegroundAudioEngine {
   });
 }
 
-class TestFlashcardNotifier extends FakeFlashcardNotifier {}
 
 class TestDailyStudyTime extends FakeDailyStudyTime {}
 

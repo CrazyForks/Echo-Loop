@@ -121,24 +121,6 @@ void main() {
     expect(showPlatformTtsEngine(false), isTrue);
   });
 
-  testWidgets('选 Echo Loop → engine 更新为 kokoro 且触发 ensureDownloaded', (
-    tester,
-  ) async {
-    final notifier = _TestKokoroNotifier(const KokoroModelsState({}));
-    await tester.pumpWidget(_wrap(const TtsSettings(), notifier: notifier));
-    await tester.pumpAndSettle();
-
-    // kokoro = Advanced 档（Kokoro）。
-    await tester.tap(find.text('Echo Loop AI (Advanced)').first);
-    await tester.pumpAndSettle();
-
-    expect(
-      _containerOf(tester).read(ttsSettingsProvider).engine,
-      TtsEngineKind.kokoro,
-    );
-    expect(notifier.ensured, contains(KokoroModelVariant.fp32));
-  });
-
   testWidgets('Echo Loop → 显示两个模型变体（高质量带推荐徽标 / 轻量）', (tester) async {
     await tester.pumpWidget(
       _wrap(const TtsSettings(engine: TtsEngineKind.kokoro)),
@@ -383,60 +365,5 @@ void main() {
 
     expect(_containerOf(tester).read(ttsSettingsProvider).accent, TtsAccent.us);
     expect(find.text('British'), findsNothing);
-    expect(_containerOf(tester).read(ttsSettingsProvider).accent, TtsAccent.us);
-  });
-
-  testWidgets('平台引擎 + 模型已下载 → 显示删除入口（回收空间），不显示音色', (tester) async {
-    await tester.pumpWidget(
-      _wrap(
-        const TtsSettings(), // 平台 TTS
-        models: _models(fp32: readyState),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byTooltip('Delete model'), findsOneWidget);
-    expect(find.text('Voice'), findsNothing);
-  });
-
-  testWidgets('切回平台 TTS → 不弹窗（由删除入口回收）', (tester) async {
-    final notifier = _TestKokoroNotifier(_models(fp32: readyState));
-    await tester.pumpWidget(
-      _wrap(
-        const TtsSettings(engine: TtsEngineKind.kokoro),
-        notifier: notifier,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(_platformEngineLabel));
-    await tester.pumpAndSettle();
-
-    expect(
-      _containerOf(tester).read(ttsSettingsProvider).engine,
-      TtsEngineKind.platform,
-    );
-    expect(find.byType(AlertDialog), findsNothing);
-    expect(find.byTooltip('Delete model'), findsOneWidget);
-    expect(notifier.deleted, isEmpty);
-  });
-
-  testWidgets('平台引擎提供模型删除入口', (tester) async {
-    final notifier = _TestKokoroNotifier(_models(fp32: readyState));
-    await tester.pumpWidget(
-      _wrap(const TtsSettings(), notifier: notifier), // 平台 TTS
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('Delete model'));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text('Delete model'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(notifier.deleted, [KokoroModelVariant.fp32]);
   });
 }

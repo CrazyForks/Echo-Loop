@@ -46,7 +46,6 @@ import '../screens/bookmark_review_screen.dart';
 import '../screens/sentence_detail_screen.dart';
 import '../screens/pdf_preview_screen.dart';
 import '../screens/backup_restore_screen.dart';
-import '../screens/flashcard_screen.dart';
 import '../screens/favorite_vocabulary_review_screen.dart';
 import '../screens/activity_calendar_screen.dart';
 import '../screens/review_statistics_screen.dart';
@@ -152,9 +151,6 @@ abstract class AppRoutes {
   /// 学习材料 PDF 导出预览页路径段（挂在计划页 / 合集页之下的相对子路由）
   static const pdfPreviewSegment = 'pdf-preview';
   static const backupRestore = '/backup-restore';
-
-  /// Flashcard 单词卡片复习页路径（旧版，待新调度式词汇复习补齐反面/评分后下线）
-  static const flashcard = '/flashcard';
 
   /// 收藏词汇（单词+意群）调度式复习页路径
   static const favoriteVocabularyReview = '/favorite-vocabulary-review';
@@ -526,12 +522,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // 句子详情 / PDF 预览已下沉为各入口页的嵌套子路由（§7.17），
       // 见 _sentenceDetailRoute() / _pdfPreviewRoute() 的挂载点。
-      // Flashcard 单词卡片复习（全屏，旧版，入口已不再引用）
-      GoRoute(
-        path: '/flashcard',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const FlashcardScreen(),
-      ),
       // 收藏词汇（单词+意群）调度式复习（全屏）
       GoRoute(
         path: AppRoutes.favoriteVocabularyReview,

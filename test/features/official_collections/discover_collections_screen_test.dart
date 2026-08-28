@@ -88,7 +88,7 @@ void main() {
     expect(forceRefresh, isTrue);
 
     final entryIcon = tester.widget<SvgPicture>(find.byType(SvgPicture).first);
-    expect(entryIcon.bytesLoader, isA<AssetBytesLoader>());
+    expect(entryIcon.bytesLoader, isA<SvgAssetLoader>());
   });
 
   testWidgets('只有精选播客时不显示精选合集空态', (tester) async {

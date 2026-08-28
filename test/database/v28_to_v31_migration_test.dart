@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 void main() {
   test('v28 直接升级到当前版本时保留已有本地合集和音频', () async {
@@ -14,7 +15,7 @@ void main() {
       }
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV28Database(file);
+    await _createV28Database(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -47,9 +48,29 @@ void main() {
   });
 }
 
-void _createV28Database(File file) {
+Future<void> _createV28Database(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE collection_audio_items');
+    raw.execute('DROP TABLE collections');
+    raw.execute('DROP TABLE audio_items');
+    raw.execute('ALTER TABLE learning_progresses DROP COLUMN blind_listen_sentence_index');
+    raw.execute('ALTER TABLE learning_progresses DROP COLUMN free_play_blind_listen_sentence_index');
+    raw.execute('ALTER TABLE learning_progresses DROP COLUMN free_play_retell_sentence_index');
+    raw.execute('ALTER TABLE learning_progresses DROP COLUMN retell_sentence_index');
+    raw.execute(
+      'ALTER TABLE learning_progresses ADD COLUMN blind_listen_paragraph_index INTEGER',
+    );
+    raw.execute(
+      'ALTER TABLE learning_progresses ADD COLUMN free_play_blind_listen_paragraph_index INTEGER',
+    );
+    raw.execute(
+      'ALTER TABLE learning_progresses ADD COLUMN free_play_retell_paragraph_index INTEGER',
+    );
+    raw.execute(
+      'ALTER TABLE learning_progresses ADD COLUMN retell_paragraph_index INTEGER',
+    );
     raw.execute('PRAGMA foreign_keys = ON');
     raw.execute('''
       CREATE TABLE audio_items (

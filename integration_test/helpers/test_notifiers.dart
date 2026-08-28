@@ -32,7 +32,6 @@ import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/audio_library_provider.dart';
 import 'package:echo_loop/providers/collection_provider.dart';
 import 'package:echo_loop/providers/daily_study_time_provider.dart';
-import 'package:echo_loop/providers/flashcard/flashcard_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/blind_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
@@ -113,8 +112,6 @@ class TestReviewDifficultPractice extends FakeReviewDifficultPractice {
 class TestAudioEngine extends FakeAudioEngine {
   TestAudioEngine() : super();
 }
-
-class TestFlashcardNotifier extends FakeFlashcardNotifier {}
 
 class TestDailyStudyTime extends FakeDailyStudyTime {}
 
@@ -405,7 +402,6 @@ Widget createTestApp() {
       studyStatsNotifierProvider.overrideWith(() => TestStudyStatsNotifier()),
       studyTimeServiceProvider.overrideWithValue(TestStudyTimeService()),
       savedWordListProvider.overrideWith(() => TestSavedWordList()),
-      flashcardNotifierProvider.overrideWith(() => TestFlashcardNotifier()),
       speechPracticeBackendProvider.overrideWithValue(
         TestSpeechPracticePlatform(),
       ),
@@ -468,7 +464,6 @@ Widget createTestAppWithAudio({
       studyStatsNotifierProvider.overrideWith(() => TestStudyStatsNotifier()),
       studyTimeServiceProvider.overrideWithValue(TestStudyTimeService()),
       savedWordListProvider.overrideWith(() => TestSavedWordList()),
-      flashcardNotifierProvider.overrideWith(() => TestFlashcardNotifier()),
       speechPracticeBackendProvider.overrideWithValue(
         TestSpeechPracticePlatform(),
       ),

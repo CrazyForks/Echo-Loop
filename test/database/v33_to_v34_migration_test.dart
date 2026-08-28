@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 /// v33 → v34 迁移：把 plan 版本统一存入 `plan_versions_json` dense map。
 ///
@@ -25,7 +26,7 @@ void main() {
         if (dir.existsSync()) dir.deleteSync(recursive: true);
       });
       final file = File('${dir.path}/echo_loop.db');
-      _createV33Fixture(file);
+      await _createV33Fixture(file);
 
       final db = AppDatabase(NativeDatabase(file));
       addTearDown(db.close);
@@ -150,9 +151,12 @@ void main() {
   );
 }
 
-void _createV33Fixture(File file) {
+Future<void> _createV33Fixture(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE learning_progresses');
+    raw.execute('DROP TABLE stage_completions');
     // 模拟 v33 schema（含 is_paused，无 review0_plan_version 和 plan_versions_json）
     raw.execute('''
       CREATE TABLE learning_progresses (

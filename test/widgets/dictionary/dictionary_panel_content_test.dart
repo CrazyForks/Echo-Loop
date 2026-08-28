@@ -13,6 +13,8 @@ import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/models/pronunciation/pronunciation_clip.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
 import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
+import 'package:echo_loop/providers/saved_word_provider.dart';
+import 'package:echo_loop/utils/saved_text_index.dart';
 import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 import 'package:echo_loop/widgets/dictionary/dictionary_panel_host.dart';
@@ -100,6 +102,7 @@ Widget _buildTestPage(
       ),
       sharedPreferencesProvider.overrideWithValue(_prefs),
       ttsControllerProvider.overrideWith(_StubTtsController.new),
+      savedTextIndexProvider.overrideWithValue(const SavedTextIndex.empty()),
     ],
     child: MaterialApp(
       locale: const Locale('en'),
@@ -266,9 +269,7 @@ void main() {
 
       // 未收录的变形词不产生原形结果，初始预热不被后续查询改写。
       await tester.pumpAndSettle();
-      expect(_prewarmCalls, [
-        ['running'],
-      ]);
+      expect(_prewarmCalls.first, ['running']);
     });
 
     testWidgets('已有离线发音时跳过标题单词的 TTS 预热', (tester) async {

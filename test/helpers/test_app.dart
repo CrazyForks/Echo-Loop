@@ -43,9 +43,10 @@ import 'package:echo_loop/providers/learning_session/intensive_listen_player_pro
 import 'package:echo_loop/providers/learning_session/retell_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/review_difficult_practice_provider.dart';
 import 'package:echo_loop/providers/offline_asr_settings_provider.dart';
-import 'package:echo_loop/providers/flashcard/flashcard_provider.dart';
+import 'package:echo_loop/providers/saved_word_provider.dart';
 import 'package:echo_loop/providers/transcription_task_provider.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/utils/saved_text_index.dart';
 
 import 'mock_providers.dart';
 
@@ -91,6 +92,9 @@ Widget createTestApp(
     // 收藏生命周期、播放断点等 Provider 会在 widget 测试中读取数据库；
     // 默认注入独立内存库，避免测试意外依赖生产启动流程的全局数据库。
     appDatabaseProvider.overrideWithValue(_testAppDatabase),
+    // 轻量 widget 测试不验证收藏数据流，固定为空索引可避免销毁 ProviderScope
+    // 时 Drift 查询流留下 pending timer；需要验证收藏的测试可在 overrides 覆盖。
+    savedTextIndexProvider.overrideWithValue(const SavedTextIndex.empty()),
     learningProgressNotifierProvider.overrideWith(
       () => TestLearningProgressNotifier(),
     ),
@@ -247,7 +251,6 @@ Future<void> pumpFullApp(
         reviewDifficultPracticeProvider.overrideWith(
           () => TestReviewDifficultPractice(),
         ),
-        flashcardNotifierProvider.overrideWith(() => TestFlashcardNotifier()),
         transcriptionTaskManagerProvider.overrideWith(
           () => TestTranscriptionTaskManager(),
         ),

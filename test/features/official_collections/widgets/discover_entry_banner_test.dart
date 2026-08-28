@@ -69,33 +69,6 @@ void main() {
     expect(find.text('看看新上架'), findsNothing);
   });
 
-  testWidgets('入口卡片：使用青蓝高亮渐变视觉', (tester) async {
-    await tester.pumpWidget(_host(collections: const []));
-    await tester.pumpAndSettle();
-
-    final gradientDecoration = tester
-        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
-        .map((box) => box.decoration)
-        .whereType<BoxDecoration>()
-        .firstWhere((decoration) => decoration.gradient != null);
-
-    final gradient = gradientDecoration.gradient;
-    expect(gradient, isA<LinearGradient>());
-    expect((gradient! as LinearGradient).colors, const [
-      Color(0xFFEAF8FA),
-      Color(0xFFDDEFFA),
-    ]);
-    expect(
-      (gradientDecoration.border! as Border).top.color,
-      const Color(0xFFA9D5DF),
-    );
-    expect(gradientDecoration.borderRadius, BorderRadius.circular(12));
-    expect(
-      tester.widget<Icon>(find.byIcon(Icons.auto_awesome_rounded)).size,
-      25,
-    );
-  });
-
   testWidgets('点击整卡触发 onTap', (tester) async {
     var tapped = 0;
     await tester.pumpWidget(

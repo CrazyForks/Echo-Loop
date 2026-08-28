@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:echo_loop/database/app_database.dart' show BookmarksCompanion;
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/database/providers.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:echo_loop/features/subtitle_editor/subtitle_edit_engine.dart';
 import 'package:echo_loop/features/subtitle_editor/subtitle_editor_controller.dart';
+import 'package:echo_loop/providers/favorite_sentence_lifecycle_provider.dart';
 import 'package:echo_loop/models/audio_engine_state.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/learning_progress.dart';
@@ -915,6 +917,7 @@ void main() {
       // 预置收藏与学习进度，用来验证保存后是否被清空。
       await bookmarkDao.addBookmark(
         BookmarksCompanion.insert(
+          memorySubjectId: const Value('subtitle-editor-test-subject'),
           audioItemId: audioItem.id,
           sentenceIndex: 1,
           sentenceText: 'Second sentence.',
@@ -956,6 +959,9 @@ void main() {
           audioItemDaoProvider.overrideWithValue(audioItemDao),
           audioLibraryProvider.overrideWith(() => TestAudioLibrary()),
           listeningPracticeProvider.overrideWith(() => TestListeningPractice()),
+          favoriteSentenceLifecycleProvider.overrideWith(
+            (ref) => _TestFavoriteSentenceLifecycle(ref),
+          ),
           learningProgressNotifierProvider.overrideWith(() => progressNotifier),
         ],
       );
@@ -1108,6 +1114,9 @@ void main() {
             listeningPracticeProvider.overrideWith(
               () => TestListeningPractice(),
             ),
+            favoriteSentenceLifecycleProvider.overrideWith(
+              (ref) => _TestFavoriteSentenceLifecycle(ref),
+            ),
             learningProgressNotifierProvider.overrideWith(
               () => progressNotifier,
             ),
@@ -1205,6 +1214,9 @@ void main() {
           audioItemDaoProvider.overrideWithValue(audioItemDao),
           audioLibraryProvider.overrideWith(() => TestAudioLibrary()),
           listeningPracticeProvider.overrideWith(() => recordingLp),
+          favoriteSentenceLifecycleProvider.overrideWith(
+            (ref) => _TestFavoriteSentenceLifecycle(ref),
+          ),
           learningProgressNotifierProvider.overrideWith(() => progressNotifier),
         ],
       );
@@ -1227,6 +1239,17 @@ void main() {
       );
     });
   });
+}
+
+/// 测试用收藏生命周期，仅验证字幕保存触发的收藏清理，不依赖 FSRS 调度表。
+class _TestFavoriteSentenceLifecycle extends FavoriteSentenceLifecycle {
+  _TestFavoriteSentenceLifecycle(this._testRef) : super(_testRef);
+
+  final Ref _testRef;
+
+  @override
+  Future<void> removeAllForAudio(String audioItemId) =>
+      _testRef.read(bookmarkDaoProvider).removeAllForAudio(audioItemId);
 }
 
 /// 记录 loadAudio 的 forceTranscriptReload 入参，用于验证保存后是否强制重载 LP。

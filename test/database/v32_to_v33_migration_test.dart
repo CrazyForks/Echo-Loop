@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 void main() {
   test('v32 升级到 v33 时为 learning_progresses 加 is_paused 列且默认 false', () async {
@@ -14,7 +15,7 @@ void main() {
       }
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV32LearningProgress(file);
+    await _createV32LearningProgress(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -36,9 +37,11 @@ void main() {
   });
 }
 
-void _createV32LearningProgress(File file) {
+Future<void> _createV32LearningProgress(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE learning_progresses');
     raw.execute('''
       CREATE TABLE learning_progresses (
         audio_item_id TEXT NOT NULL PRIMARY KEY,

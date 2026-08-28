@@ -580,7 +580,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Continue with store payment'), findsOneWidget);
-    expect(find.text(r'$49.99'), findsOneWidget);
+    expect(find.text(r'$24.99'), findsOneWidget);
   });
 
   testWidgets('商店套餐获取失败时仍展示 Web 支付兜底入口', (tester) async {

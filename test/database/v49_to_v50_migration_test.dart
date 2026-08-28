@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 /// v49→v50 迁移测试：
 /// - 为 saved_words、saved_sense_groups 回填不可变 memory_subject_id UUID；
@@ -16,7 +17,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV49Fixture(file);
+    await _createV49Fixture(file);
 
     final db = AppDatabase(
       NativeDatabase(
@@ -83,13 +84,31 @@ void main() {
   });
 }
 
-void _createV49Fixture(File file) {
+Future<void> _createV49Fixture(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE saved_words');
+    raw.execute('DROP TABLE saved_sense_groups');
+    raw.execute('DROP TABLE memory_review_queue_entries');
     raw.execute('''
       CREATE TABLE saved_words (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        word TEXT NOT NULL UNIQUE
+        word TEXT NOT NULL UNIQUE,
+        memory_subject_id TEXT,
+        audio_item_id TEXT,
+        sentence_index INTEGER,
+        sentence_text TEXT,
+        sentence_start_ms INTEGER,
+        sentence_end_ms INTEGER,
+        practice_count INTEGER NOT NULL DEFAULT 0,
+        total_study_ms INTEGER NOT NULL DEFAULT 0,
+        viewed_back INTEGER NOT NULL DEFAULT 0,
+        last_practiced_at INTEGER,
+        created_at INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        deleted_at INTEGER,
+        sync_status INTEGER NOT NULL DEFAULT 0
       )
     ''');
     raw.execute("INSERT INTO saved_words (word) VALUES ('apple')");
@@ -98,7 +117,24 @@ void _createV49Fixture(File file) {
     raw.execute('''
       CREATE TABLE saved_sense_groups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        phrase_text TEXT NOT NULL UNIQUE
+        phrase_text TEXT NOT NULL UNIQUE,
+        memory_subject_id TEXT,
+        display_text TEXT NOT NULL DEFAULT '',
+        audio_item_id TEXT,
+        sentence_index INTEGER,
+        sentence_text TEXT,
+        sentence_start_ms INTEGER,
+        sentence_end_ms INTEGER,
+        group_start_ms INTEGER,
+        group_end_ms INTEGER,
+        practice_count INTEGER NOT NULL DEFAULT 0,
+        total_study_ms INTEGER NOT NULL DEFAULT 0,
+        viewed_back INTEGER NOT NULL DEFAULT 0,
+        last_practiced_at INTEGER,
+        created_at INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        deleted_at INTEGER,
+        sync_status INTEGER NOT NULL DEFAULT 0
       )
     ''');
     raw.execute(

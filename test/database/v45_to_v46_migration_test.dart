@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 void main() {
   test('v45→v46 只清理旧翻译缓存（translation:%），不影响解析/查词/意群', () async {
@@ -12,7 +13,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV45Fixture(file);
+    await _createV45Fixture(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -33,9 +34,11 @@ void main() {
   });
 }
 
-void _createV45Fixture(File file) {
+Future<void> _createV45Fixture(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE sentence_ai_cache');
     raw.execute('''
       CREATE TABLE sentence_ai_cache (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

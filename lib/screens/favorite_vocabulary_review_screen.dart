@@ -592,7 +592,9 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                       child: Text(
                         card.displayText,
                         key: const Key('favorite-vocabulary-review-back-word'),
-                        style: Theme.of(context).textTheme.headlineMedium,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineMedium?.copyWith(fontSize: 24),
                       ),
                     ),
                     // 多发音 badge 已提供逐条播放，标题行不再重复提供总播放入口。

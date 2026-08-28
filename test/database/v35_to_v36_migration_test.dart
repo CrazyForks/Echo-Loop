@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 /// v35 → v36 迁移：audio_items 新增 transcript_srt 列（字幕内容入库）。
 ///
@@ -17,7 +18,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV35Fixture(file);
+    await _createV35Fixture(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -45,9 +46,11 @@ void main() {
   });
 }
 
-void _createV35Fixture(File file) {
+Future<void> _createV35Fixture(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE audio_items');
     // 模拟 v35 schema 的 audio_items（无 transcript_srt 列）
     raw.execute('''
       CREATE TABLE audio_items (

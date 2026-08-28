@@ -241,8 +241,9 @@ void main() {
   test('unsaving a word archives its schedule and advances the deck', () async {
     final notifier = container.read(favoriteVocabularyReviewProvider.notifier);
     await database.savedWordDao.saveWord(word: 'apple');
-    final first = (await database.savedWordDao.getAll()).single;
-    await notifier.initialize([first, _word('w2', 'banana')], []);
+    await database.savedWordDao.saveWord(word: 'banana');
+    final words = await database.savedWordDao.getAll();
+    await notifier.initialize(words, []);
     final removed = switch (container
         .read(favoriteVocabularyReviewProvider)
         .currentCard) {
@@ -324,6 +325,7 @@ void main() {
   );
 
   test('failed unsave keeps the current card and exposes an error', () async {
+    await database.savedWordDao.saveWord(word: 'apple');
     final failingContainer = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),

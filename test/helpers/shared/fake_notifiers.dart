@@ -47,8 +47,6 @@ import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/blind_listen_settings.dart';
 import 'package:echo_loop/models/collection.dart';
 import 'package:echo_loop/models/difficult_practice_settings.dart';
-import 'package:echo_loop/models/flashcard_item.dart';
-import 'package:echo_loop/models/flashcard_settings.dart';
 import 'package:echo_loop/models/intensive_listen_settings.dart';
 import 'package:echo_loop/models/media_load_result.dart';
 import 'package:echo_loop/models/learning_plan.dart';
@@ -67,8 +65,6 @@ import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provide
 import 'package:echo_loop/providers/audio_library_provider.dart';
 import 'package:echo_loop/providers/collection_provider.dart';
 import 'package:echo_loop/providers/daily_study_time_provider.dart';
-import 'package:echo_loop/providers/flashcard/flashcard_flow_phase.dart';
-import 'package:echo_loop/providers/flashcard/flashcard_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/blind_listen_player_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
@@ -2229,118 +2225,6 @@ class FakeForegroundAudioEngine extends ForegroundAudioEngine {
   void setTotalDuration(Duration duration) {
     state = state.copyWith(totalDuration: duration);
   }
-}
-
-// ========== FakeFlashcardNotifier ==========
-
-/// 测试用 FlashcardNotifier — 不访问 SharedPreferences / TTS / 音频引擎
-class FakeFlashcardNotifier extends FlashcardNotifier {
-  @override
-  FlashcardState build() => const FlashcardState();
-
-  @override
-  Future<void> initialize(List<FlashcardItem> items) async {
-    state = FlashcardState(words: items, currentIndex: 0);
-  }
-
-  @override
-  Future<void> userFlipCard() async {
-    if (state.isCompleted || state.words.isEmpty) return;
-    state = state.copyWith(isShowingBack: !state.isShowingBack);
-  }
-
-  @override
-  Future<void> userNextCard() async {
-    if (state.currentIndex >= state.words.length - 1) {
-      state = state.copyWith(isCompleted: true);
-      return;
-    }
-    state = state.copyWith(
-      currentIndex: state.currentIndex + 1,
-      isShowingBack: false,
-    );
-  }
-
-  @override
-  Future<void> userPreviousCard() async {
-    if (state.currentIndex <= 0) return;
-    state = state.copyWith(
-      currentIndex: state.currentIndex - 1,
-      isShowingBack: false,
-    );
-  }
-
-  @override
-  void onAppBackgrounded() {
-    state = state.copyWith(
-      phase: const FlashcardWaitingForUser(
-        FlashcardWaitingReason.appBackgrounded,
-      ),
-    );
-  }
-
-  @override
-  void onSettingsOpened() {
-    state = state.copyWith(
-      phase: const FlashcardWaitingForUser(
-        FlashcardWaitingReason.userOpenedSettings,
-      ),
-    );
-  }
-
-  @override
-  Future<void> userPlayWord() async {}
-
-  @override
-  Future<void> userPlaySentence() async {}
-
-  @override
-  Future<void> disposePlayer() async => state = const FlashcardState();
-
-  @override
-  Future<void> reset() async {
-    final words = state.words;
-    state = FlashcardState(words: words, currentIndex: 0);
-  }
-
-  @override
-  Future<void> toggleCurrentWordSave() async {
-    if (state.words.isEmpty) return;
-    final newWords = List<FlashcardItem>.from(state.words)
-      ..removeAt(state.currentIndex);
-    final newIndex =
-        state.currentIndex >= newWords.length && newWords.isNotEmpty
-        ? newWords.length - 1
-        : state.currentIndex;
-    if (newWords.isEmpty) {
-      state = state.copyWith(
-        words: newWords,
-        isCompleted: true,
-        removedCount: state.removedCount + 1,
-      );
-    } else {
-      state = state.copyWith(
-        words: newWords,
-        currentIndex: newIndex,
-        isShowingBack: false,
-        removedCount: state.removedCount + 1,
-      );
-    }
-  }
-
-  @override
-  Future<void> updateSettings(FlashcardSettings newSettings) async {
-    state = state.copyWith(settings: newSettings);
-  }
-
-  @override
-  Future<void> onWordPlayed() async {}
-
-  @override
-  Future<void> onSentencePlayed(String sentenceText) async {}
-
-  /// 直接设置状态（测试用）
-  void setState(FlashcardState newState) => state = newState;
 }
 
 // ========== FakeDailyStudyTime ==========

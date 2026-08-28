@@ -182,6 +182,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isTrue);
       expect(find.byType(AlertDialog), findsNothing);
@@ -204,11 +205,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(find.text('Open Settings'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isFalse);
     });
@@ -234,6 +237,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isTrue);
       expect(find.byType(AlertDialog), findsNothing);
@@ -265,6 +269,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isTrue);
       expect(find.byType(AlertDialog), findsNothing);
@@ -296,6 +301,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isTrue);
       expect(find.byType(AlertDialog), findsNothing);
@@ -318,6 +324,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isTrue);
       expect(find.byType(AlertDialog), findsNothing);
@@ -342,11 +349,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(find.text('Open Settings'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(result, isFalse);
     });
@@ -372,10 +381,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('Grant'), findsOneWidget);
       await tester.tap(find.text('Grant'));
       await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(fake.requestCount, 1);
       expect(result, isTrue);

@@ -42,10 +42,6 @@
           {
             "/": "/bookmark-review",
             "comment": "Bookmark review screen."
-          },
-          {
-            "/": "/flashcard",
-            "comment": "Flashcard review screen."
           }
         ]
       }

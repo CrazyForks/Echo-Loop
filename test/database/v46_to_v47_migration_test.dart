@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
+import 'migration_fixture_helper.dart';
 
 /// v46→v47 迁移测试：learning_progresses 新增 manual_unlock_at 列
 /// （「立即解锁」当前复习轮的时刻），旧行迁移后该列为 NULL。
@@ -14,7 +15,7 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final file = File('${dir.path}/echo_loop.db');
-    _createV46Fixture(file);
+    await _createV46Fixture(file);
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -41,9 +42,11 @@ void main() {
 }
 
 /// 构造 v46 版本的最小 fixture：仅含 learning_progresses（v46 形状）+ 一行旧数据。
-void _createV46Fixture(File file) {
+Future<void> _createV46Fixture(File file) async {
+  await seedCurrentSchema(file);
   final raw = sqlite.sqlite3.open(file.path);
   try {
+    raw.execute('DROP TABLE learning_progresses');
     raw.execute('''
       CREATE TABLE learning_progresses (
         audio_item_id TEXT NOT NULL PRIMARY KEY,
