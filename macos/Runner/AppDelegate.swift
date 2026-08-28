@@ -511,7 +511,7 @@ final class MacSpeechPracticeHandler: NSObject, FlutterStreamHandler {
 
       let file = try AVAudioFile(forWriting: fileURL, settings: inputFormat.settings)
 
-      if recognitionEnabled, let recognizer = cachedRecognizer {
+      if recognitionEnabled, cachedRecognizer != nil {
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         request = req
@@ -1092,9 +1092,10 @@ final class MacAudioDecodeHandler: NSObject {
         return
       }
 
-      DispatchQueue.global(qos: .userInitiated).async {
+      Task { [weak self] in
+        guard let self else { return }
         do {
-          let payload = try self.decodeAudio(atPath: audioPath)
+          let payload = try await self.decodeAudio(atPath: audioPath)
           DispatchQueue.main.async {
             result(payload)
           }
@@ -1117,7 +1118,7 @@ final class MacAudioDecodeHandler: NSObject {
     }
   }
 
-  private func decodeAudio(atPath audioPath: String) throws -> [String: Any] {
+  private func decodeAudio(atPath audioPath: String) async throws -> [String: Any] {
     let fileURL = URL(fileURLWithPath: audioPath)
     guard FileManager.default.fileExists(atPath: fileURL.path) else {
       throw MacAudioDecodeError(
@@ -1128,7 +1129,8 @@ final class MacAudioDecodeHandler: NSObject {
     }
 
     let asset = AVURLAsset(url: fileURL)
-    guard let track = asset.tracks(withMediaType: .audio).first else {
+    let tracks = try await asset.loadTracks(withMediaType: .audio)
+    guard let track = tracks.first else {
       throw MacAudioDecodeError(
         code: "notAvailable",
         message: "Audio asset has no readable audio track",
@@ -1165,7 +1167,8 @@ final class MacAudioDecodeHandler: NSObject {
       )
     }
 
-    guard let formatDescription = track.formatDescriptions.first else {
+    let formatDescriptions = try await track.load(.formatDescriptions)
+    guard let formatDescription = formatDescriptions.first else {
       throw MacAudioDecodeError(
         code: "notAvailable",
         message: "Audio track missing format description",
@@ -1173,7 +1176,7 @@ final class MacAudioDecodeHandler: NSObject {
       )
     }
     guard let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(
-      formatDescription as! CMAudioFormatDescription
+      formatDescription
     ) else {
       throw MacAudioDecodeError(
         code: "notAvailable",
@@ -1193,9 +1196,10 @@ final class MacAudioDecodeHandler: NSObject {
     }
 
     var outputSamples = [Float]()
+    let duration = try await asset.load(.duration)
     let estimatedFrames = max(
       0,
-      Int(CMTimeGetSeconds(asset.duration) * inputSampleRate)
+      Int(CMTimeGetSeconds(duration) * inputSampleRate)
     )
     let estimatedOutputSamples = max(
       1,

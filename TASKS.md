@@ -1,5 +1,7 @@
 # Echo Loop 任务清单
 
+- [x] 清理 macOS Runner 音频解码中的 Swift warning：移除未使用的 `recognizer` 绑定，并将 AVFoundation 废弃的同步资源访问迁移到现代异步 API。**完成时间**: 2026-08-28
+
 - [x] 修复进入订阅页时 Paywall 的 `force=true` 未传递到 Paddle Plans 基础套餐请求，确保 `/api/paddle/plans` 强制刷新可绕过 1 天节流，并补充 force 参数传播回归测试。**完成时间**: 2026-08-28
 
 - [x] 为 iOS / Google Play 原生套餐刷新增加 15 秒整体超时；无缓存超时进入失败态并支持重试，已有缓存失败时保留旧套餐，补充超时、重试及竞态回归测试。**完成时间**: 2026-08-28
