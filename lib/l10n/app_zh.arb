@@ -896,14 +896,6 @@
   "speechModelStatusNeedsDownload": "需下载",
   "speechModelDownloading": "正在下载... {progress}",
   "speechModelDownloadFailed": "下载失败，点击重试。",
-  "speechModelDownloadFailedTitle": "语音识别模型下载失败",
-  "speechModelDownloadFailedGenericPurpose": "语音识别模型用于练习后自动评分。",
-  "speechModelDownloadFailedListenAndRepeatPurpose": "语音识别模型用于跟读后自动评分。",
-  "speechModelDownloadFailedRetellPurpose": "语音识别模型用于复述后自动评分。",
-  "speechModelDownloadFailedDisableHint": "暂时不需要自动评分，可关闭：",
-  "speechModelDisablePathGeneric": "设置 > 学习设置",
-  "speechModelDisablePathListenAndRepeat": "设置 > 学习设置 > 跟读时显示评分",
-  "speechModelDisablePathRetell": "设置 > 学习设置 > 复述时显示评分",
   "downloadErrorStorage": "存储空间不足，请清理后重试。",
   "downloadErrorNetwork": "网络异常，请检查网络后重试。",
   "downloadErrorCorrupted": "下载文件校验失败，请重试。",
@@ -915,17 +907,40 @@
   "disableSpeechRecognitionMessage": "关闭后语音练习将无法评分。",
   "alsoDeleteModel": "同时删除已下载的模型",
   "disableAction": "关闭",
-  "speechRecognitionRequiredTitle": "需要下载语音识别模型",
   "speechRecognitionRequiredMessage": "语音识别用于自动评估跟读和复述效果，开始前需要先下载模型。",
-  "downloadAndEnable": "下载并启用",
-  "notNow": "暂不启用",
-  "speechModelRepairTitle": "模型下载不完整",
-  "speechModelRepairMessage": "语音识别模型未下载完成，需要重新下载才能使用语音练习。",
+  "asrModelDownloadRequiredTitle": "需要下载语音识别模型",
+  "asrModelDownloadEstimate": "预计下载量：约 {size}",
+  "@asrModelDownloadEstimate": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrModelDownloadSettingsHint": "你也可以前往设置选择其他语音识别模型。",
+  "asrModelDownloadingTitle": "正在下载语音识别模型",
+  "asrModelDownloadingMessage": "预计下载量：约 {size}",
+  "@asrModelDownloadingMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrModelDownloadProgress": "已完成 {progress}",
+  "@asrModelDownloadProgress": {
+    "placeholders": {
+      "progress": { "type": "String" }
+    }
+  },
+  "asrModelDownloadFailedTitle": "语音识别模型下载失败",
+  "asrModelDownloadFailedMessage": "下载未完成。预计下载量：约 {size}",
+  "@asrModelDownloadFailedMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrDownloadModel": "下载模型",
   "downloadNow": "立即下载",
   "later": "稍后",
   "speechRecognitionNotEnabled": "语音识别未启用，可在设置中开启",
   "retryDownload": "重试",
-  "downloadingSpeechModel": "正在下载语音识别模型",
 
   "developer": "开发者",
   "developerOptionsEnabled": "开发者选项已开启",
@@ -2046,7 +2061,7 @@
   "ttsModelDownloadingMessage": "预计下载量：约 {size}",
   "ttsModelDownloadProgress": "已完成 {progress}",
   "ttsModelDownloadFailedTitle": "语音合成模型下载失败",
-  "ttsModelDownloadFailedMessage": "下载未完成。预计下载量：约 {size}\n你可以重试，或前往设置选择其他语音合成模型。",
+  "ttsModelDownloadFailedMessage": "下载未完成。预计下载量：约 {size}",
   "ttsDownloadModel": "下载模型",
   "ttsAccent": "口音",
   "ttsAccentUs": "美音",

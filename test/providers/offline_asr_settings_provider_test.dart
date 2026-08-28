@@ -21,6 +21,7 @@ class _FakeAsrModelManager extends AsrModelManager {
   final bool downloaded;
   final int localSizeBytes;
   int deleteModelCallCount = 0;
+  int discardPartialDownloadCallCount = 0;
 
   @override
   Future<bool> isModelDownloaded(String modelId) async => downloaded;
@@ -35,6 +36,11 @@ class _FakeAsrModelManager extends AsrModelManager {
 
   @override
   Future<void> cleanupUnknownModels() async {}
+
+  @override
+  Future<void> discardPartialDownload(String modelId) async {
+    discardPartialDownloadCallCount += 1;
+  }
 }
 
 class _TestOfflineAsrSettingsNotifier extends OfflineAsrSettingsNotifier {
@@ -80,7 +86,7 @@ void main() {
     expect(model.displayName, contains('Balanced'));
   });
 
-  test('完成标记恢复 downloaded，且初始体积未知', () async {
+  test('旧完成标记不再恢复 downloaded，避免与安装清单漂移', () async {
     SharedPreferences.setMockInitialValues({
       'offline_asr_downloaded_whisper-base-en-int8': true,
     });
@@ -92,7 +98,7 @@ void main() {
     );
 
     expect(state.enabled, isTrue);
-    expect(state.downloadStatus, AsrModelDownloadStatus.downloaded);
+    expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
     expect(state.localSizeBytes, 0);
   });
 
@@ -137,7 +143,7 @@ void main() {
 
     expect(state.backend, AsrBackend.offline);
     expect(state.selectedModel.id, recommendedModel.id);
-    expect(state.downloadStatus, AsrModelDownloadStatus.downloaded);
+    expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
   });
 
   test('主动取消下载会清理残留并回到未下载态，不显示失败', () async {
@@ -171,11 +177,12 @@ void main() {
 
     final state = container.read(offlineAsrSettingsProvider);
     expect(manager.deleteModelCallCount, 1);
+    expect(manager.discardPartialDownloadCallCount, 1);
     expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
     expect(state.downloadProgress, 0);
     expect(state.localSizeBytes, 0);
     expect(state.downloadError, isNull);
-    expect(prefs.getBool('offline_asr_downloaded_$modelId'), isFalse);
+    expect(prefs.getBool('offline_asr_downloaded_$modelId'), isNull);
   });
 
   test('取消后立即重置 UI，底层写入报存储异常仍不显示重试', () async {
@@ -222,6 +229,7 @@ void main() {
     await download;
 
     final state = container.read(offlineAsrSettingsProvider);
+    expect(manager.discardPartialDownloadCallCount, 1);
     expect(state.downloadStatus, AsrModelDownloadStatus.notDownloaded);
     expect(state.downloadError, isNull);
     expect(state.localSizeBytes, 0);

@@ -3542,54 +3542,6 @@ abstract class AppLocalizations {
   /// **'Download failed. Tap to retry.'**
   String get speechModelDownloadFailed;
 
-  /// No description provided for @speechModelDownloadFailedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Speech Recognition Model Download Failed'**
-  String get speechModelDownloadFailedTitle;
-
-  /// No description provided for @speechModelDownloadFailedGenericPurpose.
-  ///
-  /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring your spoken responses.'**
-  String get speechModelDownloadFailedGenericPurpose;
-
-  /// No description provided for @speechModelDownloadFailedListenAndRepeatPurpose.
-  ///
-  /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring your pronunciation.'**
-  String get speechModelDownloadFailedListenAndRepeatPurpose;
-
-  /// No description provided for @speechModelDownloadFailedRetellPurpose.
-  ///
-  /// In en, this message translates to:
-  /// **'The speech recognition model is used for automatic scoring your retelling.'**
-  String get speechModelDownloadFailedRetellPurpose;
-
-  /// No description provided for @speechModelDownloadFailedDisableHint.
-  ///
-  /// In en, this message translates to:
-  /// **'If you do not need automatic scoring for now, turn it off:'**
-  String get speechModelDownloadFailedDisableHint;
-
-  /// No description provided for @speechModelDisablePathGeneric.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings > Learning Settings'**
-  String get speechModelDisablePathGeneric;
-
-  /// No description provided for @speechModelDisablePathListenAndRepeat.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings > Learning Settings > Show rating during read-aloud'**
-  String get speechModelDisablePathListenAndRepeat;
-
-  /// No description provided for @speechModelDisablePathRetell.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings > Learning Settings > Show rating during retelling'**
-  String get speechModelDisablePathRetell;
-
   /// No description provided for @downloadErrorStorage.
   ///
   /// In en, this message translates to:
@@ -3656,41 +3608,65 @@ abstract class AppLocalizations {
   /// **'Disable'**
   String get disableAction;
 
-  /// No description provided for @speechRecognitionRequiredTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Speech Recognition Model Required'**
-  String get speechRecognitionRequiredTitle;
-
   /// No description provided for @speechRecognitionRequiredMessage.
   ///
   /// In en, this message translates to:
   /// **'Speech recognition is used to automatically evaluate your pronunciation and retelling. A model download is required before starting.'**
   String get speechRecognitionRequiredMessage;
 
-  /// No description provided for @downloadAndEnable.
+  /// No description provided for @asrModelDownloadRequiredTitle.
   ///
   /// In en, this message translates to:
-  /// **'Download & Enable'**
-  String get downloadAndEnable;
+  /// **'Speech Recognition Model Required'**
+  String get asrModelDownloadRequiredTitle;
 
-  /// No description provided for @notNow.
+  /// No description provided for @asrModelDownloadEstimate.
   ///
   /// In en, this message translates to:
-  /// **'Not Now'**
-  String get notNow;
+  /// **'Estimated download: ~{size}'**
+  String asrModelDownloadEstimate(String size);
 
-  /// No description provided for @speechModelRepairTitle.
+  /// No description provided for @asrModelDownloadSettingsHint.
   ///
   /// In en, this message translates to:
-  /// **'Model Download Incomplete'**
-  String get speechModelRepairTitle;
+  /// **'You can also choose another speech recognition model in Settings.'**
+  String get asrModelDownloadSettingsHint;
 
-  /// No description provided for @speechModelRepairMessage.
+  /// No description provided for @asrModelDownloadingTitle.
   ///
   /// In en, this message translates to:
-  /// **'The speech recognition model needs to be re-downloaded to use voice practice.'**
-  String get speechModelRepairMessage;
+  /// **'Downloading Speech Recognition Model'**
+  String get asrModelDownloadingTitle;
+
+  /// No description provided for @asrModelDownloadingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated download: ~{size}'**
+  String asrModelDownloadingMessage(String size);
+
+  /// No description provided for @asrModelDownloadProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{progress} complete'**
+  String asrModelDownloadProgress(String progress);
+
+  /// No description provided for @asrModelDownloadFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech Recognition Model Download Failed'**
+  String get asrModelDownloadFailedTitle;
+
+  /// No description provided for @asrModelDownloadFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The download did not finish. Estimated download: ~{size}'**
+  String asrModelDownloadFailedMessage(String size);
+
+  /// No description provided for @asrDownloadModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Download model'**
+  String get asrDownloadModel;
 
   /// No description provided for @downloadNow.
   ///
@@ -3715,12 +3691,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get retryDownload;
-
-  /// No description provided for @downloadingSpeechModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloading Speech Recognition Model'**
-  String get downloadingSpeechModel;
 
   /// No description provided for @developer.
   ///
@@ -8987,7 +8957,7 @@ abstract class AppLocalizations {
   /// No description provided for @ttsModelDownloadFailedMessage.
   ///
   /// In en, this message translates to:
-  /// **'The download did not finish. Estimated download: ~{size}\nYou can retry, or choose another speech model in Settings.'**
+  /// **'The download did not finish. Estimated download: ~{size}'**
   String ttsModelDownloadFailedMessage(Object size);
 
   /// No description provided for @ttsDownloadModel.

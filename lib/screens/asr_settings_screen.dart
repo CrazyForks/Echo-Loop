@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/offline_asr_settings_provider.dart';
+import '../providers/asr_model_installation_provider.dart';
 import '../services/asr/asr_model_manager.dart';
 import '../services/asr/offline_asr_engine.dart';
 import '../theme/app_theme.dart';
@@ -29,6 +30,9 @@ class _AsrSettingsScreenState extends ConsumerState<AsrSettingsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(asrModelInstallationGateProvider)
+          .ensureInstallationStatesLoaded();
       final state = ref.read(offlineAsrSettingsProvider);
       if (state.enabled &&
           state.backend == AsrBackend.offline &&

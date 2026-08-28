@@ -1,11 +1,11 @@
-/// ASR 模型下载、校验、缓存管理。
-///
-/// 负责从远程下载模型文件到本地，校验完整性，
-/// 管理缓存目录。不依赖具体引擎实现。
+/// ASR 模型归档下载、原子安装和缓存管理。
 library;
+
+export 'asr_model_catalog.dart';
 
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
@@ -13,38 +13,26 @@ import 'package:path_provider/path_provider.dart';
 
 import '../app_logger.dart';
 import '../reliable_http_downloader.dart';
+import '../resource_install_manifest.dart';
+import 'asr_archive_installer.dart';
+import 'asr_model_catalog.dart';
 import 'offline_asr_engine.dart';
 
-// ---------------------------------------------------------------------------
-// 模型注册表
-// ---------------------------------------------------------------------------
-
-/// CDN 基础 URL。
-const _cdnBase = 'https://cdn.echo-loop.top';
-
-/// 单个模型文件的固定元数据。
+/// 旧版逐文件安装布局的文件元数据，仅用于迁移和兼容校验。
 class AsrModelFileSpec {
+  const AsrModelFileSpec({required this.path, required this.sha256});
   final String path;
   final String sha256;
-
-  const AsrModelFileSpec({required this.path, required this.sha256});
 }
 
-/// 模型文件清单：每个模型需要下载的文件及其固定校验信息。
+/// 旧版逐文件安装布局的清单，仅用于迁移既有缓存。
 class AsrModelManifest {
-  final List<AsrModelFileSpec> files;
   const AsrModelManifest({required this.files});
+  final List<AsrModelFileSpec> files;
 }
 
-/// Silero VAD 模型 ID。
-///
-/// VAD 模型是所有 whisper 模型的共享依赖，用于转录前裁剪静音段。
-const vadModelId = 'silero-vad';
-
-/// 各模型的文件清单。
-///
-/// 下载 URL: `$_cdnBase/model/$modelId/$filename`
-const _defaultModelFileRegistry = <String, AsrModelManifest>{
+/// 旧缓存完整性清单。新安装不再以单文件哈希作为状态真相。
+const defaultLegacyModelFileRegistry = <String, AsrModelManifest>{
   vadModelId: AsrModelManifest(
     files: [
       AsrModelFileSpec(
@@ -113,7 +101,6 @@ const _defaultModelFileRegistry = <String, AsrModelManifest>{
   ),
 };
 
-/// 所有可用模型的元信息。
 final List<AsrModelInfo> availableModels = [
   const AsrModelInfo(
     id: 'whisper-tiny-en-int8',
@@ -132,335 +119,252 @@ final List<AsrModelInfo> availableModels = [
   ),
 ];
 
-// ---------------------------------------------------------------------------
-// 模型下载状态
-// ---------------------------------------------------------------------------
+enum AsrModelDownloadStatus { notDownloaded, downloading, downloaded, failed }
 
-/// 模型下载状态。
-enum AsrModelDownloadStatus {
-  /// 未下载。
-  notDownloaded,
-
-  /// 下载中。
-  downloading,
-
-  /// 已下载。
-  downloaded,
-
-  /// 下载失败。
-  failed,
-}
-
-/// 模型下载进度。
 class AsrModelDownloadProgress {
-  /// 下载状态。
-  final AsrModelDownloadStatus status;
-
-  /// 下载进度 0.0 ~ 1.0。
-  final double progress;
-
-  /// 错误信息（仅 [AsrModelDownloadStatus.failed] 时有值）。
-  final String? error;
-
   const AsrModelDownloadProgress({
     required this.status,
     this.progress = 0,
     this.error,
   });
-
-  /// 未下载的初始状态。
+  final AsrModelDownloadStatus status;
+  final double progress;
+  final String? error;
   static const notDownloaded = AsrModelDownloadProgress(
     status: AsrModelDownloadStatus.notDownloaded,
   );
 }
 
-// ---------------------------------------------------------------------------
-// AsrModelManager
-// ---------------------------------------------------------------------------
-
-/// ASR 模型管理器。
-///
-/// 职责：模型下载、本地缓存管理、完整性校验、设备推荐。
+/// 统一使用归档校验、staging 和原子替换的 ASR 安装器。
 class AsrModelManager {
-  /// `ReliableHttpDownloader` 接口本身不提供释放能力，[dispose] 需要靠持有
-  /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
-  late final Dio _dio;
-  late final ReliableHttpDownloader _downloader;
-
-  /// 可选的下载基地址覆盖，仅用于测试。
-  final String? baseUrlOverride;
-
-  /// 可选的模型清单覆盖，仅用于测试。
-  final Map<String, AsrModelManifest> modelRegistryOverride;
-
   AsrModelManager({
     Dio? dio,
     this.baseUrlOverride,
-    Map<String, AsrModelManifest>? modelRegistryOverride,
-  }) : modelRegistryOverride =
-           modelRegistryOverride ?? _defaultModelFileRegistry {
-    _dio = dio ?? Dio();
+    Map<String, AsrModelResourceSpec>? resourceRegistryOverride,
+    this.modelsRootResolver,
+  }) : resourceRegistry = resourceRegistryOverride ?? asrModelResourceCatalog {
+    _dio =
+        dio ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 15),
+            sendTimeout: const Duration(seconds: 30),
+            receiveTimeout: const Duration(seconds: 30),
+          ),
+        );
     _downloader = DioReliableHttpDownloader(dio: _dio);
+    _installer = AsrArchiveInstaller(_downloader);
   }
 
-  /// 模型存储根目录。
+  late final Dio _dio;
+  late final ReliableHttpDownloader _downloader;
+  late final AsrArchiveInstaller _installer;
+  final String? baseUrlOverride;
+  final Map<String, AsrModelResourceSpec> resourceRegistry;
+  final Future<String> Function()? modelsRootResolver;
+
   Future<String> get _modelsRoot async {
-    final appDir = await getApplicationSupportDirectory();
-    return p.join(appDir.path, 'asr-models');
+    final resolver = modelsRootResolver;
+    if (resolver != null) return resolver();
+    return p.join((await getApplicationSupportDirectory()).path, 'asr-models');
   }
 
-  /// 获取指定模型的本地目录路径。
-  Future<String> modelDir(String modelId) async {
-    final root = await _modelsRoot;
-    return p.join(root, modelId);
-  }
+  Future<String> modelDir(String modelId) async =>
+      p.join(await _modelsRoot, modelId);
 
-  /// 检查模型是否已下载且完整。
-  Future<bool> isModelDownloaded(String modelId) async {
-    final result = await validateModel(modelId);
-    return result.isValid;
-  }
-
-  /// 获取模型本地占用空间（字节）。
-  Future<int> modelLocalSize(String modelId) async {
-    final dir = Directory(await modelDir(modelId));
-    if (!dir.existsSync()) return 0;
-
-    var total = 0;
-    await for (final entity in dir.list()) {
-      if (entity is File) {
-        total += await entity.length();
+  Future<ResourceInstallManifest?> readInstallManifest(String modelId) async {
+    final spec = resourceRegistry[modelId];
+    if (spec == null) return null;
+    final directory = Directory(await modelDir(modelId));
+    try {
+      final manifest = await readResourceInstallManifest(directory);
+      if (manifest == null || manifest.resourceId != modelId) return null;
+      for (final requiredFile in spec.requiredFiles) {
+        if (!File(p.join(directory.path, requiredFile)).existsSync()) {
+          return null;
+        }
       }
+      return manifest;
+    } on FormatException {
+      return null;
     }
-    return total;
   }
 
-  /// 下载模型，通过 [onProgress] 回调报告进度。
-  ///
-  /// 下载过程中可通过 [cancelToken] 取消。
-  /// 返回模型本地目录路径。
+  /// 资源自身及其 catalog 声明的共享依赖均完整时才可供引擎使用。
+  Future<bool> isModelDownloaded(String modelId) async {
+    final spec = resourceRegistry[modelId];
+    if (spec == null || await readInstallManifest(modelId) == null) {
+      return false;
+    }
+    for (final dependency in spec.dependencies) {
+      if (!await isModelDownloaded(dependency)) return false;
+    }
+    return true;
+  }
+
+  Future<int> modelLocalSize(String modelId) async =>
+      (await readInstallManifest(modelId))?.resourceSize ?? 0;
+
+  /// 下载、归档哈希校验、解压关键文件校验后才原子替换当前安装。
   Future<String> downloadModel(
     String modelId, {
     void Function(AsrModelDownloadProgress)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    final manifest = modelRegistryOverride[modelId];
-    if (manifest == null) {
-      throw ArgumentError('Unknown model: $modelId');
-    }
-
-    final dir = await modelDir(modelId);
-    await Directory(dir).create(recursive: true);
-
-    final baseUrl = baseUrlOverride ?? _cdnBase;
-    AppLogger.log('ASRModel', '┌ downloadModel modelId=$modelId dir=$dir');
-    AppLogger.log('ASRModel', '│ baseUrl=$baseUrl');
-
-    final totalFileCount = manifest.files.length;
-    var completedFileCount = 0;
-
-    // 预处理已存在文件：哈希符合清单则视为完成，否则删除重下。
-    for (final file in manifest.files) {
-      final localFile = File(p.join(dir, file.path));
-      if (!localFile.existsSync()) continue;
-      if (await _matchesExpectedHash(localFile, file.sha256)) {
-        completedFileCount++;
-        continue;
-      }
-      AppLogger.log(
-        'ASRModel',
-        '│ remove stale file=${file.path} (hash mismatch)',
-      );
-      await localFile.delete();
-    }
-
-    void reportProgress([double currentFileProgress = 0]) {
-      final progress = totalFileCount > 0
-          ? (completedFileCount + currentFileProgress) / totalFileCount
-          : 0.0;
+    final spec = resourceRegistry[modelId];
+    if (spec == null) throw ArgumentError('Unknown model: $modelId');
+    // 模型本体与共享 VAD 分开安装；VAD 缺失时不能触发模型本体重复下载。
+    if (await readInstallManifest(modelId) != null) {
       onProgress?.call(
-        AsrModelDownloadProgress(
-          status: AsrModelDownloadStatus.downloading,
-          progress: progress.clamp(0.0, 1.0),
+        const AsrModelDownloadProgress(
+          status: AsrModelDownloadStatus.downloaded,
+          progress: 1,
         ),
       );
+      return modelDir(modelId);
     }
-
-    reportProgress();
-
-    // 逐个下载缺失的文件。
-    for (final file in manifest.files) {
-      final localFile = File(p.join(dir, file.path));
-      if (localFile.existsSync()) continue;
-
-      try {
-        final downloadUrl = '$baseUrl/model/$modelId/${file.path}';
-        AppLogger.log('ASRModel', '│ downloading file=${file.path}');
-        await _downloader.download(
-          uri: Uri.parse(downloadUrl),
-          savePath: localFile.path,
-          identityKey: file.sha256,
-          cancelToken: cancelToken,
-          onProgress: (received, total) {
-            final fileFraction = (total != null && total > 0)
-                ? received / total
-                : 0.0;
-            reportProgress(fileFraction);
-          },
-        );
-        completedFileCount++;
-        AppLogger.log(
-          'ASRModel',
-          '│ file done=${file.path} size=${localFile.lengthSync()}',
-        );
-      } catch (e) {
-        AppLogger.log(
-          'ASRModel',
-          '└ downloadModel failed file=${file.path} error=$e',
-        );
-        rethrow;
-      }
-    }
-
+    final root = Directory(await _modelsRoot);
+    final target = Directory(await modelDir(modelId));
+    onProgress?.call(
+      const AsrModelDownloadProgress(
+        status: AsrModelDownloadStatus.downloading,
+      ),
+    );
+    await _installer.install(
+      root: root,
+      target: target,
+      resourceId: modelId,
+      uri: Uri.parse(
+        '${baseUrlOverride ?? asrCdnBaseUrl}/model/${spec.archivePath}',
+      ),
+      expectedSha256: spec.sha256,
+      cancelToken: cancelToken,
+      onProgress: (value) => onProgress?.call(
+        AsrModelDownloadProgress(
+          status: AsrModelDownloadStatus.downloading,
+          progress: value,
+        ),
+      ),
+      onInstalling: () => onProgress?.call(
+        const AsrModelDownloadProgress(
+          status: AsrModelDownloadStatus.downloading,
+          progress: 1,
+        ),
+      ),
+      extractAndValidate: (archive, staging) =>
+          _extractAndValidate(archive, staging, spec),
+    );
+    final result = await validateModel(modelId);
+    if (!result.isValid) throw StateError(result.describe());
     onProgress?.call(
       const AsrModelDownloadProgress(
         status: AsrModelDownloadStatus.downloaded,
-        progress: 1.0,
+        progress: 1,
       ),
     );
-    AppLogger.log('ASRModel', '└ downloadModel done modelId=$modelId dir=$dir');
-
-    final validation = await validateModel(modelId);
-    if (!validation.isValid) {
-      throw StateError(validation.describe());
-    }
-
-    return dir;
+    return target.path;
   }
 
-  /// 校验本地模型文件是否和固定清单完全一致。
-  Future<AsrModelValidationResult> validateModel(String modelId) async {
-    final manifest = modelRegistryOverride[modelId];
-    if (manifest == null) {
-      return AsrModelValidationResult(
-        modelId: modelId,
-        isValid: false,
-        reason: 'Unknown model',
-      );
-    }
-
-    final dir = await modelDir(modelId);
-    for (final file in manifest.files) {
-      final localFile = File(p.join(dir, file.path));
-      if (!localFile.existsSync()) {
-        return AsrModelValidationResult(
+  Future<AsrModelValidationResult> validateModel(String modelId) async =>
+      (await readInstallManifest(modelId)) == null
+      ? AsrModelValidationResult(
           modelId: modelId,
           isValid: false,
-          reason: 'Missing file',
-          filePath: file.path,
-        );
-      }
+          reason: 'Missing or invalid install manifest',
+        )
+      : AsrModelValidationResult(modelId: modelId, isValid: true);
 
-      final actualSha256 = await _computeSha256(localFile);
-      if (actualSha256 != file.sha256) {
-        return AsrModelValidationResult(
-          modelId: modelId,
-          isValid: false,
-          reason: 'SHA-256 mismatch',
-          filePath: file.path,
-          expectedSha256: file.sha256,
-          actualSha256: actualSha256,
-        );
+  /// 校验旧逐文件目录，用于把历史可用缓存转换为新的安装清单。
+  Future<bool> validateLegacyModelFiles(String modelId) async {
+    final legacy = defaultLegacyModelFileRegistry[modelId];
+    if (legacy == null) return false;
+    final dir = Directory(await modelDir(modelId));
+    for (final spec in legacy.files) {
+      final file = File(p.join(dir.path, spec.path));
+      if (!file.existsSync() || await _sha256(file) != spec.sha256) {
+        return false;
       }
     }
-
-    return AsrModelValidationResult(modelId: modelId, isValid: true);
+    return true;
   }
 
-  /// 删除本地模型缓存。
   Future<void> deleteModel(String modelId) async {
     final dir = Directory(await modelDir(modelId));
-    if (dir.existsSync()) {
-      await dir.delete(recursive: true);
-    }
+    if (dir.existsSync()) await dir.delete(recursive: true);
+    await discardPartialDownload(modelId);
   }
 
-  /// 清理不再可识别的旧模型目录。
+  /// 丢弃指定资源的续传缓存，但不影响已经安装完成的模型目录。
   ///
-  /// 保留当前版本可选择的全部 Whisper 模型和共享 VAD；仅删除历史废弃目录。
+  /// 下载模型时用户主动取消，需要清理模型本体和共享 VAD 两类资源的半成品。
+  Future<void> discardPartialDownload(String modelId) async {
+    await _installer.discardPartial(
+      root: Directory(await _modelsRoot),
+      resourceId: modelId,
+    );
+  }
+
   Future<void> cleanupUnknownModels() async {
     final root = Directory(await _modelsRoot);
     if (!root.existsSync()) return;
-
-    final knownModelIds = {
-      vadModelId,
-      for (final model in availableModels) model.id,
-    };
     await for (final entity in root.list()) {
-      if (entity is Directory) {
-        final dirName = p.basename(entity.path);
-        if (!knownModelIds.contains(dirName)) {
-          AppLogger.log('ASRModel', '🗑 清理旧模型: $dirName');
-          await entity.delete(recursive: true);
-        }
+      if (entity is Directory &&
+          !resourceRegistry.containsKey(p.basename(entity.path))) {
+        AppLogger.log('ASRModel', '清理旧模型: ${p.basename(entity.path)}');
+        await entity.delete(recursive: true);
       }
     }
   }
 
-  /// 推荐默认 ASR 模型。
-  ///
-  /// [ramBytes] 由原生层提供（全平台统一）。当前默认选择 Base
-  /// (Balanced)，在识别质量和端侧速度之间保持更稳妥的折中。
-  AsrModelInfo recommendModel({int ramBytes = 0}) {
-    final cores = Platform.numberOfProcessors;
-    final ramGb = ramBytes ~/ (1024 * 1024 * 1024);
-    AppLogger.log('ASR', 'recommendModel: cores=$cores, ramGb=$ramGb');
-    return availableModels.firstWhere((m) => m.id == 'whisper-base-en-int8');
+  AsrModelInfo recommendModel({int ramBytes = 0}) =>
+      availableModels.firstWhere((model) => model.id == 'whisper-base-en-int8');
+  void dispose() => _dio.close();
+
+  Future<void> _extractAndValidate(
+    File archive,
+    Directory staging,
+    AsrModelResourceSpec spec,
+  ) async {
+    await staging.create(recursive: true);
+    await extractFileToDisk(archive.path, staging.path);
+    final topLevelEntities = await staging.list(followLinks: false).toList();
+    final topLevelDirectories = topLevelEntities
+        .whereType<Directory>()
+        .toList();
+    final topLevelFiles = topLevelEntities.whereType<File>().toList();
+    final packageRoot = topLevelFiles.isEmpty && topLevelDirectories.length == 1
+        ? topLevelDirectories.single
+        : staging;
+
+    for (final file in spec.requiredFiles) {
+      if (!File(p.join(packageRoot.path, file)).existsSync()) {
+        throw StateError('ASR archive missing required file: $file');
+      }
+    }
+
+    if (packageRoot.path != staging.path) {
+      // 归档版本目录名不参与安装；只把其内容展开到资源 staging 根目录。
+      await for (final entity in packageRoot.list(followLinks: false)) {
+        await entity.rename(p.join(staging.path, p.basename(entity.path)));
+      }
+      await packageRoot.delete();
+    }
   }
 
-  /// 释放资源。
-  void dispose() {
-    _dio.close();
-  }
-
-  Future<bool> _matchesExpectedHash(File file, String expectedSha256) async {
-    final actualSha256 = await _computeSha256(file);
-    return actualSha256 == expectedSha256;
-  }
-
-  Future<String> _computeSha256(File file) async {
-    final digest = await sha256.bind(file.openRead()).first;
-    return digest.toString();
-  }
+  Future<String> _sha256(File file) async =>
+      (await sha256.bind(file.openRead()).first).toString();
 }
 
-/// 本地模型校验结果。
 class AsrModelValidationResult {
-  final String modelId;
-  final bool isValid;
-  final String? reason;
-  final String? filePath;
-  final String? expectedSha256;
-  final String? actualSha256;
-
   const AsrModelValidationResult({
     required this.modelId,
     required this.isValid,
     this.reason,
-    this.filePath,
-    this.expectedSha256,
-    this.actualSha256,
   });
-
-  String describe() {
-    if (isValid) return 'Model validation passed: $modelId';
-    final details = <String>[
-      'Downloaded model failed integrity check: $modelId',
-      if (filePath != null) 'file=$filePath',
-      if (reason != null) 'reason=$reason',
-      if (expectedSha256 != null) 'expectedSha256=$expectedSha256',
-      if (actualSha256 != null) 'actualSha256=$actualSha256',
-    ];
-    return details.join(' | ');
-  }
+  final String modelId;
+  final bool isValid;
+  final String? reason;
+  String describe() => isValid
+      ? 'Model validation passed: $modelId'
+      : 'Downloaded model failed integrity check: $modelId | reason=$reason';
 }

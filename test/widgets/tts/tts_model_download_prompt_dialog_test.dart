@@ -158,4 +158,44 @@ void main() {
     expect(notifier.cancelled, [KokoroModelVariant.fp32]);
     expect(find.byType(TtsModelDownloadDialog), findsNothing);
   });
+
+  testWidgets('下载失败时设置提示不与失败说明重复', (tester) async {
+    final notifier = _TestKokoroNotifier(
+      const KokoroModelsState({
+        KokoroModelVariant.fp32: KokoroModelState(
+          downloadStatus: AsrModelDownloadStatus.failed,
+        ),
+      }),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          initialTtsSettingsProvider.overrideWithValue(
+            const TtsSettings(engine: TtsEngineKind.kokoro),
+          ),
+          kokoroModelProvider.overrideWith(() => notifier),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: Locale('en'),
+          home: TtsModelDownloadDialog(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('The download did not finish. Estimated download: ~299.2 MB'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('You can also choose another speech model in Settings.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('You can retry, or choose another speech model'),
+      findsNothing,
+    );
+  });
 }

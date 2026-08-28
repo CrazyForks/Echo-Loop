@@ -6,13 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/learning_settings_provider.dart';
 import '../providers/tts/tts_settings_provider.dart';
 import 'app_logger.dart';
+import 'asr/asr_model_manager.dart';
+import 'resource_install_manifest.dart';
 import 'storage_migration_service.dart';
 
 /// SharedPreferences 中记录应用升级迁移链进度的 key。
 const appUpdateMigrationVersionKey = 'app_update_migration_version';
 
 /// 当前已注册的应用升级迁移版本。
-const currentAppUpdateMigrationVersion = 8;
+const currentAppUpdateMigrationVersion = 9;
 
 /// 删除已废弃的 TTS 模型下载状态缓存；模型状态现在以安装清单和文件校验为准。
 Future<void> removeLegacyTtsModelDownloadFlags(SharedPreferences prefs) async {
@@ -22,6 +24,31 @@ Future<void> removeLegacyTtsModelDownloadFlags(SharedPreferences prefs) async {
         key.startsWith('piper_model_downloaded_'),
   );
   for (final key in legacyKeys) {
+    await prefs.remove(key);
+  }
+}
+
+/// 将旧版逐文件 ASR 缓存升级为 install.json；无效缓存不会被误标记为可用。
+Future<void> migrateLegacyAsrModelInstallLayout(SharedPreferences prefs) async {
+  final manager = AsrModelManager();
+  try {
+    for (final resourceId in asrModelResourceCatalog.keys) {
+      if (await manager.readInstallManifest(resourceId) != null) continue;
+      if (!await manager.validateLegacyModelFiles(resourceId)) continue;
+      await writeResourceInstallManifest(
+        Directory(await manager.modelDir(resourceId)),
+        resourceId: resourceId,
+        installAt: DateTime.now(),
+      );
+    }
+  } finally {
+    manager.dispose();
+  }
+  final keys = prefs
+      .getKeys()
+      .where((key) => key.startsWith('offline_asr_downloaded_'))
+      .toList();
+  for (final key in keys) {
     await prefs.remove(key);
   }
 }
@@ -200,6 +227,11 @@ List<AppUpdateMigration> buildAppUpdateMigrations(
       version: 8,
       name: 'pronunciation_install_layout_migration',
       action: migrateLegacyPronunciationInstallLayout,
+    ),
+    AppUpdateMigration(
+      version: 9,
+      name: 'asr_model_install_layout_migration',
+      action: () => migrateLegacyAsrModelInstallLayout(prefs),
     ),
   ];
 }

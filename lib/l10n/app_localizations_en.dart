@@ -2006,37 +2006,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get speechModelDownloadFailed => 'Download failed. Tap to retry.';
 
   @override
-  String get speechModelDownloadFailedTitle =>
-      'Speech Recognition Model Download Failed';
-
-  @override
-  String get speechModelDownloadFailedGenericPurpose =>
-      'The speech recognition model is used for automatic scoring your spoken responses.';
-
-  @override
-  String get speechModelDownloadFailedListenAndRepeatPurpose =>
-      'The speech recognition model is used for automatic scoring your pronunciation.';
-
-  @override
-  String get speechModelDownloadFailedRetellPurpose =>
-      'The speech recognition model is used for automatic scoring your retelling.';
-
-  @override
-  String get speechModelDownloadFailedDisableHint =>
-      'If you do not need automatic scoring for now, turn it off:';
-
-  @override
-  String get speechModelDisablePathGeneric => 'Settings > Learning Settings';
-
-  @override
-  String get speechModelDisablePathListenAndRepeat =>
-      'Settings > Learning Settings > Show rating during read-aloud';
-
-  @override
-  String get speechModelDisablePathRetell =>
-      'Settings > Learning Settings > Show rating during retelling';
-
-  @override
   String get downloadErrorStorage =>
       'Not enough storage. Free up space and retry.';
 
@@ -2078,25 +2047,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disableAction => 'Disable';
 
   @override
-  String get speechRecognitionRequiredTitle =>
-      'Speech Recognition Model Required';
-
-  @override
   String get speechRecognitionRequiredMessage =>
       'Speech recognition is used to automatically evaluate your pronunciation and retelling. A model download is required before starting.';
 
   @override
-  String get downloadAndEnable => 'Download & Enable';
+  String get asrModelDownloadRequiredTitle =>
+      'Speech Recognition Model Required';
 
   @override
-  String get notNow => 'Not Now';
+  String asrModelDownloadEstimate(String size) {
+    return 'Estimated download: ~$size';
+  }
 
   @override
-  String get speechModelRepairTitle => 'Model Download Incomplete';
+  String get asrModelDownloadSettingsHint =>
+      'You can also choose another speech recognition model in Settings.';
 
   @override
-  String get speechModelRepairMessage =>
-      'The speech recognition model needs to be re-downloaded to use voice practice.';
+  String get asrModelDownloadingTitle => 'Downloading Speech Recognition Model';
+
+  @override
+  String asrModelDownloadingMessage(String size) {
+    return 'Estimated download: ~$size';
+  }
+
+  @override
+  String asrModelDownloadProgress(String progress) {
+    return '$progress complete';
+  }
+
+  @override
+  String get asrModelDownloadFailedTitle =>
+      'Speech Recognition Model Download Failed';
+
+  @override
+  String asrModelDownloadFailedMessage(String size) {
+    return 'The download did not finish. Estimated download: ~$size';
+  }
+
+  @override
+  String get asrDownloadModel => 'Download model';
 
   @override
   String get downloadNow => 'Download Now';
@@ -2110,9 +2100,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retryDownload => 'Retry';
-
-  @override
-  String get downloadingSpeechModel => 'Downloading Speech Recognition Model';
 
   @override
   String get developer => 'Developer';
@@ -5131,7 +5118,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ttsModelDownloadFailedMessage(Object size) {
-    return 'The download did not finish. Estimated download: ~$size\nYou can retry, or choose another speech model in Settings.';
+    return 'The download did not finish. Estimated download: ~$size';
   }
 
   @override

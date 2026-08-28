@@ -1130,14 +1130,6 @@
     }
   },
   "speechModelDownloadFailed": "Download failed. Tap to retry.",
-  "speechModelDownloadFailedTitle": "Speech Recognition Model Download Failed",
-  "speechModelDownloadFailedGenericPurpose": "The speech recognition model is used for automatic scoring your spoken responses.",
-  "speechModelDownloadFailedListenAndRepeatPurpose": "The speech recognition model is used for automatic scoring your pronunciation.",
-  "speechModelDownloadFailedRetellPurpose": "The speech recognition model is used for automatic scoring your retelling.",
-  "speechModelDownloadFailedDisableHint": "If you do not need automatic scoring for now, turn it off:",
-  "speechModelDisablePathGeneric": "Settings > Learning Settings",
-  "speechModelDisablePathListenAndRepeat": "Settings > Learning Settings > Show rating during read-aloud",
-  "speechModelDisablePathRetell": "Settings > Learning Settings > Show rating during retelling",
   "downloadErrorStorage": "Not enough storage. Free up space and retry.",
   "downloadErrorNetwork": "Network error. Check your connection and retry.",
   "downloadErrorCorrupted": "Downloaded file verification failed. Please retry.",
@@ -1159,17 +1151,40 @@
   "disableSpeechRecognitionMessage": "Speech scoring will be unavailable.",
   "alsoDeleteModel": "Also delete downloaded model",
   "disableAction": "Disable",
-  "speechRecognitionRequiredTitle": "Speech Recognition Model Required",
   "speechRecognitionRequiredMessage": "Speech recognition is used to automatically evaluate your pronunciation and retelling. A model download is required before starting.",
-  "downloadAndEnable": "Download & Enable",
-  "notNow": "Not Now",
-  "speechModelRepairTitle": "Model Download Incomplete",
-  "speechModelRepairMessage": "The speech recognition model needs to be re-downloaded to use voice practice.",
+  "asrModelDownloadRequiredTitle": "Speech Recognition Model Required",
+  "asrModelDownloadEstimate": "Estimated download: ~{size}",
+  "@asrModelDownloadEstimate": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrModelDownloadSettingsHint": "You can also choose another speech recognition model in Settings.",
+  "asrModelDownloadingTitle": "Downloading Speech Recognition Model",
+  "asrModelDownloadingMessage": "Estimated download: ~{size}",
+  "@asrModelDownloadingMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrModelDownloadProgress": "{progress} complete",
+  "@asrModelDownloadProgress": {
+    "placeholders": {
+      "progress": { "type": "String" }
+    }
+  },
+  "asrModelDownloadFailedTitle": "Speech Recognition Model Download Failed",
+  "asrModelDownloadFailedMessage": "The download did not finish. Estimated download: ~{size}",
+  "@asrModelDownloadFailedMessage": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "asrDownloadModel": "Download model",
   "downloadNow": "Download Now",
   "later": "Later",
   "speechRecognitionNotEnabled": "Voice recognition not enabled. Enable in Settings.",
   "retryDownload": "Retry",
-  "downloadingSpeechModel": "Downloading Speech Recognition Model",
 
   "developer": "Developer",
   "developerOptionsEnabled": "Developer options enabled",
@@ -2522,7 +2537,7 @@
   "ttsModelDownloadingMessage": "Estimated download: ~{size}",
   "ttsModelDownloadProgress": "{progress} complete",
   "ttsModelDownloadFailedTitle": "Speech Synthesis Model Download Failed",
-  "ttsModelDownloadFailedMessage": "The download did not finish. Estimated download: ~{size}\nYou can retry, or choose another speech model in Settings.",
+  "ttsModelDownloadFailedMessage": "The download did not finish. Estimated download: ~{size}",
   "ttsDownloadModel": "Download model",
   "ttsAccent": "Accent",
   "ttsAccentUs": "American",

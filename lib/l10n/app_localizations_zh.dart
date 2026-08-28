@@ -1930,31 +1930,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get speechModelDownloadFailed => '下载失败，点击重试。';
 
   @override
-  String get speechModelDownloadFailedTitle => '语音识别模型下载失败';
-
-  @override
-  String get speechModelDownloadFailedGenericPurpose => '语音识别模型用于练习后自动评分。';
-
-  @override
-  String get speechModelDownloadFailedListenAndRepeatPurpose =>
-      '语音识别模型用于跟读后自动评分。';
-
-  @override
-  String get speechModelDownloadFailedRetellPurpose => '语音识别模型用于复述后自动评分。';
-
-  @override
-  String get speechModelDownloadFailedDisableHint => '暂时不需要自动评分，可关闭：';
-
-  @override
-  String get speechModelDisablePathGeneric => '设置 > 学习设置';
-
-  @override
-  String get speechModelDisablePathListenAndRepeat => '设置 > 学习设置 > 跟读时显示评分';
-
-  @override
-  String get speechModelDisablePathRetell => '设置 > 学习设置 > 复述时显示评分';
-
-  @override
   String get downloadErrorStorage => '存储空间不足，请清理后重试。';
 
   @override
@@ -1992,23 +1967,43 @@ class AppLocalizationsZh extends AppLocalizations {
   String get disableAction => '关闭';
 
   @override
-  String get speechRecognitionRequiredTitle => '需要下载语音识别模型';
-
-  @override
   String get speechRecognitionRequiredMessage =>
       '语音识别用于自动评估跟读和复述效果，开始前需要先下载模型。';
 
   @override
-  String get downloadAndEnable => '下载并启用';
+  String get asrModelDownloadRequiredTitle => '需要下载语音识别模型';
 
   @override
-  String get notNow => '暂不启用';
+  String asrModelDownloadEstimate(String size) {
+    return '预计下载量：约 $size';
+  }
 
   @override
-  String get speechModelRepairTitle => '模型下载不完整';
+  String get asrModelDownloadSettingsHint => '你也可以前往设置选择其他语音识别模型。';
 
   @override
-  String get speechModelRepairMessage => '语音识别模型未下载完成，需要重新下载才能使用语音练习。';
+  String get asrModelDownloadingTitle => '正在下载语音识别模型';
+
+  @override
+  String asrModelDownloadingMessage(String size) {
+    return '预计下载量：约 $size';
+  }
+
+  @override
+  String asrModelDownloadProgress(String progress) {
+    return '已完成 $progress';
+  }
+
+  @override
+  String get asrModelDownloadFailedTitle => '语音识别模型下载失败';
+
+  @override
+  String asrModelDownloadFailedMessage(String size) {
+    return '下载未完成。预计下载量：约 $size';
+  }
+
+  @override
+  String get asrDownloadModel => '下载模型';
 
   @override
   String get downloadNow => '立即下载';
@@ -2021,9 +2016,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retryDownload => '重试';
-
-  @override
-  String get downloadingSpeechModel => '正在下载语音识别模型';
 
   @override
   String get developer => '开发者';
@@ -4890,7 +4882,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String ttsModelDownloadFailedMessage(Object size) {
-    return '下载未完成。预计下载量：约 $size\n你可以重试，或前往设置选择其他语音合成模型。';
+    return '下载未完成。预计下载量：约 $size';
   }
 
   @override
