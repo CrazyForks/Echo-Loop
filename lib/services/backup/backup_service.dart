@@ -302,7 +302,11 @@ class BackupService {
       await for (final entity in source.list(recursive: true)) {
         if (entity is! File) continue;
         final basename = p.basename(entity.path);
-        if (basename.startsWith('_dl_') || basename.endsWith('.tmp')) continue;
+        if (basename.startsWith('_dl_') ||
+            basename.startsWith('_download_') ||
+            basename.endsWith('.tmp')) {
+          continue;
+        }
         final relative = p.relative(entity.path, from: appSupport.path);
         final target = File(p.join(resourcesDir.path, relative));
         await target.parent.create(recursive: true);

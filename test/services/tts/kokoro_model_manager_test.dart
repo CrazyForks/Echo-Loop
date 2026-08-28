@@ -53,6 +53,48 @@ class _AlwaysNotFoundAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// 支持 Range 的归档 mock，用于验证断点续传请求和完成后的残留清理。
+class _RangeArchiveAdapter implements HttpClientAdapter {
+  _RangeArchiveAdapter(this.payload);
+
+  final List<int> payload;
+  final requests = <Map<String, Object?>>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(Map<String, Object?>.from(options.headers));
+    final range = options.headers['Range']?.toString();
+    if (range == null) {
+      return ResponseBody(
+        Stream.value(Uint8List.fromList(payload)),
+        200,
+        headers: {
+          'content-length': [payload.length.toString()],
+        },
+      );
+    }
+    final start = int.parse(range.substring('bytes='.length, range.length - 1));
+    final body = payload.sublist(start);
+    return ResponseBody(
+      Stream.value(Uint8List.fromList(body)),
+      206,
+      headers: {
+        'content-length': [body.length.toString()],
+        'content-range': [
+          'bytes $start-${payload.length - 1}/${payload.length}',
+        ],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 /// 构造一个含关键文件的 tar.gz 字节。
 List<int> _buildArchive({bool includeDataDir = true}) {
   final archive = Archive();
@@ -158,6 +200,86 @@ void main() {
     );
     final leftovers = root.listSync().whereType<File>();
     expect(leftovers, isEmpty);
+  });
+
+  test('预置 .part → 使用 Range 续传并在安装后清理残留', () async {
+    final archive = _buildArchive();
+    final sha = sha256.convert(archive).toString();
+    final partialLength = archive.length ~/ 2;
+    final partial = File(p.join(root.path, '_download_test-model.tar.gz.part'));
+    await partial.parent.create(recursive: true);
+    await partial.writeAsBytes(archive.sublist(0, partialLength));
+    await File(
+      '${partial.path}.meta.json',
+    ).writeAsString('{"identityKey":"$sha","downloadedBytes":$partialLength}');
+    final adapter = _RangeArchiveAdapter(archive);
+    final dio = Dio()..httpClientAdapter = adapter;
+    final manager = KokoroModelManager(
+      dio: dio,
+      baseUrlOverride: 'http://mock.local',
+      spec: KokoroModelSpec(
+        variant: KokoroModelVariant.int8,
+        id: 'test-model',
+        archivePath: 'tts/test.tar.gz',
+        sha256: sha,
+        modelFileName: 'model.int8.onnx',
+        estimatedDownloadBytes: archive.length,
+      ),
+      modelsRootResolver: () async => root.path,
+    );
+
+    await manager.downloadModel();
+
+    expect(adapter.requests.single['Range'], 'bytes=$partialLength-');
+    expect(await manager.isModelDownloaded(), isTrue);
+    expect(partial.existsSync(), isFalse);
+    expect(File('${partial.path}.meta.json').existsSync(), isFalse);
+  });
+
+  test('安装失败不会覆盖已有模型，staging 会清理', () async {
+    final valid = _buildArchive();
+    final manager = _manager(root, valid);
+    await manager.downloadModel();
+    final oldModel = File(p.join(await manager.modelDir(), 'model.int8.onnx'));
+    final invalid = _buildArchive(includeDataDir: false);
+    final invalidManager = _manager(
+      root,
+      invalid,
+      sha: sha256.convert(invalid).toString(),
+    );
+
+    await expectLater(
+      invalidManager.downloadModel(),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(oldModel.existsSync(), isTrue);
+    expect(await manager.isModelDownloaded(), isTrue);
+    expect(
+      root.listSync().whereType<Directory>().where(
+        (directory) => p.basename(directory.path).startsWith('_staging_'),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('deleteModel 清理续传归档、元数据和 staging', () async {
+    final manager = _manager(root, _buildArchive());
+    final archive = File(p.join(root.path, '_download_test-model.tar.gz'));
+    final partial = File('${archive.path}.part');
+    final meta = File('${partial.path}.meta.json');
+    final staging = Directory(p.join(root.path, '_staging_test-model_old'));
+    await staging.create(recursive: true);
+    await archive.writeAsBytes([1]);
+    await partial.writeAsBytes([1, 2]);
+    await meta.writeAsString('{}');
+
+    await manager.deleteModel();
+
+    expect(archive.existsSync(), isFalse);
+    expect(partial.existsSync(), isFalse);
+    expect(meta.existsSync(), isFalse);
+    expect(staging.existsSync(), isFalse);
   });
 
   test('解包后缺关键文件（无 espeak-ng-data）→ 抛错', () async {

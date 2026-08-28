@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -23,7 +24,8 @@ class ResourceArchiveInstaller {
     Directory? downloadDirectory,
     required String resourceId,
     required Uri uri,
-    required String expectedSha256,
+    required String? expectedSha256,
+    String? archiveFileName,
     required Future<void> Function(File archive, Directory staging)
     extractAndValidate,
     CancelToken? cancelToken,
@@ -34,9 +36,10 @@ class ResourceArchiveInstaller {
     final downloadRoot = downloadDirectory ?? root;
     await downloadRoot.create(recursive: true);
     final archive = File(
-      p.join(downloadRoot.path, '_download_$resourceId.zip'),
+      p.join(downloadRoot.path, archiveFileName ?? '_download_$resourceId.zip'),
     );
-    final staging = Directory(p.join(root.path, '_staging_$resourceId'));
+    await _cleanupOrphanedStagingDirectories(root, resourceId);
+    Directory? staging;
     try {
       AppLogger.log(
         'ResourceInstall',
@@ -54,19 +57,21 @@ class ResourceArchiveInstaller {
           }
         },
       );
-      final actualSha256 = await sha256.bind(archive.openRead()).first;
-      if (actualSha256.toString() != expectedSha256) {
-        throw StateError(
-          'Resource archive SHA-256 mismatch: expected=$expectedSha256 '
-          'actual=$actualSha256',
-        );
+      if (expectedSha256 != null && expectedSha256.isNotEmpty) {
+        final actualSha256 = await sha256.bind(archive.openRead()).first;
+        if (actualSha256.toString() != expectedSha256) {
+          throw StateError(
+            'Resource archive SHA-256 mismatch: expected=$expectedSha256 '
+            'actual=$actualSha256',
+          );
+        }
       }
       AppLogger.log(
         'ResourceInstall',
         'archive verified resource=$resourceId bytes=${await archive.length()}',
       );
+      staging = await root.createTemp('_staging_${resourceId}_');
       onInstalling?.call();
-      if (staging.existsSync()) await staging.delete(recursive: true);
       await extractAndValidate(archive, staging);
       await writeResourceInstallManifest(
         staging,
@@ -92,8 +97,82 @@ class ResourceArchiveInstaller {
       if (previous.existsSync()) await previous.delete(recursive: true);
       AppLogger.log('ResourceInstall', 'install finished resource=$resourceId');
     } finally {
-      if (archive.existsSync()) await archive.delete();
-      if (staging.existsSync()) await staging.delete(recursive: true);
+      await _deleteFileQuietly(archive);
+      if (staging != null) await _deleteDirectoryQuietly(staging);
+    }
+  }
+
+  /// 清理用户主动取消时不再需要的完整归档、续传文件和 staging。
+  ///
+  /// 网络失败和进程中断不会调用此方法，以便下一次下载继续使用 HTTP Range。
+  Future<void> discardPartial({
+    required Directory root,
+    Directory? downloadDirectory,
+    required String resourceId,
+    String? archiveFileName,
+  }) async {
+    final downloadRoot = downloadDirectory ?? root;
+    final archive = File(
+      p.join(downloadRoot.path, archiveFileName ?? '_download_$resourceId.zip'),
+    );
+    await _deleteFileQuietly(archive);
+    await _deleteFileQuietly(File('${archive.path}.part'));
+    await _deleteFileQuietly(File('${archive.path}.part.meta.json'));
+    await _cleanupOrphanedStagingDirectories(root, resourceId);
+  }
+
+  Future<void> _cleanupOrphanedStagingDirectories(
+    Directory root,
+    String resourceId,
+  ) async {
+    if (!root.existsSync()) return;
+    final prefix = '_staging_${resourceId}_';
+    final legacyName = '_staging_$resourceId';
+    await for (final entity in root.list(followLinks: false)) {
+      final name = p.basename(entity.path);
+      if (entity is Directory &&
+          (name == legacyName || name.startsWith(prefix))) {
+        await _deleteDirectoryQuietly(entity);
+      }
+    }
+  }
+
+  Future<void> _deleteFileQuietly(File file) async {
+    if (!file.existsSync()) return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await file.delete();
+        return;
+      } on FileSystemException catch (error, stackTrace) {
+        if (attempt == 2) {
+          AppLogger.log(
+            'ResourceInstall',
+            'cleanup file failed path=${file.path} error=$error\n$stackTrace',
+          );
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+  }
+
+  Future<void> _deleteDirectoryQuietly(Directory directory) async {
+    if (!directory.existsSync()) return;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await directory.delete(recursive: true);
+        return;
+      } on FileSystemException catch (error, stackTrace) {
+        if (attempt == 2) {
+          AppLogger.log(
+            'ResourceInstall',
+            'cleanup directory failed path=${directory.path} '
+                'error=$error\n$stackTrace',
+          );
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
     }
   }
 }

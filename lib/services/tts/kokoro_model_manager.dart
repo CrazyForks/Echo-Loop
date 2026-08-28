@@ -1,15 +1,13 @@
 /// Kokoro（Echo Loop TTS）模型下载、校验、缓存管理。
 ///
 /// 与 Whisper 不同，Kokoro 含 `espeak-ng-data` 目录树，故托管为单个 `tar.gz`
-/// 归档：下载归档 → 校验整包 SHA-256 → 流式解包到模型目录 → 校验关键文件存在。
-/// 下载基于 `ReliableHttpDownloader`（同 `PiperModelManager`），`allowResume: false`
-/// 保证归档下载失败/取消时不留任何残留。
+/// 归档：下载归档 → 校验整包 SHA-256 → staging 解包校验 → 原子替换模型目录。
+/// 下载基于 `ReliableHttpDownloader`，网络中断时保留 `.part` 供后续 Range 续传。
 library;
 
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -18,6 +16,7 @@ import '../app_logger.dart';
 import '../asr/asr_model_manager.dart'
     show AsrModelDownloadStatus, AsrModelDownloadProgress;
 import '../reliable_http_downloader.dart';
+import '../resource_archive_installer.dart';
 import 'kokoro_model_catalog.dart';
 import '../resource_install_manifest.dart';
 
@@ -58,6 +57,7 @@ class KokoroModelManager {
   /// 同一个 [_dio] 来关闭底层 HTTP 客户端。
   late final Dio _dio;
   late final ReliableHttpDownloader _downloader;
+  late final ResourceArchiveInstaller _installer;
 
   /// 本管理器绑定的模型规格（决定目录名/归档/SHA/模型文件名）。
   final KokoroModelSpec spec;
@@ -85,6 +85,7 @@ class KokoroModelManager {
           ),
         );
     _downloader = DioReliableHttpDownloader(dio: _dio);
+    _installer = ResourceArchiveInstaller(_downloader);
   }
 
   /// 模型存储根目录。
@@ -166,20 +167,16 @@ class KokoroModelManager {
 
   /// 下载并安装模型，通过 [onProgress] 报告进度，可经 [cancelToken] 取消。
   ///
-  /// 流程：下载归档 → 校验 SHA-256 → 清空目录 → 流式解包 → 校验关键文件。
+  /// 流程：下载归档 → 校验 SHA-256 → staging 解包校验 → 原子替换模型目录。
   Future<String> downloadModel({
     void Function(AsrModelDownloadProgress)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    final dir = await modelDir();
     final root = await _modelsRoot;
-    await Directory(root).create(recursive: true);
-
-    // 临时归档名必须以 `.tar.gz` 结尾，extractFileToDisk 据扩展名识别格式。
-    final archiveFile = File(p.join(root, '_dl_${spec.id}.tar.gz'));
     final baseUrl = baseUrlOverride ?? kokoroCdnBaseUrl;
     final url = '$baseUrl/model/${spec.archivePath}';
-    AppLogger.log('KokoroModel', '┌ downloadModel dir=$dir url=$url');
+    final target = Directory(await modelDir());
+    AppLogger.log('KokoroModel', '┌ downloadModel dir=${target.path} url=$url');
 
     onProgress?.call(
       const AsrModelDownloadProgress(
@@ -187,70 +184,43 @@ class KokoroModelManager {
       ),
     );
 
-    try {
-      // 1. 下载归档（进度映射到 0..0.95，留 0.05 给校验+解包）。
-      // allowResume: false——归档下载失败/取消必须不留任何残留（.part 也不留，
-      // 与下方 finally 清理临时归档的既有设计一致，见类文档注释）。
-      await _downloader.download(
-        uri: Uri.parse(url),
-        savePath: archiveFile.path,
-        identityKey: spec.sha256,
-        allowResume: false,
-        cancelToken: cancelToken,
-        onProgress: (received, total) {
-          final frac = (total != null && total > 0) ? received / total : 0.0;
-          onProgress?.call(
-            AsrModelDownloadProgress(
-              status: AsrModelDownloadStatus.downloading,
-              progress: (frac * 0.95).clamp(0.0, 0.95),
-            ),
-          );
-        },
-      );
-
-      // 2. 校验整包 SHA-256。
-      final actual = await _computeSha256(archiveFile);
-      if (actual != spec.sha256) {
-        throw StateError(
-          'Kokoro archive SHA-256 mismatch: '
-          'expected=${spec.sha256} actual=$actual',
-        );
-      }
-
-      // 3. 清空旧目录后流式解包。
-      final modelDirectory = Directory(dir);
-      if (modelDirectory.existsSync()) {
-        await modelDirectory.delete(recursive: true);
-      }
-      await modelDirectory.create(recursive: true);
-      await extractFileToDisk(archiveFile.path, dir);
-
-      // 4. 校验关键文件。
-      if (await _resolvePaths(modelDirectory) == null) {
-        throw StateError('Kokoro key files missing after extraction in $dir');
-      }
-      await writeResourceInstallManifest(
-        modelDirectory,
-        resourceId: spec.id,
-        installAt: DateTime.now(),
-      );
-
-      onProgress?.call(
-        const AsrModelDownloadProgress(
-          status: AsrModelDownloadStatus.downloaded,
-          progress: 1.0,
+    await _installer.install(
+      root: Directory(root),
+      target: target,
+      resourceId: spec.id,
+      archiveFileName: '_download_${spec.id}.tar.gz',
+      uri: Uri.parse(url),
+      expectedSha256: spec.sha256,
+      cancelToken: cancelToken,
+      onProgress: (progress) => onProgress?.call(
+        AsrModelDownloadProgress(
+          status: AsrModelDownloadStatus.downloading,
+          progress: progress,
         ),
-      );
-      AppLogger.log('KokoroModel', '└ downloadModel done dir=$dir');
-      return dir;
-    } finally {
-      // 无论成功失败都清理临时归档（98MB，不留垃圾）。
-      if (archiveFile.existsSync()) {
-        try {
-          await archiveFile.delete();
-        } catch (_) {}
-      }
-    }
+      ),
+      onInstalling: () => onProgress?.call(
+        const AsrModelDownloadProgress(
+          status: AsrModelDownloadStatus.downloading,
+          progress: 1,
+        ),
+      ),
+      extractAndValidate: (archive, staging) async {
+        await extractFileToDisk(archive.path, staging.path);
+        if (await _resolvePaths(staging) == null) {
+          throw StateError(
+            'Kokoro key files missing after extraction in ${staging.path}',
+          );
+        }
+      },
+    );
+    onProgress?.call(
+      const AsrModelDownloadProgress(
+        status: AsrModelDownloadStatus.downloaded,
+        progress: 1,
+      ),
+    );
+    AppLogger.log('KokoroModel', '└ downloadModel done dir=${target.path}');
+    return target.path;
   }
 
   /// 删除本地模型。
@@ -259,6 +229,16 @@ class KokoroModelManager {
     if (dir.existsSync()) {
       await dir.delete(recursive: true);
     }
+    await discardPartialDownload();
+  }
+
+  /// 清理用户主动取消或删除时遗留的下载归档、续传文件和 staging。
+  Future<void> discardPartialDownload() async {
+    await _installer.discardPartial(
+      root: Directory(await _modelsRoot),
+      resourceId: spec.id,
+      archiveFileName: '_download_${spec.id}.tar.gz',
+    );
   }
 
   /// 释放资源。
@@ -298,10 +278,5 @@ class KokoroModelManager {
       if (e is Directory && p.basename(e.path) == name) return e.path;
     }
     return null;
-  }
-
-  Future<String> _computeSha256(File file) async {
-    final digest = await sha256.bind(file.openRead()).first;
-    return digest.toString();
   }
 }
