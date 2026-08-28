@@ -35,7 +35,8 @@ jobs:
         run: flutter pub get
 
       - name: Run analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+        # integration_test 由独立设备流程负责，不纳入主 CI 的静态分析门禁。
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos lib test
 
   test:
     runs-on: ubuntu-latest
