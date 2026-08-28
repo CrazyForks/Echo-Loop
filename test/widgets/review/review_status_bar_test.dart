@@ -64,6 +64,29 @@ void main() {
     expect(tester.getSize(find.byType(ReviewStatusBar)).height, lessThan(24));
   });
 
+  testWidgets('避让系统底部安全区', (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(viewPadding: EdgeInsets.only(bottom: 24)),
+        child: MaterialApp(
+          home: ReviewStatusBar(
+            elapsed: () => Duration.zero,
+            reviewedCount: 0,
+            remainingCount: 0,
+            elapsedLabel: 'Study time',
+            reviewedLabel: 'Reviewed',
+            remainingLabel: 'Remaining',
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byType(ReviewStatusBar)).height,
+      greaterThan(24),
+    );
+  });
+
   testWidgets('ticks locally without losing count', (tester) async {
     var elapsed = Duration.zero;
     await tester.pumpWidget(

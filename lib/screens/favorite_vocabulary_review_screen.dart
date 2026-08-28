@@ -130,9 +130,17 @@ class _FavoriteVocabularyReviewScreenState
 
     return wakelockBody(
       child: PopScope(
-        canPop: false,
+        canPop: true,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
+          if (didPop) {
+            // 系统返回手势已完成，释放本次复习会话但不要再次触发 pop。
+            unawaited(
+              ref
+                  .read(favoriteVocabularyReviewProvider.notifier)
+                  .disposeSession(),
+            );
+            return;
+          }
           unawaited(_exit());
         },
         child: Scaffold(
@@ -141,7 +149,7 @@ class _FavoriteVocabularyReviewScreenState
             leading: IconButton(
               key: const Key('favorite-vocabulary-review-close'),
               onPressed: _exit,
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.arrow_back),
             ),
             title: Text(l10n.favoriteVocabularyReviewTitle),
             centerTitle: true,
@@ -666,7 +674,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
             AppSpacing.m,
             AppSpacing.m,
             AppSpacing.m,
-            AppSpacing.xs,
+            AppSpacing.s,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -680,6 +688,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                     key: const Key(
                       'favorite-vocabulary-review-source-playback-toggle',
                     ),
+                    style: FilledButton.styleFrom(padding: EdgeInsets.zero),
                     onPressed: _toggleSourcePlayback,
                     icon: Icon(
                       isSourcePlaying

@@ -114,13 +114,22 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
 
     return wakelockBody(
       child: PopScope(
-        canPop: false,
+        canPop: true,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop ||
-              _dictionaryHostKey.currentState?.closeIfOpen() == true) {
+          if (!didPop) {
+            if (_dictionaryHostKey.currentState?.closeIfOpen() == true) {
+              return;
+            }
+            unawaited(_exit());
             return;
           }
-          unawaited(_exit());
+          // 系统返回手势已完成，释放本次复习会话但不要再次触发 pop。
+          if (!_isExiting) {
+            _isExiting = true;
+            unawaited(
+              ref.read(bookmarkReviewProvider.notifier).disposeSession(),
+            );
+          }
         },
         child: Scaffold(
           appBar: AppBar(
@@ -128,7 +137,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
             leading: IconButton(
               key: const Key('bookmark-review-close'),
               onPressed: _exit,
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.arrow_back),
             ),
             title: Text(l10n.bookmarkReviewTitle),
             centerTitle: true,
@@ -586,7 +595,7 @@ class _ReviewAnswer extends ConsumerWidget {
             AppSpacing.m,
             AppSpacing.m,
             AppSpacing.m,
-            AppSpacing.xs,
+            AppSpacing.s,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -597,6 +606,7 @@ class _ReviewAnswer extends ConsumerWidget {
                 height: 44,
                 child: FilledButton.tonalIcon(
                   key: const Key('bookmark-review-sentence-playback-toggle'),
+                  style: FilledButton.styleFrom(padding: EdgeInsets.zero),
                   onPressed: onTogglePlayback,
                   icon: Icon(
                     isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,

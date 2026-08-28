@@ -538,10 +538,14 @@ void main() {
     final ratings = tester.getRect(
       find.byKey(const Key('flashcard-rating-action-bar')),
     );
+    final status = tester.getRect(
+      find.byKey(const Key('bookmark-review-status-bar')),
+    );
     expect(playback.height, 44);
     expect(playback.width, ratings.width);
-    expect(playback.bottom, lessThan(ratings.top));
-    expect(find.text('播放原句'), findsOneWidget);
+    expect(ratings.top - playback.bottom, closeTo(8, 0.1));
+    expect(status.top - ratings.bottom, closeTo(8, 0.1));
+    expect(find.text('再听一遍'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
   });
 
@@ -563,7 +567,7 @@ void main() {
 
     await tester.tap(toggle);
     await tester.pump();
-    expect(find.text('播放原句'), findsOneWidget);
+    expect(find.text('再听一遍'), findsOneWidget);
   });
 
   testWidgets('settings opens FSRS review controls', (tester) async {

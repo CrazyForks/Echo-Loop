@@ -4481,7 +4481,7 @@ abstract class AppLocalizations {
   /// No description provided for @bookmarkReviewPlayOriginal.
   ///
   /// In en, this message translates to:
-  /// **'Play original sentence'**
+  /// **'Listen again'**
   String get bookmarkReviewPlayOriginal;
 
   /// No description provided for @bookmarkReviewTapRetry.

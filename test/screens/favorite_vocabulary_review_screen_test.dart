@@ -463,11 +463,18 @@ void main() {
     final ratings = find.byKey(
       const Key('favorite-vocabulary-review-rating-bar'),
     );
+    final status = find.byKey(
+      const Key('favorite-vocabulary-review-status-bar'),
+    );
     expect(tester.getSize(playback).height, 44);
     expect(tester.getSize(playback).width, tester.getSize(ratings).width);
     expect(
-      tester.getBottomLeft(playback).dy,
-      lessThan(tester.getTopLeft(ratings).dy),
+      tester.getTopLeft(ratings).dy - tester.getBottomLeft(playback).dy,
+      closeTo(8, 0.1),
+    );
+    expect(
+      tester.getTopLeft(status).dy - tester.getBottomLeft(ratings).dy,
+      closeTo(8, 0.1),
     );
 
     await tester.tap(

@@ -116,6 +116,56 @@ void main() {
     expect(selected, MemoryRating.good);
   });
 
+  testWidgets('rating actions do not inherit the system bottom inset', (
+    tester,
+  ) async {
+    const actions = [
+      FlashcardRatingAction(
+        rating: MemoryRating.again,
+        emoji: '😕',
+        label: 'Forgot',
+      ),
+      FlashcardRatingAction(
+        rating: MemoryRating.good,
+        emoji: '🙂',
+        label: 'Remembered',
+      ),
+      FlashcardRatingAction(
+        rating: MemoryRating.easy,
+        emoji: '😎',
+        label: 'Easy',
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            padding: EdgeInsets.only(bottom: 34),
+            viewPadding: EdgeInsets.only(bottom: 34),
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 320,
+              child: FlashcardRatingActionBar(
+                actions: actions,
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final ratingBar = tester.getRect(
+      find.byKey(const Key('flashcard-rating-action-bar')),
+    );
+    final button = tester.getRect(
+      find.byKey(const Key('flashcard-rating-easy')),
+    );
+    expect(ratingBar.bottom - button.bottom, closeTo(0, 0.1));
+  });
+
   testWidgets('rating actions with details fit a compact three-action footer', (
     tester,
   ) async {

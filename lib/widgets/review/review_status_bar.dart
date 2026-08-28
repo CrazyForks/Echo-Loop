@@ -61,35 +61,40 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
     final timeStyle = style?.copyWith(
       fontFeatures: const [FontFeature.tabularFigures()],
     );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.m,
-        0,
-        AppSpacing.m,
-        AppSpacing.xs,
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        runAlignment: WrapAlignment.center,
-        runSpacing: AppSpacing.xs,
-        children: [
-          Icon(Icons.timer_outlined, size: 13, color: style?.color),
-          const SizedBox(width: AppSpacing.xs),
-          Text(widget.elapsedLabel, style: style),
-          const SizedBox(width: AppSpacing.xs),
-          Text(time, style: timeStyle),
-          const SizedBox(width: AppSpacing.l),
-          Icon(Icons.check_circle_outline, size: 13, color: style?.color),
-          const SizedBox(width: AppSpacing.xs),
-          Text('${widget.reviewedLabel} ${widget.reviewedCount}', style: style),
-          const SizedBox(width: AppSpacing.l),
-          Icon(Icons.pending_actions_outlined, size: 13, color: style?.color),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            '${widget.remainingLabel} ${widget.remainingCount}',
-            style: style,
-          ),
-        ],
+    // 复习状态条位于页面最底部，需要避让 Android 导航栏和 iOS Home Indicator，
+    // 与学习任务底部控制区保持一致，避免被系统底部白色区域遮挡。
+    return SafeArea(
+      top: false,
+      bottom: true,
+      maintainBottomViewPadding: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.m, 0, AppSpacing.m, 0),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          runAlignment: WrapAlignment.center,
+          runSpacing: AppSpacing.xs,
+          children: [
+            Icon(Icons.timer_outlined, size: 13, color: style?.color),
+            const SizedBox(width: AppSpacing.xs),
+            Text(widget.elapsedLabel, style: style),
+            const SizedBox(width: AppSpacing.xs),
+            Text(time, style: timeStyle),
+            const SizedBox(width: AppSpacing.l),
+            Icon(Icons.check_circle_outline, size: 13, color: style?.color),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              '${widget.reviewedLabel} ${widget.reviewedCount}',
+              style: style,
+            ),
+            const SizedBox(width: AppSpacing.l),
+            Icon(Icons.pending_actions_outlined, size: 13, color: style?.color),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              '${widget.remainingLabel} ${widget.remainingCount}',
+              style: style,
+            ),
+          ],
+        ),
       ),
     );
   }

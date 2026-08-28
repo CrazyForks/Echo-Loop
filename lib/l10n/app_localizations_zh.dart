@@ -2467,7 +2467,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkReviewPlaying => '正在播放';
 
   @override
-  String get bookmarkReviewPlayOriginal => '播放原句';
+  String get bookmarkReviewPlayOriginal => '再听一遍';
 
   @override
   String get bookmarkReviewTapRetry => '点按重试';

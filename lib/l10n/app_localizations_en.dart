@@ -2573,7 +2573,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bookmarkReviewPlaying => 'Playing';
 
   @override
-  String get bookmarkReviewPlayOriginal => 'Play original sentence';
+  String get bookmarkReviewPlayOriginal => 'Listen again';
 
   @override
   String get bookmarkReviewTapRetry => 'Tap to retry';

@@ -54,6 +54,9 @@ class FlashcardRatingActionBar extends StatelessWidget {
             : actions.length.clamp(1, 4);
         return GridView.count(
           key: const Key('flashcard-rating-action-bar'),
+          // 固定评分栏的系统安全区由页面底部容器统一处理，禁止 GridView
+          // 自动继承 MediaQuery padding，避免按钮下方重复出现安全区留白。
+          padding: EdgeInsets.zero,
           crossAxisCount: columns,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
