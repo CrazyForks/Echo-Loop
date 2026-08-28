@@ -142,6 +142,18 @@ class _MainShellState extends ConsumerState<MainShell> with RouteAware {
   void _startPostLocalTasks() {
     if (!mounted || _didStartPostLocalTasks) return;
     _didStartPostLocalTasks = true;
+    // AppUpdate 和 UserRegion 都会读取 storefront，必须晚于第三方 SDK 初始化。
+    unawaited(_startPostThirdPartyTasks());
+  }
+
+  /// 等第三方启动 gate 完成后，再启动所有依赖商店 storefront 的任务。
+  Future<void> _startPostThirdPartyTasks() async {
+    try {
+      await ref.read(thirdPartyStartupProvider.future);
+    } catch (error, stackTrace) {
+      AppLogger.log('Startup', '第三方启动 gate 失败: $error\n$stackTrace');
+    }
+    if (!mounted) return;
     _startAppUpdateListening();
   }
 
@@ -483,14 +495,28 @@ class _MainShellState extends ConsumerState<MainShell> with RouteAware {
   void _onAppResume() {
     AppLogger.log('AppUpdate', 'onAppResume: trigger checkInBackground');
     _refreshStudyData();
-    unawaited(ref.read(appUpdateProvider.notifier).checkInBackground());
+    if (ref.read(thirdPartyStartupProvider).hasValue) {
+      unawaited(ref.read(appUpdateProvider.notifier).checkInBackground());
+    } else {
+      AppLogger.log(
+        'AppUpdate',
+        'onAppResume skipped: third-party startup pending',
+      );
+    }
     unawaited(_refreshSubscribedPodcastsInBackground());
     ref.read(remoteConfigProvider.notifier).startPeriodicRefresh();
-    unawaited(
-      ref
-          .read(userRegionProvider.notifier)
-          .refresh(UserRegionRefreshTrigger.resume),
-    );
+    if (ref.read(thirdPartyStartupProvider).hasValue) {
+      unawaited(
+        ref
+            .read(userRegionProvider.notifier)
+            .refresh(UserRegionRefreshTrigger.resume),
+      );
+    } else {
+      AppLogger.log(
+        'UserRegion',
+        'onAppResume skipped: third-party startup pending',
+      );
+    }
     // 回前台时同步系统通知权限状态，覆盖用户在系统设置中手动变更的情况
     unawaited(
       ref

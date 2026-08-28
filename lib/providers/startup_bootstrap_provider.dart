@@ -317,7 +317,6 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
     }
 
     try {
-      if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
       final configuration = PurchasesConfiguration(
         revenuecat_config.revenueCatApiKey,
       );
@@ -326,6 +325,9 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
         'revenuecat_initialize',
         () => Purchases.configure(configuration),
       );
+      // RevenueCat 必须先完成 configure；否则 Debug 模式下 setLogLevel 会触发
+      // PurchasesHybridCommon 的 native fatalError，直接终止启动进程。
+      if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
     } catch (error, stackTrace) {
       _recordIssue(issues, 'revenuecat_initialize', error, stackTrace);
     }

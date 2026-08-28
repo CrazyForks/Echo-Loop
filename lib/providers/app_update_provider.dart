@@ -26,6 +26,7 @@ import '../utils/app_store_country.dart';
 import '../utils/version_compare.dart';
 import 'dev_version_override_provider.dart';
 import 'package_info_provider.dart';
+import 'startup_bootstrap_provider.dart';
 
 part 'app_update_provider.g.dart';
 
@@ -178,6 +179,10 @@ class AppUpdate extends _$AppUpdate {
   /// 取不到 / 无法识别（非订阅渠道、SDK 未就绪、未知码等）返回 null →
   /// [AppUpdateChecker.check] 不传 country → Lookup 默认走美区。
   Future<String?> _resolveAppStoreCountry() async {
+    // AppUpdate 可能早于第三方启动被创建；必须等待 RevenueCat configure 完成，
+    // 否则 storefront getter 会触发 native fatalError。降级报告同样会完成 future，
+    // 因此第三方初始化失败时仍可回退默认区域继续检查更新。
+    await ref.read(thirdPartyStartupProvider.future);
     try {
       final raw = await ref
           .read(purchaseServiceProvider)

@@ -4,6 +4,8 @@
 
 ## 最近完成
 
+- [x] 修复 iOS 启动时 AppUpdate/UserRegion 在 RevenueCat configure 前读取 storefront 导致闪退。**完成时间**: 2026-08-29
+- [x] 修复 iOS Debug 启动时 RevenueCat 在 configure 前设置日志级别导致 Splash 卡死。**完成时间**: 2026-08-28
 - [x] 调整 CI 静态分析范围，跳过 `integration_test/`。**完成时间**: 2026-08-28
 - [x] 修复 `sentence_annotation_card_test.dart` 的 36 个单测并清理低价值测试。**完成时间**: 2026-08-28
 - [x] 修复意群、权限、句子列表、蒙版与词典面板单测，清理重复及低价值 widget 用例。**完成时间**: 2026-08-28
