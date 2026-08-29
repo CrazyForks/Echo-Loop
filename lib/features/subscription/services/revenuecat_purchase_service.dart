@@ -19,6 +19,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../../../config/client_distribution.dart';
 import '../../../config/paddle_config.dart';
 import '../../../config/revenuecat_config.dart';
+import '../../../providers/startup_bootstrap_provider.dart';
 import '../../../services/app_logger.dart';
 import '../models/entitlement.dart';
 import '../models/entitlement_source.dart';
@@ -611,14 +612,17 @@ String _revenueCatEntitlementInfoSummary(EntitlementInfo info) {
 /// 1. [useLocalStoreKit]（本地 StoreKit 测试模式）→ 本地实现，绕开 RevenueCat；
 /// 2. direct 渠道（[isPaddleCheckoutConfigured]，侧载 APK / 桌面）→ [PaddlePurchaseService]，
 ///    权益经后端读回；
-/// 3. 已配置 RevenueCat（注入了平台 API Key）→ 真实 RC 实现；
+/// 3. RevenueCat 已在本进程 configure 成功 → 真实 RC 实现；
 /// 4. 否则回退 Stub（匿名可运行）。
 /// 测试通过 override 注入 Fake。
 final purchaseServiceProvider = Provider<PurchaseService>((ref) {
+  final revenueCatReady =
+      ref.watch(thirdPartyStartupProvider).valueOrNull?.isRevenueCatReady ??
+      false;
   final serviceType = purchaseServiceTypeFor(
     channel: clientPaymentChannel,
     useLocalStoreKit: useLocalStoreKit,
-    nativeStoreConfigured: isRevenueCatConfigured,
+    nativeStoreReady: isRevenueCatConfigured && revenueCatReady,
     webConfigured: isPaddleCheckoutConfigured,
   );
   if (serviceType == PurchaseServiceType.localStoreKit) {
@@ -645,7 +649,7 @@ enum PurchaseServiceType { localStoreKit, revenueCat, web, stub }
 PurchaseServiceType purchaseServiceTypeFor({
   required ClientPaymentChannel channel,
   required bool useLocalStoreKit,
-  required bool nativeStoreConfigured,
+  required bool nativeStoreReady,
   required bool webConfigured,
 }) {
   if (useLocalStoreKit && channel == ClientPaymentChannel.appleStore) {
@@ -653,7 +657,7 @@ PurchaseServiceType purchaseServiceTypeFor({
   }
   return switch (channel) {
     ClientPaymentChannel.appleStore || ClientPaymentChannel.googlePlay =>
-      nativeStoreConfigured
+      nativeStoreReady
           ? PurchaseServiceType.revenueCat
           : PurchaseServiceType.stub,
     ClientPaymentChannel.web =>

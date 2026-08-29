@@ -188,6 +188,9 @@ class _TestDao implements BookmarkDao {
 late final SharedPreferences _sharedPreferences;
 final _dictionarySource = _EchoDictionarySource();
 
+Finder get _bookmarkReviewPopScope =>
+    find.byWidgetPredicate((widget) => widget is PopScope);
+
 Widget _app({Locale locale = const Locale('zh'), GoRouter? router}) {
   final child = router == null
       ? MaterialApp(
@@ -400,6 +403,15 @@ void main() {
     expect(find.byType(DictionaryPanelHost), findsOneWidget);
   });
 
+  testWidgets('native route pop stays enabled while dictionary is closed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    expect(tester.widget<PopScope>(_bookmarkReviewPopScope).canPop, isTrue);
+  });
+
   testWidgets('back explanation opens dictionary when a word is tapped', (
     tester,
   ) async {
@@ -453,12 +465,14 @@ void main() {
     await tester.tapAt(paragraph.localToGlobal(box.center));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('dict_panel_surface')), findsOneWidget);
+    expect(tester.widget<PopScope>(_bookmarkReviewPopScope).canPop, isFalse);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('dict_panel_surface')), findsNothing);
     expect(find.byKey(const Key('bookmark-review-answer')), findsOneWidget);
+    expect(tester.widget<PopScope>(_bookmarkReviewPopScope).canPop, isTrue);
   });
 
   testWidgets('back explanation looks up multiple selected words', (

@@ -169,6 +169,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         ],
       ),
       body: SafeArea(
+        // 免费态的购买面板自行避让底部安全区，让面板背景延伸到屏幕底边；
+        // 会员态没有固定底栏，仍由页面整体保护底部内容。
+        bottom: isPremium,
         child: Stack(
           children: [
             Positioned.fill(
@@ -1041,12 +1044,11 @@ class _FixedPurchasePanel extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-          child: child,
-        ),
+      child: SingleChildScrollView(
+        // 法律链接允许进入系统底部安全区，以较小固定间距贴近底部；
+        // 12pt 仍让按钮点击区域避开 iOS Home Indicator。
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+        child: child,
       ),
     );
   }

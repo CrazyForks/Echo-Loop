@@ -29,6 +29,8 @@ late SharedPreferences _prefs;
 /// 记录桩控制器每次 TTS 文本预热的入参（在 setUp 清空），
 /// 供断言「打开弹窗即以单词本身预热」。
 final List<List<String>> _prewarmCalls = [];
+String? _initialSpeakingKey;
+int _ttsStopCalls = 0;
 
 /// 桩 [TtsController]：弹窗内嵌发音按钮、查词完成会自动触发例句预热，
 /// 真实控制器会经平台 TTS 引擎/method channel 异步合成，在 widget 测试中
@@ -36,7 +38,8 @@ final List<List<String>> _prewarmCalls = [];
 /// 全部置空，使本测试只验证弹窗 UI、不触碰真实 TTS 栈。
 class _StubTtsController extends TtsController {
   @override
-  TtsControllerState build() => const TtsControllerState();
+  TtsControllerState build() =>
+      TtsControllerState(speakingKey: _initialSpeakingKey);
   @override
   Future<void> speak(String text, {String? key}) async {}
   @override
@@ -52,7 +55,9 @@ class _StubTtsController extends TtsController {
   @override
   void cancelTextsPrewarm() {}
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    _ttsStopCalls++;
+  }
 }
 
 /// 创建测试用内存词典数据库
@@ -150,6 +155,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     _prefs = await SharedPreferences.getInstance();
     _prewarmCalls.clear();
+    _initialSpeakingKey = null;
+    _ttsStopCalls = 0;
     db = _createTestDb();
     oldInstance = DictionaryService.replaceInstance(
       DictionaryService.withDatabase(db),
@@ -162,6 +169,26 @@ void main() {
   });
 
   group('DictionaryPanel', () {
+    testWidgets('关闭面板不会停止宿主页正在播放的句子', (tester) async {
+      _initialSpeakingKey = 'favorite-vocabulary-review-source';
+      await _openSheet(tester, 'run');
+
+      await tester.tap(find.byKey(const Key('dict_panel_close')));
+      await tester.pumpAndSettle();
+
+      expect(_ttsStopCalls, 0);
+    });
+
+    testWidgets('关闭面板仍会停止词典自身发起的朗读', (tester) async {
+      _initialSpeakingKey = 'run';
+      await _openSheet(tester, 'run');
+
+      await tester.tap(find.byKey(const Key('dict_panel_close')));
+      await tester.pumpAndSettle();
+
+      expect(_ttsStopCalls, greaterThan(0));
+    });
+
     testWidgets('显示完整词典内容（音标、释义、星级、标签）', (tester) async {
       await _openSheet(tester, 'abandon');
 

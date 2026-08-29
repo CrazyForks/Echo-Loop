@@ -113,10 +113,14 @@ class DictionaryPanelHost extends StatefulWidget {
   /// 是否由宿主自带 PopScope 处理返回键（仅无 PopScope 的页面开启）
   final bool handleBackButton;
 
+  /// 面板开关状态变化回调，供宿主页同步返回手势是否可用。
+  final ValueChanged<bool>? onOpenStateChanged;
+
   const DictionaryPanelHost({
     super.key,
     required this.child,
     this.handleBackButton = false,
+    this.onOpenStateChanged,
   });
 
   @override
@@ -248,6 +252,7 @@ class DictionaryPanelHostState extends State<DictionaryPanelHost>
     for (final listener in List<VoidCallback>.of(_openStateListeners)) {
       listener();
     }
+    widget.onOpenStateChanged?.call(isOpen);
   }
 
   /// 全局坐标是否命中任一豁免谓词

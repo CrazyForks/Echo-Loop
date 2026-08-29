@@ -926,7 +926,9 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.text('More AI translations')).dy <
-          tester.getTopLeft(find.text('More AI word and phrase explanation')).dy,
+          tester
+              .getTopLeft(find.text('More AI word and phrase explanation'))
+              .dy,
       isTrue,
     );
     expect(
@@ -1242,6 +1244,38 @@ void main() {
     expect(yearlyTop - (monthlyTop + monthlyHeight), greaterThanOrEqualTo(24));
     expect(privacyLeft - termsRight, greaterThanOrEqualTo(24));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('购买面板背景贴底且法律链接紧邻系统手势区', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
+    await tester.pumpWidget(_harness(state: const EntitlementState.free()));
+    await tester.pumpAndSettle();
+
+    final panel = tester.getRect(
+      find.byKey(const ValueKey('paywall_fixed_purchase_panel')),
+    );
+    final screenBottom =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+
+    expect(panel.bottom, screenBottom);
+    final termsRect = tester.getRect(find.text('Terms'));
+    final privacyRect = tester.getRect(find.text('Privacy'));
+    final termsButtonRect = tester.getRect(
+      find.ancestor(of: find.text('Terms'), matching: find.byType(TextButton)),
+    );
+
+    // 链接文字进入完整 SafeArea 范围，消除过大的视觉留白；按钮点击区域仍保留 12pt。
+    expect(termsRect.bottom, greaterThan(screenBottom - 34));
+    expect(privacyRect.bottom, greaterThan(screenBottom - 34));
+    expect(termsButtonRect.bottom, screenBottom - 12);
   });
 
   testWidgets('会员（年付续订中）：展示年度会员套餐、有效状态与续订日期', (tester) async {

@@ -65,6 +65,18 @@ void main() {
     expect(bootstrapper.thirdPartyCalls, 1);
     expect(find.text('third-ready'), findsOneWidget);
   });
+
+  testWidgets('第三方报告只发布 bootstrapper 确认的 RevenueCat ready 状态', (tester) async {
+    final bootstrapper = _FakeBootstrapper(revenueCatReady: true);
+
+    await tester.pumpWidget(
+      _host(bootstrapper: bootstrapper, watchThirdParty: true),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('revenuecat-ready'), findsOneWidget);
+  });
 }
 
 Widget _host({
@@ -80,7 +92,11 @@ Widget _host({
           final thirdParty = watchThirdParty
               ? ref.watch(thirdPartyStartupProvider)
               : null;
-          if (thirdParty?.hasValue ?? false) return const Text('third-ready');
+          if (thirdParty case AsyncData(:final value)) {
+            return Text(
+              value.isRevenueCatReady ? 'revenuecat-ready' : 'third-ready',
+            );
+          }
           return switch (local) {
             AsyncData() => const Text('ready'),
             AsyncError() => FilledButton(
@@ -97,10 +113,15 @@ Widget _host({
 }
 
 class _FakeBootstrapper implements StartupBootstrapper {
-  _FakeBootstrapper({this.failLocalAttempts = 0, this.localGate});
+  _FakeBootstrapper({
+    this.failLocalAttempts = 0,
+    this.localGate,
+    this.revenueCatReady = false,
+  });
 
   final int failLocalAttempts;
   final Completer<StartupReport>? localGate;
+  final bool revenueCatReady;
   int localCalls = 0;
   int thirdPartyCalls = 0;
 
@@ -116,6 +137,10 @@ class _FakeBootstrapper implements StartupBootstrapper {
   @override
   Future<ThirdPartyStartupReport> initializeThirdParty() async {
     thirdPartyCalls += 1;
-    return const ThirdPartyStartupReport(issues: [], isSupabaseReady: false);
+    return ThirdPartyStartupReport(
+      issues: [],
+      isSupabaseReady: false,
+      isRevenueCatReady: revenueCatReady,
+    );
   }
 }

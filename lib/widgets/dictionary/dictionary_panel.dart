@@ -78,6 +78,13 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// 本地发音控制器缓存，供 dispose 阶段停止短音频。
   TextPlaybackController? _textPlaybackController;
 
+  /// 当前共享播放器的播放 key；关闭面板时据此避免误停宿主页音频。
+  String? _activeTtsKey;
+  String? _activeTextPlaybackKey;
+
+  /// 本面板可能发起朗读的单词与例句 key。
+  final Set<String> _dictionaryPlaybackKeys = {};
+
   /// 当前单词及其离线发音命中状态的预热签名，避免 build 重复调度。
   String? _headwordPrewarmSignature;
   bool _isPrewarmVisible = false;
@@ -127,7 +134,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     if (!visible) {
       _ttsController?.cancelTextsPrewarm();
       _headwordPrewarmSignature = null;
-      unawaited(_ttsController?.stop() ?? Future<void>.value());
+      _stopDictionaryPlayback();
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -171,8 +178,8 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       // 切词：停掉旧词的在途预热/朗读，立即预热新词。
       // 用户调整过的面板高度保留（连续查词不跳动）。
       _ttsController?.cancelTextsPrewarm();
-      _ttsController?.stop();
-      _textPlaybackController?.stop();
+      _stopDictionaryPlayback();
+      _dictionaryPlaybackKeys.clear();
       _headwordPrewarmSignature = null;
       _lastDictionaryPrewarmTexts = const [];
       _prewarmVisibilityEpoch++;
@@ -184,9 +191,8 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     widget.entryAnimation?.removeStatusListener(_onEntryAnimationStatus);
     // 面板关闭即停在途预热，避免离开后继续占用 CPU 合成用不到的例句。
     _ttsController?.cancelTextsPrewarm();
-    // 面板关闭即停止正在朗读的单词/例句，避免离开后声音继续播到尾。
-    _ttsController?.stop();
-    _textPlaybackController?.stop();
+    // 共享播放器也承载复习页来源句，只停止由本面板发起的朗读。
+    _stopDictionaryPlayback();
     // 会话结束：清除粘滞源，下次打开面板恢复默认词典。
     // dispose 处于 widget 树 finalize 流程，禁止同步改 provider（Riverpod
     // 断言），推迟到微任务执行。
@@ -201,6 +207,18 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// 文本源（本地/AI）按内容自适应，不走拖拽逻辑。
   bool _isWebSource(String sourceId) =>
       ref.read(dictionarySourcesByIdProvider)[sourceId] is WebDictionarySource;
+
+  /// 只停止 key 属于当前词典内容的播放，避免误停宿主页正在播放的句子。
+  void _stopDictionaryPlayback() {
+    if (_activeTtsKey case final key?
+        when _dictionaryPlaybackKeys.contains(key)) {
+      unawaited(_ttsController?.stop() ?? Future<void>.value());
+    }
+    if (_activeTextPlaybackKey case final key?
+        when _dictionaryPlaybackKeys.contains(key)) {
+      unawaited(_textPlaybackController?.stop() ?? Future<void>.value());
+    }
+  }
 
   /// 拖拽开始：以当前高度初始化逻辑高度。
   void _onHandleDragStart(DragStartDetails details) {
@@ -307,6 +325,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// 将共享编排筛选后的词典文本提交到统一 TTS 后台队列。
   void _prewarmDictionaryTexts(List<String> texts) {
     _lastDictionaryPrewarmTexts = List.unmodifiable(texts);
+    _dictionaryPlaybackKeys.addAll(texts);
     if (texts.isEmpty || !_isPrewarmVisible) return;
     _ttsController?.prewarmTextsIncremental(texts);
   }
@@ -328,8 +347,12 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final word = _normalizedWord;
+    _dictionaryPlaybackKeys.add(word);
     final lookupQuery = _lookupQuery;
     final pronunciationClips = ref.watch(pronunciationClipsProvider(word));
+    _dictionaryPlaybackKeys.addAll(
+      pronunciationClips.map((clip) => clip.playbackKey),
+    );
     final controllerProvider = _controllerProvider(lookupQuery);
     final state = ref.watch(controllerProvider);
     final ttsConfigurationVersion = ref.watch(
@@ -340,6 +363,12 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     // 缓存 TTS 控制器与会话粘滞源供 dispose 使用（dispose 内不可用 ref，§7.14）。
     _ttsController = ref.read(ttsControllerProvider.notifier);
     _textPlaybackController = ref.read(textPlaybackProvider.notifier);
+    _activeTtsKey = ref.watch(
+      ttsControllerProvider.select((state) => state.speakingKey),
+    );
+    _activeTextPlaybackKey = ref.watch(
+      textPlaybackProvider.select((state) => state.playingKey),
+    );
     _sessionSource = ref.read(dictionarySessionSourceProvider.notifier);
     final hasLocalClip = pronunciationClips.isNotEmpty;
     _scheduleHeadwordPrewarm(hasLocalClip, ttsConfigurationVersion);

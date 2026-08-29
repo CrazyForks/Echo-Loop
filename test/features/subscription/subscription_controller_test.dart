@@ -201,7 +201,7 @@ class FakeEntitlementCache extends EntitlementCache {
 
 void main() {
   group('purchaseServiceTypeFor', () {
-    test('app_store / play 选择 RevenueCat', () {
+    test('app_store / play 仅在 SDK 已就绪时选择 RevenueCat', () {
       for (final channel in [
         ClientPaymentChannel.appleStore,
         ClientPaymentChannel.googlePlay,
@@ -210,7 +210,7 @@ void main() {
           purchaseServiceTypeFor(
             channel: channel,
             useLocalStoreKit: false,
-            nativeStoreConfigured: true,
+            nativeStoreReady: true,
             webConfigured: true,
           ),
           PurchaseServiceType.revenueCat,
@@ -223,19 +223,19 @@ void main() {
         purchaseServiceTypeFor(
           channel: ClientPaymentChannel.web,
           useLocalStoreKit: false,
-          nativeStoreConfigured: true,
+          nativeStoreReady: true,
           webConfigured: true,
         ),
         PurchaseServiceType.web,
       );
     });
 
-    test('缺配置或未知渠道回退 stub', () {
+    test('SDK 未就绪或未知渠道回退 stub', () {
       expect(
         purchaseServiceTypeFor(
           channel: ClientPaymentChannel.googlePlay,
           useLocalStoreKit: false,
-          nativeStoreConfigured: false,
+          nativeStoreReady: false,
           webConfigured: true,
         ),
         PurchaseServiceType.stub,
@@ -244,7 +244,7 @@ void main() {
         purchaseServiceTypeFor(
           channel: ClientPaymentChannel.unavailable,
           useLocalStoreKit: false,
-          nativeStoreConfigured: true,
+          nativeStoreReady: true,
           webConfigured: true,
         ),
         PurchaseServiceType.stub,
@@ -257,7 +257,7 @@ void main() {
         purchaseServiceTypeFor(
           channel: ClientPaymentChannel.appleStore,
           useLocalStoreKit: true,
-          nativeStoreConfigured: false,
+          nativeStoreReady: false,
           webConfigured: false,
         ),
         PurchaseServiceType.localStoreKit,
@@ -268,7 +268,7 @@ void main() {
         purchaseServiceTypeFor(
           channel: ClientPaymentChannel.googlePlay,
           useLocalStoreKit: true,
-          nativeStoreConfigured: false,
+          nativeStoreReady: false,
           webConfigured: false,
         ),
         PurchaseServiceType.stub,

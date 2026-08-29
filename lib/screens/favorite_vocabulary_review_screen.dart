@@ -51,6 +51,7 @@ class _FavoriteVocabularyReviewScreenState
     extends ConsumerState<FavoriteVocabularyReviewScreen>
     with WakelockMixin {
   bool _isExiting = false;
+  bool _isDictionaryPanelOpen = false;
   final GlobalKey<DictionaryPanelHostState> _dictionaryHostKey =
       GlobalKey<DictionaryPanelHostState>();
 
@@ -119,6 +120,12 @@ class _FavoriteVocabularyReviewScreenState
     }
   }
 
+  /// 同步词典面板状态，让面板关闭时保留 iOS 原生边缘返回手势。
+  void _handleDictionaryPanelOpenStateChanged(bool isOpen) {
+    if (_isDictionaryPanelOpen == isOpen) return;
+    setState(() => _isDictionaryPanelOpen = isOpen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(favoriteVocabularyReviewProvider);
@@ -130,15 +137,22 @@ class _FavoriteVocabularyReviewScreenState
 
     return wakelockBody(
       child: PopScope(
-        canPop: true,
+        // 仅在词典面板打开时拦截返回，避免禁用 iOS 边缘返回手势。
+        canPop: !_isDictionaryPanelOpen,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) {
             // 系统返回手势已完成，释放本次复习会话但不要再次触发 pop。
-            unawaited(
-              ref
-                  .read(favoriteVocabularyReviewProvider.notifier)
-                  .disposeSession(),
-            );
+            if (!_isExiting) {
+              _isExiting = true;
+              unawaited(
+                ref
+                    .read(favoriteVocabularyReviewProvider.notifier)
+                    .disposeSession(),
+              );
+            }
+            return;
+          }
+          if (_dictionaryHostKey.currentState?.closeIfOpen() == true) {
             return;
           }
           unawaited(_exit());
@@ -181,6 +195,7 @@ class _FavoriteVocabularyReviewScreenState
                 )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
+                  onOpenStateChanged: _handleDictionaryPanelOpenStateChanged,
                   child: Column(
                     children: [
                       _ReviewProgress(progress: state.progress),

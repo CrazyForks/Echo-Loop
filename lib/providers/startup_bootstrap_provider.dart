@@ -72,9 +72,13 @@ class ThirdPartyStartupReport extends StartupReport {
   const ThirdPartyStartupReport({
     required List<StartupIssue> issues,
     required this.isSupabaseReady,
+    required this.isRevenueCatReady,
   }) : super(issues);
 
   final bool isSupabaseReady;
+
+  /// 仅在本进程的 Purchases.configure 真正成功后为 true。
+  final bool isRevenueCatReady;
 }
 
 /// 演示库模式由 main 在真实进程中覆盖；测试默认生产库语义。
@@ -242,7 +246,7 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
       );
     }
 
-    await _initializeRevenueCat(issues, restoredUserId);
+    final revenueCatReady = await _initializeRevenueCat(issues, restoredUserId);
 
     AnalyticsService analyticsService = AnalyticsService(
       channel: LogOnlyChannel(),
@@ -270,11 +274,16 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
     _scheduleMaintenance();
     activeStartupTrace?.mark(
       'third_party_services_ready',
-      fields: {'issueCount': issues.length, 'supabaseReady': supabaseReady},
+      fields: {
+        'issueCount': issues.length,
+        'supabaseReady': supabaseReady,
+        'revenueCatReady': revenueCatReady,
+      },
     );
     return ThirdPartyStartupReport(
       issues: List<StartupIssue>.unmodifiable(issues),
       isSupabaseReady: supabaseReady,
+      isRevenueCatReady: revenueCatReady,
     );
   }
 
@@ -290,7 +299,7 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
     }
   }
 
-  Future<void> _initializeRevenueCat(
+  Future<bool> _initializeRevenueCat(
     List<StartupIssue> issues,
     String? restoredUserId,
   ) async {
@@ -299,21 +308,21 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
         'step_skipped',
         fields: {'step': 'revenuecat_initialize', 'reason': 'local_storekit'},
       );
-      return;
+      return false;
     }
     if (paddle_config.isPaddleCheckoutChannel) {
       activeStartupTrace?.mark(
         'step_skipped',
         fields: {'step': 'revenuecat_initialize', 'reason': 'paddle_direct'},
       );
-      return;
+      return false;
     }
     if (!revenuecat_config.isRevenueCatConfigured) {
       activeStartupTrace?.mark(
         'step_skipped',
         fields: {'step': 'revenuecat_initialize', 'reason': 'not_configured'},
       );
-      return;
+      return false;
     }
 
     try {
@@ -327,9 +336,17 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
       );
       // RevenueCat 必须先完成 configure；否则 Debug 模式下 setLogLevel 会触发
       // PurchasesHybridCommon 的 native fatalError，直接终止启动进程。
-      if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
+      if (kDebugMode) {
+        await _runBestEffort(
+          issues,
+          'revenuecat_log_level',
+          () => Purchases.setLogLevel(LogLevel.debug),
+        );
+      }
+      return true;
     } catch (error, stackTrace) {
       _recordIssue(issues, 'revenuecat_initialize', error, stackTrace);
+      return false;
     }
   }
 

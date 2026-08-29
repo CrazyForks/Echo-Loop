@@ -41,6 +41,7 @@ class BookmarkReviewScreen extends ConsumerStatefulWidget {
 class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
     with WakelockMixin {
   bool _isExiting = false;
+  bool _isDictionaryPanelOpen = false;
   final GlobalKey<DictionaryPanelHostState> _dictionaryHostKey =
       GlobalKey<DictionaryPanelHostState>();
 
@@ -103,6 +104,12 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
     }
   }
 
+  /// 同步词典面板状态，让面板关闭时保留 iOS 原生边缘返回手势。
+  void _handleDictionaryPanelOpenStateChanged(bool isOpen) {
+    if (_isDictionaryPanelOpen == isOpen) return;
+    setState(() => _isDictionaryPanelOpen = isOpen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(bookmarkReviewProvider);
@@ -114,22 +121,23 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
 
     return wakelockBody(
       child: PopScope(
-        canPop: true,
+        // 仅在词典面板打开时拦截返回；固定为 false 会禁用 iOS 边缘返回手势。
+        canPop: !_isDictionaryPanelOpen,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) {
-            if (_dictionaryHostKey.currentState?.closeIfOpen() == true) {
-              return;
+          if (didPop) {
+            // 原生返回手势已完成，只释放会话，避免再次触发 pop。
+            if (!_isExiting) {
+              _isExiting = true;
+              unawaited(
+                ref.read(bookmarkReviewProvider.notifier).disposeSession(),
+              );
             }
-            unawaited(_exit());
             return;
           }
-          // 系统返回手势已完成，释放本次复习会话但不要再次触发 pop。
-          if (!_isExiting) {
-            _isExiting = true;
-            unawaited(
-              ref.read(bookmarkReviewProvider.notifier).disposeSession(),
-            );
+          if (_dictionaryHostKey.currentState?.closeIfOpen() == true) {
+            return;
           }
+          unawaited(_exit());
         },
         child: Scaffold(
           appBar: AppBar(
@@ -169,6 +177,7 @@ class _BookmarkReviewScreenState extends ConsumerState<BookmarkReviewScreen>
                 )
               : DictionaryPanelHost(
                   key: _dictionaryHostKey,
+                  onOpenStateChanged: _handleDictionaryPanelOpenStateChanged,
                   child: Column(
                     children: [
                       _ReviewProgress(

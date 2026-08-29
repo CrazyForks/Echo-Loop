@@ -172,6 +172,9 @@ class _TestLocalDictionarySource extends LocalDictionarySource {
 
 late SharedPreferences _sharedPreferences;
 
+Finder get _favoriteVocabularyReviewPopScope =>
+    find.byWidgetPredicate((widget) => widget is PopScope);
+
 Widget _app({
   bool showNextReviewTime = false,
   bool autoShowAiLookup = false,
@@ -309,6 +312,18 @@ void main() {
       expect(find.text('本次复习已没有收藏词汇。'), findsNothing);
     },
   );
+
+  testWidgets('native route pop stays enabled while dictionary is closed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    expect(
+      tester.widget<PopScope>(_favoriteVocabularyReviewPopScope).canPop,
+      isTrue,
+    );
+  });
 
   testWidgets('status bar stays at the bottom on both card faces', (
     tester,
