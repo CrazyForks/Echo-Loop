@@ -392,7 +392,7 @@ void main() {
         expect(find.text('Privacy Policy'), findsOneWidget);
         expect(find.text('FAQ'), findsOneWidget);
         expect(find.text('Write Feedback'), findsOneWidget);
-        expect(find.text('Echo Loop Community'), findsOneWidget);
+        expect(find.text('Join Community'), findsOneWidget);
         expect(find.text('Open Source Project'), findsOneWidget);
         expect(find.text('github.com/echo-loop/Echo-Loop'), findsNothing);
         // 版本标签在页面底部，需要滚动到可见

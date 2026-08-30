@@ -5153,7 +5153,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutCommunity.
   ///
   /// In en, this message translates to:
-  /// **'Echo Loop Community'**
+  /// **'Join Community'**
   String get aboutCommunity;
 
   /// No description provided for @joinCommunityInviteSubtitle.

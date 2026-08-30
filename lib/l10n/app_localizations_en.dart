@@ -2934,7 +2934,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get joinCommunity => 'Join Community';
 
   @override
-  String get aboutCommunity => 'Echo Loop Community';
+  String get aboutCommunity => 'Join Community';
 
   @override
   String get joinCommunityInviteSubtitle => 'Learn, ask, and share';

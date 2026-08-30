@@ -290,7 +290,7 @@ class AudioListTile extends ConsumerWidget {
   ///
   /// - 未学习：音频图标在浅色圆形背景上
   /// - 进行中：环形进度 + 中心音频图标
-  /// - 已完成：满环（绿色）+ 勾号图标
+  /// - 已完成：满环（绿色）+ 对应的音频或视频图标
   /// 获取音频关联的标签数据（名称 + 颜色）
   List<Tag> _getTagData(WidgetRef ref) {
     final tagIds = ref.watch(
@@ -465,7 +465,9 @@ class AudioListTile extends ConsumerWidget {
                     ),
                     decoration: BoxDecoration(
                       color: progress.isCompleted
-                          ? theme.colorScheme.tertiaryContainer
+                          ? (theme.brightness == Brightness.dark
+                                ? const Color(0xFF1D3B27)
+                                : AppTheme.successContainer)
                           : theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -475,7 +477,9 @@ class AudioListTile extends ConsumerWidget {
                           : reviewStageLabel(l10n, progress.currentStage),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: progress.isCompleted
-                            ? theme.colorScheme.onTertiaryContainer
+                            ? (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF8FE0A8)
+                                  : AppTheme.successColor)
                             : theme.colorScheme.onPrimaryContainer,
                         fontSize: 10,
                       ),

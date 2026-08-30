@@ -65,7 +65,7 @@ void main() {
       expect(find.byIcon(Icons.graphic_eq), findsOneWidget);
     });
 
-    testWidgets('已完成 → 显示 check icon + 绿色', (tester) async {
+    testWidgets('已完成音频 → 显示波形图标 + 绿色满环', (tester) async {
       final progress = LearningProgress(
         audioItemId: 'test-1',
         currentStage: LearningStage.completed,
@@ -75,7 +75,30 @@ void main() {
 
       await tester.pumpWidget(createTestWidget(progress));
 
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byIcon(Icons.graphic_eq), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNothing);
+      final mediaIcon = tester.widget<Icon>(find.byIcon(Icons.graphic_eq));
+      expect(mediaIcon.color, isNot(LearningProgressIcon.completedColor));
+      final indicator = tester.widget<CircularProgressIndicator>(
+        find.byType(CircularProgressIndicator),
+      );
+      expect(indicator.value, 1.0);
+      expect(indicator.color, LearningProgressIcon.completedColor);
+    });
+
+    testWidgets('已完成视频 → 显示视频 SVG + 绿色满环', (tester) async {
+      final progress = LearningProgress(
+        audioItemId: 'test-1',
+        currentStage: LearningStage.completed,
+        currentSubStage: SubStageType.blindListen,
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      await tester.pumpWidget(createTestWidget(progress, isVideo: true));
+
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.byIcon(Icons.graphic_eq), findsNothing);
+      expect(find.byIcon(Icons.check), findsNothing);
       final indicator = tester.widget<CircularProgressIndicator>(
         find.byType(CircularProgressIndicator),
       );

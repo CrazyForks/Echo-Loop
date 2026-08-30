@@ -1580,7 +1580,7 @@
   "writeFeedback": "Write Feedback",
   "rateUs": "Rate Us",
   "joinCommunity": "Join Community",
-  "aboutCommunity": "Echo Loop Community",
+  "aboutCommunity": "Join Community",
   "joinCommunityInviteSubtitle": "Learn, ask, and share",
   "networkError": "Unable to connect. Please check your network and try again.",
   "viewSourceCode": "Open Source Project",

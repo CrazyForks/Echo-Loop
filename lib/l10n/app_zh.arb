@@ -1246,8 +1246,8 @@
   "writeFeedback": "意见反馈",
   "rateUs": "评价我们",
   "joinCommunity": "加入学习社群",
-  "aboutCommunity": "Echo Loop 社区",
-  "joinCommunityInviteSubtitle": "学习交流，反馈建议",
+  "aboutCommunity": "加入社区",
+  "joinCommunityInviteSubtitle": "找资源，找搭子，反馈建议",
   "networkError": "无法连接，请检查网络后重试",
   "viewSourceCode": "开源项目",
 

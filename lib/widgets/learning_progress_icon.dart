@@ -3,7 +3,7 @@
 /// 根据学习进度显示不同状态：
 /// - 未学习：音频图标 + 灰色背景
 /// - 进行中：环形进度 + 蓝色音频图标
-/// - 已完成：满环 + 绿色对勾
+/// - 已完成：绿色满环 + 对应的音频或视频图标
 library;
 
 import 'package:flutter/material.dart';
@@ -42,11 +42,10 @@ class LearningProgressIcon extends ConsumerWidget {
     this.isVideo = false,
   });
 
-  /// 视频条目左侧媒体图标资源。
-  /// 已完成状态的绿色
+  /// 已完成状态的绿色。
   static const completedColor = Color(0xFF4CAF50);
 
-  /// 构建中心媒体图标：视频用 [_videoIconAsset]，音频用波形 [Icons.graphic_eq]。
+  /// 构建中心媒体图标：视频使用视频图标，音频使用波形图标。
   Widget _mediaGlyph(Color color) {
     return MediaTypeIcon(isVideo: isVideo, size: iconSize, color: color);
   }
@@ -96,7 +95,8 @@ class LearningProgressIcon extends ConsumerWidget {
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
               ),
             ),
-            Icon(Icons.check, size: iconSize, color: completedColor),
+            // 外圈表达完成状态；中心媒体图标沿用普通任务的主色，保持媒体类型清晰。
+            _mediaGlyph(theme.colorScheme.primary),
           ],
         ),
       );

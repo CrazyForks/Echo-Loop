@@ -2817,10 +2817,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get joinCommunity => '加入学习社群';
 
   @override
-  String get aboutCommunity => 'Echo Loop 社区';
+  String get aboutCommunity => '加入社区';
 
   @override
-  String get joinCommunityInviteSubtitle => '学习交流，反馈建议';
+  String get joinCommunityInviteSubtitle => '找资源，找搭子，反馈建议';
 
   @override
   String get networkError => '无法连接，请检查网络后重试';

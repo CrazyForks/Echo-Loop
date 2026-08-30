@@ -473,7 +473,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Completed Video'), findsOneWidget);
-    expect(find.byType(SvgPicture), findsOneWidget);
+    expect(_findSvgAsset('assets/icon/video-2.svg'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
   });
 
@@ -585,7 +585,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Echo Loop Community'), findsOneWidget);
+    expect(find.text('Join Community'), findsOneWidget);
     expect(find.text('Learn, ask, and share'), findsOneWidget);
 
     final communityDecoration = tester
@@ -765,6 +765,68 @@ void main() {
         .where((c) => c.color == LearningProgressIcon.completedColor)
         .toList();
     expect(accentBars.length, 2);
+  });
+
+  testWidgets('最近完成视频使用视频图标而不是完成对钩', (tester) async {
+    final now = DateTime(2026, 3, 25, 12, 0);
+    final audioItems = [
+      AudioItem(
+        id: 'audio-1',
+        name: 'Active Audio',
+        audioPath: 'audios/active.mp3',
+        addedDate: now,
+      ),
+      AudioItem(
+        id: 'video-1',
+        name: 'Recently Completed Video',
+        audioPath: 'videos/recent.mp4',
+        addedDate: now,
+      ),
+    ];
+    final progressState = LearningProgressState(
+      progressMap: {
+        'audio-1': LearningProgress(
+          audioItemId: 'audio-1',
+          currentStage: LearningStage.firstLearn,
+          currentSubStage: SubStageType.listenAndRepeat,
+          updatedAt: now,
+        ),
+        'video-1': LearningProgress(
+          audioItemId: 'video-1',
+          currentStage: LearningStage.completed,
+          currentSubStage: SubStageType.blindListen,
+          updatedAt: now,
+        ),
+      },
+      isLoading: false,
+    );
+    final completions = [
+      RecentCompletion(
+        audioId: 'video-1',
+        audioName: 'Recently Completed Video',
+        stage: 'firstLearn',
+        subStage: 'blindListen',
+        completedAt: now.subtract(const Duration(minutes: 10)),
+        durationMs: 5000,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      createTestWidget(
+        audioItems: audioItems,
+        progressState: progressState,
+        fixedNow: now,
+        recentCompletions: completions,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Recently Completed (1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recently Completed Video'), findsOneWidget);
+    expect(_findSvgAsset('assets/icon/video-2.svg'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNothing);
   });
 
   testWidgets('无最近完成记录时不显示折叠区', (tester) async {
