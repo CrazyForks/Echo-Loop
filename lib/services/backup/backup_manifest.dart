@@ -2,7 +2,10 @@
 ///
 /// 记录备份的元数据，用于导入前验证和预览。
 class BackupManifest {
-  /// 备份格式版本，当前固定为 1
+  /// 当前应用生成的备份格式版本。
+  static const currentVersion = 3;
+
+  /// 备份格式版本。
   final int version;
 
   /// 创建备份时的 App 版本号
@@ -10,6 +13,12 @@ class BackupManifest {
 
   /// 数据库 schema 版本
   final int schemaVersion;
+
+  /// 备份数据已完成的应用升级迁移版本。
+  ///
+  /// v1/v2 和早期 v3 清单没有该字段时按 0 处理，恢复后幂等地
+  /// 重放全部应用升级迁移。
+  final int appUpdateMigrationVersion;
 
   /// 备份创建时间
   final DateTime createdAt;
@@ -36,6 +45,7 @@ class BackupManifest {
     required this.version,
     required this.appVersion,
     required this.schemaVersion,
+    this.appUpdateMigrationVersion = 0,
     required this.createdAt,
     required this.platform,
     required this.dbSha256,
@@ -46,27 +56,32 @@ class BackupManifest {
   });
 
   /// 从 JSON Map 反序列化
-  factory BackupManifest.fromJson(Map<String, dynamic> json) {
+  factory BackupManifest.fromJson(Map<String, Object?> json) {
     return BackupManifest(
-      version: json['version'] as int,
-      appVersion: json['appVersion'] as String,
-      schemaVersion: json['schemaVersion'] as int,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      platform: json['platform'] as String,
-      dbSha256: json['dbSha256'] as String,
-      mediaFileCount: json['mediaFileCount'] as int,
-      totalSizeBytes: json['totalSizeBytes'] as int,
-      offlineResourceFileCount: json['offlineResourceFileCount'] as int? ?? 0,
-      offlineResourceSizeBytes: json['offlineResourceSizeBytes'] as int? ?? 0,
+      version: _requiredInt(json, 'version'),
+      appVersion: _requiredString(json, 'appVersion'),
+      schemaVersion: _requiredInt(json, 'schemaVersion'),
+      appUpdateMigrationVersion: _optionalInt(
+        json,
+        'appUpdateMigrationVersion',
+      ),
+      createdAt: DateTime.parse(_requiredString(json, 'createdAt')),
+      platform: _requiredString(json, 'platform'),
+      dbSha256: _requiredString(json, 'dbSha256'),
+      mediaFileCount: _requiredInt(json, 'mediaFileCount'),
+      totalSizeBytes: _requiredInt(json, 'totalSizeBytes'),
+      offlineResourceFileCount: _optionalInt(json, 'offlineResourceFileCount'),
+      offlineResourceSizeBytes: _optionalInt(json, 'offlineResourceSizeBytes'),
     );
   }
 
   /// 序列化为 JSON Map
-  Map<String, dynamic> toJson() {
+  Map<String, Object?> toJson() {
     return {
       'version': version,
       'appVersion': appVersion,
       'schemaVersion': schemaVersion,
+      'appUpdateMigrationVersion': appUpdateMigrationVersion,
       'createdAt': createdAt.toUtc().toIso8601String(),
       'platform': platform,
       'dbSha256': dbSha256,
@@ -88,4 +103,23 @@ class BackupManifest {
     }
     return '${(totalSizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
+}
+
+int _requiredInt(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is int) return value;
+  throw FormatException('Invalid backup manifest field: $key');
+}
+
+int _optionalInt(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value == null) return 0;
+  if (value is int) return value;
+  throw FormatException('Invalid backup manifest field: $key');
+}
+
+String _requiredString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String) return value;
+  throw FormatException('Invalid backup manifest field: $key');
 }

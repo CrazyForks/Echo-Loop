@@ -9,10 +9,13 @@ import '../database/providers.dart';
 import '../services/backup/backup_manifest.dart';
 import '../services/backup/backup_progress.dart';
 import '../services/backup/backup_service.dart';
+import '../services/app_logger.dart';
 import 'audio_library_provider.dart';
 import 'collection_provider.dart';
+import 'dictionary_provider.dart';
 import 'learning_progress_provider.dart';
 import 'package_info_provider.dart';
+import 'settings_provider.dart';
 import 'tag_provider.dart';
 
 /// BackupService Provider
@@ -46,45 +49,72 @@ Future<BackupManifest> readBackupManifest(WidgetRef ref, String path) {
 
 /// 导入数据（含数据库热切换）
 ///
-/// 完整流程：关闭旧数据库 → 导入 → 打开新数据库 → 刷新 Provider。
+/// 完整流程：校验备份 → 关闭旧数据库 → 应用 → 打开并验证新数据库 → 提交。
+/// 新数据库或 Provider 加载失败时，恢复会话会先回滚全部文件与设置，再重连旧库。
 Future<BackupManifest> performImport(
   WidgetRef ref,
   String zipPath, {
   void Function(BackupProgress)? onProgress,
 }) async {
   final service = ref.read(backupServiceProvider);
-
-  // Step 1: 关闭当前数据库
-  await closeCurrentDatabase();
+  PreparedBackupImport? prepared;
+  AppliedBackupImport? applied;
+  AppDatabase? candidateDatabase;
+  var databaseWasClosed = false;
 
   try {
-    // Step 2: 导入（替换 db 文件 + 恢复 SP + 复制媒体）
-    final manifest = await service.importData(
+    // 完整校验和数据库快照提取期间保持当前 Drift 连接可用。
+    prepared = await service.prepareImport(
       zipPath: zipPath,
       onProgress: onProgress,
     );
 
-    // Step 3: 重新打开数据库并热切换
-    final newDb = AppDatabase(openConnectionWithName('echo_loop.db'));
-    switchAppDatabase(newDb, ref);
+    await closeCurrentDatabase();
+    databaseWasClosed = true;
+    AppLogger.log('Backup', 'database_closed_for_restore');
+    applied = await service.applyPreparedImport(
+      prepared,
+      onProgress: onProgress,
+    );
 
-    // Step 4: 重新加载数据
-    await ref.read(audioLibraryProvider.notifier).loadLibrary();
-    ref.read(collectionListProvider.notifier).loadCollections();
-    ref.read(tagListProvider.notifier).loadTags();
-    await ref.read(learningProgressNotifierProvider.notifier).loadAll();
+    candidateDatabase = AppDatabase(openConnectionWithName('echo_loop.db'));
+    AppLogger.log('Backup', 'candidate_database_opened');
+    switchAppDatabase(candidateDatabase, ref);
+    await _reloadDatabaseProviders(ref);
+    // 可重新下载的资源不进入备份。恢复后重建词典状态，本地
+    // 缺失时由现有 Provider 自动下载，失败时沿用其重试提示。
+    ref.invalidate(appSettingsProvider);
+    ref.read(appSettingsProvider);
+    ref.invalidate(dictionaryProvider);
+    ref.read(dictionaryProvider);
+    AppLogger.log('Backup', 'database_providers_reloaded');
+    await applied.commit();
+    AppLogger.log('Backup', 'restore_committed');
 
-    return manifest;
-  } catch (e) {
-    // 恢复数据库连接
-    final fallbackDb = AppDatabase(openConnectionWithName('echo_loop.db'));
-    switchAppDatabase(fallbackDb, ref);
-    await ref.read(audioLibraryProvider.notifier).loadLibrary();
-    ref.read(collectionListProvider.notifier).loadCollections();
-    ref.read(tagListProvider.notifier).loadTags();
-    await ref.read(learningProgressNotifierProvider.notifier).loadAll();
+    return prepared.manifest;
+  } catch (error, stackTrace) {
+    AppLogger.log('Backup', 'restore_provider_failed error=$error');
+    AppLogger.log('Backup', 'restore_provider_failed stackTrace=$stackTrace');
+    await candidateDatabase?.close();
+    await applied?.rollback();
+    if (databaseWasClosed) {
+      final fallbackDb = AppDatabase(openConnectionWithName('echo_loop.db'));
+      switchAppDatabase(fallbackDb, ref);
+      await _reloadDatabaseProviders(ref);
+      AppLogger.log('Backup', 'fallback_database_reopened');
+    }
     rethrow;
+  } finally {
+    await prepared?.dispose();
   }
+}
+
+/// 数据库切换后重新加载恢复页依赖的核心数据。
+Future<void> _reloadDatabaseProviders(WidgetRef ref) async {
+  await ref.read(audioLibraryProvider.notifier).loadLibrary();
+  await ref.read(collectionListProvider.notifier).loadCollections();
+  await ref.read(tagListProvider.notifier).loadTags();
+  await ref.read(learningProgressNotifierProvider.notifier).loadAll();
 }
 
 /// 获取当前平台标识

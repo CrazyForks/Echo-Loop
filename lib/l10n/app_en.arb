@@ -1820,6 +1820,7 @@
   "exporting": "Exporting...",
   "importing": "Importing...",
   "exportSuccess": "Export complete",
+  "downloadSuccess": "Download complete",
   "importSuccess": "Import complete",
   "importConfirmTitle": "Confirm Import",
   "importConfirmMessage": "This will replace all current data, including learning progress, saved items, and audio files. This action cannot be undone.",

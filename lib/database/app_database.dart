@@ -106,6 +106,27 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => currentSchemaVersion;
 
+  /// 使用 SQLite `VACUUM INTO` 创建当前数据库的一致性备份快照。
+  ///
+  /// 该操作由现有 Drift 连接执行，因此无需关闭数据库，也不依赖直接复制可能仍
+  /// 带有 WAL 的主数据库文件。SQLite 会在事务中调用或磁盘写入失败时抛出异常；
+  /// 无论失败发生在哪个阶段，都删除不完整的目标文件。
+  Future<void> createBackupSnapshot(File target) async {
+    await target.parent.create(recursive: true);
+    if (await target.exists()) {
+      await target.delete();
+    }
+
+    try {
+      await customStatement('VACUUM INTO ?', [target.path]);
+    } catch (_) {
+      if (await target.exists()) {
+        await target.delete();
+      }
+      rethrow;
+    }
+  }
+
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(

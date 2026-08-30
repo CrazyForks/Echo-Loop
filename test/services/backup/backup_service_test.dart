@@ -2,9 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:echo_loop/database/app_database.dart';
+import 'package:echo_loop/services/backup/backup_manifest.dart';
+import 'package:echo_loop/services/backup/backup_service.dart';
+import 'package:echo_loop/utils/app_data_dir.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 // ignore: depend_on_referenced_packages
@@ -12,16 +16,16 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 
-import 'package:echo_loop/services/backup/backup_manifest.dart';
-import 'package:echo_loop/services/backup/backup_service.dart';
-import 'package:echo_loop/utils/app_data_dir.dart';
+import 'package:echo_loop/services/app_update_migration.dart';
+import 'package:echo_loop/services/app_logger.dart';
 
 class _FakePathProvider extends PathProviderPlatform
     with MockPlatformInterfaceMixin {
-  final String rootPath;
-
   _FakePathProvider(this.rootPath);
+
+  final String rootPath;
 
   @override
   Future<String?> getApplicationSupportPath() async => rootPath;
@@ -34,399 +38,771 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('BackupManifest', () {
-    test('toJson / fromJson 往返正确', () {
+    test('v3 JSON 往返与大小格式化正确', () {
       final manifest = BackupManifest(
-        version: 1,
-        appVersion: '1.0.3',
-        schemaVersion: 23,
-        createdAt: DateTime.utc(2026, 3, 26, 14, 30),
+        version: BackupManifest.currentVersion,
+        appVersion: '1.2.3',
+        schemaVersion: 51,
+        createdAt: DateTime.utc(2026, 8, 30),
         platform: 'ios',
-        dbSha256: 'abc123',
-        mediaFileCount: 5,
-        totalSizeBytes: 1024000,
+        dbSha256: 'abc',
+        mediaFileCount: 3,
+        totalSizeBytes: 2 * 1024 * 1024,
       );
 
-      final json = manifest.toJson();
-      final restored = BackupManifest.fromJson(json);
+      final restored = BackupManifest.fromJson(manifest.toJson());
 
-      expect(restored.version, 1);
-      expect(restored.appVersion, '1.0.3');
-      expect(restored.schemaVersion, 23);
-      expect(restored.createdAt, DateTime.utc(2026, 3, 26, 14, 30));
-      expect(restored.platform, 'ios');
-      expect(restored.dbSha256, 'abc123');
-      expect(restored.mediaFileCount, 5);
-      expect(restored.totalSizeBytes, 1024000);
+      expect(restored.version, 3);
+      expect(restored.createdAt, manifest.createdAt);
+      expect(restored.formattedSize, '2.0 MB');
     });
 
-    test('formattedSize 正确格式化各级别大小', () {
+    test('字段类型错误时拒绝解析', () {
       expect(
-        BackupManifest(
-          version: 1,
-          appVersion: '',
-          schemaVersion: 1,
-          createdAt: DateTime.now(),
-          platform: '',
-          dbSha256: '',
-          mediaFileCount: 0,
-          totalSizeBytes: 500,
-        ).formattedSize,
-        '500 B',
-      );
-
-      expect(
-        BackupManifest(
-          version: 1,
-          appVersion: '',
-          schemaVersion: 1,
-          createdAt: DateTime.now(),
-          platform: '',
-          dbSha256: '',
-          mediaFileCount: 0,
-          totalSizeBytes: 2048,
-        ).formattedSize,
-        '2.0 KB',
-      );
-
-      expect(
-        BackupManifest(
-          version: 1,
-          appVersion: '',
-          schemaVersion: 1,
-          createdAt: DateTime.now(),
-          platform: '',
-          dbSha256: '',
-          mediaFileCount: 0,
-          totalSizeBytes: 5 * 1024 * 1024,
-        ).formattedSize,
-        '5.0 MB',
-      );
-
-      expect(
-        BackupManifest(
-          version: 1,
-          appVersion: '',
-          schemaVersion: 1,
-          createdAt: DateTime.now(),
-          platform: '',
-          dbSha256: '',
-          mediaFileCount: 0,
-          totalSizeBytes: 2 * 1024 * 1024 * 1024,
-        ).formattedSize,
-        '2.0 GB',
+        () => BackupManifest.fromJson(const {
+          'version': '3',
+          'appVersion': '1.0.0',
+        }),
+        throwsFormatException,
       );
     });
   });
 
-  group('BackupService — ZIP 验证', () {
-    late Directory tempDir;
+  group('BackupService 流式导出与恢复', () {
+    late Directory root;
+    late Directory dataDir;
+    late Directory outputDir;
+    late AppDatabase database;
+    late BackupService service;
+    var databaseClosed = false;
 
-    setUp(() {
-      tempDir = Directory.systemTemp.createTempSync('backup_test_');
-    });
-
-    tearDown(() {
-      if (tempDir.existsSync()) {
-        tempDir.deleteSync(recursive: true);
-      }
-    });
-
-    test('readManifest 正确读取 ZIP 中的 manifest', () async {
-      // 构造含 manifest.json 的 ZIP
-      final manifest = BackupManifest(
-        version: 1,
-        appVersion: '1.0.3',
-        schemaVersion: 23,
-        createdAt: DateTime.utc(2026, 3, 26),
-        platform: 'ios',
-        dbSha256: 'test_sha',
-        mediaFileCount: 0,
-        totalSizeBytes: 100,
-      );
-      final manifestJson = utf8.encode(jsonEncode(manifest.toJson()));
-
-      final archive = Archive();
-      archive.addFile(
-        ArchiveFile('manifest.json', manifestJson.length, manifestJson),
-      );
-      // 添加一个假的 db 文件
-      archive.addFile(ArchiveFile('echo_loop.db', 4, utf8.encode('test')));
-
-      final zipData = ZipEncoder().encode(archive);
-      final zipFile = File('${tempDir.path}/test.elbak');
-      zipFile.writeAsBytesSync(zipData);
-
-      // 使用一个不需要真实数据库的方式测试 readManifest
-      // 由于 BackupService 需要 AppDatabase，这里直接测试 ZIP 解码逻辑
-      final bytes = zipFile.readAsBytesSync();
-      final decoded = ZipDecoder().decodeBytes(bytes);
-      final entry = decoded.findFile('manifest.json');
-      expect(entry, isNotNull);
-
-      final restored = BackupManifest.fromJson(
-        jsonDecode(utf8.decode(entry!.content as List<int>))
-            as Map<String, dynamic>,
-      );
-      expect(restored.version, 1);
-      expect(restored.appVersion, '1.0.3');
-      expect(restored.schemaVersion, 23);
-    });
-
-    test('manifest.json 缺失时应失败', () {
-      final archive = Archive();
-      archive.addFile(ArchiveFile('echo_loop.db', 4, utf8.encode('test')));
-      final zipData = ZipEncoder().encode(archive);
-
-      final decoded = ZipDecoder().decodeBytes(zipData);
-      final entry = decoded.findFile('manifest.json');
-      expect(entry, isNull);
-    });
-
-    test('ZIP slip 路径检测', () {
-      const testPaths = [
-        '../etc/passwd',
-        'media/../../secret.txt',
-        '/absolute/path.txt',
-      ];
-      for (final path in testPaths) {
-        final hasSlip =
-            path.contains('..') ||
-            path.startsWith('/') ||
-            path.startsWith('\\');
-        expect(hasSlip, isTrue, reason: 'Should detect: $path');
-      }
-    });
-
-    test('正常相对路径不触发 ZIP slip 检测', () {
-      const safePaths = [
-        'manifest.json',
-        'echo_loop.db',
-        'media/audios/test.mp3',
-        'media/transcripts/test.srt',
-      ];
-      for (final path in safePaths) {
-        final hasSlip =
-            path.contains('..') ||
-            path.startsWith('/') ||
-            path.startsWith('\\');
-        expect(hasSlip, isFalse, reason: 'Should be safe: $path');
-      }
-    });
-
-    test('导出时跳过未下载官方音频的 null audio_path', () async {
-      final docsDir = Directory(p.join(tempDir.path, 'docs'))
+    setUp(() async {
+      AppLogger.instance.clear();
+      root = await Directory.systemTemp.createTemp('backup_service_test_');
+      dataDir = Directory(p.join(root.path, 'data'))
         ..createSync(recursive: true);
-      final outputDir = Directory(p.join(tempDir.path, 'out'))
+      outputDir = Directory(p.join(root.path, 'output'))
         ..createSync(recursive: true);
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+      PathProviderPlatform.instance = _FakePathProvider(root.path);
       SharedPreferences.setMockInitialValues({});
-      appDataDirectoryOverride = docsDir;
-      addTearDown(() => appDataDirectoryOverride = null);
-
-      final db = AppDatabase(
-        NativeDatabase(File(p.join(docsDir.path, 'echo_loop.db'))),
+      appDataDirectoryOverride = dataDir;
+      database = AppDatabase(
+        NativeDatabase(File(p.join(dataDir.path, 'echo_loop.db'))),
       );
-      addTearDown(db.close);
-
-      final now = DateTime(2026, 4, 20);
-      await db
-          .into(db.audioItems)
-          .insert(
-            AudioItemsCompanion.insert(
-              id: 'official-placeholder',
-              name: 'Official Placeholder',
-              addedDate: now,
-              updatedAt: now,
-              audioPath: const Value(null),
-              transcriptPath: const Value(null),
-              remoteAudioId: const Value('remote-audio-1'),
-            ),
+      await database.customSelect('SELECT 1').get();
+      service = BackupService(
+        database,
+        restoredAppUpdateMigrator: (preferences, fromVersion) async {
+          await preferences.setInt(
+            appUpdateMigrationVersionKey,
+            currentAppUpdateMigrationVersion,
           );
+        },
+      );
+    });
 
-      final localAudio = File(p.join(docsDir.path, 'audios/local.mp3'));
-      await localAudio.parent.create(recursive: true);
-      await localAudio.writeAsBytes([1, 2, 3]);
-      await db
-          .into(db.audioItems)
-          .insert(
-            AudioItemsCompanion.insert(
-              id: 'local-audio',
-              name: 'Local Audio',
-              addedDate: now,
-              updatedAt: now,
-              audioPath: const Value('audios/local.mp3'),
-            ),
-          );
+    tearDown(() async {
+      if (!databaseClosed) {
+        await database.close();
+      }
+      appDataDirectoryOverride = null;
+      if (await root.exists()) await root.delete(recursive: true);
+    });
 
-      final zipPath = await BackupService(db).exportData(
+    test('v3 使用 Store、固定名称且不创建媒体 staging', () async {
+      await _insertAudio(
+        database,
+        id: 'local',
+        name: 'Local',
+        path: 'audios/imported/local.m4a',
+      );
+      final audio = File(p.join(dataDir.path, 'audios/imported/local.m4a'));
+      await audio.parent.create(recursive: true);
+      await audio.writeAsBytes(List<int>.filled(1024 * 1024, 7));
+      final dictionary = File(
+        p.join(root.path, 'dictionary', 'en_zh', 'dict.sqlite'),
+      );
+      await dictionary.parent.create(recursive: true);
+      await dictionary.writeAsBytes([1, 2, 3]);
+
+      var checkedPackingStage = false;
+      final backupPath = await service.exportData(
         outputDir: outputDir.path,
         appVersion: '1.0.0',
         platform: 'macos',
+        onProgress: (progress) {
+          if (progress.stage != 'exportingPacking') return;
+          checkedPackingStage = true;
+          final scratchDirs = root.listSync().whereType<Directory>().where(
+            (dir) => p.basename(dir.path).startsWith('echoloop_export_'),
+          );
+          for (final dir in scratchDirs) {
+            expect(Directory(p.join(dir.path, 'media')).existsSync(), isFalse);
+          }
+        },
       );
-      expect(zipPath.endsWith('.elbak'), isTrue);
 
-      final archive = ZipDecoder().decodeBytes(
-        await File(zipPath).readAsBytes(),
-      );
-      expect(archive.findFile('media/audios/local.mp3'), isNotNull);
-      expect(archive.findFile('media/audios/official-placeholder.mp3'), isNull);
-
-      final manifestEntry = archive.findFile('manifest.json');
-      final manifest = BackupManifest.fromJson(
-        jsonDecode(utf8.decode(manifestEntry!.content as List<int>))
-            as Map<String, dynamic>,
-      );
-      expect(manifest.mediaFileCount, 1);
-    });
-
-    test('v2 备份仅包含离线词典并排除模型与下载临时文件', () async {
-      final docsDir = Directory(p.join(tempDir.path, 'docs'))
-        ..createSync(recursive: true);
-      final outputDir = Directory(p.join(tempDir.path, 'out'))
-        ..createSync(recursive: true);
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
-      SharedPreferences.setMockInitialValues({});
-      appDataDirectoryOverride = docsDir;
-      addTearDown(() => appDataDirectoryOverride = null);
-
-      final db = AppDatabase(
-        NativeDatabase(File(p.join(docsDir.path, 'echo_loop.db'))),
-      );
-      addTearDown(db.close);
-      await db.customSelect('SELECT 1').get();
-
-      final asrFile = File(
-        p.join(tempDir.path, 'asr-models', 'small', 'model.onnx'),
-      );
-      final ttsFile = File(
-        p.join(tempDir.path, 'tts-models', 'voice', 'model.onnx'),
-      );
-      final dictFile = File(
-        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.sqlite'),
-      );
-      final partial = File(
-        p.join(tempDir.path, 'tts-models', '_dl_voice.tar.gz'),
-      );
-      for (final file in [asrFile, ttsFile, dictFile, partial]) {
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes([1, 2, 3]);
+      expect(checkedPackingStage, isTrue);
+      final decoded = _decodeStreaming(backupPath);
+      addTearDown(decoded.close);
+      final archive = decoded.archive;
+      for (final name in [
+        'manifest.json',
+        'database.sqlite',
+        'settings.json',
+        'media/audios/imported/local.m4a',
+      ]) {
+        final entry = archive.findFile(name);
+        expect(entry, isNotNull, reason: name);
+        expect(entry?.compression, CompressionType.none, reason: name);
       }
-
-      final zipPath = await BackupService(db).exportData(
-        outputDir: outputDir.path,
-        appVersion: '1.0.25',
-        platform: 'macos',
-      );
-      expect(zipPath.endsWith('.elbak'), isTrue);
-      final archive = ZipDecoder().decodeBytes(
-        await File(zipPath).readAsBytes(),
-      );
-      expect(archive.findFile('resources/asr-models/small/model.onnx'), isNull);
-      expect(archive.findFile('resources/tts-models/voice/model.onnx'), isNull);
+      expect(archive.findFile('echo_loop.db'), isNull);
+      expect(archive.findFile('preferences.json'), isNull);
+      expect(archive.findFile('resources/'), isNull);
       expect(
         archive.findFile('resources/dictionary/en_zh/dict.sqlite'),
-        isNotNull,
+        isNull,
       );
-      expect(archive.findFile('resources/tts-models/_dl_voice.tar.gz'), isNull);
 
-      final manifestEntry = archive.findFile('manifest.json');
-      final manifest = BackupManifest.fromJson(
-        jsonDecode(utf8.decode(manifestEntry!.content as List<int>))
-            as Map<String, dynamic>,
+      final manifest = await service.readManifest(backupPath);
+      expect(manifest.version, BackupManifest.currentVersion);
+      expect(manifest.mediaFileCount, 1);
+      expect(manifest.offlineResourceFileCount, 0);
+      expect(manifest.offlineResourceSizeBytes, 0);
+      final logs = AppLogger.instance.entries.map((entry) => entry.message);
+      expect(
+        logs.any((message) => message.startsWith('export_start ')),
+        isTrue,
       );
-      expect(manifest.version, 2);
-      expect(manifest.offlineResourceFileCount, 1);
-      expect(manifest.offlineResourceSizeBytes, 3);
+      expect(
+        logs.any((message) => message.startsWith('export_success ')),
+        isTrue,
+      );
     });
 
-    test('导入 v2 备份时仅恢复词典，不覆盖本机模型文件', () async {
-      final docsDir = Directory(p.join(tempDir.path, 'docs'))
-        ..createSync(recursive: true);
-      final outputDir = Directory(p.join(tempDir.path, 'out'))
-        ..createSync(recursive: true);
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
-      SharedPreferences.setMockInitialValues({});
-      appDataDirectoryOverride = docsDir;
-      addTearDown(() => appDataDirectoryOverride = null);
+    test('备份记录应用迁移版本但 settings 不包含进度 key', () async {
+      SharedPreferences.setMockInitialValues({
+        appUpdateMigrationVersionKey: 4,
+        'theme_mode': 'dark',
+        'sb-project-ref-auth-token': '{"refresh_token":"secret"}',
+        'supabase.auth.token-code-verifier': 'pkce-secret',
+        'SUPABASE_PERSIST_SESSION_KEY': 'legacy-session',
+      });
 
-      final dbFile = File(p.join(docsDir.path, 'echo_loop.db'));
-      final db = AppDatabase(NativeDatabase(dbFile));
-      await db.customSelect('SELECT 1').get();
-
-      final asrFile = File(
-        p.join(tempDir.path, 'asr-models', 'small', 'model.onnx'),
-      );
-      final ttsFile = File(
-        p.join(tempDir.path, 'tts-models', 'voice', 'model.onnx'),
-      );
-      final dictFile = File(
-        p.join(tempDir.path, 'dictionary', 'en_zh', 'dict.sqlite'),
-      );
-      await asrFile.parent.create(recursive: true);
-      await ttsFile.parent.create(recursive: true);
-      await dictFile.parent.create(recursive: true);
-      await asrFile.writeAsBytes([1, 1, 1]);
-      await ttsFile.writeAsBytes([2, 2, 2]);
-      await dictFile.writeAsBytes([3, 3, 3]);
-
-      final backupPath = await BackupService(db).exportData(
+      final backupPath = await service.exportData(
         outputDir: outputDir.path,
-        appVersion: '1.0.25',
-        platform: 'macos',
+        appVersion: '1.0.0',
+        platform: 'ios',
+      );
+      final decoded = _decodeStreaming(backupPath);
+      addTearDown(decoded.close);
+      final manifest = BackupManifest.fromJson(
+        jsonDecode(
+              utf8.decode(decoded.archive.findFile('manifest.json')!.content),
+            )
+            as Map<String, Object?>,
+      );
+      final settings =
+          jsonDecode(
+                utf8.decode(decoded.archive.findFile('settings.json')!.content),
+              )
+              as Map<String, Object?>;
+
+      expect(manifest.appUpdateMigrationVersion, 4);
+      expect(settings, containsPair('theme_mode', 'dark'));
+      expect(settings, isNot(contains(appUpdateMigrationVersionKey)));
+      expect(settings, isNot(contains('sb-project-ref-auth-token')));
+      expect(settings, isNot(contains('supabase.auth.token-code-verifier')));
+      expect(settings, isNot(contains('SUPABASE_PERSIST_SESSION_KEY')));
+    });
+
+    test('恢复时从 manifest 版本继续执行应用迁移', () async {
+      SharedPreferences.setMockInitialValues({appUpdateMigrationVersionKey: 4});
+      final backupPath = await service.exportData(
+        outputDir: outputDir.path,
+        appVersion: '1.0.0',
+        platform: 'ios',
+      );
+      SharedPreferences.setMockInitialValues({
+        appUpdateMigrationVersionKey: currentAppUpdateMigrationVersion,
+      });
+      int? restoredFromVersion;
+      service = BackupService(
+        database,
+        restoredAppUpdateMigrator: (preferences, fromVersion) async {
+          restoredFromVersion = fromVersion;
+          await preferences.setInt(
+            appUpdateMigrationVersionKey,
+            currentAppUpdateMigrationVersion,
+          );
+        },
       );
 
-      await db.close();
+      final prepared = await service.prepareImport(zipPath: backupPath);
+      addTearDown(prepared.dispose);
+      await database.close();
+      databaseClosed = true;
+      final applied = await service.applyPreparedImport(prepared);
+      addTearDown(applied.rollback);
 
-      await asrFile.writeAsBytes([9, 9, 9]);
-      await ttsFile.writeAsBytes([8, 8, 8]);
-      await dictFile.writeAsBytes([7, 7, 7]);
+      expect(restoredFromVersion, 4);
+      final preferences = await SharedPreferences.getInstance();
+      expect(
+        preferences.getInt(appUpdateMigrationVersionKey),
+        currentAppUpdateMigrationVersion,
+      );
+    });
 
-      final importDb = AppDatabase(NativeDatabase(dbFile));
-      addTearDown(importDb.close);
-      await BackupService(importDb).importData(zipPath: backupPath);
+    test('恢复旧 schema 数据库后 Drift 自动迁移到当前版本', () async {
+      final snapshot = File(p.join(root.path, 'schema_50.sqlite'));
+      await database.createBackupSnapshot(snapshot);
+      final raw = sqlite.sqlite3.open(snapshot.path);
+      raw.execute('PRAGMA user_version = 50');
+      raw.dispose();
+      final hash = await sha256.bind(snapshot.openRead()).first;
+      final backup = File(p.join(outputDir.path, 'schema_50.elbak'));
+      _writeZip(backup.path, [
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode(
+            BackupManifest(
+              version: 3,
+              appVersion: '1.0.0',
+              schemaVersion: 50,
+              appUpdateMigrationVersion: currentAppUpdateMigrationVersion,
+              createdAt: DateTime.utc(2026, 8, 30),
+              platform: 'test',
+              dbSha256: hash.toString(),
+              mediaFileCount: 0,
+              totalSizeBytes: await snapshot.length(),
+            ).toJson(),
+          ),
+        )..compression = CompressionType.none,
+        ArchiveFile.stream('database.sqlite', InputFileStream(snapshot.path))
+          ..compression = CompressionType.none,
+        ArchiveFile.string('settings.json', '{}')
+          ..compression = CompressionType.none,
+      ]);
 
-      expect(await asrFile.readAsBytes(), [9, 9, 9]);
-      expect(await ttsFile.readAsBytes(), [8, 8, 8]);
-      expect(await dictFile.readAsBytes(), [3, 3, 3]);
+      final prepared = await service.prepareImport(zipPath: backup.path);
+      addTearDown(prepared.dispose);
+      await database.close();
+      databaseClosed = true;
+      final applied = await service.applyPreparedImport(prepared);
+      final restored = AppDatabase(
+        NativeDatabase(File(p.join(dataDir.path, 'echo_loop.db'))),
+      );
+      final version = await restored
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+
+      expect(
+        version.read<int>('user_version'),
+        AppDatabase.currentSchemaVersion,
+      );
+      await restored.close();
+      await applied.commit();
+    });
+
+    test('缺失的数据库媒体引用被静默跳过', () async {
+      await _insertAudio(
+        database,
+        id: 'missing',
+        name: 'Missing',
+        path: 'audios/missing.m4a',
+      );
+
+      final backupPath = await service.exportData(
+        outputDir: outputDir.path,
+        appVersion: '1.0.0',
+        platform: 'android',
+      );
+      final decoded = _decodeStreaming(backupPath);
+      addTearDown(decoded.close);
+
+      expect(decoded.archive.findFile('media/audios/missing.m4a'), isNull);
+      expect((await service.readManifest(backupPath)).mediaFileCount, 0);
+    });
+
+    for (final fixture in [
+      (version: 1, compression: CompressionType.deflate),
+      (version: 2, compression: CompressionType.none),
+    ]) {
+      test('兼容 v${fixture.version} ${fixture.compression.name} 恢复', () async {
+        await _insertAudio(
+          database,
+          id: 'legacy',
+          name: 'Legacy Backup',
+          path: 'audios/legacy.m4a',
+        );
+        final media = File(p.join(dataDir.path, 'audios/legacy.m4a'));
+        await media.parent.create(recursive: true);
+        await media.writeAsBytes([1, 2, 3]);
+        final legacyBackup = await _createLegacyBackup(
+          root: root,
+          database: database,
+          media: media,
+          version: fixture.version,
+          compression: fixture.compression,
+          includeDictionary: fixture.version >= 2,
+        );
+
+        await database.customStatement(
+          "UPDATE audio_items SET name = 'Current Data' WHERE id = 'legacy'",
+        );
+        await media.writeAsBytes([9, 9, 9]);
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.setString(
+          'sb-project-ref-auth-token',
+          'current-session',
+        );
+        await preferences.setString(
+          'supabase.auth.token-code-verifier',
+          'current-pkce',
+        );
+        final currentDictionary = File(
+          p.join(root.path, 'dictionary', 'legacy', 'dict.sqlite'),
+        );
+        await currentDictionary.parent.create(recursive: true);
+        await currentDictionary.writeAsBytes([9, 9, 9]);
+
+        final prepared = await service.prepareImport(
+          zipPath: legacyBackup.path,
+        );
+        addTearDown(prepared.dispose);
+        await database.close();
+        databaseClosed = true;
+        final applied = await service.applyPreparedImport(prepared);
+
+        final restoredDb = AppDatabase(
+          NativeDatabase(File(p.join(dataDir.path, 'echo_loop.db'))),
+        );
+        final row = await restoredDb
+            .customSelect("SELECT name FROM audio_items WHERE id = 'legacy'")
+            .getSingle();
+        expect(row.read<String>('name'), 'Legacy Backup');
+        await restoredDb.close();
+        await applied.commit();
+        expect(await media.readAsBytes(), [1, 2, 3]);
+        expect(
+          preferences.getString('sb-project-ref-auth-token'),
+          'current-session',
+        );
+        expect(
+          preferences.getString('supabase.auth.token-code-verifier'),
+          'current-pkce',
+        );
+
+        if (fixture.version == 2) {
+          expect(await currentDictionary.readAsBytes(), [9, 9, 9]);
+        }
+      });
+    }
+
+    test('恢复会话回滚数据库、媒体和设置且不修改词典', () async {
+      await _insertAudio(
+        database,
+        id: 'rollback',
+        name: 'Backup Data',
+        path: 'audios/rollback.m4a',
+      );
+      final media = File(p.join(dataDir.path, 'audios/rollback.m4a'));
+      await media.parent.create(recursive: true);
+      await media.writeAsBytes([1, 1, 1]);
+      final dictionary = File(
+        p.join(root.path, 'dictionary', 'main', 'dict.sqlite'),
+      );
+      await dictionary.parent.create(recursive: true);
+      await dictionary.writeAsBytes([2, 2, 2]);
+      SharedPreferences.setMockInitialValues({
+        'theme_mode': 'backup',
+        appUpdateMigrationVersionKey: 4,
+      });
+      final backupPath = await service.exportData(
+        outputDir: outputDir.path,
+        appVersion: '1.0.0',
+        platform: 'ios',
+      );
+
+      await database.customStatement(
+        "UPDATE audio_items SET name = 'Current Data' WHERE id = 'rollback'",
+      );
+      await media.writeAsBytes([9, 9, 9]);
+      await dictionary.writeAsBytes([8, 8, 8]);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('theme_mode', 'current');
+      await prefs.setInt(appUpdateMigrationVersionKey, 7);
+
+      final prepared = await service.prepareImport(zipPath: backupPath);
+      addTearDown(prepared.dispose);
+      await database.close();
+      databaseClosed = true;
+      final applied = await service.applyPreparedImport(prepared);
+      await applied.rollback();
+
+      final restoredCurrent = AppDatabase(
+        NativeDatabase(File(p.join(dataDir.path, 'echo_loop.db'))),
+      );
+      final row = await restoredCurrent
+          .customSelect("SELECT name FROM audio_items WHERE id = 'rollback'")
+          .getSingle();
+      expect(row.read<String>('name'), 'Current Data');
+      expect(await media.readAsBytes(), [9, 9, 9]);
+      expect(await dictionary.readAsBytes(), [8, 8, 8]);
+      expect(prefs.getString('theme_mode'), 'current');
+      expect(prefs.getInt(appUpdateMigrationVersionKey), 7);
+      expect(
+        dataDir.listSync().whereType<Directory>().where(
+          (dir) => p.basename(dir.path).startsWith('.backup_restore_rollback_'),
+        ),
+        isEmpty,
+      );
+      await restoredCurrent.close();
+    });
+
+    test('媒体 entry 损坏时自动回滚已保护的数据', () async {
+      await _insertAudio(
+        database,
+        id: 'corrupt-media',
+        name: 'Backup Data',
+        path: 'audios/corrupt.m4a',
+      );
+      final media = File(p.join(dataDir.path, 'audios/corrupt.m4a'));
+      await media.parent.create(recursive: true);
+      await media.writeAsBytes([1, 2, 3, 4]);
+      final backupPath = await service.exportData(
+        outputDir: outputDir.path,
+        appVersion: '1.0.0',
+        platform: 'ios',
+      );
+      _corruptStoredEntry(backupPath, 'media/audios/corrupt.m4a');
+
+      await database.customStatement(
+        "UPDATE audio_items SET name = 'Current Data' "
+        "WHERE id = 'corrupt-media'",
+      );
+      await media.writeAsBytes([9, 9, 9, 9]);
+
+      final prepared = await service.prepareImport(zipPath: backupPath);
+      addTearDown(prepared.dispose);
+      await database.close();
+      databaseClosed = true;
+
+      await expectLater(
+        service.applyPreparedImport(prepared),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            BackupFailureCode.corruptedArchive,
+          ),
+        ),
+      );
+
+      final restoredCurrent = AppDatabase(
+        NativeDatabase(File(p.join(dataDir.path, 'echo_loop.db'))),
+      );
+      final row = await restoredCurrent
+          .customSelect(
+            "SELECT name FROM audio_items WHERE id = 'corrupt-media'",
+          )
+          .getSingle();
+      expect(row.read<String>('name'), 'Current Data');
+      expect(await media.readAsBytes(), [9, 9, 9, 9]);
+      await restoredCurrent.close();
+    });
+
+    test('数据库哈希错误在关闭当前数据库前失败', () async {
+      await _insertAudio(
+        database,
+        id: 'safe',
+        name: 'Safe',
+        path: 'audios/safe.m4a',
+      );
+      final media = File(p.join(dataDir.path, 'audios/safe.m4a'));
+      await media.parent.create(recursive: true);
+      await media.writeAsBytes([7]);
+      final backup = await _createLegacyBackup(
+        root: root,
+        database: database,
+        media: media,
+        version: 1,
+        compression: CompressionType.none,
+        dbHashOverride: 'bad-hash',
+      );
+
+      await expectLater(
+        service.prepareImport(zipPath: backup.path),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            BackupFailureCode.corruptedArchive,
+          ),
+        ),
+      );
+      expect(await database.customSelect('SELECT 1').getSingle(), isNotNull);
+      expect(await media.readAsBytes(), [7]);
+    });
+
+    test('readManifest 不读取大型 Store 媒体到内存', () async {
+      final largeFile = File(p.join(root.path, 'large.m4a'));
+      final random = await largeFile.open(mode: FileMode.write);
+      await random.truncate(16 * 1024 * 1024);
+      await random.close();
+      final backup = File(p.join(outputDir.path, 'large.elbak'));
+      _writeZip(backup.path, [
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode(_manifest(version: 3, dbSha256: 'unused').toJson()),
+        )..compression = CompressionType.none,
+        ArchiveFile.string('database.sqlite', 'unused')
+          ..compression = CompressionType.none,
+        ArchiveFile.string('settings.json', '{}')
+          ..compression = CompressionType.none,
+        ArchiveFile.stream(
+          'media/audios/large.m4a',
+          InputFileStream(largeFile.path),
+        )..compression = CompressionType.none,
+      ]);
+
+      final manifest = await service.readManifest(backup.path);
+
+      expect(manifest.version, 3);
+      expect(await backup.length(), greaterThan(16 * 1024 * 1024));
+    });
+
+    test('桌面保存通过文件流复制完整备份', () async {
+      final source = File(p.join(root.path, 'source.elbak'));
+      final handle = await source.open(mode: FileMode.write);
+      await handle.writeFrom(List<int>.generate(1024 * 1024, (i) => i % 251));
+      await handle.close();
+      final target = File(p.join(root.path, 'saved.elbak'));
+
+      await copyBackupFileStreaming(source.path, target.path);
+
+      expect(
+        await sha256.bind(source.openRead()).first,
+        await sha256.bind(target.openRead()).first,
+      );
+      expect(await target.length(), await source.length());
     });
   });
 
-  group('BackupException', () {
-    test('toString 包含 message', () {
-      const ex = BackupException('test error');
-      expect(ex.toString(), 'BackupException: test error');
-      expect(ex.message, 'test error');
+  group('BackupService ZIP 安全校验', () {
+    late Directory root;
+    late AppDatabase database;
+    late BackupService service;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('backup_security_test_');
+      database = AppDatabase(NativeDatabase.memory());
+      service = BackupService(database);
+    });
+
+    tearDown(() async {
+      await database.close();
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+
+    for (final unsafePath in [
+      '../outside',
+      '/absolute/path',
+      r'C:\absolute\path',
+      'media/../../secret',
+    ]) {
+      test('拒绝危险路径 $unsafePath', () async {
+        final backup = File(p.join(root.path, 'unsafe.elbak'));
+        _writeZip(backup.path, [ArchiveFile.string(unsafePath, 'bad')]);
+
+        await expectLater(
+          service.readManifest(backup.path),
+          throwsA(
+            isA<BackupException>().having(
+              (error) => error.code,
+              'code',
+              BackupFailureCode.unsafeArchive,
+            ),
+          ),
+        );
+      });
+    }
+
+    test('拒绝重复 entry', () async {
+      final backup = File(p.join(root.path, 'duplicate.elbak'));
+      _writeZip(backup.path, [
+        ArchiveFile.string('manifest.json', '{}'),
+        ArchiveFile.string('manifest.json', '{}'),
+      ]);
+
+      await expectLater(
+        service.readManifest(backup.path),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            BackupFailureCode.unsafeArchive,
+          ),
+        ),
+      );
+    });
+
+    test('拒绝符号链接 entry', () async {
+      final backup = File(p.join(root.path, 'symlink.elbak'));
+      final symlink = ArchiveFile.string('media/audios/link', '../outside')
+        ..mode = 0xa1ff;
+      _writeZip(backup.path, [symlink]);
+
+      await expectLater(
+        service.readManifest(backup.path),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            BackupFailureCode.unsafeArchive,
+          ),
+        ),
+      );
+    });
+
+    test('拒绝加密 entry', () async {
+      final backup = File(p.join(root.path, 'encrypted.elbak'));
+      _writeZip(backup.path, [
+        ArchiveFile.string('manifest.json', '{}'),
+      ], password: 'secret');
+
+      await expectLater(
+        service.readManifest(backup.path),
+        throwsA(
+          isA<BackupException>().having(
+            (error) => error.code,
+            'code',
+            BackupFailureCode.unsafeArchive,
+          ),
+        ),
+      );
     });
   });
+}
 
-  group('SharedPreferences 黑名单逻辑', () {
-    test('黑名单 key 应被排除', () {
-      const blacklist = {
-        'demo_mode',
-        'developer_time_machine_at_ms',
-        'anonymous_id',
-        'unlock_all_reviews',
-      };
-      const prefixBlacklist = ['app_update_'];
+Future<void> _insertAudio(
+  AppDatabase database, {
+  required String id,
+  required String name,
+  required String path,
+}) {
+  final now = DateTime.utc(2026, 8, 30);
+  return database
+      .into(database.audioItems)
+      .insert(
+        AudioItemsCompanion.insert(
+          id: id,
+          name: name,
+          addedDate: now,
+          updatedAt: now,
+          audioPath: Value(path),
+        ),
+      );
+}
 
-      bool shouldExclude(String key) {
-        if (blacklist.contains(key)) return true;
-        if (prefixBlacklist.any((p) => key.startsWith(p))) return true;
-        if (key == 'geo_country') return true;
-        return false;
-      }
+Future<File> _createLegacyBackup({
+  required Directory root,
+  required AppDatabase database,
+  required File media,
+  required int version,
+  required CompressionType compression,
+  bool includeDictionary = false,
+  String? dbHashOverride,
+}) async {
+  final snapshot = File(
+    p.join(root.path, 'legacy_snapshot_${version}_${compression.name}.sqlite'),
+  );
+  await database.createBackupSnapshot(snapshot);
+  final hash = await sha256.bind(snapshot.openRead()).first;
+  final backup = File(
+    p.join(root.path, 'legacy_${version}_${compression.name}.elbak'),
+  );
+  final entries = <ArchiveFile>[
+    ArchiveFile.string(
+      'manifest.json',
+      jsonEncode(
+        _manifest(
+          version: version,
+          dbSha256: dbHashOverride ?? hash.toString(),
+        ).toJson(),
+      ),
+    )..compression = compression,
+    ArchiveFile.stream('echo_loop.db', InputFileStream(snapshot.path))
+      ..compression = compression,
+    ArchiveFile.string(
+      'preferences.json',
+      jsonEncode({
+        'theme_mode': 'legacy',
+        'sb-project-ref-auth-token': 'backup-session',
+        'supabase.auth.token-code-verifier': 'backup-pkce',
+      }),
+    )..compression = compression,
+    ArchiveFile.stream('media/audios/legacy.m4a', InputFileStream(media.path))
+      ..compression = compression,
+  ];
+  if (includeDictionary) {
+    entries.add(
+      ArchiveFile.bytes('resources/dictionary/legacy/dict.sqlite', [4, 5, 6])
+        ..compression = compression,
+    );
+  }
+  _writeZip(backup.path, entries);
+  return backup;
+}
 
-      // 应排除
-      expect(shouldExclude('demo_mode'), isTrue);
-      expect(shouldExclude('anonymous_id'), isTrue);
-      expect(shouldExclude('app_update_last_check'), isTrue);
-      expect(shouldExclude('geo_country'), isTrue);
+BackupManifest _manifest({required int version, required String dbSha256}) {
+  return BackupManifest(
+    version: version,
+    appVersion: '1.0.0',
+    schemaVersion: AppDatabase.currentSchemaVersion,
+    createdAt: DateTime.utc(2026, 8, 30),
+    platform: 'test',
+    dbSha256: dbSha256,
+    mediaFileCount: 1,
+    totalSizeBytes: 1,
+  );
+}
 
-      // 不应排除
-      expect(shouldExclude('theme_mode'), isFalse);
-      expect(shouldExclude('locale'), isFalse);
-      expect(shouldExclude('playback_settings'), isFalse);
-      expect(shouldExclude('reminder_settings'), isFalse);
-    });
-  });
+void _writeZip(String path, List<ArchiveFile> entries, {String? password}) {
+  final output = OutputFileStream(path);
+  final encoder = ZipEncoder(password: password)..startEncode(output);
+  for (final entry in entries) {
+    encoder.add(entry);
+  }
+  encoder.endEncode();
+  output.closeSync();
+}
+
+void _corruptStoredEntry(String path, String entryName) {
+  final bytes = File(path).readAsBytesSync();
+  final input = InputMemoryStream(bytes);
+  final directory = ZipDirectory()..read(input);
+  final header = directory.fileHeaders.firstWhere(
+    (candidate) => candidate.filename == entryName,
+  );
+  final localHeader = InputMemoryStream(bytes)
+    ..setPosition(header.localHeaderOffset + 26);
+  final filenameLength = localHeader.readUint16();
+  final extraLength = localHeader.readUint16();
+  final payloadOffset =
+      header.localHeaderOffset + 30 + filenameLength + extraLength;
+  bytes[payloadOffset] ^= 0xff;
+  File(path).writeAsBytesSync(bytes);
+}
+
+({Archive archive, void Function() close}) _decodeStreaming(String path) {
+  final input = InputFileStream(path);
+  final archive = ZipDecoder().decodeStream(input);
+  return (
+    archive: archive,
+    close: () {
+      archive.clearSync();
+      input.closeSync();
+    },
+  );
 }

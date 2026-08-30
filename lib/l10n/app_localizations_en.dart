@@ -3346,6 +3346,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportSuccess => 'Export complete';
 
   @override
+  String get downloadSuccess => 'Download complete';
+
+  @override
   String get importSuccess => 'Import complete';
 
   @override

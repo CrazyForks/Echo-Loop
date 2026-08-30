@@ -3204,6 +3204,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportSuccess => '导出完成';
 
   @override
+  String get downloadSuccess => '下载完成';
+
+  @override
   String get importSuccess => '导入完成';
 
   @override

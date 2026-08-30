@@ -16,6 +16,7 @@ import '../providers/backup_provider.dart';
 import '../services/backup/backup_constants.dart';
 import '../services/backup/backup_manifest.dart';
 import '../services/backup/backup_progress.dart';
+import '../services/backup/backup_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/file_size.dart';
 
@@ -31,6 +32,7 @@ class BackupRestoreScreen extends ConsumerStatefulWidget {
 class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
   String? _temporaryBackupPath;
   bool _busy = false;
+  bool _closingBackupReadyDialog = false;
 
   /// 用户下载目录路径（用于文件选择器默认打开目录）。
   static String? get _downloadsDirectory {
@@ -59,6 +61,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     try {
       final oldPath = _temporaryBackupPath;
       if (oldPath != null) await _deleteFile(oldPath);
+      _closingBackupReadyDialog = false;
       final path = await performExport(
         ref,
         onProgress: (value) => progress.value = value,
@@ -103,8 +106,20 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     final BackupManifest manifest;
     try {
       manifest = await readBackupManifest(ref, path);
+    } on BackupException catch (error) {
+      if (mounted) {
+        final message = switch (error.code) {
+          BackupFailureCode.unsupportedVersion ||
+          BackupFailureCode.incompatibleVersion => l10n.importIncompatible,
+          _ => l10n.importInvalidFile,
+        };
+        _showError(message);
+      }
+      return;
     } catch (_) {
-      if (mounted) _showError(l10n.importInvalidFile);
+      if (mounted) {
+        _showError(l10n.importInvalidFile);
+      }
       return;
     }
     if (manifest.schemaVersion > AppDatabase.currentSchemaVersion) {
@@ -119,10 +134,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         final theme = Theme.of(dialogContext);
         final colorScheme = theme.colorScheme;
         return AlertDialog(
-          icon: Icon(
-            Icons.warning_amber_rounded,
-            color: colorScheme.error,
-          ),
+          icon: Icon(Icons.warning_amber_rounded, color: colorScheme.error),
           title: Text(l10n.restoreOverwriteTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -280,125 +292,25 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     try {
       await showDialog<void>(
         context: context,
+        barrierDismissible: false,
         builder: (dialogContext) {
-          final theme = Theme.of(dialogContext);
-          final colorScheme = theme.colorScheme;
-          return AlertDialog(
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.l,
-              vertical: AppSpacing.xl,
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(
-              AppSpacing.m,
-              AppSpacing.xl,
-              AppSpacing.m,
-              AppSpacing.l,
-            ),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.check_circle_rounded,
-                    size: 40,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(height: AppSpacing.m),
-                  Text(
-                    l10n.backupReadyTitle,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.l),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.5,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s,
-                        vertical: AppSpacing.l,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildInfoItem(
-                            context,
-                            label: l10n.backupFileName,
-                            value: fileName,
-                          ),
-                          const SizedBox(height: AppSpacing.m),
-                          _buildInfoItem(
-                            context,
-                            label: l10n.backupSize,
-                            value: size,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.l),
-                  ValueListenableBuilder<String?>(
-                    valueListenable: downloadFeedback,
-                    builder: (_, value, __) {
-                      if (value == null) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.m),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.m,
-                              vertical: AppSpacing.s,
-                            ),
-                            child: Text(
-                              value,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(CupertinoIcons.arrow_down_to_line),
-                          label: Text(l10n.download),
-                          onPressed: () => unawaited(
-                            _download(path, feedback: downloadFeedback),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.m),
-                      Expanded(
-                        child: FilledButton.icon(
-                          icon: Icon(
-                            Platform.isIOS || Platform.isMacOS
-                                ? CupertinoIcons.share
-                                : Icons.share_outlined,
-                          ),
-                          label: Text(l10n.pdfShare),
-                          onPressed: () => unawaited(_share(path)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          return BackupReadyDialog(
+            title: l10n.backupReadyTitle,
+            fileNameLabel: l10n.backupFileName,
+            fileName: fileName,
+            sizeLabel: l10n.backupSize,
+            size: size,
+            supportsDesktopSave: _supportsDesktopSave,
+            downloadLabel: l10n.download,
+            shareLabel: l10n.pdfShare,
+            downloadFeedback: downloadFeedback,
+            shareIcon: Platform.isIOS || Platform.isMacOS
+                ? CupertinoIcons.share
+                : Icons.share_outlined,
+            onClose: () => unawaited(_closeBackupReadyDialog(dialogContext)),
+            onDownload: () =>
+                unawaited(_download(path, feedback: downloadFeedback)),
+            onShare: () => unawaited(_share(path)),
           );
         },
       );
@@ -407,57 +319,34 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     }
   }
 
-  Widget _buildInfoItem(
-    BuildContext context, {
-    required String label,
-    required String value,
-  }) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 56,
-          child: Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s),
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge,
-          ),
-        ),
-      ],
-    );
+  /// 关闭完成弹窗时立即释放临时备份，避免连续备份留下旧文件。
+  Future<void> _closeBackupReadyDialog(BuildContext dialogContext) async {
+    if (_closingBackupReadyDialog) return;
+    _closingBackupReadyDialog = true;
+    final path = _temporaryBackupPath;
+    _temporaryBackupPath = null;
+    if (path != null) await _deleteFile(path);
+    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
   }
 
-  Future<void> _download(String path, {ValueNotifier<String?>? feedback}) async {
+  Future<void> _download(
+    String path, {
+    ValueNotifier<String?>? feedback,
+  }) async {
     final l10n = AppLocalizations.of(context)!;
     final file = File(path);
     final name = file.uri.pathSegments.last;
-    final bytes = await file.readAsBytes();
     final savePath = await FilePicker.platform.saveFile(
       dialogTitle: l10n.backupAndRestore,
       fileName: name,
       initialDirectory: _downloadsDirectory,
-      bytes: bytes,
       type: FileType.custom,
       allowedExtensions: [backupFileExtension],
     );
     if (savePath == null) return;
-    if (!Platform.isIOS && !Platform.isAndroid) {
-      await File(savePath).writeAsBytes(bytes);
-    }
+    await copyBackupFileStreaming(file.path, savePath);
     if (feedback == null) return;
-    feedback.value = l10n.exportSuccess;
-    unawaited(_clearDialogFeedback(feedback, l10n.exportSuccess));
+    feedback.value = l10n.downloadSuccess;
   }
 
   Future<void> _share(String path) async {
@@ -471,6 +360,10 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
           : box.localToGlobal(Offset.zero) & box.size,
     );
   }
+
+  /// 移动端 file_picker 保存接口要求整包 bytes，因此只开放系统分享。
+  bool get _supportsDesktopSave =>
+      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
   Widget _manifestRow(String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
@@ -519,16 +412,6 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     } catch (_) {}
   }
 
-  static Future<void> _clearDialogFeedback(
-    ValueNotifier<String?> feedback,
-    String expectedValue,
-  ) async {
-    await Future<void>.delayed(const Duration(seconds: 5));
-    if (feedback.value == expectedValue) {
-      feedback.value = null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -560,6 +443,208 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 备份完成提示弹窗。
+///
+/// 弹窗必须通过右上角关闭按钮退出，关闭按钮由调用方负责释放临时文件。
+class BackupReadyDialog extends StatelessWidget {
+  const BackupReadyDialog({
+    required this.title,
+    required this.fileNameLabel,
+    required this.fileName,
+    required this.sizeLabel,
+    required this.size,
+    required this.supportsDesktopSave,
+    required this.downloadLabel,
+    required this.shareLabel,
+    required this.downloadFeedback,
+    required this.shareIcon,
+    required this.onClose,
+    required this.onDownload,
+    required this.onShare,
+    super.key,
+  });
+
+  final String title;
+  final String fileNameLabel;
+  final String fileName;
+  final String sizeLabel;
+  final String size;
+  final bool supportsDesktopSave;
+  final String downloadLabel;
+  final String shareLabel;
+  final ValueNotifier<String?> downloadFeedback;
+  final IconData shareIcon;
+  final VoidCallback onClose;
+  final VoidCallback onDownload;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) onClose();
+      },
+      child: AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.l,
+          vertical: AppSpacing.xl,
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.m,
+          AppSpacing.xl,
+          AppSpacing.m,
+          AppSpacing.l,
+        ),
+        titlePadding: EdgeInsets.zero,
+        title: Padding(
+          padding: const EdgeInsets.only(top: 8, right: 12),
+          child: Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close, size: 20),
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(32, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+            ),
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(
+                Icons.check_circle_rounded,
+                size: 40,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(height: AppSpacing.m),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall,
+              ),
+              const SizedBox(height: AppSpacing.l),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s,
+                    vertical: AppSpacing.l,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _infoItem(context, fileNameLabel, fileName),
+                      const SizedBox(height: AppSpacing.m),
+                      _infoItem(context, sizeLabel, size),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.l),
+              ValueListenableBuilder<String?>(
+                valueListenable: downloadFeedback,
+                builder: (_, value, __) {
+                  if (value == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.m),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.m,
+                          vertical: AppSpacing.s,
+                        ),
+                        child: Text(
+                          value,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (supportsDesktopSave)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(CupertinoIcons.arrow_down_to_line),
+                        label: Text(downloadLabel),
+                        onPressed: onDownload,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.m),
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: Icon(shareIcon),
+                        label: Text(shareLabel),
+                        onPressed: onShare,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                FilledButton.icon(
+                  icon: Icon(shareIcon),
+                  label: Text(shareLabel),
+                  onPressed: onShare,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoItem(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge,
+          ),
+        ),
+      ],
     );
   }
 }

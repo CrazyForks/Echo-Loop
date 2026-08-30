@@ -5858,6 +5858,12 @@ abstract class AppLocalizations {
   /// **'Export complete'**
   String get exportSuccess;
 
+  /// No description provided for @downloadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete'**
+  String get downloadSuccess;
+
   /// No description provided for @importSuccess.
   ///
   /// In en, this message translates to:
