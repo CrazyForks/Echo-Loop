@@ -431,10 +431,50 @@ void main() {
     expect(find.text('All done for now!'), findsOneWidget);
 
     // 展开已完成区
-    expect(find.textContaining('Completed (1)'), findsOneWidget);
-    await tester.tap(find.textContaining('Completed (1)'));
+    expect(find.textContaining('Completed Materials (1)'), findsOneWidget);
+    await tester.tap(find.textContaining('Completed Materials (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Completed Audio'), findsOneWidget);
+    expect(find.byIcon(Icons.graphic_eq), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+  });
+
+  testWidgets('已完成视频显示视频图标且不叠加对钩', (tester) async {
+    final now = DateTime(2026, 2, 25, 12, 0);
+    final audioItems = [
+      AudioItem(
+        id: 'video-1',
+        name: 'Completed Video',
+        audioPath: 'videos/test.mp4',
+        addedDate: now,
+      ),
+    ];
+    final progressState = LearningProgressState(
+      progressMap: {
+        'video-1': LearningProgress(
+          audioItemId: 'video-1',
+          currentStage: LearningStage.completed,
+          currentSubStage: SubStageType.blindListen,
+          updatedAt: now,
+        ),
+      },
+    );
+
+    await tester.pumpWidget(
+      createTestWidget(
+        audioItems: audioItems,
+        progressState: progressState,
+        fixedNow: now,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Completed Materials (1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Completed Video'), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
   });
 
   testWidgets('有任务时不应出现 Hero Card（渐变大卡片）', (tester) async {

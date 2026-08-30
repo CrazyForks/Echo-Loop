@@ -2421,7 +2421,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String completedSection(int count) {
-    return 'Completed ($count)';
+    return 'Completed Materials ($count)';
   }
 
   @override

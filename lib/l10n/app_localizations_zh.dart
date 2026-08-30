@@ -2318,7 +2318,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String completedSection(int count) {
-    return '已完成 ($count)';
+    return '已学完的材料 ($count)';
   }
 
   @override

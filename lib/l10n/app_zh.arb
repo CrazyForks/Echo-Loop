@@ -1060,7 +1060,7 @@
   "upcomingReviews": "待解锁 ({count})",
   "upcomingReviewsSummary": "{count} 个复习任务将在稍后解锁",
   "firstStudySection": "首次学习 ({count})",
-  "completedSection": "已完成 ({count})",
+  "completedSection": "已学完的材料 ({count})",
   "noStudyTasks": "暂无学习任务",
   "noStudyTasksHint": "导入音频后即可开始学习。",
   "goToLibrary": "去导入音频",

@@ -615,25 +615,15 @@ class _CompletedSection extends ConsumerWidget {
             .map(
               (audio) => ListTile(
                 dense: true,
-                leading: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    MediaTypeIcon(
-                      isVideo:
-                          audioItems
-                              .where((item) => item.id == audio.audioId)
-                              .firstOrNull
-                              ?.isVideo ??
-                          false,
-                      size: 20,
-                      color: theme.colorScheme.primary,
-                    ),
-                    Icon(
-                      Icons.check_circle,
-                      size: 10,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
+                leading: MediaTypeIcon(
+                  isVideo:
+                      audioItems
+                          .where((item) => item.id == audio.audioId)
+                          .firstOrNull
+                          ?.isVideo ??
+                      false,
+                  size: 20,
+                  color: theme.colorScheme.primary,
                 ),
                 title: Text(audio.audioName),
                 contentPadding: EdgeInsets.zero,

@@ -1344,7 +1344,7 @@
   "@firstStudySection": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "completedSection": "Completed ({count})",
+  "completedSection": "Completed Materials ({count})",
   "@completedSection": {
     "placeholders": { "count": { "type": "int" } }
   },

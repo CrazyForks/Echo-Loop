@@ -4229,7 +4229,7 @@ abstract class AppLocalizations {
   /// No description provided for @completedSection.
   ///
   /// In en, this message translates to:
-  /// **'Completed ({count})'**
+  /// **'Completed Materials ({count})'**
   String completedSection(int count);
 
   /// No description provided for @noStudyTasks.

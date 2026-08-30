@@ -1,406 +1,140 @@
 <div align="right">
-  <a href="./README.en.md">English</a> | <strong>简体中文</strong>
+  <strong>简体中文</strong> | <a href="./README.en.md">English</a>
 </div>
 
 <div align="center">
   <img src="assets/icon/app-icon-1024-rounded.png" alt="Echo Loop" width="128" />
-
-  <h1>Echo Loop — 高效的英语听说训练 App</h1>
-
-  <p><strong>从此不必自己摸索怎么练好英语。</strong></p>
-
-  <p>盲听 · 精听 · 跟读 · 复述 · 复习，Echo Loop 按科学节奏推你走完。</p>
-
+  <h1>Echo Loop — 把一段英语真正练会</h1>
+  <p><strong>盲听 · 精听 · 跟读 · 复述 · 间隔复习</strong></p>
+  <p>一款围绕真实音频材料打造的英语听说训练 App，自动安排训练步骤，让听懂变成会说。</p>
   <p><sub><em>本项目由中央民族大学外国语学院 <a href="https://sfs.muc.edu.cn/info/1063/3729.htm">杨艳老师</a> 指导设计。</em></sub></p>
-
   <p>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License: AGPL-3.0" /></a>
-    <img src="https://img.shields.io/badge/Platform-iOS%20%C2%B7%20Android%20%C2%B7%20macOS%20%C2%B7%20Windows-brightgreen.svg" alt="Platform" />
+    <img src="https://img.shields.io/badge/Platform-iOS%20%C2%B7%20Android%20%C2%B7%20macOS-brightgreen.svg" alt="Platform" />
     <a href="https://github.com/echo-loop/Echo-Loop/releases/latest"><img src="https://img.shields.io/github/v/release/echo-loop/Echo-Loop?label=release&color=orange" alt="Latest release" /></a>
-    <a href="https://github.com/echo-loop/Echo-Loop/releases"><img src="https://img.shields.io/github/downloads/echo-loop/Echo-Loop/total?label=downloads" alt="Total release downloads" /></a>
     <a href="https://github.com/echo-loop/Echo-Loop/commits/main"><img src="https://img.shields.io/github/last-commit/echo-loop/Echo-Loop" alt="Last commit" /></a>
   </p>
-
-  <p>
-    <a href="https://trendshift.io/repositories/41519?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-41519" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/41519/weekly?language=Dart" alt="echo-loop%2FEcho-Loop | Trendshift" width="250" height="55" /></a>
-  </p>
-
   <p>
     <a href="https://apps.apple.com/app/id6760324074"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" /></a>
     <a href="https://play.google.com/store/apps/details?id=app.echoloop"><img src="assets/badges/google-play-en.png" alt="Get it on Google Play" height="40" /></a>
   </p>
 </div>
 
+> 🇨🇳 **中国区用户请注意**：中国区 App Store 正在申请 ICP 备案，应用暂时下架。中国大陆用户可切换到非中国区 Apple 账号下载安装 Echo Loop。
 
-> 🇨🇳 **中国区用户请注意**：中国区 App Store 正在申请 ICP 备案，应用暂时下架。中国大陆用户可切换到非中国区 Apple 账号（如美区、港区）下载安装 Echo Loop。备案完成后会恢复上架。
+## Echo Loop 是什么
 
----
+Echo Loop 把一段音频拆成可执行的学习任务：先完整盲听，再逐句精听、跟读和复述，最后按照记忆调度安排复习。你可以导入自己喜欢的播客、课程或视频，也可以直接使用官方合集；应用会保存学习进度、难句和收藏内容，帮助你把“听过”变成“听懂、说出、记住”。
 
-## 📖 Echo Loop 是什么
+主学习闭环免费，AI 能力和订阅只用于增强体验，不会阻断核心的播放与学习流程。
 
-**若英语听说也有一卷无上内功心法，Echo Loop 便是一部现代学习者的 E筋经**。这个 E，既是 Echo，也是 English，更是 Ear 与 Expression。它不传花拳绣腿，不教临场取巧，而是带你:
-
-- 先盲听入定，听出原声气息
-- 再精听通脉，打通语音、词义与句意经脉
-- 继而跟读运功，校准发音、节奏和语感
-- 再以复述出招，把听进去的英语化为自己口中自然流出的表达
-
-初练之后，八阶回环自成周天，间隔复习固本培元，难句与生词也在一次次回炉中融会贯通，化为己用。
-练到深处，听力不再靠猜，口语不再硬憋，真正生出一身可持续增长的英语听说内功。
-
-说得直白一点，Echo Loop 是一款科学高效的英语听说训练 App。它帮助你把一段音频从陌生练到真正听懂，再通过跟读和复述实现听说闭环，逐步练到脱口而出。系统会自动安排间隔复习和提醒，逐步推进训练节奏。你不用自己摸索方法，也不用手动控制流程，只需专注练习本身。
-
----
-
-## 📱 截图
+## 截图
 
 <table>
   <tr>
-    <td align="center"><img src="assets/screenshots/01-import.png" alt="导入音频" width="180" /><br/><sub>导入音频，开始练习</sub></td>
-    <td align="center"><img src="assets/screenshots/02-loop.png" alt="科学练习" width="180" /><br/><sub>科学练习，听说闭环</sub></td>
-    <td align="center"><img src="assets/screenshots/03-reminder.png" alt="自动提醒" width="180" /><br/><sub>自动提醒，进步可见</sub></td>
-    <td align="center"><img src="assets/screenshots/04-intensive.png" alt="逐句精听" width="180" /><br/><sub>逐句精听，难句标注</sub></td>
-    <td align="center"><img src="assets/screenshots/05-analysis.png" alt="意群划分" width="180" /><br/><sub>意群划分，难句解析</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="assets/screenshots/06-retell.png" alt="段落复述" width="180" /><br/><sub>段落复述，听懂变成会说</sub></td>
-    <td align="center"><img src="assets/screenshots/07-favorites.png" alt="难句收藏" width="180" /><br/><sub>难句收藏，熟中生巧</sub></td>
-    <td align="center"><img src="assets/screenshots/08-flashcard.png" alt="闪卡复习" width="180" /><br/><sub>闪卡复习，原句再现</sub></td>
-    <td align="center"><img src="assets/screenshots/09-freestyle.png" alt="自由练习" width="180" /><br/><sub>按你的节奏，自由练习</sub></td>
-    <td align="center"><img src="assets/icon/app-icon-1024-rounded.png" alt="Echo Loop" width="120" /></td>
+    <td align="center"><img src="assets/screenshots/01-import.png" alt="导入音频" width="180" /><br/><sub>导入音频</sub></td>
+    <td align="center"><img src="assets/screenshots/04-intensive.png" alt="逐句精听" width="180" /><br/><sub>逐句精听</sub></td>
+    <td align="center"><img src="assets/screenshots/05-analysis.png" alt="句子解析" width="180" /><br/><sub>句子解析</sub></td>
+    <td align="center"><img src="assets/screenshots/06-retell.png" alt="段落复述" width="180" /><br/><sub>段落复述</sub></td>
+    <td align="center"><img src="assets/screenshots/08-flashcard.png" alt="收藏复习" width="180" /><br/><sub>收藏复习</sub></td>
   </tr>
 </table>
 
----
+## 当前功能
 
-## ✨ 功能
+### 学习与播放
 
-- 🤖 **自动驱动学习节奏**：跟读次数、复习时机、难句标记自动推进，你只需要专注听和说。
-- 🎯 **听说闭环**：精听、跟读、复述一气呵成。从听懂内容，到模仿表达，再到用自己的话说出来。
-- 🧩 **长难句意群划分**：长句按意群切分，复杂句拆开理解，降低听懂难度。
-- ⭐ **难句收藏与专项复习**：难句自动归档，可集中跟读、反复重练，避免“标了就忘”。
-- 📚 **语境化闪卡复习**：收藏单词和意群，结合原句上下文复习，在语境中记忆，而不是孤立背词。
-- 💡 **AI 翻译、解析与词汇讲解**：支持双语翻译、句子解析、单词用法和搭配讲解，按需展开，不打断学习节奏。
-- 📍 **断点续学**：自动记录学习阶段和当前句子，下次打开直接继续，5 分钟碎片时间也能练。
-- 📊 **学习数据统计**：记录学习时长、输入输出比例、唯一词汇量，让练了多少、说了多少一目了然。
-- 🎙️ **跟读 AI 评测**：自动对齐识别结果与原文，高亮命中词，并给出跟读评级。
-- 🎧 **导入本地音频 + AI 字幕**：支持批量导入本地音频，可导入本地字幕，也可用 AI 自动转录生成字幕。
+- 支持本地音频和视频导入，批量导入字幕（SRT / VTT / LRC），也可使用 AI 转录生成字幕。
+- 全文盲听、逐句精听、难句跟读、段落复述、难句补练和自由练习。
+- 音频/视频播放、字幕同步、波形、单句/全文/收藏范围播放，以及后台播放和定时停止。
+- 支持字幕编辑、句子级时间轴、意群标注和学习材料整理。
+- 可浏览官方合集、Podcast 内容，也支持从百度网盘导入材料。
 
----
+### 收藏与间隔复习
 
-## 🤔 我们为什么做这个
+- 收藏句子、单词和意群，并在原句语境中复习。
+- 基于 FSRS 的收藏句复习和收藏词汇复习，支持评分、播放偏好和下次复习时间。
+- 复习统计包括今日复习、保持率、评分分布、30 天趋势、未来安排和连续复习。
+- 学习过程自动保存，支持断点续学、提醒和学习日历。
 
-很多人学英语时，最大的问题不是缺材料，而是不知道怎么把一段材料真正练透。
+### 词典、发音与 AI
 
-常见情况是：今天收藏一个播客，明天听一段演讲，材料越来越多，但真正认真练熟的内容很少。听的时候好像懂了，过几天又忘了，更不用说把里面的表达说出来。
+- 本地词典、离线发音、AI 词典和网页词典，可在不同来源之间切换。
+- AI 翻译、句子解析、单词深度解析和语境化词汇讲解。
+- 句子级多轮 AI 助手，支持流式回复、追问、引用当前句子和重新生成。
+- 平台 TTS 与 Kokoro / Piper 本地 TTS；支持离线 ASR 跟读评测和转录。
 
-这背后其实很符合人性：人天然喜欢新鲜、轻松、即时反馈强的东西，所以花哨的内容、游戏化激励和不断刷新的材料很容易让人上瘾。但对语言学习来说，真正有效的训练往往不是"不断换新材料"，而是对合适的材料进行重复、拆解、模仿和复述。过多的新鲜感反而会分散注意力，让学习停留在"看过、听过、收藏过"，而没有真正内化。
+### 数据与订阅
 
-另一个更隐蔽的问题是：即使知道正确的方法，也很难长期坚持。因为这些方法看起来简单，真正执行时却需要大量手动判断：今天练哪段、先听几遍、什么时候看字幕、哪些句子要反复跟读、什么时候开始复述、几天后再复习、复习时该练什么。每一步都要自己控制，最后学习本身还没开始，决策负担已经把心力耗尽了。
+- 学习材料可导出为可打印 PDF。
+- 支持本地备份与恢复，采用磁盘流式处理并保留失败回滚；备份不包含登录会话和可重新下载的资源。
+- 支持邮箱、Google 和 Apple 登录。
+- iOS / Android 使用原生应用内订阅；支持的其他渠道使用 Paddle。AI 使用量由后端统一裁决。
 
-**这些决策本身才是最消耗意志力的地方**：不是听不懂，是不知道下一步该做什么。
-
-Echo Loop 想做的，就是在不违背人性的前提下，用更科学的训练流程降低重复练习的执行成本。它把盲听、精听、跟读、复述和间隔复习串成一个自动推进的闭环：选一段你想听懂的音频，按下开始，从盲听到通关，每一步它都会告诉你"现在做什么"。
-
-你只需要坚持打开 App，剩下交给 Echo Loop。把一段材料练透，强过泛听 100 个音频。
-
----
-
-## 🆚 和其他方案的差异
-
-挑了四款国内学习者最熟的 App 对比。单看每一项功能，其它 App 也或多或少有；但 Echo Loop 真正的不同在于：**它把每一步串起来自动驱动你走完，你不需要自己摸索方法、控制遍数、掌握复习节奏。**
-
-| 功能 | Echo Loop | 每日英语听力 | 可可英语 | 英语流利说 | Anki |
-|---|---|---|---|---|---|
-| **学习节奏由 App 驱动** | ✅ 全自动 | ❌ | ❌ | ❌ | ❌ |
-| 听 → 说闭环（精听 + 跟读 + **复述**） | ✅ | ⚠️ 部分支持 | ⚠️ 部分支持 | ⚠️ 部分支持 | ❌ |
-| **长难句意群划分** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **收藏句专项复习** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **语境化闪卡复习** | ✅ | ❌ | ❌ | ❌ | ⚠️ 需手动建卡 |
-| AI 翻译 / 句子解析 / 单词深度解析 | ✅ | ⚠️ 部分支持 | ⚠️ 部分支持 | ❌ | ❌ |
-| **断点续学**| ✅ | ⚠️ 部分支持 | ⚠️ 部分支持 | ⚠️ 部分支持 | ⚠️ 部分支持 |
-| 学习数据：时长 / 输入输出比 / 唯一词汇量 | ✅ | ⚠️ 部分支持 | ⚠️ 部分支持 | ⚠️ 部分支持 | ❌ |
-| 跟读 AI 评测 | ✅ | ✅ | ✅ | ✅ | ❌ |
-| 导入本地音频 | ✅ | ✅ | ❌ | ❌ | ⚠️ 需自制卡片 |
-| 离线可用 | ✅ | ✅ | ✅ | ⚠️ 部分支持 | ✅ |
-| 开源 | ✅ | ❌ | ❌ | ❌ | ✅ |
-
----
-
-## 🧠 学习方法论
-
-**盲听 → 精听 → 跟读 → 复述 → 科学间隔复习 → 通关。**
+## 学习流程
 
 ```mermaid
 flowchart LR
-  A[盲听<br/>完整听一遍，感知整体难度] --> B[精听<br/>逐句听懂，标记重点难句]
-  B --> C[跟读<br/>模仿语音语调，训练发音能力]
-  C --> D[复述<br/>用自己的话表达，提升输出能力]
-  D --> E[间隔复习<br/>在遗忘前重练，巩固长期记忆]
-  E --> F[通关<br/>完成本轮学习任务]
+  A[盲听] --> B[逐句精听]
+  B --> C[难句跟读]
+  C --> D[段落复述]
+  D --> E[间隔复习]
+  E --> F[掌握]
 ```
 
-**以上每一步，由 Echo Loop 自动驱动，不需要你判断。**
+首次学习完成后，系统会按 6 小时、1 天、2 天、4 天、7 天、14 天、28 天的节奏安排后续复习。实际复习内容由学习状态和收藏内容决定。
 
-你不需要管"现在该听几遍"、"上次那个素材该不该复习了"。打开 App，今天该做什么会直接呈现在你眼前。
+## 下载
 
-学习全过程量化：**学习时长 · 输入输出比 · 唯一词汇量**。
+- [App Store](https://apps.apple.com/app/id6760324074)
+- [Google Play](https://play.google.com/store/apps/details?id=app.echoloop)
+- [Android APK / Releases](https://github.com/echo-loop/Echo-Loop/releases)
 
-<details>
-<summary><strong>间隔复习法是怎么安排的？</strong></summary>
+桌面端：macOS 持续开发；Windows 尚未正式发布；暂无 Web 版本。
 
-每段素材分成 1 次首次学习 + 7 轮间隔复习。间隔从 6 小时拉长到 28 天，让大脑在快要遗忘时重新触达记忆痕迹，符合艾宾浩斯遗忘曲线。
+## Roadmap
 
-| 阶段 | 距上次间隔 | 任务 |
-|---|---|---|
-| 首次学习 | — | 盲听 → 精听 → 跟读 → 段落复述 |
-| 首轮复习 | 6 小时后 | 难句补练 + 段落复述 |
-| 第二轮复习 | 1 天后 | 盲听 + 难句补练 + 段落复述 |
-| 第三轮复习 | 2 天后 | 盲听 + 难句补练 + 段落复述 |
-| 第四轮复习 | 4 天后 | 盲听 + 难句补练 + 段落复述 |
-| 第五轮复习 | 7 天后 | 盲听 + 难句补练 + 段落复述 |
-| 第六轮复习 | 14 天后 | 盲听 + 难句补练 + 段落复述 |
-| 第七轮复习 | 28 天后 | 盲听 + 难句补练 + 段落复述 |
+已完成的核心能力包括：学习闭环、收藏复习、官方合集、AI 翻译与解析、句子级 AI 助手、PDF 导出、订阅与 AI 配额、数据备份恢复，以及多平台播放和语音能力。
 
-</details>
+当前重点：
 
----
+- 修复部分 Android 设备结束离线 ASR 录音后的 native 闪退。
+- 继续完善段落复述的统一录音识别模块和跨平台发布验证。
+- 持续打磨启动性能、播放、词典、PDF、字幕编辑和订阅生产链路。
 
-## 📥 下载与试用
+详细计划见 [PLAN.md](./PLAN.md) 和 [TASKS.md](./TASKS.md)。
 
-<table>
-  <tr>
-    <td valign="middle">
-      <p>
-        <a href="https://apps.apple.com/app/id6760324074"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" height="48" /></a>
-        &nbsp;
-        <a href="https://play.google.com/store/apps/details?id=app.echoloop"><img src="assets/badges/google-play-en.png" alt="Get it on Google Play" height="40" /></a>
-        &nbsp;
-        <a href="https://github.com/echo-loop/Echo-Loop/releases"><img src="https://img.shields.io/badge/Android-下载%20APK-3DDC84?logo=android&logoColor=white&style=for-the-badge" alt="Android APK" height="48" /></a>
-      </p>
-      <p><sub>桌面端：macOS 开发中 · Windows 规划中 · Web 暂无计划</sub></p>
-    </td>
-    <td valign="middle" align="center" width="120">
-      <img src="assets/qr/app-store.png" alt="App Store 二维码" width="110" /><br/>
-      <sub>App Store</sub>
-    </td>
-    <td valign="middle" align="center" width="120">
-      <img src="assets/qr/google-play.png" alt="Google Play 二维码" width="110" /><br/>
-      <sub>Google Play</sub>
-    </td>
-  </tr>
-</table>
+## 社群
 
----
+- [加入 QQ 群](https://qm.qq.com/q/qmyXIv341q)
+- [微信联系我们](https://i.postimg.cc/P5tVpPTV/echo-loop-wecom.jpg)
+- [关注 B 站](https://space.bilibili.com/509449049/upload/video)
+- [关注小红书](https://xhslink.cn/m/4zOdGUcDH4N)
 
-## 💬 加入社群
-
-和其他认真练英语的伙伴一起：交流学习方法、分享学习资源、反馈使用体验、第一时间收到新功能更新。
-
-- [加入 QQ 群](https://qm.qq.com/q/qmyXIv341q)：和其他认真练英语的伙伴交流学习方法、分享学习资源。
-- [微信联系我们](https://i.postimg.cc/P5tVpPTV/echo-loop-wecom.jpg)：扫描二维码联系 Echo Loop。
-- [关注 B 站](https://space.bilibili.com/509449049/upload/video)：获取英语学习内容和功能更新。
-- [关注小红书](https://xhslink.cn/m/4zOdGUcDH4N)：获取使用技巧、功能更新和英语学习内容。
-
----
-
-## 🗺️ Roadmap
-
-### ✅ 1 · 核心功能
-
-- [x] 学习闭环：盲听 / 精听 / 跟读 / 段落复述
-- [x] 间隔复习调度（6h → 28d）
-- [x] 长难句意群划分
-- [x] 难句收藏 + 专项复习
-- [x] 语境化闪卡复习
-- [x] AI 翻译 / 句子解析
-- [x] iOS / macOS 原生 ASR 跟读评测
-- [x] 断点续学
-- [x] 学习数据统计
-
-### 🚧 2 · AI 能力
-
-- [ ] AI 口语陪练
-- [ ] AI 学习助手（随时答疑）
-- [ ] 单词深度解析
-- [ ] 个性化素材推荐
-
-### 🔭 3 · 体验与平台
-
-- [ ] 自定义任务流
-- [ ] 连胜激励 / 学习勋章
-- [ ] macOS / Windows 桌面版正式发布
-
-### 🔭 4 · 内容生态
-
-- [ ] 官方精选合集（按主题 + 难度分级）
-- [ ] 用户合集分享 / UGC 学习材料
-
----
-
-## ⭐ Star History
-
-<a href="https://www.star-history.com/?repos=echo-loop%2FEcho-Loop&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&theme=dark&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
- </picture>
-</a>
-
----
-
-## 🎓 学术指导 & 致谢
-
-**学术指导**
-
-感谢 [杨艳老师](https://sfs.muc.edu.cn/info/1063/3729.htm)（中央民族大学外国语学院；北京大学英语语言文学博士）对本项目方法论的指导。
-
-**核心依赖**
-
-- 音频与语音：[just_audio](https://pub.dev/packages/just_audio) · [audio_session](https://pub.dev/packages/audio_session) · [flutter_tts](https://pub.dev/packages/flutter_tts) · [sherpa_onnx](https://pub.dev/packages/sherpa_onnx)
-- 数据与状态：[drift](https://pub.dev/packages/drift) · [flutter_riverpod](https://pub.dev/packages/flutter_riverpod)
-- 文本处理：[subtitle](https://pub.dev/packages/subtitle) · [lemmatizerx](https://pub.dev/packages/lemmatizerx)
-- 系统能力：[file_picker](https://pub.dev/packages/file_picker) · [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)
-
----
-
-## 🧑‍💻 给开发者
-
-<details open>
-<summary><strong>🚀 快速开始</strong></summary>
+## 给开发者
 
 ```bash
 git clone git@github.com:echo-loop/Echo-Loop.git
 cd Echo-Loop
-cp .dev.env.template .dev.env   # 填入 Supabase / Google / API 地址等编译期变量
+cp .dev.env.template .dev.env
 flutter pub get
 dart run build_runner build
 flutter run -d <ios|android|macos> --dart-define-from-file=.dev.env
 ```
 
-> 编译期环境变量（`SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY`、`GOOGLE_WEB_CLIENT_ID`、`API_BASE_URL`）
-> 统一放在 `.dev.env`（调试）/ `.prod.env`（发布），通过 `--dart-define-from-file` 注入。
-> 这两个文件已被 `.gitignore`，请勿提交。`.prod.env` 用相同的键，把 `API_BASE_URL` 换成生产地址即可。
+编译期变量（`SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY`、`GOOGLE_WEB_CLIENT_ID`、`API_BASE_URL`）放在 `.dev.env` 或 `.prod.env` 中，通过 `--dart-define-from-file` 注入。环境文件已被 `.gitignore`，不要提交密钥。
 
-</details>
-
-<details>
-<summary><strong>🤝 如何贡献</strong></summary>
-
-欢迎提 Issue / PR。提交前请运行：
+提交前建议运行：
 
 ```bash
 flutter analyze
 flutter test
 ```
 
-Commit 标题遵循 `PREFIX: 内容` 格式（参考 `git log` 看常用前缀，如 FEAT / FIX / DOCS / MOD / OPT / CHORE / CI / RELEASE 等）。详细贡献流程见 [CONTRIBUTING.md](#)（待补）。本项目遵循 [Contributor Covenant](https://www.contributor-covenant.org/) 行为准则。
+## 技术栈
 
-</details>
+Flutter · Dart · Riverpod · Drift / SQLite · just_audio · media_kit · sherpa_onnx · Flutter TTS · Supabase · Firebase · PostHog · Material 3
 
-<details>
-<summary><strong>🛠️ 技术栈</strong></summary>
+## 许可证与致谢
 
-![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
-![Dart](https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=white)
-![Riverpod](https://img.shields.io/badge/Riverpod-1F2937?logo=flutter&logoColor=white)
-![Drift](https://img.shields.io/badge/Drift-SQLite-003B57?logo=sqlite&logoColor=white)
-![Material 3](https://img.shields.io/badge/Material-3-757575?logo=materialdesign&logoColor=white)
-
-| 类别 | 技术 | 用途 |
-|------|------|------|
-| UI 框架 | Flutter + Material 3 | 跨平台 UI |
-| 状态管理 | Riverpod（代码生成） | 单向数据流 |
-| 音频播放 | just_audio + audio_session | 音频引擎层 |
-| 字幕解析 | subtitle | SRT/VTT |
-| 文件选择 | file_picker | 本地音频/字幕导入 |
-| 数据持久化 | Drift (SQLite) + shared_preferences | 学习进度、收藏、缓存 |
-| 国际化 | flutter_localizations + ARB | 简体中文 / English |
-| 测试 | flutter_test + mocktail | 单元 / Widget / 集成 |
-| 静态分析 | flutter_lints | 代码规范 |
-
-</details>
-
-<details>
-<summary><strong>📁 项目结构</strong></summary>
-
-```
-lib/
-├── l10n/              # 国际化翻译文件（ARB 格式）
-├── models/            # 数据模型（AudioItem, Sentence, Collection 等）
-├── providers/         # Riverpod 状态管理
-│   ├── audio_engine/  # 音频引擎层（底层播放控制）
-│   └── listening_practice/  # 听力练习层（业务逻辑）
-│       ├── sentence_tracker.dart   # 句子定位（二分查找）
-│       └── bookmark_manager.dart   # 书签管理
-├── screens/           # 页面
-├── services/          # 服务层（StorageService, SubtitleParser）
-└── widgets/           # 可复用组件
-
-integration_test/      # 端到端测试
-test/                  # 单元 / Widget 测试
-```
-
-</details>
-
-<details>
-<summary><strong>⌨️ 开发命令速查</strong></summary>
-
-**运行**
-
-```bash
-flutter run -d ios            # iOS
-flutter run -d android        # Android
-flutter run -d macos          # macOS（开发中，未发布）
-flutter run -d chrome         # Web（仅调试用，无发布计划）
-
-# iOS 模拟器
-xcrun simctl list devices available
-xcrun simctl boot <DEVICE_UDID>
-open -a Simulator
-```
-
-**测试 / 质量检查**
-
-```bash
-flutter analyze                          # 静态分析
-flutter test                             # 全部测试
-flutter test integration_test -d macos   # 集成测试
-dart format .                            # 格式化
-```
-
-**代码生成**（修改 Riverpod Provider 后）
-
-```bash
-dart run build_runner build
-```
-
-**构建**
-
-```bash
-# 编译期变量从 env 文件注入（dev 用 .dev.env，发布用 .prod.env）
-flutter build macos --dart-define-from-file=.prod.env
-flutter build apk   --dart-define-from-file=.prod.env
-flutter build ios   --dart-define-from-file=.prod.env
-
-# 真机运行
-flutter run --release -d <DEVICE_ID> --dart-define-from-file=.dev.env
-```
-
-> 发布脚本 `scripts/run_simulator.sh`（读 `.dev.env`）、`scripts/release_{android,ios,macos}.sh`（读 `.prod.env`）
-> 已内置 `--dart-define-from-file`，无需手动传参。
-
-**环境要求**
-
-- Flutter SDK 3.9.2+
-- iOS 模拟器 / Android 模拟器 / 真机
-- 桌面端：macOS / Windows / Linux 开发环境
-
-</details>
-
----
-
-## 📄 License
-
-[AGPL-3.0](./LICENSE)
+本项目使用 [AGPL-3.0](./LICENSE) 许可证。感谢 [杨艳老师](https://sfs.muc.edu.cn/info/1063/3729.htm) 对项目学习方法论的指导。
