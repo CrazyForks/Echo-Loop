@@ -279,8 +279,9 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final savedWordDao = _MockSavedWordDao();
     when(savedWordDao.watchAll).thenAnswer((_) => const Stream.empty());
-    when(savedWordDao.watchSavedWordTexts)
-        .thenAnswer((_) => Stream<Set<String>>.value(const {}));
+    when(
+      savedWordDao.watchSavedWordTexts,
+    ).thenAnswer((_) => Stream<Set<String>>.value(const {}));
     when(() => savedWordDao.getByWord(any())).thenAnswer((_) async => null);
     when(() => savedWordDao.removeWord(any())).thenAnswer((_) async {});
     final router = GoRouter(
@@ -511,12 +512,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Sign in to use AI features'), findsOneWidget);
-    expect(
-      find.textContaining(
-        'AI translation, analysis, and sense group splitting',
-      ),
-      findsOneWidget,
-    );
 
     await tester.tap(find.text('Cancel'));
     await tester.pump();
@@ -784,9 +779,7 @@ void main() {
     when(
       savedSenseGroupDao.watchSavedPhraseTexts,
     ).thenAnswer((_) => savedTexts.stream);
-    when(
-      () => savedSenseGroupDao.getByPhraseText(any()),
-    ).thenAnswer(
+    when(() => savedSenseGroupDao.getByPhraseText(any())).thenAnswer(
       (_) async => SavedSenseGroup(
         id: 1,
         phraseText: 'hello world',
@@ -875,9 +868,11 @@ void main() {
     bookmark.onPressed!.call();
     await tester.pumpAndSettle();
     expect(
-      tester.widget<AnimatedBookmarkIcon>(
-        find.byKey(const Key('dict_panel_bookmark')),
-      ).isSaved,
+      tester
+          .widget<AnimatedBookmarkIcon>(
+            find.byKey(const Key('dict_panel_bookmark')),
+          )
+          .isSaved,
       isFalse,
     );
   });

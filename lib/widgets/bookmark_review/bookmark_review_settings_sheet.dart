@@ -229,11 +229,22 @@ class _BookmarkReviewSettingsSheetState
                     Column(
                       children: [
                         SwitchListTile(
+                          key: const Key(
+                            'favorite-review-show-vocabulary-on-front',
+                          ),
                           contentPadding: EdgeInsets.zero,
                           title: Text(l10n.autoShowAiExplanationToggle),
                           value: settings.autoShowAiLookup,
                           onChanged: (value) => notifier.update(
                             settings.copyWith(autoShowAiLookup: value),
+                          ),
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(l10n.favoriteReviewShowVocabularyOnFront),
+                          value: settings.showVocabularyOnFront,
+                          onChanged: (value) => notifier.update(
+                            settings.copyWith(showVocabularyOnFront: value),
                           ),
                         ),
                       ],

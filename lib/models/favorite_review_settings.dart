@@ -13,6 +13,7 @@ class FavoriteReviewSettings {
     this.autoPlayFront = true,
     this.autoPlayBack = true,
     this.autoShowAiLookup = false,
+    this.showVocabularyOnFront = false,
     this.order = FavoriteReviewOrder.smart,
   });
 
@@ -27,6 +28,9 @@ class FavoriteReviewSettings {
   /// 收藏词汇翻面时是否自动展示 AI 查词结果。
   final bool autoShowAiLookup;
 
+  /// 收藏词汇复习正面是否显示当前词汇。
+  final bool showVocabularyOnFront;
+
   final FavoriteReviewOrder order;
 
   FavoriteReviewSettings copyWith({
@@ -34,12 +38,14 @@ class FavoriteReviewSettings {
     bool? autoPlayFront,
     bool? autoPlayBack,
     bool? autoShowAiLookup,
+    bool? showVocabularyOnFront,
     FavoriteReviewOrder? order,
   }) => FavoriteReviewSettings(
     showNextReviewTime: showNextReviewTime ?? this.showNextReviewTime,
     autoPlayFront: autoPlayFront ?? this.autoPlayFront,
     autoPlayBack: autoPlayBack ?? this.autoPlayBack,
     autoShowAiLookup: autoShowAiLookup ?? this.autoShowAiLookup,
+    showVocabularyOnFront: showVocabularyOnFront ?? this.showVocabularyOnFront,
     order: order ?? this.order,
   );
 
@@ -48,6 +54,7 @@ class FavoriteReviewSettings {
     'autoPlayFront': autoPlayFront,
     'autoPlayBack': autoPlayBack,
     'autoShowAiLookup': autoShowAiLookup,
+    'showVocabularyOnFront': showVocabularyOnFront,
     'order': order.name,
   };
 
@@ -69,6 +76,9 @@ class FavoriteReviewSettings {
           : true,
       autoShowAiLookup: json['autoShowAiLookup'] is bool
           ? json['autoShowAiLookup'] == true
+          : false,
+      showVocabularyOnFront: json['showVocabularyOnFront'] is bool
+          ? json['showVocabularyOnFront'] == true
           : false,
       order: rawOrder is String
           ? FavoriteReviewOrder.values.firstWhereOrNull(

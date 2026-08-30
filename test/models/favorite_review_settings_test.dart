@@ -50,4 +50,17 @@ void main() {
       isTrue,
     );
   });
+
+  test('正面显示词汇默认关闭且能序列化和恢复', () {
+    expect(
+      FavoriteReviewSettings.fromJson(const {}).showVocabularyOnFront,
+      isFalse,
+    );
+    const settings = FavoriteReviewSettings(showVocabularyOnFront: true);
+
+    expect(
+      FavoriteReviewSettings.fromJson(settings.toJson()).showVocabularyOnFront,
+      isTrue,
+    );
+  });
 }

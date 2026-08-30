@@ -202,6 +202,13 @@ class _FavoriteVocabularyReviewScreenState
                       Expanded(
                         child: state.face == FavoriteVocabularyReviewFace.front
                             ? _VocabularyFront(
+                                vocabulary: card.displayText,
+                                showVocabulary: ref.watch(
+                                  favoriteReviewSettingsProvider.select(
+                                    (settings) =>
+                                        settings.showVocabularyOnFront,
+                                  ),
+                                ),
                                 playbackState: state.wordPlaybackState,
                                 hasError: state.mediaError != null,
                                 onReplay: () =>
@@ -279,12 +286,16 @@ class _ReviewProgress extends StatelessWidget {
 
 class _VocabularyFront extends StatelessWidget {
   const _VocabularyFront({
+    required this.vocabulary,
+    required this.showVocabulary,
     required this.playbackState,
     required this.hasError,
     required this.onReplay,
     required this.onReveal,
   });
 
+  final String vocabulary;
+  final bool showVocabulary;
   final FavoriteVocabularyReviewPlaybackState playbackState;
   final bool hasError;
   final VoidCallback onReplay;
@@ -331,13 +342,14 @@ class _VocabularyFront extends StatelessWidget {
                       onTap: onReplay,
                       child: SizedBox.expand(
                         child: _CenteredPrompt(
+                          vocabulary: showVocabulary ? vocabulary : null,
                           icon: hasError
                               ? Icons.refresh_rounded
                               : Icons.volume_up_rounded,
                           title: status,
                           body: hasError
                               ? l10n.favoriteVocabularyReviewAudioSkipped
-                              : l10n.favoriteVocabularyReviewTapReplay,
+                              : '',
                           accent: hasError
                               ? theme.colorScheme.error
                               : theme.colorScheme.primary,
@@ -380,62 +392,81 @@ class _VocabularyFront extends StatelessWidget {
 
 class _CenteredPrompt extends StatelessWidget {
   const _CenteredPrompt({
+    this.vocabulary,
     required this.icon,
     required this.title,
     required this.body,
     required this.accent,
   });
+  final String? vocabulary;
   final IconData icon;
   final String title;
   final String body;
   final Color accent;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppSpacing.m),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: (constraints.maxHeight - AppSpacing.m * 2).clamp(
-            0,
-            double.infinity,
+  Widget build(BuildContext context) {
+    final visibleVocabulary = vocabulary?.trim();
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.m),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - AppSpacing.m * 2).clamp(
+              0,
+              double.infinity,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (visibleVocabulary != null &&
+                  visibleVocabulary.isNotEmpty) ...[
+                Text(
+                  visibleVocabulary,
+                  key: const Key('favorite-vocabulary-review-front-word'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.m),
+              ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(icon, size: 28, color: accent),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.m),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              if (body.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Icon(icon, size: 28, color: accent),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.m),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: AppSpacing.s),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// 词汇背面本步只显示收藏文本，内容扩展留待后续任务。
@@ -491,23 +522,9 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
         .toggleSourcePlayback();
   }
 
-  Future<void> _signInAndRetryAi() async {
-    final l10n = AppLocalizations.of(context)!;
-    final signedIn = await ensureSignedInForAction(
-      context: context,
-      ref: ref,
-      title: l10n.senseGroupSignInRequiredTitle,
-      message: l10n.senseGroupSignInRequiredMessage,
-    );
-    if (!signedIn || !mounted) return;
-    ref
-        .read(
-          dictionaryLookupControllerProvider(
-            widget.card.displayText,
-            preferredSourceId: 'ai',
-          ).notifier,
-        )
-        .retry();
+  /// 显式登录按钮直接打开登录页；认证完成后当前 AI 查词会自动续跑。
+  void _openAiSignInPage() {
+    openSignInPage(context);
   }
 
   /// 将当前 AI 查词结果中的可发音文本提交到统一 TTS 后台缓存。
@@ -676,7 +693,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                           ).notifier,
                         )
                         .retry(),
-                    onSignIn: () => unawaited(_signInAndRetryAi()),
+                    onSignIn: _openAiSignInPage,
                     onUpgrade: () => unawaited(openPaywall(context, ref)),
                   ),
                 ],

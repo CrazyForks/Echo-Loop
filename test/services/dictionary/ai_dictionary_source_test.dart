@@ -115,11 +115,33 @@ void main() {
     expect(source.requiresNetwork, isTrue);
   });
 
-  test('无 accessToken → 抛 DictionaryAuthRequiredException', () {
+  test('缓存未命中且无 accessToken → 抛登录异常', () {
+    stubCacheMissAndUpsert();
+
     expect(
       source.lookup(const DictionaryLookupRequest(word: word)),
       throwsA(isA<DictionaryAuthRequiredException>()),
     );
+  });
+
+  test('未登录命中 L1 内存缓存 → 返回缓存结果且不调用 API', () async {
+    stubCacheMissAndUpsert();
+    stubWordStream(word, [_entry(word)]);
+
+    await source.lookup(tokenReq);
+    final result = await source.lookup(
+      const DictionaryLookupRequest(word: word, targetLanguage: 'zh-CN'),
+    );
+
+    expect((result! as AiDictResult).entry.headword, word);
+    verify(
+      () => api.lookupWordStreamFrames(
+        word,
+        accessToken: any(named: 'accessToken'),
+        targetLanguage: any(named: 'targetLanguage'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).called(1);
   });
 
   test('单词（无空格）路由到 lookupWordStream，返回结果并写 L1+L2', () async {
@@ -294,6 +316,26 @@ void main() {
     ).thenAnswer((_) async => jsonEncode(_entry(word).toJson()));
 
     final result = await source.lookup(tokenReq);
+
+    expect((result! as AiDictResult).entry.headword, word);
+    verifyNever(
+      () => api.lookupWordStreamFrames(
+        any(),
+        accessToken: any(named: 'accessToken'),
+        targetLanguage: any(named: 'targetLanguage'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    );
+  });
+
+  test('未登录命中 L2 SQLite 缓存 → 返回缓存结果且不调用 API', () async {
+    when(
+      () => dao.getByHash(any(), 'ai_dictionary_v2'),
+    ).thenAnswer((_) async => jsonEncode(_entry(word).toJson()));
+
+    final result = await source.lookup(
+      const DictionaryLookupRequest(word: word, targetLanguage: 'zh-CN'),
+    );
 
     expect((result! as AiDictResult).entry.headword, word);
     verifyNever(

@@ -8,6 +8,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
+  testWidgets('显式登录入口直接打开登录页，不显示登录原因弹窗', (tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => Scaffold(
+            body: Builder(
+              builder: (context) => FilledButton(
+                onPressed: () => openSignInPage(context),
+                child: const Text('Sign In'),
+              ),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.login,
+          builder: (context, state) => const Scaffold(body: Text('Login page')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login page'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   testWidgets('未登录时可取消或进入登录页，且不继续原操作', (tester) async {
     var continued = false;
     final router = GoRouter(

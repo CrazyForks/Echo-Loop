@@ -66,16 +66,15 @@ class AiDictionarySource implements DictionarySource {
   /// 内存这层必须显式清，否则清缓存后重查仍命中 L1 返回旧结果。
   void clearMemoryCache() => _memCache.clear();
 
-  /// 流式查词：L1/L2 命中即时单帧返回；未命中走 L3 流式，逐帧 yield，
+  /// 流式查词：按 L1 内存 → L2 SQLite → L3 登录/API 的顺序查找。
+  /// L1/L2 命中即时单帧返回；未命中且已登录时走 L3 流式，逐帧 yield，
   /// 收到 final 帧（完整完成）才写 L1+L2。取消/异常在写入前抛出 → 不落缓存。
+  /// 登录只保护 L3 网络请求，不阻止已缓存结果离线展示。
   Stream<DictionaryLookupResult?> lookupStream(
     DictionaryLookupRequest request, {
     CancelToken? cancelToken,
   }) async* {
     final token = request.accessToken;
-    if (token == null || token.isEmpty) {
-      throw const DictionaryAuthRequiredException();
-    }
     final language = request.targetLanguage ?? _defaultLanguage;
     // request.word 保留大小写进入后端 prompt；缓存键用小写词形，
     // 确保 NASA/nasa 复用同一 L1/L2/L3 缓存。
@@ -110,6 +109,11 @@ class AiDictionarySource implements DictionarySource {
       } catch (_) {
         // 损坏数据，继续 L3
       }
+    }
+
+    // L3 网络请求需要登录；缓存读取不受登录状态限制。
+    if (token == null || token.isEmpty) {
+      throw const DictionaryAuthRequiredException();
     }
 
     // L3 流式 API：按 isPhrase 分流到单词/词组端点

@@ -172,6 +172,26 @@ class DictionaryLookupController extends _$DictionaryLookupController {
         if (!t.isCancelled) t.cancel('controller disposed');
       }
     });
+    // 登录前停在 AI 登录引导的当前查询，在认证态转为有效后自动续跑。
+    // 只恢复仍被用户选中的 AI 源，避免用户已切词/切源后后台发起旧请求。
+    ref.listen(supabaseSessionProvider, (previous, next) {
+      final session = next.valueOrNull;
+      final wasAnonymous = previous?.valueOrNull == null;
+      if (session == null || !wasAnonymous) return;
+      if (state.selectedSourceId != AiDictionarySource.sourceId ||
+          state.current is! LookupAuthRequired) {
+        return;
+      }
+      _traceDictionaryLookup(
+        'resume-after-sign-in word="$word" source=${AiDictionarySource.sourceId}',
+      );
+      // 认证事件中的 token 比异步刷新的查词上下文更及时，避免刚登录便再次落入
+      // LookupAuthRequired；目标语言仍从当前设置读取。
+      _lookup(
+        AiDictionarySource.sourceId,
+        accessTokenOverride: session.accessToken,
+      );
+    });
     final defaultId = _resolveInitialSourceId(preferredSourceId);
     _traceDictionaryLookup(
       'build word="$word" preferred=$preferredSourceId source=$defaultId',
@@ -228,7 +248,7 @@ class DictionaryLookupController extends _$DictionaryLookupController {
   /// 重试当前选中源
   void retry() => _lookup(state.selectedSourceId);
 
-  Future<void> _lookup(String id) async {
+  Future<void> _lookup(String id, {String? accessTokenOverride}) async {
     final source = ref.read(dictionarySourcesByIdProvider)[id];
     if (source == null) {
       _traceDictionaryLookup('skip word="$word" source=$id reason=missing');
@@ -249,7 +269,10 @@ class DictionaryLookupController extends _$DictionaryLookupController {
 
     _setState(id, const LookupLoading());
 
-    final request = _buildRequest(source);
+    final request = _buildRequest(
+      source,
+      accessTokenOverride: accessTokenOverride,
+    );
     try {
       if (source is AiDictionarySource) {
         // AI 源：流式逐帧渲染，完成后转 Loaded。每帧套用防竞态守卫。
@@ -310,7 +333,10 @@ class DictionaryLookupController extends _$DictionaryLookupController {
   /// 回调过期判定：该源已发起更新的查询
   bool _isStale(String id, int seq) => _seq[id] != seq;
 
-  DictionaryLookupRequest _buildRequest(DictionarySource source) {
+  DictionaryLookupRequest _buildRequest(
+    DictionarySource source, {
+    String? accessTokenOverride,
+  }) {
     // word（= family key）已由调用方清洗一次（剥首尾标点、弯撇号归一、
     // 空白折叠）。此处不再改写；需要小写缓存键的源自行派生。
     if (!source.requiresNetwork) {
@@ -319,7 +345,7 @@ class DictionaryLookupController extends _$DictionaryLookupController {
     final ctx = ref.read(dictionaryLookupContextProvider);
     return DictionaryLookupRequest(
       word: word,
-      accessToken: ctx.accessToken,
+      accessToken: accessTokenOverride ?? ctx.accessToken,
       targetLanguage: ctx.targetLanguage,
     );
   }

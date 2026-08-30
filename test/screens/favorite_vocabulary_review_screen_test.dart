@@ -68,15 +68,18 @@ class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
   _TestFavoriteReviewSettings(
     this.showNextReviewTime, {
     this.autoShowAiLookup = false,
+    this.showVocabularyOnFront = false,
   });
 
   final bool showNextReviewTime;
   final bool autoShowAiLookup;
+  final bool showVocabularyOnFront;
 
   @override
   FavoriteReviewSettings build() => FavoriteReviewSettings(
     showNextReviewTime: showNextReviewTime,
     autoShowAiLookup: autoShowAiLookup,
+    showVocabularyOnFront: showVocabularyOnFront,
   );
 }
 
@@ -178,6 +181,7 @@ Finder get _favoriteVocabularyReviewPopScope =>
 Widget _app({
   bool showNextReviewTime = false,
   bool autoShowAiLookup = false,
+  bool showVocabularyOnFront = false,
   bool withSource = false,
   List<PronunciationClip> pronunciationClips = const [],
   GoRouter? router,
@@ -216,6 +220,7 @@ Widget _app({
         () => _TestFavoriteReviewSettings(
           showNextReviewTime,
           autoShowAiLookup: autoShowAiLookup,
+          showVocabularyOnFront: showVocabularyOnFront,
         ),
       ),
       sharedPreferencesProvider.overrideWithValue(_sharedPreferences),
@@ -280,6 +285,32 @@ void main() {
         )
         .dy;
     expect(statusTop - revealBottom, closeTo(4, 0.1));
+  });
+
+  testWidgets('front hides vocabulary by default', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-front-word')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('front shows vocabulary in the listen zone when enabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(showVocabularyOnFront: true));
+    await tester.pump();
+    final word = find.byKey(const Key('favorite-vocabulary-review-front-word'));
+    expect(word, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
+        matching: word,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('apple'), findsOneWidget);
   });
 
   testWidgets(
@@ -640,6 +671,15 @@ void main() {
     expect(find.text('复习顺序'), findsOneWidget);
     expect(find.text('收藏词汇复习'), findsNWidgets(2));
     expect(find.text('自动显示 AI 讲解'), findsOneWidget);
+    expect(find.text('正面显示词汇'), findsOneWidget);
     expect(find.text('收藏句子复习'), findsOneWidget);
+
+    final toggle = find.byKey(
+      const Key('favorite-review-show-vocabulary-on-front'),
+    );
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
   });
 }

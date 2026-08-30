@@ -6,6 +6,14 @@ import '../../l10n/app_localizations.dart';
 import '../../router/app_router.dart';
 import 'providers/auth_providers.dart';
 
+/// 直接打开登录页。
+///
+/// 供界面中明确标注为“登录”的按钮使用；这类用户主动操作不再额外显示
+/// 登录原因弹窗。需要登录才能继续的功能操作仍应使用 [ensureSignedInForAction]。
+void openSignInPage(BuildContext context) {
+  context.push(AppRoutes.login);
+}
+
 /// 在受保护操作前检查登录状态，并复用统一的登录引导交互。
 ///
 /// 已登录时返回 `true`，调用方可以继续原操作；未登录时显示提示，用户确认后
@@ -38,6 +46,6 @@ Future<bool> ensureSignedInForAction({
   );
   if (!context.mounted || shouldOpenLogin != true) return false;
 
-  context.push(AppRoutes.login);
+  openSignInPage(context);
   return false;
 }

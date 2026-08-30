@@ -515,15 +515,12 @@ class _SentenceExplanationViewState
   /// 已缓存的 L1/L2 结果不会触发登录门槛。
   Future<void> _showAiFeatureSignInDialog() async {
     final l10n = AppLocalizations.of(context);
+    if (l10n == null) return;
     await ensureSignedInForAction(
       context: context,
       ref: ref,
-      title:
-          l10n?.senseGroupSignInRequiredTitle ??
-          'Sign in to use sense group splitting',
-      message:
-          l10n?.senseGroupSignInRequiredMessage ??
-          'AI translation, analysis, and sense group splitting use the cloud AI service. Sign in to generate new results. Cached results remain available.',
+      title: l10n.senseGroupSignInRequiredTitle,
+      message: l10n.senseGroupSignInRequiredMessage,
     );
   }
 

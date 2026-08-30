@@ -2506,6 +2506,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get favoriteReviewAutoPlayBack => '自动播放背面';
 
   @override
+  String get favoriteReviewShowVocabularyOnFront => '正面显示词汇';
+
+  @override
   String get bookmarkReviewDailyGoal => '每日复习目标';
 
   @override
@@ -3370,8 +3373,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get senseGroupSignInRequiredTitle => '登录后使用 AI 功能';
 
   @override
-  String get senseGroupSignInRequiredMessage =>
-      'AI 翻译、解析和意群拆分需要使用云端 AI 服务。登录后可以继续生成新结果，已缓存的结果仍可正常查看。';
+  String get senseGroupSignInRequiredMessage => '使用 AI 功能前，请先登录。';
 
   @override
   String get senseGroupSyntheticTimingNoticeTitle => '意群时间可能不准';

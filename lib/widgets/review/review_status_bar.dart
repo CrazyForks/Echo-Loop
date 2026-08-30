@@ -45,6 +45,7 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
 
   @override
   Widget build(BuildContext context) {
+    final hasBottomSafeArea = MediaQuery.viewPaddingOf(context).bottom > 0;
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: Theme.of(
         context,
@@ -68,7 +69,12 @@ class _ReviewStatusBarState extends State<ReviewStatusBar> {
       bottom: true,
       maintainBottomViewPadding: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.m, 0, AppSpacing.m, 0),
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.m,
+          0,
+          AppSpacing.m,
+          hasBottomSafeArea ? 0 : 4,
+        ),
         child: Wrap(
           alignment: WrapAlignment.center,
           runAlignment: WrapAlignment.center,

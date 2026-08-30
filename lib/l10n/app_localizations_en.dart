@@ -2614,6 +2614,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get favoriteReviewAutoPlayBack => 'Auto-play back';
 
   @override
+  String get favoriteReviewShowVocabularyOnFront => 'Show vocabulary on front';
+
+  @override
   String get bookmarkReviewDailyGoal => 'Daily review goal';
 
   @override
@@ -3519,7 +3522,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get senseGroupSignInRequiredMessage =>
-      'AI translation, analysis, and sense group splitting use the cloud AI service. Sign in to generate new results. Cached results remain available.';
+      'Please sign in before using AI features.';
 
   @override
   String get senseGroupSyntheticTimingNoticeTitle => 'Timing may be inaccurate';

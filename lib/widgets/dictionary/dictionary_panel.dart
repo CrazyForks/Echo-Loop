@@ -17,7 +17,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/sign_in_required_dialog.dart';
 import '../../features/subscription/widgets/feature_gate.dart';
-import '../../l10n/app_localizations.dart';
 import '../../models/dictionary/dict_speakable_texts.dart';
 import '../../models/pronunciation/pronunciation_clip.dart';
 import '../../providers/dictionary/dictionary_registry.dart';
@@ -295,18 +294,9 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     );
   }
 
-  /// AI 源未登录时引导登录，登录成功后重试
-  Future<void> _handleSignIn(String word) async {
-    final l10n = AppLocalizations.of(context)!;
-    final ok = await ensureSignedInForAction(
-      context: context,
-      ref: ref,
-      title: l10n.senseGroupSignInRequiredTitle,
-      message: l10n.senseGroupSignInRequiredMessage,
-    );
-    if (ok) {
-      ref.read(_controllerProvider(word).notifier).retry();
-    }
+  /// 显式登录按钮直接打开登录页；认证完成后当前查词会自动续跑。
+  void _openAiSignInPage() {
+    openSignInPage(context);
   }
 
   /// 本月免费额度用尽 → 打开订阅页；返回后重试（已订阅则放行，否则仍显示额度用尽）。
@@ -491,7 +481,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
       state: state.current,
       word: word,
       onRetry: notifier.retry,
-      onSignIn: () => _handleSignIn(lookupQuery),
+      onSignIn: _openAiSignInPage,
       onUpgrade: () => _handleUpgrade(lookupQuery),
     );
     if (isWeb) {

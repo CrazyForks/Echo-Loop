@@ -4556,6 +4556,12 @@ abstract class AppLocalizations {
   /// **'Auto-play back'**
   String get favoriteReviewAutoPlayBack;
 
+  /// No description provided for @favoriteReviewShowVocabularyOnFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Show vocabulary on front'**
+  String get favoriteReviewShowVocabularyOnFront;
+
   /// No description provided for @bookmarkReviewDailyGoal.
   ///
   /// In en, this message translates to:
@@ -6173,7 +6179,7 @@ abstract class AppLocalizations {
   /// No description provided for @senseGroupSignInRequiredMessage.
   ///
   /// In en, this message translates to:
-  /// **'AI translation, analysis, and sense group splitting use the cloud AI service. Sign in to generate new results. Cached results remain available.'**
+  /// **'Please sign in before using AI features.'**
   String get senseGroupSignInRequiredMessage;
 
   /// No description provided for @senseGroupSyntheticTimingNoticeTitle.
