@@ -605,7 +605,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ListTile(
-          leading: _settingsSvgIcon('assets/icon/help.svg'),
+          leading: _settingsThemedSvgIcon(context, 'assets/icon/help.svg'),
           title: const Text('FAQ'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => launchUrl(

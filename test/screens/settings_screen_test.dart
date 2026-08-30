@@ -365,6 +365,7 @@ void main() {
           'assets/icon/lock.svg',
           'assets/icon/feedback.svg',
           'assets/icon/group.svg',
+          'assets/icon/help.svg',
           'assets/icon/trash-bin.svg',
         ];
 
