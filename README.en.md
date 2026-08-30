@@ -9,7 +9,7 @@
 
   <p><strong>You no longer have to figure out how to practice English on your own.</strong></p>
 
-  <p>Blind listening · Intensive listening · Shadowing · Retelling · Review — Echo Loop guides you through every step at a scientifically-paced rhythm.</p>
+  <p>Intensive listening · Shadowing · Blind listening · Retelling · Review — Echo Loop guides you through every step at a scientifically-paced rhythm.</p>
 
   <p><sub><em>This project is academically advised by <a href="https://sfs.muc.edu.cn/info/1063/3729.htm"> Yang Yan</a> from the School of Foreign Studies, Minzu University of China.</em></sub></p>
 
@@ -77,7 +77,7 @@ When using other English-learning apps, you have to decide for yourself: how man
 
 **Those decisions themselves are what drains your willpower** — it's not that you can't understand, it's that you don't know what to do next.
 
-Echo Loop takes those decisions off your plate. Pick a piece of audio you want to understand, hit start, and from blind listening to completion, every step tells you "what to do right now".
+Echo Loop takes those decisions off your plate. Pick a piece of audio you want to understand, hit start, and from intensive listening to completion, every step tells you "what to do right now".
 
 You just need to keep opening the app — Echo Loop handles the rest. Practicing one piece thoroughly beats listening to 100 random ones.
 
@@ -106,12 +106,12 @@ We picked four English-learning apps most familiar to Chinese learners for compa
 
 ## 🧠 Methodology
 
-**Blind listening → Intensive listening → Shadowing → Retelling → Spaced review → Completion.**
+**Intensive listening → Shadowing → Blind listening → Retelling → Spaced review → Completion.**
 
 ```mermaid
 flowchart LR
-  A[Blind listening<br/>Listen through once, gauge overall difficulty] --> B[Intensive listening<br/>Understand sentence by sentence, mark hard ones]
-  B --> C[Shadowing<br/>Imitate pronunciation and intonation]
+  A[Intensive listening<br/>Understand sentence by sentence, mark hard ones] --> B[Shadowing<br/>Imitate pronunciation and intonation]
+  B --> C[Blind listening<br/>Listen through once, check overall comprehension]
   C --> D[Retelling<br/>Express in your own words, build output ability]
   D --> E[Spaced review<br/>Re-practice before forgetting, consolidate long-term memory]
   E --> F[Completion<br/>Finish this round of learning]
@@ -130,7 +130,7 @@ Each piece of material is split into 1 first-pass session + 7 spaced reviews. In
 
 | Stage | Interval since last | Tasks |
 |---|---|---|
-| First pass | — | Blind → Intensive → Shadowing → Retelling |
+| First pass | — | Intensive → Shadowing → Blind → Retelling |
 | Review 1 | After 6 hours | Hard-sentence drills + retelling |
 | Review 2 | After 1 day | Blind listening + drills + retelling |
 | Review 3 | After 2 days | Blind listening + drills + retelling |
@@ -185,7 +185,7 @@ Practice English alongside other committed learners: share methods, give feedbac
 
 ### ✅ 1 · Core features
 
-- [x] Learning loop: blind / intensive / shadowing / retelling
+- [x] Learning loop: intensive / shadowing / blind / retelling
 - [x] Spaced review scheduling (6h → 28d)
 - [x] Sense-group splitting for long sentences
 - [x] Saved hard sentences + focused review
@@ -198,8 +198,8 @@ Practice English alongside other committed learners: share methods, give feedbac
 ### 🚧 2 · AI capabilities
 
 - [ ] AI speaking partner
-- [ ] AI learning assistant (on-demand Q&A)
-- [ ] Word deep-dive analysis
+- [x] AI learning assistant (on-demand Q&A)
+- [x] AI word lookup
 - [ ] Personalized material recommendations
 
 ### 🔭 3 · Experience & platforms
