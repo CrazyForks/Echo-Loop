@@ -4,137 +4,380 @@
 
 <div align="center">
   <img src="assets/icon/app-icon-1024-rounded.png" alt="Echo Loop" width="128" />
-  <h1>Echo Loop — Turn one piece of English into real skill</h1>
-  <p><strong>Blind listening · Intensive listening · Shadowing · Retelling · Spaced review</strong></p>
-  <p>An English listening and speaking app built around real audio materials, with an automatically guided practice loop.</p>
-  <p><sub><em>Academically advised by <a href="https://sfs.muc.edu.cn/info/1063/3729.htm">Yang Yan</a> from the School of Foreign Studies, Minzu University of China.</em></sub></p>
+
+  <h1>Echo Loop — Efficient English Listening & Speaking Training</h1>
+
+  <p><strong>You no longer have to figure out how to practice English on your own.</strong></p>
+
+  <p>Blind listening · Intensive listening · Shadowing · Retelling · Review — Echo Loop guides you through every step at a scientifically-paced rhythm.</p>
+
+  <p><sub><em>This project is academically advised by <a href="https://sfs.muc.edu.cn/info/1063/3729.htm"> Yang Yan</a> from the School of Foreign Studies, Minzu University of China.</em></sub></p>
+
   <p>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License: AGPL-3.0" /></a>
-    <img src="https://img.shields.io/badge/Platform-iOS%20%C2%B7%20Android%20%C2%B7%20macOS-brightgreen.svg" alt="Platform" />
+    <img src="https://img.shields.io/badge/Platform-iOS%20%C2%B7%20Android%20%C2%B7%20macOS%20%C2%B7%20Windows-brightgreen.svg" alt="Platform" />
     <a href="https://github.com/echo-loop/Echo-Loop/releases/latest"><img src="https://img.shields.io/github/v/release/echo-loop/Echo-Loop?label=release&color=orange" alt="Latest release" /></a>
-    <a href="https://github.com/echo-loop/Echo-Loop/commits/main"><img src="https://img.shields.io/github/last-commit/echo-loop/Echo-Loop" alt="Latest commit" /></a>
+    <a href="https://github.com/echo-loop/Echo-Loop/releases"><img src="https://img.shields.io/github/downloads/echo-loop/Echo-Loop/total?label=downloads" alt="Total release downloads" /></a>
+    <a href="https://github.com/echo-loop/Echo-Loop/commits/main"><img src="https://img.shields.io/github/last-commit/echo-loop/Echo-Loop" alt="Last commit" /></a>
   </p>
+
+  <p>
+    <a href="https://trendshift.io/repositories/41519?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-41519" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/41519/weekly?language=Dart" alt="echo-loop%2FEcho-Loop | Trendshift" width="250" height="55" /></a>
+  </p>
+
   <p>
     <a href="https://apps.apple.com/app/id6760324074"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" /></a>
-    <a href="https://play.google.com/store/apps/details?id=app.echoloop"><img src="assets/badges/google-play-en.png" alt="Get it on Google Play" height="40" /></a>
+    <a href="https://play.google.com/store/apps/details?id=app.echoloop"><img src="assets/badges/google-play-en.png" alt="Get it on Google Play" height="48" /></a>
   </p>
 </div>
 
-> 🇨🇳 **Note for users in mainland China**: The China App Store listing is temporarily unavailable while ICP registration is in progress. You can install Echo Loop with an App Store account from another region.
+> 🇨🇳 **Note for China users**: The China App Store listing is temporarily off the shelf while we complete ICP registration. Users in mainland China can still install Echo Loop with an App Store account from another region (e.g. US or Hong Kong). It will be relisted once registration is complete.
 
-## What is Echo Loop?
+---
 
-Echo Loop turns one piece of audio into a sequence of practical tasks: listen once without subtitles, understand it sentence by sentence, shadow difficult sentences, retell the passage, and review it on a memory schedule. Import podcasts, lessons, or videos you already like, or start with an official collection. Your progress, difficult sentences, and saved vocabulary stay organized so “I heard it” can become “I understand it, can say it, and remember it.”
-
-The core learning loop is free. AI features and subscriptions enhance the experience without blocking core playback or practice.
-
-## Screenshots
+## 📱 Screenshots
 
 <table>
   <tr>
-    <td align="center"><img src="assets/screenshots/01-import.png" alt="Import audio" width="180" /><br/><sub>Import audio</sub></td>
-    <td align="center"><img src="assets/screenshots/04-intensive.png" alt="Intensive listening" width="180" /><br/><sub>Intensive listening</sub></td>
-    <td align="center"><img src="assets/screenshots/05-analysis.png" alt="Sentence analysis" width="180" /><br/><sub>Sentence analysis</sub></td>
-    <td align="center"><img src="assets/screenshots/06-retell.png" alt="Paragraph retelling" width="180" /><br/><sub>Paragraph retelling</sub></td>
-    <td align="center"><img src="assets/screenshots/08-flashcard.png" alt="Saved-content review" width="180" /><br/><sub>Saved-content review</sub></td>
+    <td align="center"><img src="assets/screenshots/01-import.png" alt="Import audio" width="180" /><br/><sub>Import audio, start practicing</sub></td>
+    <td align="center"><img src="assets/screenshots/02-loop.png" alt="Scientific practice" width="180" /><br/><sub>Scientific practice, listen-speak loop</sub></td>
+    <td align="center"><img src="assets/screenshots/03-reminder.png" alt="Auto reminders" width="180" /><br/><sub>Auto reminders, visible progress</sub></td>
+    <td align="center"><img src="assets/screenshots/04-intensive.png" alt="Sentence-by-sentence" width="180" /><br/><sub>Sentence-by-sentence intensive listening</sub></td>
+    <td align="center"><img src="assets/screenshots/05-analysis.png" alt="Sense group split" width="180" /><br/><sub>Sense-group split, hard sentence analysis</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/screenshots/06-retell.png" alt="Paragraph retelling" width="180" /><br/><sub>Retelling: turn comprehension into output</sub></td>
+    <td align="center"><img src="assets/screenshots/07-favorites.png" alt="Saved sentences" width="180" /><br/><sub>Saved hard sentences, practice to mastery</sub></td>
+    <td align="center"><img src="assets/screenshots/08-flashcard.png" alt="Flashcard review" width="180" /><br/><sub>Flashcard review with original context</sub></td>
+    <td align="center"><img src="assets/screenshots/09-freestyle.png" alt="Freestyle practice" width="180" /><br/><sub>Practice freely at your own pace</sub></td>
+    <td align="center"><img src="assets/icon/app-icon-1024-rounded.png" alt="Echo Loop" width="120" /></td>
   </tr>
 </table>
 
-## Current features
+---
 
-### Learning and playback
+## ✨ Features
 
-- Import local audio and video in batches; import SRT / VTT / LRC subtitles or generate subtitles with AI transcription.
-- Blind listening, sentence-by-sentence intensive listening, difficult-sentence shadowing, paragraph retelling, difficult-sentence drills, and freestyle practice.
-- Audio/video playback, synchronized subtitles, waveform, sentence/full/saved-range playback, background playback, and sleep timer.
-- Subtitle editing, sentence-level timelines, sense-group annotations, and organized learning materials.
-- Browse official collections and podcasts, or import materials from Baidu Netdisk.
+- 🤖 **Auto-driven learning rhythm**: Shadowing repetitions, review timing, and hard-sentence marking all advance automatically — you just focus on listening and speaking.
+- 🎯 **Listen-speak loop**: Intensive listening, shadowing, and retelling flow seamlessly. From understanding the content, to imitating expression, to saying it in your own words.
+- 🧩 **Sense-group splitting for long sentences**: Long sentences are split by sense groups, breaking complex structures into digestible chunks.
+- ⭐ **Save hard sentences and review them on demand**: Hard sentences are auto-archived for focused shadowing and repeated practice — no more "marked and forgotten".
+- 📚 **Contextualized flashcard review**: Saved words and sense groups are reviewed alongside their original sentence context — memorize in context, not in isolation.
+- 💡 **AI translation, analysis, and vocabulary explanation**: Bilingual translation, sentence analysis, word usage and collocations — expand on demand without breaking your flow.
+- 📍 **Resume where you left off**: Automatically records your stage and current sentence, so you can pick up instantly — even 5-minute fragments count.
+- 📊 **Learning statistics**: Tracks practice time, input/output ratio, and unique vocabulary — see exactly how much you've practiced and spoken.
+- 🎙️ **AI shadowing evaluation**: Automatically aligns ASR results with the original text, highlights matched words, and gives a shadowing rating.
+- 🎧 **Local audio import + AI subtitles**: Batch-import local audio, import existing subtitles, or auto-transcribe with AI.
 
-### Saved content and spaced review
+---
 
-- Save sentences, words, and sense groups, then review them in their original context.
-- FSRS-based saved-sentence and saved-vocabulary review with ratings, playback preferences, and next-review scheduling.
-- Review statistics including today’s reviews, retention, rating distribution, 30-day trends, upcoming reviews, and streaks.
-- Automatic progress saving, resume where you left off, reminders, and a learning calendar.
+## 🤔 Why we built this
 
-### Dictionary, pronunciation, and AI
+When using other English-learning apps, you have to decide for yourself: how many times should I listen today? Intensive or extensive? Which sentence haven't I mastered yet? Should I shadow it? When should I review?
 
-- Local dictionary, offline pronunciation, AI dictionary, and web dictionary with switchable sources.
-- AI translation, sentence analysis, word deep dives, and contextual vocabulary explanations.
-- Sentence-level multi-turn AI assistant with streaming responses, follow-up questions, quoted context, and regeneration.
-- Platform TTS plus local Kokoro / Piper TTS; offline ASR shadowing evaluation and transcription.
+**Those decisions themselves are what drains your willpower** — it's not that you can't understand, it's that you don't know what to do next.
 
-### Data and subscriptions
+Echo Loop takes those decisions off your plate. Pick a piece of audio you want to understand, hit start, and from blind listening to completion, every step tells you "what to do right now".
 
-- Export learning materials as printable PDFs.
-- Streamed local backup and restore with failure rollback; backups exclude login sessions and re-downloadable resources.
-- Email, Google, and Apple sign-in.
-- Native in-app subscriptions on iOS / Android and Paddle on supported alternate channels. AI usage is enforced by the backend.
+You just need to keep opening the app — Echo Loop handles the rest. Practicing one piece thoroughly beats listening to 100 random ones.
 
-## The learning loop
+---
+
+## 🆚 How it differs from other solutions
+
+We picked four English-learning apps most familiar to Chinese learners for comparison. Each individual feature exists, more or less, in other apps. But Echo Loop's real difference is this: **it strings every step together and drives you through automatically — you don't need to figure out the method, control repetition counts, or manage review intervals yourself.**
+
+| Feature | Echo Loop | Daily English Listening | Kekenet | Liulishuo | Anki |
+|---|---|---|---|---|---|
+| **App-driven learning rhythm** | ✅ Fully automatic | ❌ | ❌ | ❌ | ❌ |
+| Listen → speak loop (intensive + shadowing + **retelling**) | ✅ | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial | ❌ |
+| **Sense-group splitting for long sentences** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Saved-sentence focused review** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Contextualized flashcard review** | ✅ | ❌ | ❌ | ❌ | ⚠️ Manual cards required |
+| AI translation / sentence analysis / word deep-dive | ✅ | ⚠️ Partial | ⚠️ Partial | ❌ | ❌ |
+| **Resume where you left off** | ✅ | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial |
+| Stats: time / input-output ratio / unique vocabulary | ✅ | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial | ❌ |
+| AI shadowing evaluation | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Local audio import | ✅ | ✅ | ❌ | ❌ | ⚠️ Manual cards |
+| Offline available | ✅ | ✅ | ✅ | ⚠️ Partial | ✅ |
+| Open source | ✅ | ❌ | ❌ | ❌ | ✅ |
+
+---
+
+## 🧠 Methodology
+
+**Blind listening → Intensive listening → Shadowing → Retelling → Spaced review → Completion.**
 
 ```mermaid
 flowchart LR
-  A[Blind listening] --> B[Intensive listening]
-  B --> C[Shadowing]
-  C --> D[Retelling]
-  D --> E[Spaced review]
-  E --> F[Mastery]
+  A[Blind listening<br/>Listen through once, gauge overall difficulty] --> B[Intensive listening<br/>Understand sentence by sentence, mark hard ones]
+  B --> C[Shadowing<br/>Imitate pronunciation and intonation]
+  C --> D[Retelling<br/>Express in your own words, build output ability]
+  D --> E[Spaced review<br/>Re-practice before forgetting, consolidate long-term memory]
+  E --> F[Completion<br/>Finish this round of learning]
 ```
 
-After the first pass, reviews are scheduled at 6 hours, 1 day, 2 days, 4 days, 7 days, 14 days, and 28 days. The actual review content adapts to your learning state and saved items.
+**Every step above is auto-driven by Echo Loop — no judgment calls required.**
 
-## Download
+You don't need to manage "how many times should I listen" or "is it time to review last week's material". Open the app, and what to do today appears right in front of you.
 
-- [App Store](https://apps.apple.com/app/id6760324074)
-- [Google Play](https://play.google.com/store/apps/details?id=app.echoloop)
-- [Android APK / Releases](https://github.com/echo-loop/Echo-Loop/releases)
+The full process is quantified: **practice time · input/output ratio · unique vocabulary**.
 
-Desktop: macOS is under active development; Windows is not officially released; there is no Web version planned at present.
+<details>
+<summary><strong>How are spaced reviews scheduled?</strong></summary>
 
-## Roadmap
+Each piece of material is split into 1 first-pass session + 7 spaced reviews. Intervals stretch from 6 hours to 28 days, hitting the memory trace just before forgetting — aligned with the Ebbinghaus forgetting curve.
 
-Completed core capabilities include the learning loop, saved-content review, official collections, AI translation and analysis, the sentence-level AI assistant, PDF export, subscriptions and AI quotas, backup and restore, and cross-platform playback and speech features.
+| Stage | Interval since last | Tasks |
+|---|---|---|
+| First pass | — | Blind → Intensive → Shadowing → Retelling |
+| Review 1 | After 6 hours | Hard-sentence drills + retelling |
+| Review 2 | After 1 day | Blind listening + drills + retelling |
+| Review 3 | After 2 days | Blind listening + drills + retelling |
+| Review 4 | After 4 days | Blind listening + drills + retelling |
+| Review 5 | After 7 days | Blind listening + drills + retelling |
+| Review 6 | After 14 days | Blind listening + drills + retelling |
+| Review 7 | After 28 days | Blind listening + drills + retelling |
 
-Current focus:
+</details>
 
-- Fix a native crash after ending offline ASR recording on some Android devices.
-- Finish the shared recording/recognition path for paragraph retelling and cross-platform release validation.
-- Continue polishing startup performance, playback, dictionaries, PDF export, subtitle editing, and the production subscription flow.
+---
 
-See [PLAN.md](./PLAN.md) and [TASKS.md](./TASKS.md) for detailed project status.
+## 📥 Download & try it
 
-## Community
+<table>
+  <tr>
+    <td valign="middle">
+      <p>
+        <a href="https://apps.apple.com/app/id6760324074"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" height="48" /></a>
+        &nbsp;
+        <a href="https://play.google.com/store/apps/details?id=app.echoloop"><img src="assets/badges/google-play-en.png" alt="Get it on Google Play" height="48" /></a>
+        &nbsp;
+        <a href="https://github.com/echo-loop/Echo-Loop/releases"><img src="https://img.shields.io/badge/Android-Download%20APK-3DDC84?logo=android&logoColor=white&style=for-the-badge" alt="Android APK" height="48" /></a>
+      </p>
+      <p><sub>Desktop: macOS in development · Windows planned · Web not planned</sub></p>
+    </td>
+    <td valign="middle" align="center" width="120">
+      <img src="assets/qr/app-store.png" alt="App Store QR code" width="110" /><br/>
+      <sub>Scan to download iOS</sub>
+    </td>
+    <td valign="middle" align="center" width="120">
+      <img src="assets/qr/google-play.png" alt="Google Play QR code" width="110" /><br/>
+      <sub>Scan to download Android</sub>
+    </td>
+  </tr>
+</table>
 
-- [QQ group](https://qm.qq.com/q/qmyXIv341q)
-- [Contact us on WeChat](https://i.postimg.cc/P5tVpPTV/echo-loop-wecom.jpg)
-- [Bilibili](https://space.bilibili.com/509449049/upload/video)
-- [Xiaohongshu](https://xhslink.cn/m/4zOdGUcDH4N)
+---
 
-## For developers
+## 💬 Join the community
+
+Practice English alongside other committed learners: share methods, give feedback, and be the first to hear about new features.
+
+- [Join the QQ group](https://qm.qq.com/q/qmyXIv341q): Share learning methods and resources with other committed learners.
+- [Contact us on WeChat](https://i.postimg.cc/P5tVpPTV/echo-loop-wecom.jpg): Scan the QR code to contact Echo Loop.
+- [Follow us on Bilibili](https://space.bilibili.com/509449049/upload/video): Get English-learning content and feature updates.
+- [Follow us on Xiaohongshu](https://xhslink.cn/m/4zOdGUcDH4N): Get practical tips, feature updates, and English-learning content.
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ 1 · Core features
+
+- [x] Learning loop: blind / intensive / shadowing / retelling
+- [x] Spaced review scheduling (6h → 28d)
+- [x] Sense-group splitting for long sentences
+- [x] Saved hard sentences + focused review
+- [x] Contextualized flashcard review
+- [x] AI translation / sentence analysis
+- [x] iOS / macOS native ASR shadowing evaluation
+- [x] Resume where you left off
+- [x] Learning statistics
+
+### 🚧 2 · AI capabilities
+
+- [ ] AI speaking partner
+- [ ] AI learning assistant (on-demand Q&A)
+- [ ] Word deep-dive analysis
+- [ ] Personalized material recommendations
+
+### 🔭 3 · Experience & platforms
+
+- [ ] Custom task flows
+- [ ] Streaks / learning badges
+- [ ] Official macOS / Windows desktop release
+
+### 🔭 4 · Content ecosystem
+
+- [ ] Official curated collections (by topic + difficulty)
+- [ ] User-shared collections / UGC learning materials
+
+---
+
+## ⭐ Star History
+
+<a href="https://www.star-history.com/?repos=echo-loop%2FEcho-Loop&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&theme=dark&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=echo-loop/Echo-Loop&type=date&legend=top-left&sealed_token=Yn1CvBygp-TANTMrrjOoIPcBqfBW4dJBno9qMlDVPTRaqlNZEvy5k6QNjheAb8AxwJ3ygwow4Zszp0Z5XCtxf7OP4MOtE_fCjKTjyBALH5gvoX-6BOLIIQ" />
+ </picture>
+</a>
+---
+
+## 🎓 Academic guidance & acknowledgements
+
+**Academic guidance**
+
+Thanks to [Yang Yan](https://sfs.muc.edu.cn/info/1063/3729.htm) (School of Foreign Studies, Minzu University of China; PhD in English Language and Literature, Peking University) for guiding this project's methodology.
+
+**Core dependencies**
+
+- Audio & speech: [just_audio](https://pub.dev/packages/just_audio) · [audio_session](https://pub.dev/packages/audio_session) · [flutter_tts](https://pub.dev/packages/flutter_tts) · [sherpa_onnx](https://pub.dev/packages/sherpa_onnx)
+- Data & state: [drift](https://pub.dev/packages/drift) · [flutter_riverpod](https://pub.dev/packages/flutter_riverpod)
+- Text processing: [subtitle](https://pub.dev/packages/subtitle) · [lemmatizerx](https://pub.dev/packages/lemmatizerx)
+- System capabilities: [file_picker](https://pub.dev/packages/file_picker) · [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)
+
+---
+
+## 🧑‍💻 For developers
+
+<details open>
+<summary><strong>🚀 Quick start</strong></summary>
 
 ```bash
 git clone git@github.com:echo-loop/Echo-Loop.git
 cd Echo-Loop
-cp .dev.env.template .dev.env
+cp .dev.env.template .dev.env   # fill in Supabase / Google / API base URL
 flutter pub get
 dart run build_runner build
 flutter run -d <ios|android|macos> --dart-define-from-file=.dev.env
 ```
 
-Compile-time variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GOOGLE_WEB_CLIENT_ID`, and `API_BASE_URL`) belong in `.dev.env` or `.prod.env` and are injected with `--dart-define-from-file`. These environment files are gitignored; never commit secrets.
+> Compile-time variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GOOGLE_WEB_CLIENT_ID`, `API_BASE_URL`)
+> live in `.dev.env` (debug) / `.prod.env` (release) and are injected via `--dart-define-from-file`.
+> Both files are gitignored — do not commit them. `.prod.env` uses the same keys with the production `API_BASE_URL`.
 
-Before submitting a change:
+</details>
+
+<details>
+<summary><strong>🤝 How to contribute</strong></summary>
+
+Issues and PRs are welcome. Before submitting, please run:
 
 ```bash
 flutter analyze
 flutter test
 ```
 
-## Technology
+Commit titles follow the `PREFIX: content` format (check `git log` for common prefixes — FEAT / FIX / DOCS / MOD / OPT / CHORE / CI / RELEASE, etc.). A detailed contribution guide will live in [CONTRIBUTING.md](#) (TBD). This project follows the [Contributor Covenant](https://www.contributor-covenant.org/) code of conduct.
 
-Flutter · Dart · Riverpod · Drift / SQLite · just_audio · media_kit · sherpa_onnx · Flutter TTS · Supabase · Firebase · PostHog · Material 3
+</details>
 
-## License and acknowledgements
+<details>
+<summary><strong>🛠️ Tech stack</strong></summary>
 
-Licensed under [AGPL-3.0](./LICENSE). Thanks to [Yang Yan](https://sfs.muc.edu.cn/info/1063/3729.htm) for guiding the project’s learning methodology.
+![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=white)
+![Riverpod](https://img.shields.io/badge/Riverpod-1F2937?logo=flutter&logoColor=white)
+![Drift](https://img.shields.io/badge/Drift-SQLite-003B57?logo=sqlite&logoColor=white)
+![Material 3](https://img.shields.io/badge/Material-3-757575?logo=materialdesign&logoColor=white)
+
+| Category | Technology | Purpose |
+|------|------|------|
+| UI framework | Flutter + Material 3 | Cross-platform UI |
+| State management | Riverpod (code generation) | Unidirectional data flow |
+| Audio playback | just_audio + audio_session | Audio engine layer |
+| Subtitle parsing | subtitle | SRT/VTT |
+| File picker | file_picker | Local audio/subtitle import |
+| Persistence | Drift (SQLite) + shared_preferences | Progress, favorites, cache |
+| i18n | flutter_localizations + ARB | 简体中文 / English |
+| Testing | flutter_test + mocktail | Unit / widget / integration |
+| Static analysis | flutter_lints | Code style |
+
+</details>
+
+<details>
+<summary><strong>📁 Project structure</strong></summary>
+
+```
+lib/
+├── l10n/              # i18n files (ARB format)
+├── models/            # Data models (AudioItem, Sentence, Collection, etc.)
+├── providers/         # Riverpod state management
+│   ├── audio_engine/  # Audio engine layer (low-level playback control)
+│   └── listening_practice/  # Listening practice layer (business logic)
+│       ├── sentence_tracker.dart   # Sentence locator (binary search)
+│       └── bookmark_manager.dart   # Bookmark manager
+├── screens/           # Pages
+├── services/          # Service layer (StorageService, SubtitleParser)
+└── widgets/           # Reusable components
+
+integration_test/      # End-to-end tests
+test/                  # Unit / widget tests
+```
+
+</details>
+
+<details>
+<summary><strong>⌨️ Dev commands cheat sheet</strong></summary>
+
+**Run**
+
+```bash
+flutter run -d ios            # iOS
+flutter run -d android        # Android
+flutter run -d macos          # macOS (in development, unreleased)
+flutter run -d chrome         # Web (debug only, no release plan)
+
+# iOS Simulator
+xcrun simctl list devices available
+xcrun simctl boot <DEVICE_UDID>
+open -a Simulator
+```
+
+**Test / quality checks**
+
+```bash
+flutter analyze                          # Static analysis
+flutter test                             # All tests
+flutter test integration_test -d macos   # Integration tests
+dart format .                            # Format
+```
+
+**Code generation** (after modifying Riverpod providers)
+
+```bash
+dart run build_runner build
+```
+
+**Build**
+
+```bash
+# Compile-time variables are injected from an env file (.dev.env for debug, .prod.env for release)
+flutter build macos --dart-define-from-file=.prod.env
+flutter build apk   --dart-define-from-file=.prod.env
+flutter build ios   --dart-define-from-file=.prod.env
+
+# Run on device
+flutter run --release -d <DEVICE_ID> --dart-define-from-file=.dev.env
+```
+
+> The release scripts `scripts/run_simulator.sh` (reads `.dev.env`) and
+> `scripts/release_{android,ios,macos}.sh` (read `.prod.env`) already pass
+> `--dart-define-from-file` for you.
+
+**Requirements**
+
+- Flutter SDK 3.9.2+
+- iOS Simulator / Android emulator / physical devices
+- Desktop: macOS / Windows / Linux dev environment
+
+</details>
+
+---
+
+## 📄 License
+
+[AGPL-3.0](./LICENSE)
