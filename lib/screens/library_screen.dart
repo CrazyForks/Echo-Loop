@@ -31,29 +31,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _libraryTitleTapCount = 0;
   bool _showAllAudioShortcut = false;
 
-  // Guide steps 的 GlobalKey 在 state 层持有，保证整个 screen 生命周期内稳定。
-  // 同一个 step 会同时被 GuideFlow.steps 和对应的 GuideTarget 引用。
-  final _keyCollectionList = GlobalKey();
-  final _keyCollectionMenu = GlobalKey();
   final _keyCreateCollection = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final collectionState = ref.watch(collectionListProvider);
-    final shouldRunCollectionGuide =
-        _currentView == LibraryViewType.collections &&
-        !collectionState.isLoading;
-    final hasCollections = collectionState.collections.isNotEmpty;
-
-    final stepCollectionList = GuideStep(
-      key: _keyCollectionList,
-      description: l10n.guideLibraryCollectionListDescription,
-    );
-    final stepCollectionMenu = GuideStep(
-      key: _keyCollectionMenu,
-      description: l10n.guideLibraryCollectionMenuDescription,
-    );
     final stepCreateCollection = GuideStep(
       key: _keyCreateCollection,
       description: l10n.guideLibraryCreateCollectionDescription,
@@ -62,13 +45,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return GuideFlowSequenceHost(
       flows: [
         GuideFlow(
-          flowId: GuideFlowIds.libraryCollectionList,
-          shouldRun: shouldRunCollectionGuide && hasCollections,
-          steps: [stepCollectionList, if (hasCollections) stepCollectionMenu],
-        ),
-        GuideFlow(
           flowId: GuideFlowIds.libraryCreateCollection,
-          shouldRun: shouldRunCollectionGuide,
+          shouldRun:
+              _currentView == LibraryViewType.collections &&
+              !collectionState.isLoading,
           steps: [stepCreateCollection],
         ),
       ],
@@ -127,13 +107,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         body: IndexedStack(
           index: _currentView.index,
           children: [
-            _CollectionListBody(
-              listStep: stepCollectionList,
-              menuStep: stepCollectionMenu,
-            ),
+            const _CollectionListBody(),
             AudioListView(
               guideFirstAudioMenu: true,
-              guideLeadingItems: true,
               guideEnabled: _currentView == LibraryViewType.audio,
             ),
           ],
@@ -197,10 +173,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
 /// 合集列表视图体（不含 Scaffold/AppBar）
 class _CollectionListBody extends ConsumerWidget {
-  final GuideStep listStep;
-  final GuideStep menuStep;
-
-  const _CollectionListBody({required this.listStep, required this.menuStep});
+  const _CollectionListBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -219,10 +192,6 @@ class _CollectionListBody extends ConsumerWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (state.isEmpty) return const CollectionEmptyState();
-    return CollectionListView(
-      collections: state.collections,
-      firstItemStep: listStep,
-      firstMenuStep: menuStep,
-    );
+    return CollectionListView(collections: state.collections);
   }
 }

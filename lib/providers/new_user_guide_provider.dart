@@ -112,22 +112,17 @@ final isFirstLaunchProvider = Provider<bool>((ref) {
 /// 没有任何 screen 仍在引用，新增 flow 时不要往里加。
 /// [all] 用于设置页"重置引导"一键清空，合并 active + legacy。
 abstract final class GuideFlowIds {
-  static const mainShellVisitLibrary = 'main_shell_visit_library';
   static const libraryCreateCollection = 'library_create_collection';
-  static const libraryCollectionList = 'library_collection_list';
   static const collectionDetailUpload = 'collection_detail_upload';
   static const collectionDetailAudioList = 'collection_detail_audio_list';
   static const learningPlanNoTranscript = 'learning_plan_no_transcript';
   static const learningPlanWithTranscript = 'learning_plan_with_transcript';
   static const learningPlanPauseLearning = 'learning_plan_pause_learning';
-  static const subtitleSheetTranscription = 'subtitle_sheet_transcription';
   static const retellBriefingSkip = 'retell_briefing_skip';
-  static const studyTasksOverview = 'study_tasks_overview';
   static const studyStatsStreak = 'study_stats_streak';
+  static const favoritesTabsOverview = 'favorites_tabs_overview';
   static const favoritesSentencesReview = 'favorites_sentences_review';
   static const favoritesVocabularyReview = 'favorites_vocabulary_review';
-  static const intensiveListenCantUnderstand =
-      'intensive_listen_cant_understand';
   static const intensiveListenAnnotationActions =
       'intensive_listen_annotation_actions';
   static const sentenceAnnotationTour = 'sentence_annotation_tour';
@@ -136,21 +131,15 @@ abstract final class GuideFlowIds {
       'subtitle_editor_sentence_actions';
 
   static const active = [
-    mainShellVisitLibrary,
     libraryCreateCollection,
-    libraryCollectionList,
     collectionDetailUpload,
     collectionDetailAudioList,
     learningPlanNoTranscript,
     learningPlanWithTranscript,
     learningPlanPauseLearning,
-    subtitleSheetTranscription,
     retellBriefingSkip,
-    studyTasksOverview,
     studyStatsStreak,
-    favoritesSentencesReview,
-    favoritesVocabularyReview,
-    intensiveListenCantUnderstand,
+    favoritesTabsOverview,
     intensiveListenAnnotationActions,
     sentenceAnnotationTour,
     sentenceTileTour,
@@ -158,6 +147,8 @@ abstract final class GuideFlowIds {
   ];
 
   static const legacy = [
+    favoritesSentencesReview,
+    favoritesVocabularyReview,
     'library',
     'collection_detail',
     'library_examples',

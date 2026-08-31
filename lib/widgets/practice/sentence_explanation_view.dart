@@ -165,10 +165,9 @@ class _SentenceExplanationViewState
   GlobalKey<SentenceAnnotationCardState> _cardKey =
       GlobalKey<SentenceAnnotationCardState>();
 
-  // 新手引导步骤 key —— 解析卡片四步巡览（句子 → 意群 → 翻译 → 解析）
+  // 新手引导步骤 key —— 解析卡片三步巡览（句子 → 意群 → 解析）
   final GlobalKey _guideSentenceKey = GlobalKey();
   final GlobalKey _guideSenseGroupKey = GlobalKey();
-  final GlobalKey _guideTranslationKey = GlobalKey();
   final GlobalKey _guideAnalysisKey = GlobalKey();
 
   /// 工具栏刷新通知器
@@ -590,11 +589,7 @@ class _SentenceExplanationViewState
     });
 
     if (rangePlayback != null && audioItemId != null) {
-      await rangePlayback.play(
-        audioItemId,
-        timing.start,
-        timing.end,
-      );
+      await rangePlayback.play(audioItemId, timing.start, timing.end);
     } else {
       final engine = ref.read(audioEngineProvider.notifier);
       final sessionId = engine.newSession();
@@ -1005,12 +1000,6 @@ class _SentenceExplanationViewState
             description: l10n.guideSentenceAnnotationSenseGroupDescription,
           )
         : null;
-    final translationStep = enableGuide
-        ? GuideStep(
-            key: _guideTranslationKey,
-            description: l10n.guideSentenceAnnotationTranslationDescription,
-          )
-        : null;
     final analysisStep = enableGuide
         ? GuideStep(
             key: _guideAnalysisKey,
@@ -1022,13 +1011,8 @@ class _SentenceExplanationViewState
             GuideFlow(
               flowId: GuideFlowIds.sentenceAnnotationTour,
               shouldRun: true,
-              // 句子 → 意群 → 翻译 → 解析
-              steps: [
-                sentenceStep!,
-                senseGroupStep!,
-                translationStep!,
-                analysisStep!,
-              ],
+              // 句子 → 意群 → 解析
+              steps: [sentenceStep!, senseGroupStep!, analysisStep!],
             ),
           ]
         : const <GuideFlow>[];
@@ -1205,7 +1189,6 @@ class _SentenceExplanationViewState
                 onToolbarButtonTapped: widget.onToolbarButtonTapped,
                 sentenceGuideStep: sentenceStep,
                 senseGroupGuideStep: senseGroupStep,
-                translationGuideStep: translationStep,
                 analysisGuideStep: analysisStep,
               ),
             ),

@@ -36,6 +36,7 @@ class CollectionDetailScreen extends ConsumerStatefulWidget {
 class _CollectionDetailScreenState
     extends ConsumerState<CollectionDetailScreen> {
   final _keyUpload = GlobalKey();
+  final _keyAudioMenu = GlobalKey();
   _PodcastRefreshViewState? _podcastRefreshState;
 
   /// 多选模式开关（仅用户自建合集启用）。
@@ -91,13 +92,22 @@ class _CollectionDetailScreenState
       key: _keyUpload,
       description: l10n.guideCollectionUploadDescription,
     );
+    final stepAudioMenu = GuideStep(
+      key: _keyAudioMenu,
+      description: l10n.guideCollectionAudioMenuDescription,
+    );
 
     return GuideFlowSequenceHost(
       flows: [
         GuideFlow(
           flowId: GuideFlowIds.collectionDetailUpload,
-          shouldRun: true,
+          shouldRun: !collection.isOfficial && !collection.isPodcast,
           steps: [stepUpload],
+        ),
+        GuideFlow(
+          flowId: GuideFlowIds.collectionDetailAudioList,
+          shouldRun: hasAudioItems,
+          steps: [stepAudioMenu],
         ),
       ],
       child: PopScope(
@@ -142,7 +152,7 @@ class _CollectionDetailScreenState
                   collection: collection,
                   audioItems: audioItems,
                   guideFirstAudioMenu: hasAudioItems,
-                  guideLeadingItems: hasAudioItems,
+                  menuGuideStep: stepAudioMenu,
                   refreshState: _podcastRefreshState,
                   onRefresh: () => _refreshPodcastFeed(force: true),
                 )
@@ -150,7 +160,7 @@ class _CollectionDetailScreenState
                   items: audioItems,
                   collectionId: widget.collectionId,
                   guideFirstAudioMenu: hasAudioItems,
-                  guideLeadingItems: hasAudioItems,
+                  menuGuideStep: stepAudioMenu,
                   overrideSortType: collection.isOfficial
                       ? _officialSort
                       : null,
@@ -355,7 +365,7 @@ class _PodcastCollectionBody extends StatelessWidget {
   final Collection collection;
   final List<AudioItem> audioItems;
   final bool guideFirstAudioMenu;
-  final bool guideLeadingItems;
+  final GuideStep menuGuideStep;
   final _PodcastRefreshViewState? refreshState;
   final Future<void> Function() onRefresh;
 
@@ -363,7 +373,7 @@ class _PodcastCollectionBody extends StatelessWidget {
     required this.collection,
     required this.audioItems,
     required this.guideFirstAudioMenu,
-    required this.guideLeadingItems,
+    required this.menuGuideStep,
     required this.refreshState,
     required this.onRefresh,
   });
@@ -381,7 +391,7 @@ class _PodcastCollectionBody extends StatelessWidget {
               items: audioItems,
               collectionId: collection.id,
               guideFirstAudioMenu: guideFirstAudioMenu,
-              guideLeadingItems: guideLeadingItems,
+              menuGuideStep: menuGuideStep,
               emptyState: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [

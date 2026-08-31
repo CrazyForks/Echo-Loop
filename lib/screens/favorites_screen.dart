@@ -127,6 +127,7 @@ class _FavoritesSegmentLabel extends StatelessWidget {
 /// 收藏页单个分段；使用固定等宽布局，避免标题和 badge 触发 intrinsic 错位。
 class _FavoritesSegment extends StatelessWidget {
   final Key segmentKey;
+  final GuideStep? guideStep;
   final bool selected;
   final IconData icon;
   final String title;
@@ -136,6 +137,7 @@ class _FavoritesSegment extends StatelessWidget {
 
   const _FavoritesSegment({
     required this.segmentKey,
+    this.guideStep,
     required this.selected,
     required this.icon,
     required this.title,
@@ -151,35 +153,39 @@ class _FavoritesSegment extends StatelessWidget {
     // 图标作为辅助信息使用次要色，避免与标题争夺视觉焦点。
     final foregroundColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
 
+    final segment = Material(
+      key: segmentKey,
+      color: selected ? colorScheme.secondaryContainer : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 42,
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: foregroundColor),
+                const SizedBox(width: 8),
+                _FavoritesSegmentLabel(
+                  title: title,
+                  count: count,
+                  badgeKey: badgeKey,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
     return Expanded(
       child: Semantics(
         button: true,
         selected: selected,
         inMutuallyExclusiveGroup: true,
-        child: Material(
-          key: segmentKey,
-          color: selected ? colorScheme.secondaryContainer : Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              height: 42,
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 18, color: foregroundColor),
-                    const SizedBox(width: 8),
-                    _FavoritesSegmentLabel(
-                      title: title,
-                      count: count,
-                      badgeKey: badgeKey,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+        child: guideStep == null
+            ? segment
+            : GuideTarget(step: guideStep!, child: segment),
       ),
     );
   }
@@ -229,11 +235,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   _FavoritesView _currentView = _FavoritesView.sentences;
   late final AppLifecycleListener _lifecycleListener;
 
-  /// 新手引导 step key（生命周期内稳定）
-  final GlobalKey _keySentencesList = GlobalKey();
-  final GlobalKey _keySentencesReviewBtn = GlobalKey();
-  final GlobalKey _keyWordsList = GlobalKey();
-  final GlobalKey _keyVocabReviewBtn = GlobalKey();
+  /// 收藏 Tab 新手引导 step key（生命周期内稳定）。
+  final GlobalKey _keySentencesTab = GlobalKey();
+  final GlobalKey _keyVocabularyTab = GlobalKey();
 
   @override
   void initState() {
@@ -304,7 +308,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ? const Color(0xFF9BA3AE)
         : const Color(0xFF5A6270);
     final stepSentencesList = GuideStep(
-      key: _keySentencesList,
+      key: _keySentencesTab,
       description: l10n.guideFavoritesSentencesListDescription,
       descriptionWidget: Text(
         l10n.guideFavoritesSentencesListDescription,
@@ -316,38 +320,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ),
       ),
     );
-    final stepSentencesReviewBtn = GuideStep(
-      key: _keySentencesReviewBtn,
-      description: l10n.guideFavoritesSentencesReviewDescription,
-    );
     final stepWordsList = GuideStep(
-      key: _keyWordsList,
+      key: _keyVocabularyTab,
       description: l10n.guideFavoritesVocabularyListDescription,
     );
-    final stepFlashcardBtn = GuideStep(
-      key: _keyVocabReviewBtn,
-      description: l10n.guideFavoritesFlashcardDescription,
-    );
 
-    // 有效书签：过滤迁移遗留的无时长或空文本条目（复用 _FloatingSentenceReviewButton 同一规则）
-    final allBookmarks = bookmarksAsync.valueOrNull ?? const [];
-    final hasValidSentences = allBookmarks.any(
-      (b) =>
-          (b.bookmark.endTime - b.bookmark.startTime) > 0 &&
-          b.bookmark.sentenceText.isNotEmpty,
-    );
-    final hasVocab = vocabCount > 0;
     final flows = <GuideFlow>[
       GuideFlow(
-        flowId: GuideFlowIds.favoritesSentencesReview,
-        shouldRun:
-            _currentView == _FavoritesView.sentences && hasValidSentences,
-        steps: [stepSentencesList, stepSentencesReviewBtn],
-      ),
-      GuideFlow(
-        flowId: GuideFlowIds.favoritesVocabularyReview,
-        shouldRun: _currentView == _FavoritesView.words && hasVocab,
-        steps: [stepWordsList, stepFlashcardBtn],
+        flowId: GuideFlowIds.favoritesTabsOverview,
+        // 两个目标都是固定存在的 Tab；页面首次可见时连续展示，不依赖收藏数据。
+        shouldRun: true,
+        steps: [stepSentencesList, stepWordsList],
       ),
     ];
 
@@ -432,6 +415,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     child: Row(
                       children: [
                         _FavoritesSegment(
+                          guideStep: stepSentencesList,
                           segmentKey: const Key('favorites-sentences-segment'),
                           selected: _currentView == _FavoritesView.sentences,
                           icon: Icons.subject,
@@ -442,6 +426,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                               _selectFavoritesView(_FavoritesView.sentences),
                         ),
                         _FavoritesSegment(
+                          guideStep: stepWordsList,
                           segmentKey: const Key('favorites-vocabulary-segment'),
                           selected: _currentView == _FavoritesView.words,
                           icon: Icons.menu_book_outlined,
@@ -466,9 +451,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   IndexedStack(
                     index: _currentView.index,
                     children: [
-                      _SentencesView(firstItemStep: stepSentencesList),
+                      const _SentencesView(),
                       _WordsView(
-                        firstItemStep: stepWordsList,
                         // 仅词汇 tab 激活时才预热（IndexedStack 会同时构建两个 tab，
                         // 不门控则停在句子 tab 也会为词汇起引擎合成、浪费 CPU）。
                         isActive:
@@ -480,11 +464,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
                   // 底部悬浮复习按钮
                   if (_currentView == _FavoritesView.sentences)
-                    _FloatingSentenceReviewButton(
-                      guideStep: stepSentencesReviewBtn,
-                    )
+                    const _FloatingSentenceReviewButton()
                   else if (_currentView == _FavoritesView.words)
-                    _FloatingFlashcardButton(guideStep: stepFlashcardBtn),
+                    const _FloatingFlashcardButton(),
                 ],
               ),
             ),
@@ -512,36 +494,13 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
 /// 句子视图 — 按音频分组展示收藏的书签句子
 class _SentencesView extends ConsumerStatefulWidget {
-  /// 新手引导高亮目标：只包第一个音频分组卡片
-  final GuideStep? firstItemStep;
-
-  const _SentencesView({this.firstItemStep});
+  const _SentencesView();
 
   @override
   ConsumerState<_SentencesView> createState() => _SentencesViewState();
 }
 
 class _SentencesViewState extends ConsumerState<_SentencesView> {
-  /// 首个分组卡片的展开控制器：引导激活时自动展开
-  final ExpansibleController _firstGroupController = ExpansibleController();
-
-  @override
-  void initState() {
-    super.initState();
-    // 引导 flow 激活时主动展开第一条，让用户更直观看到内部内容
-    ref.listenManual<GuideControllerState>(guideControllerProvider, (
-      prev,
-      next,
-    ) {
-      if (next.activeFlowId != GuideFlowIds.favoritesSentencesReview) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_firstGroupController.isExpanded) return;
-        _firstGroupController.expand();
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final bookmarksAsync = ref.watch(bookmarkListProvider);
@@ -572,17 +531,11 @@ class _SentencesViewState extends ConsumerState<_SentencesView> {
             final audioId = grouped.keys.elementAt(index);
             final items = grouped[audioId]!;
             final audioName = items.first.audioName;
-            final isFirst = index == 0;
-
             final tile = _AudioBookmarkGroup(
               audioId: audioId,
               audioName: audioName,
               bookmarks: items,
-              expansionController: isFirst ? _firstGroupController : null,
             );
-            if (isFirst && widget.firstItemStep != null) {
-              return GuideTarget(step: widget.firstItemStep!, child: tile);
-            }
             return tile;
           },
         );
@@ -593,10 +546,7 @@ class _SentencesViewState extends ConsumerState<_SentencesView> {
 
 /// 底部悬浮句子复习按钮
 class _FloatingSentenceReviewButton extends ConsumerWidget {
-  /// 新手引导高亮 step，用于包裹按钮（仅有效书签非空时才渲染）
-  final GuideStep? guideStep;
-
-  const _FloatingSentenceReviewButton({this.guideStep});
+  const _FloatingSentenceReviewButton();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -618,7 +568,6 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
       leading: dueCount == 0
           ? const Text('🎉', style: TextStyle(fontSize: 18))
           : const Icon(Icons.style_outlined, size: 18),
-      guideStep: guideStep,
       // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
       label: dueCount == null
           ? l10n.downloadLoading
@@ -660,10 +609,7 @@ class _FloatingSentenceReviewButton extends ConsumerWidget {
 
 /// 底部悬浮 Flashcard 按钮
 class _FloatingFlashcardButton extends ConsumerWidget {
-  /// 新手引导高亮 step，仅当按钮真正渲染时才包裹
-  final GuideStep? guideStep;
-
-  const _FloatingFlashcardButton({this.guideStep});
+  const _FloatingFlashcardButton();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -683,7 +629,6 @@ class _FloatingFlashcardButton extends ConsumerWidget {
       leading: dueCount == 0
           ? const Text('🎉', style: TextStyle(fontSize: 18))
           : const Icon(Icons.style_outlined, size: 18),
-      guideStep: guideStep,
       // 待复习数量尚未加载时不回退显示总收藏数，避免切换 Tab 时文案闪烁。
       label: dueCount == null
           ? l10n.downloadLoading
@@ -718,8 +663,6 @@ class _FloatingReviewButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  /// 新手引导高亮 step，仅包裹按钮区域（不含渐变遮罩）
-  final GuideStep? guideStep;
   final bool enabled;
 
   const _FloatingReviewButton({
@@ -727,7 +670,6 @@ class _FloatingReviewButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.enabled = true,
-    this.guideStep,
   });
 
   @override
@@ -758,10 +700,6 @@ class _FloatingReviewButton extends StatelessWidget {
         ),
       ),
     );
-    if (guideStep != null) {
-      button = GuideTarget(step: guideStep!, child: button);
-    }
-
     final buttonBox = Container(
       color: theme.colorScheme.surface,
       padding: const EdgeInsets.fromLTRB(
@@ -810,14 +748,10 @@ class _AudioBookmarkGroup extends StatelessWidget {
   final String audioName;
   final List<BookmarkWithAudio> bookmarks;
 
-  /// 展开控制器（可选）：用于新手引导时由外部主动展开
-  final ExpansibleController? expansionController;
-
   const _AudioBookmarkGroup({
     required this.audioId,
     required this.audioName,
     required this.bookmarks,
-    this.expansionController,
   });
 
   @override
@@ -829,7 +763,6 @@ class _AudioBookmarkGroup extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.s),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        controller: expansionController,
         initiallyExpanded: false,
         iconColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
         collapsedIconColor: theme.colorScheme.onSurfaceVariant.withValues(
@@ -1174,14 +1107,11 @@ _resolveSourceSentenceLocation({
 ///
 /// 批量预加载字典释义，所有释义一次性渲染（不会逐个闪烁）。
 class _WordsView extends ConsumerStatefulWidget {
-  /// 新手引导高亮目标：只包第一个词汇 tile
-  final GuideStep? firstItemStep;
-
   /// 词汇 tab 当前是否激活（IndexedStack 会同时构建两个 tab，用此门控预热——
   /// 仅激活时才为词汇起引擎合成，停在句子 tab 不预热）。
   final bool isActive;
 
-  const _WordsView({this.firstItemStep, this.isActive = false});
+  const _WordsView({this.isActive = false});
 
   @override
   ConsumerState<_WordsView> createState() => _WordsViewState();
@@ -1193,9 +1123,6 @@ class _WordsViewState extends ConsumerState<_WordsView> {
 
   /// 上次触发查询的单词列表，用于去重
   List<String> _lastWordKeys = [];
-
-  /// 首个词汇卡片的展开控制器：引导激活时自动展开
-  final ExpansibleController _firstItemController = ExpansibleController();
 
   /// 统一 TTS 控制器（build 时缓存，供 dispose 取消预热——dispose 内不可用 ref，§7.14）。
   TtsController? _ttsController;
@@ -1265,22 +1192,6 @@ class _WordsViewState extends ConsumerState<_WordsView> {
       });
     }
     return false;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    ref.listenManual<GuideControllerState>(guideControllerProvider, (
-      prev,
-      next,
-    ) {
-      if (next.activeFlowId != GuideFlowIds.favoritesVocabularyReview) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_firstItemController.isExpanded) return;
-        _firstItemController.expand();
-      });
-    });
   }
 
   @override
@@ -1369,28 +1280,23 @@ class _WordsViewState extends ConsumerState<_WordsView> {
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
-          final isFirst = index == 0;
-          final controller = isFirst ? _firstItemController : null;
           final tile = switch (item) {
             _VocabularyWord(word: final w) => _SavedWordTile(
               key: ValueKey('w_${w.id}'),
               savedWord: w,
               dictEntry: _dictMap[w.word],
-              expansionController: controller,
+              expansionController: null,
               isActive: widget.isActive,
               isScrolling: _isScrolling,
             ),
             _VocabularyPhrase(phrase: final p) => _SavedPhraseTile(
               key: ValueKey('p_${p.id}'),
               savedPhrase: p,
-              expansionController: controller,
+              expansionController: null,
               isActive: widget.isActive,
               isScrolling: _isScrolling,
             ),
           };
-          if (isFirst && widget.firstItemStep != null) {
-            return GuideTarget(step: widget.firstItemStep!, child: tile);
-          }
           return tile;
         },
       ),

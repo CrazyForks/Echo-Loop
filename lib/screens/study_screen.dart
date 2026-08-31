@@ -53,7 +53,6 @@ class StudyScreen extends ConsumerStatefulWidget {
 
 class _StudyScreenState extends ConsumerState<StudyScreen> {
   /// 引导 step 的 key 需在整个页面生命周期内保持稳定，故放在 State 中持有。
-  final GlobalKey _keyTaskArea = GlobalKey();
   final GlobalKey _keyStatsHeader = GlobalKey();
   final GlobalKey _keyStreakChip = GlobalKey();
 
@@ -145,11 +144,6 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     );
 
     // ----- 新手引导 flow 声明 -----
-    final stepTaskArea = GuideStep(
-      key: _keyTaskArea,
-      title: l10n.guideStudyTasksOverviewTitle,
-      description: l10n.guideStudyTasksOverviewDescription,
-    );
     final stepStatsHeader = GuideStep(
       key: _keyStatsHeader,
       title: l10n.guideStudyStatsHeaderTitle,
@@ -162,11 +156,6 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     // 门槛：用户本周已经累计过学习时长才触发引导。
     final hasStudyTime = (statsAsync.valueOrNull?.weekTotalSeconds ?? 0) > 0;
     final flows = <GuideFlow>[
-      GuideFlow(
-        flowId: GuideFlowIds.studyTasksOverview,
-        shouldRun: hasStudyTime && tasks.isNotEmpty,
-        steps: [stepTaskArea],
-      ),
       GuideFlow(
         flowId: GuideFlowIds.studyStatsStreak,
         shouldRun: hasStudyTime,
@@ -211,60 +200,50 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                   ),
                   const SizedBox(height: AppSpacing.l),
 
-                  // 学习任务区（引导 flow 1 的高亮目标）
+                  // 学习任务区
                   if (readyReviews.isNotEmpty ||
                       upcomingReviews.isNotEmpty ||
                       firstStudies.isNotEmpty)
-                    GuideTarget(
-                      step: stepTaskArea,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (readyReviews.isNotEmpty) ...[
-                            _TaskSection(
-                              title: l10n.readyToReview(readyReviews.length),
-                              iconAsset: _studyReviewIconAsset,
-                              tasks: readyReviews,
-                              l10n: l10n,
-                              now: now,
-                            ),
-                            const SizedBox(height: AppSpacing.m),
-                          ],
-                          if (upcomingReviews.isNotEmpty) ...[
-                            _CollapsibleSection(
-                              title: l10n.upcomingReviews(
-                                upcomingReviews.length,
-                              ),
-                              summary: l10n.upcomingReviewsSummary(
-                                upcomingReviews.length,
-                              ),
-                              initiallyExpanded: false,
-                              children: upcomingReviews
-                                  .map(
-                                    (t) => _TaskCard(
-                                      task: t,
-                                      l10n: l10n,
-                                      now: now,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: AppSpacing.m),
-                          ],
-                          if (firstStudies.isNotEmpty) ...[
-                            _TaskSection(
-                              title: l10n.firstStudySection(
-                                firstStudies.length,
-                              ),
-                              iconAsset: _studyReadingIconAsset,
-                              tasks: firstStudies,
-                              l10n: l10n,
-                              now: now,
-                            ),
-                            const SizedBox(height: AppSpacing.m),
-                          ],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (readyReviews.isNotEmpty) ...[
+                          _TaskSection(
+                            title: l10n.readyToReview(readyReviews.length),
+                            iconAsset: _studyReviewIconAsset,
+                            tasks: readyReviews,
+                            l10n: l10n,
+                            now: now,
+                          ),
+                          const SizedBox(height: AppSpacing.m),
                         ],
-                      ),
+                        if (upcomingReviews.isNotEmpty) ...[
+                          _CollapsibleSection(
+                            title: l10n.upcomingReviews(upcomingReviews.length),
+                            summary: l10n.upcomingReviewsSummary(
+                              upcomingReviews.length,
+                            ),
+                            initiallyExpanded: false,
+                            children: upcomingReviews
+                                .map(
+                                  (t) =>
+                                      _TaskCard(task: t, l10n: l10n, now: now),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: AppSpacing.m),
+                        ],
+                        if (firstStudies.isNotEmpty) ...[
+                          _TaskSection(
+                            title: l10n.firstStudySection(firstStudies.length),
+                            iconAsset: _studyReadingIconAsset,
+                            tasks: firstStudies,
+                            l10n: l10n,
+                            now: now,
+                          ),
+                          const SizedBox(height: AppSpacing.m),
+                        ],
+                      ],
                     ),
 
                   // 最近完成（过去24小时，默认折叠）

@@ -25,7 +25,6 @@ import '../providers/learning_progress_provider.dart';
 import '../providers/learning_session/intensive_listen_player_provider.dart';
 import '../providers/learning_session/learning_session_provider.dart';
 import '../providers/sentence_ai_provider.dart';
-import '../providers/listening_practice/bookmark_manager.dart';
 import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/notification_permission_dialog.dart'
@@ -40,7 +39,6 @@ import '../widgets/practice/selectable_sentence_text.dart';
 import '../widgets/common/bookmark_toggle_row.dart';
 import '../widgets/common/countdown_chip.dart';
 import '../widgets/common/practice_playback_footer.dart';
-import '../widgets/guide_flow.dart';
 import '../widgets/player_hotkey_scope.dart';
 import '../widgets/dictionary/dictionary_panel_host.dart';
 import '../widgets/practice/sentence_explanation_view.dart';
@@ -50,7 +48,6 @@ import '../widgets/practice/practice_progress_section.dart';
 import '../widgets/common/managed_media_visual_surface.dart';
 import '../widgets/common/practice_media_presentation_host.dart';
 import '../widgets/practice/practice_sentence_pager.dart';
-import '../providers/new_user_guide_provider.dart';
 
 /// 精听播放器页面
 class IntensiveListenPlayerScreen extends ConsumerStatefulWidget {
@@ -93,9 +90,6 @@ class _IntensiveListenPlayerScreenState
 
   /// 是否正在显示完成弹窗，防止重复弹窗
   bool _isShowingDialog = false;
-
-  /// 新手引导：「听不太懂」按钮 Showcase key（随 State 生命周期存在）
-  final GlobalKey _guideCantUnderstandKey = GlobalKey();
 
   ProviderSubscription<IntensiveListenState>? _playerSubscription;
   bool _mediaStartupReady = false;
@@ -588,22 +582,6 @@ class _IntensiveListenPlayerScreenState
 
     final currentSentence = player.currentSentence;
 
-    // 新手引导：仅在普通练习模式（非标注/重播）下展示，确保按钮在屏上
-    final cantUnderstandStep = GuideStep(
-      key: _guideCantUnderstandKey,
-      description: l10n.guideIntensiveListenCantUnderstandDescription,
-    );
-    final guideFlows = <GuideFlow>[
-      GuideFlow(
-        flowId: GuideFlowIds.intensiveListenCantUnderstand,
-        shouldRun:
-            mediaReady &&
-            !playerState.isAnnotationMode &&
-            !playerState.isAnnotationReplay,
-        steps: [cantUnderstandStep],
-      ),
-    ];
-
     // 句子时长（如 "3.5s"）和时间戳（如 "00:32.1 - 00:35.6"）分开传递，
     // 由 _ProgressSection 用不同样式渲染以建立视觉层级。
     final hasDuration =
@@ -631,402 +609,374 @@ class _IntensiveListenPlayerScreenState
               _handleMediaStartupExit();
             }
           },
-          child: GuideFlowSequenceHost(
-            flows: guideFlows,
-            child: PracticeMediaPresentationHost(
-              enabled: playerState.usesMediaEngine,
-              audioItemId: widget.audioItemId,
-              isPlaying: playerState.isPlaying,
-              onPlayPause: _handleCenter,
-              builder: (context, presentation, mediaSurface) => Scaffold(
-                appBar: presentation.expanded
-                    ? null
-                    : AppBar(
-                        actionsPadding: const EdgeInsets.only(
-                          right: AppSpacing.s,
-                        ),
-                        title: Text(l10n.intensiveListenAppBarTitle),
-                        centerTitle: true,
-                        leading: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: mediaReady
-                              ? _handleExit
-                              : _handleMediaStartupExit,
-                        ),
-                        actions: [
-                          if (mediaReady) ...[
-                            // AI 助手入口：打开前暂停自动推进（同设置按钮的处理）。
-                            SentenceChatButton(
-                              sentenceText: currentSentence?.text ?? '',
-                              onBeforeOpen: () {
-                                if (playerState.annotationState != null) {
-                                  player.onAnnotationUserInteraction();
-                                } else {
-                                  player.enterWaitingForUserInBlindMode();
-                                }
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.tune),
-                              onPressed: () {
-                                if (playerState.annotationState != null) {
-                                  player.onAnnotationUserInteraction();
-                                } else {
-                                  player.enterWaitingForUserInBlindMode();
-                                }
-                                showIntensiveListenSettingsSheet(
-                                  context: context,
-                                );
-                              },
-                            ),
-                          ],
-                        ],
+          child: PracticeMediaPresentationHost(
+            enabled: playerState.usesMediaEngine,
+            audioItemId: widget.audioItemId,
+            isPlaying: playerState.isPlaying,
+            onPlayPause: _handleCenter,
+            builder: (context, presentation, mediaSurface) => Scaffold(
+              appBar: presentation.expanded
+                  ? null
+                  : AppBar(
+                      actionsPadding: const EdgeInsets.only(
+                        right: AppSpacing.s,
                       ),
-                // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）
-                body: _wrapMediaStartup(
-                  presentation.expanded
-                      ? mediaSurface
-                      : DictionaryPanelHost(
-                          key: _dictPanelHostKey,
-                          child: Column(
-                            children: [
-                              if (playerState.usesMediaEngine) mediaSurface,
-                              PracticeProgressBar(
-                                current: playerState.currentSentenceIndex + 1,
-                                total: playerState.totalSentences,
-                                elapsed: currentSentence?.startTime,
-                                remaining:
-                                    currentSentence == null ||
-                                        player.sentences.isEmpty
-                                    ? null
-                                    : player.sentences.last.endTime -
-                                          currentSentence.startTime,
-                                onSeek: (i) => ref
-                                    .read(
-                                      intensiveListenPlayerProvider.notifier,
-                                    )
-                                    .goToSentence(i),
+                      title: Text(l10n.intensiveListenAppBarTitle),
+                      centerTitle: true,
+                      leading: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: mediaReady
+                            ? _handleExit
+                            : _handleMediaStartupExit,
+                      ),
+                      actions: [
+                        if (mediaReady) ...[
+                          // AI 助手入口：打开前暂停自动推进（同设置按钮的处理）。
+                          SentenceChatButton(
+                            sentenceText: currentSentence?.text ?? '',
+                            onBeforeOpen: () {
+                              if (playerState.annotationState != null) {
+                                player.onAnnotationUserInteraction();
+                              } else {
+                                player.enterWaitingForUserInBlindMode();
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.tune),
+                            onPressed: () {
+                              if (playerState.annotationState != null) {
+                                player.onAnnotationUserInteraction();
+                              } else {
+                                player.enterWaitingForUserInBlindMode();
+                              }
+                              showIntensiveListenSettingsSheet(
+                                context: context,
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+              // 词典面板宿主：面板内嵌 body、非 modal（显示期间正文可继续点词）
+              body: _wrapMediaStartup(
+                presentation.expanded
+                    ? mediaSurface
+                    : DictionaryPanelHost(
+                        key: _dictPanelHostKey,
+                        child: Column(
+                          children: [
+                            if (playerState.usesMediaEngine) mediaSurface,
+                            PracticeProgressBar(
+                              current: playerState.currentSentenceIndex + 1,
+                              total: playerState.totalSentences,
+                              elapsed: currentSentence?.startTime,
+                              remaining:
+                                  currentSentence == null ||
+                                      player.sentences.isEmpty
+                                  ? null
+                                  : player.sentences.last.endTime -
+                                        currentSentence.startTime,
+                              onSeek: (i) => ref
+                                  .read(intensiveListenPlayerProvider.notifier)
+                                  .goToSentence(i),
+                            ),
+                            PracticeSentenceInfoRow(
+                              progressText: l10n.intensiveListenProgress(
+                                playerState.currentSentenceIndex + 1,
+                                playerState.totalSentences,
                               ),
-                              PracticeSentenceInfoRow(
-                                progressText: l10n.intensiveListenProgress(
-                                  playerState.currentSentenceIndex + 1,
-                                  playerState.totalSentences,
-                                ),
-                                durationText: durationText,
-                                trailing: BookmarkToggleRow(
-                                  isDifficult: playerState.difficultSentences
-                                      .contains(
-                                        playerState.currentSentenceIndex,
-                                      ),
-                                  isAutoMarked:
-                                      playerState.isCurrentSentenceAutoMarked,
-                                  onTap: _toggleAndSaveDifficult,
-                                ),
+                              durationText: durationText,
+                              trailing: BookmarkToggleRow(
+                                isDifficult: playerState.difficultSentences
+                                    .contains(playerState.currentSentenceIndex),
+                                isAutoMarked:
+                                    playerState.isCurrentSentenceAutoMarked,
+                                onTap: _toggleAndSaveDifficult,
                               ),
+                            ),
 
-                              // 主体内容
-                              Expanded(
-                                child: PracticeSentencePager(
-                                  controller: _sentencePager,
-                                  pageViewKey: const ValueKey(
-                                    'intensive-sentence-page-view',
-                                  ),
-                                  currentIndex:
-                                      playerState.currentSentenceIndex,
-                                  itemCount: player.sentences.length,
-                                  onSentenceSettled: player.goToSentence,
-                                  itemBuilder: (context, sentenceIndex) {
-                                    final sentence =
-                                        player.sentences[sentenceIndex];
-                                    final isActivePage =
-                                        sentenceIndex ==
-                                        playerState.currentSentenceIndex;
-                                    // PageView 会同时预建相邻页。讲解态只能属于 provider
-                                    // 当前的源句，目标页在横滑期间始终显示盲听内容。
-                                    final showAnnotationContent =
-                                        isActivePage &&
-                                        (playerState.isAnnotationMode ||
-                                            playerState.isAnnotationReplay);
-                                    final content = showAnnotationContent
-                                        ? _AnnotationContent(
-                                            child: SentenceExplanationView(
-                                              text: sentence.text,
-                                              aiNotifier: ref.read(
-                                                sentenceAiNotifierProvider,
-                                              ),
-                                              audioItemId: widget.audioItemId,
-                                              sentenceIndex: sentence.index,
-                                              sentenceStartMs: sentence
-                                                  .startTime
-                                                  .inMilliseconds,
-                                              sentenceEndMs: sentence
-                                                  .endTime
-                                                  .inMilliseconds,
-                                              onStopMainPlayer: () {
-                                                player
-                                                    .onAnnotationUserInteraction();
-                                              },
-                                              onToolbarButtonTapped: () {
-                                                player
-                                                    .onAnnotationUserInteraction();
-                                              },
-                                              enableGuide: false,
+                            // 主体内容
+                            Expanded(
+                              child: PracticeSentencePager(
+                                controller: _sentencePager,
+                                pageViewKey: const ValueKey(
+                                  'intensive-sentence-page-view',
+                                ),
+                                currentIndex: playerState.currentSentenceIndex,
+                                itemCount: player.sentences.length,
+                                onSentenceSettled: player.goToSentence,
+                                itemBuilder: (context, sentenceIndex) {
+                                  final sentence =
+                                      player.sentences[sentenceIndex];
+                                  final isActivePage =
+                                      sentenceIndex ==
+                                      playerState.currentSentenceIndex;
+                                  // PageView 会同时预建相邻页。讲解态只能属于 provider
+                                  // 当前的源句，目标页在横滑期间始终显示盲听内容。
+                                  final showAnnotationContent =
+                                      isActivePage &&
+                                      (playerState.isAnnotationMode ||
+                                          playerState.isAnnotationReplay);
+                                  final content = showAnnotationContent
+                                      ? _AnnotationContent(
+                                          child: SentenceExplanationView(
+                                            text: sentence.text,
+                                            aiNotifier: ref.read(
+                                              sentenceAiNotifierProvider,
                                             ),
-                                          )
-                                        : PracticeNormalModeView(
-                                            l10n: l10n,
-                                            theme: theme,
-                                            isTextRevealed:
-                                                isActivePage &&
-                                                playerState.isTextRevealed,
-                                            showHiddenTextPlaceholderLines:
-                                                !playerState.usesMediaEngine ||
-                                                !presentation
-                                                    .visualTrackVisible,
-                                            // 仅当句子初始就是难句时才展示「取消标记 / 重新标记」按钮；
-                                            // 否则（任务开始时未标记）只显示「听不太懂」。
-                                            alwaysShowToggleButton:
-                                                sentence.isBookmarked,
-                                            showBookmarkRow: false,
-                                            countdown: Consumer(
-                                              builder: (context, ref, _) {
-                                                final s = ref.watch(
-                                                  intensiveListenPlayerProvider.select(
-                                                    (s) => (
-                                                      show:
-                                                          s.isPauseBetweenPlays &&
-                                                          !s
-                                                              .settings
-                                                              .isManualMode,
-                                                      total: s.pauseDuration,
-                                                      paused:
-                                                          s.isCountdownPaused,
-                                                      fastForward: s
-                                                          .isCountdownFastForward,
-                                                    ),
-                                                  ),
-                                                );
-                                                if (!isActivePage || !s.show) {
-                                                  return const SizedBox.shrink();
-                                                }
-                                                return CountdownChip(
-                                                  key: ValueKey(
-                                                    'blind-countdown-'
-                                                    '${playerState.currentSentenceIndex}-'
-                                                    '${s.total.inMilliseconds}',
-                                                  ),
-                                                  total: s.total,
-                                                  isPaused: s.paused,
-                                                  isFastForward: s.fastForward,
-                                                  onTap: player
-                                                      .enterWaitingForUserInBlindMode,
-                                                  onPause: () =>
-                                                      player.pauseCountdown(),
-                                                  onResume: () =>
-                                                      player.resumeCountdown(),
-                                                );
-                                              },
-                                            ),
-                                            isDifficult: playerState
-                                                .difficultSentences
-                                                .contains(sentenceIndex),
-                                            onPeekToggle: () {
+                                            audioItemId: widget.audioItemId,
+                                            sentenceIndex: sentence.index,
+                                            sentenceStartMs: sentence
+                                                .startTime
+                                                .inMilliseconds,
+                                            sentenceEndMs:
+                                                sentence.endTime.inMilliseconds,
+                                            onStopMainPlayer: () {
                                               player
-                                                  .enterWaitingForUserInBlindMode();
-                                              player.setTextRevealed(
-                                                !playerState.isTextRevealed,
+                                                  .onAnnotationUserInteraction();
+                                            },
+                                            onToolbarButtonTapped: () {
+                                              player
+                                                  .onAnnotationUserInteraction();
+                                            },
+                                            enableGuide: false,
+                                          ),
+                                        )
+                                      : PracticeNormalModeView(
+                                          l10n: l10n,
+                                          theme: theme,
+                                          isTextRevealed:
+                                              isActivePage &&
+                                              playerState.isTextRevealed,
+                                          showHiddenTextPlaceholderLines:
+                                              !playerState.usesMediaEngine ||
+                                              !presentation.visualTrackVisible,
+                                          // 仅当句子初始就是难句时才展示「取消标记 / 重新标记」按钮；
+                                          // 否则（任务开始时未标记）只显示「听不太懂」。
+                                          alwaysShowToggleButton:
+                                              sentence.isBookmarked,
+                                          showBookmarkRow: false,
+                                          countdown: Consumer(
+                                            builder: (context, ref, _) {
+                                              final s = ref.watch(
+                                                intensiveListenPlayerProvider.select(
+                                                  (s) => (
+                                                    show:
+                                                        s.isPauseBetweenPlays &&
+                                                        !s
+                                                            .settings
+                                                            .isManualMode,
+                                                    total: s.pauseDuration,
+                                                    paused: s.isCountdownPaused,
+                                                    fastForward: s
+                                                        .isCountdownFastForward,
+                                                  ),
+                                                ),
+                                              );
+                                              if (!isActivePage || !s.show) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return CountdownChip(
+                                                key: ValueKey(
+                                                  'blind-countdown-'
+                                                  '${playerState.currentSentenceIndex}-'
+                                                  '${s.total.inMilliseconds}',
+                                                ),
+                                                total: s.total,
+                                                isPaused: s.paused,
+                                                isFastForward: s.fastForward,
+                                                onTap: player
+                                                    .enterWaitingForUserInBlindMode,
+                                                onPause: () =>
+                                                    player.pauseCountdown(),
+                                                onResume: () =>
+                                                    player.resumeCountdown(),
                                               );
                                             },
-                                            onToggleMark:
-                                                _toggleAndSaveDifficult,
-                                            onCantUnderstand: () =>
-                                                player.enterAnnotationMode(),
-                                            // 仅当前句注册引导，避免横滑时相邻盲听页复用同一
-                                            // Showcase key，导致离屏页销毁后仍有异步回调。
-                                            cantUnderstandStep: isActivePage
-                                                ? cantUnderstandStep
-                                                : null,
+                                          ),
+                                          isDifficult: playerState
+                                              .difficultSentences
+                                              .contains(sentenceIndex),
+                                          onPeekToggle: () {
+                                            player
+                                                .enterWaitingForUserInBlindMode();
+                                            player.setTextRevealed(
+                                              !playerState.isTextRevealed,
+                                            );
+                                          },
+                                          onToggleMark: _toggleAndSaveDifficult,
+                                          onCantUnderstand: () =>
+                                              player.enterAnnotationMode(),
+                                          sentenceText: sentence.text,
+                                          lookupOrigin: DictionaryLookupOrigin(
+                                            audioItemId: widget.audioItemId,
+                                            sentenceIndex: sentence.index,
                                             sentenceText: sentence.text,
-                                            lookupOrigin:
-                                                DictionaryLookupOrigin(
-                                                  audioItemId:
-                                                      widget.audioItemId,
-                                                  sentenceIndex: sentence.index,
-                                                  sentenceText: sentence.text,
-                                                  sentenceStartMs: sentence
-                                                      .startTime
-                                                      .inMilliseconds,
-                                                  sentenceEndMs: sentence
-                                                      .endTime
-                                                      .inMilliseconds,
-                                                ),
-                                            onBeforeLookup: () => player
-                                                .enterWaitingForUserInBlindMode(),
-                                          );
-                                    return KeyedSubtree(
-                                      key: ValueKey(
-                                        'intensive-sentence-mode-$sentenceIndex-'
-                                        '${showAnnotationContent ? 'annotation' : 'blind'}',
-                                      ),
-                                      child: Column(
-                                        children: [Expanded(child: content)],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  top: AppSpacing.m,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (playerState.isAnnotationReplay)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: AppSpacing.m,
-                                        ),
-                                        child: Text(
-                                          l10n.intensiveListenReplayingWithSubtitle,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant
-                                                    .withValues(alpha: 0.5),
-                                              ),
-                                        ),
-                                      ),
-                                    if (_showAnnotationCountdown(playerState))
-                                      Consumer(
-                                        builder: (context, ref, _) {
-                                          final countdown = ref.watch(
-                                            intensiveListenPlayerProvider.select(
-                                              (s) => (
-                                                show: _showAnnotationCountdown(
-                                                  s,
-                                                ),
-                                                sentenceIndex:
-                                                    s.currentSentenceIndex,
-                                                total: s.pauseDuration,
-                                                paused: s.isCountdownPaused,
-                                                fastForward:
-                                                    s.isCountdownFastForward,
-                                              ),
-                                            ),
-                                          );
-                                          if (!countdown.show) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: AppSpacing.l,
-                                              right: AppSpacing.l,
-                                              bottom: AppSpacing.m,
-                                            ),
-                                            child: CountdownChip(
-                                              key: ValueKey(
-                                                'annotation-countdown-'
-                                                '${countdown.sentenceIndex}-'
-                                                '${countdown.total.inMilliseconds}',
-                                              ),
-                                              total: countdown.total,
-                                              isPaused: countdown.paused,
-                                              isFastForward:
-                                                  countdown.fastForward,
-                                              onTap: player
-                                                  .onAnnotationUserInteraction,
-                                              onPause: () =>
-                                                  player.pauseCountdown(),
-                                              onResume: () =>
-                                                  player.resumeCountdown(),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    PracticePlaybackFooter(
-                                      canGoPrev:
-                                          playerState.currentSentenceIndex > 0,
-                                      isLast:
-                                          playerState.currentSentenceIndex >=
-                                          playerState.totalSentences - 1,
-                                      centerIcon: _buildFooterCenterIcon(
-                                        playerState,
-                                      ),
-                                      onPrevious: _handlePrevious,
-                                      onNext: _handleNext,
-                                      onCenter: _handleCenter,
-                                      nextControl:
-                                          _showContinueButton(playerState)
-                                          ? SizedBox(
-                                              width: 128,
-                                              height: 48,
-                                              child: FilledButton.icon(
-                                                key: const ValueKey(
-                                                  'intensive-annotation-continue-button',
-                                                ),
-                                                onPressed: () =>
-                                                    player.exitAnnotationMode(),
-                                                icon: const Icon(
-                                                  Icons.arrow_forward_rounded,
-                                                  size: 20,
-                                                ),
-                                                iconAlignment:
-                                                    IconAlignment.end,
-                                                label: Text(
-                                                  l10n.intensiveListenContinue,
-                                                  maxLines: 1,
-                                                  softWrap: false,
-                                                  overflow: TextOverflow.clip,
-                                                ),
-                                                style: FilledButton.styleFrom(
-                                                  shape: const StadiumBorder(),
-                                                  fixedSize: const Size(
-                                                    128,
-                                                    48,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                      ),
-                                                  textStyle: theme
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                ),
-                                              ),
-                                            )
-                                          : null,
-                                      nextControlWidth: 128,
-                                      isManualMode:
-                                          playerState.settings.isManualMode,
-                                      playCountText: formatPracticePlayCount(
-                                        l10n,
-                                        currentCount:
-                                            playerState.currentPlayCount,
-                                        totalCount:
-                                            playerState.settings.isManualMode
-                                            ? 1
-                                            : playerState.settings.repeatCount,
-                                      ),
-                                      statusSuffixText: _formatSpeed(
-                                        playerState.settings.playbackSpeed,
-                                      ),
-                                      l10n: l10n,
-                                      theme: theme,
+                                            sentenceStartMs: sentence
+                                                .startTime
+                                                .inMilliseconds,
+                                            sentenceEndMs:
+                                                sentence.endTime.inMilliseconds,
+                                          ),
+                                          onBeforeLookup: () => player
+                                              .enterWaitingForUserInBlindMode(),
+                                        );
+                                  return KeyedSubtree(
+                                    key: ValueKey(
+                                      'intensive-sentence-mode-$sentenceIndex-'
+                                      '${showAnnotationContent ? 'annotation' : 'blind'}',
                                     ),
-                                  ],
-                                ),
+                                    child: Column(
+                                      children: [Expanded(child: content)],
+                                    ),
+                                  );
+                                },
                               ),
-                            ],
-                          ),
+                            ),
+
+                            Padding(
+                              padding: const EdgeInsets.only(top: AppSpacing.m),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (playerState.isAnnotationReplay)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: AppSpacing.m,
+                                      ),
+                                      child: Text(
+                                        l10n.intensiveListenReplayingWithSubtitle,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant
+                                                  .withValues(alpha: 0.5),
+                                            ),
+                                      ),
+                                    ),
+                                  if (_showAnnotationCountdown(playerState))
+                                    Consumer(
+                                      builder: (context, ref, _) {
+                                        final countdown = ref.watch(
+                                          intensiveListenPlayerProvider.select(
+                                            (s) => (
+                                              show: _showAnnotationCountdown(s),
+                                              sentenceIndex:
+                                                  s.currentSentenceIndex,
+                                              total: s.pauseDuration,
+                                              paused: s.isCountdownPaused,
+                                              fastForward:
+                                                  s.isCountdownFastForward,
+                                            ),
+                                          ),
+                                        );
+                                        if (!countdown.show) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: AppSpacing.l,
+                                            right: AppSpacing.l,
+                                            bottom: AppSpacing.m,
+                                          ),
+                                          child: CountdownChip(
+                                            key: ValueKey(
+                                              'annotation-countdown-'
+                                              '${countdown.sentenceIndex}-'
+                                              '${countdown.total.inMilliseconds}',
+                                            ),
+                                            total: countdown.total,
+                                            isPaused: countdown.paused,
+                                            isFastForward:
+                                                countdown.fastForward,
+                                            onTap: player
+                                                .onAnnotationUserInteraction,
+                                            onPause: () =>
+                                                player.pauseCountdown(),
+                                            onResume: () =>
+                                                player.resumeCountdown(),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  PracticePlaybackFooter(
+                                    canGoPrev:
+                                        playerState.currentSentenceIndex > 0,
+                                    isLast:
+                                        playerState.currentSentenceIndex >=
+                                        playerState.totalSentences - 1,
+                                    centerIcon: _buildFooterCenterIcon(
+                                      playerState,
+                                    ),
+                                    onPrevious: _handlePrevious,
+                                    onNext: _handleNext,
+                                    onCenter: _handleCenter,
+                                    nextControl:
+                                        _showContinueButton(playerState)
+                                        ? SizedBox(
+                                            width: 128,
+                                            height: 48,
+                                            child: FilledButton.icon(
+                                              key: const ValueKey(
+                                                'intensive-annotation-continue-button',
+                                              ),
+                                              onPressed: () =>
+                                                  player.exitAnnotationMode(),
+                                              icon: const Icon(
+                                                Icons.arrow_forward_rounded,
+                                                size: 20,
+                                              ),
+                                              iconAlignment: IconAlignment.end,
+                                              label: Text(
+                                                l10n.intensiveListenContinue,
+                                                maxLines: 1,
+                                                softWrap: false,
+                                                overflow: TextOverflow.clip,
+                                              ),
+                                              style: FilledButton.styleFrom(
+                                                shape: const StadiumBorder(),
+                                                fixedSize: const Size(128, 48),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                    ),
+                                                textStyle: theme
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                    nextControlWidth: 128,
+                                    isManualMode:
+                                        playerState.settings.isManualMode,
+                                    playCountText: formatPracticePlayCount(
+                                      l10n,
+                                      currentCount:
+                                          playerState.currentPlayCount,
+                                      totalCount:
+                                          playerState.settings.isManualMode
+                                          ? 1
+                                          : playerState.settings.repeatCount,
+                                    ),
+                                    statusSuffixText: _formatSpeed(
+                                      playerState.settings.playbackSpeed,
+                                    ),
+                                    l10n: l10n,
+                                    theme: theme,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                ),
+                      ),
               ),
             ),
           ),

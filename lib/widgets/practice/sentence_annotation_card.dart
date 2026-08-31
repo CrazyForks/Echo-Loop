@@ -162,9 +162,6 @@ class SentenceAnnotationCard extends StatefulWidget {
   /// 新手引导步骤：指向意群按钮
   final GuideStep? senseGroupGuideStep;
 
-  /// 新手引导步骤：指向翻译按钮
-  final GuideStep? translationGuideStep;
-
   /// 新手引导步骤：指向解析按钮
   final GuideStep? analysisGuideStep;
 
@@ -205,7 +202,6 @@ class SentenceAnnotationCard extends StatefulWidget {
     this.onTapGroupWithRect,
     this.sentenceGuideStep,
     this.senseGroupGuideStep,
-    this.translationGuideStep,
     this.analysisGuideStep,
     this.contentHorizontalPadding = 0,
   });
@@ -918,7 +914,7 @@ class SentenceAnnotationCardState extends State<SentenceAnnotationCard> {
         const SizedBox(width: AppSpacing.s),
         Expanded(
           flex: _toolbarButtonFlex(l10n.annotationBtnTranslation, context),
-          child: _wrapGuide(widget.translationGuideStep, translationBtn),
+          child: translationBtn,
         ),
         const SizedBox(width: AppSpacing.s),
         Expanded(

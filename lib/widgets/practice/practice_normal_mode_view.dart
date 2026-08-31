@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/tappable_wrapper.dart';
-import '../../widgets/guide_flow.dart';
 import 'selectable_sentence_text.dart';
 
 /// 普通模式视图（文字遮盖 / 偷看）
@@ -101,9 +100,6 @@ class PracticeNormalModeView extends StatelessWidget {
   /// 查词前副作用钩子（如进入等待用户态），点词与词组松手时触发
   final VoidCallback? onBeforeLookup;
 
-  /// 可选：新手引导步骤，用于给「听不太懂」按钮挂 Showcase
-  final GuideStep? cantUnderstandStep;
-
   const PracticeNormalModeView({
     super.key,
     required this.l10n,
@@ -120,7 +116,6 @@ class PracticeNormalModeView extends StatelessWidget {
     this.showBookmarkRow = true,
     this.lookupOrigin,
     this.onBeforeLookup,
-    this.cantUnderstandStep,
   });
 
   @override
@@ -354,8 +349,7 @@ class PracticeNormalModeView extends StatelessWidget {
         ],
       ),
     );
-    final step = cantUnderstandStep;
-    return step != null ? GuideTarget(step: step, child: button) : button;
+    return button;
   }
 }
 

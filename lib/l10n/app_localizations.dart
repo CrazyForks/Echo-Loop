@@ -6608,29 +6608,11 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get guideDone;
 
-  /// No description provided for @guideLibraryCollectionListDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'This is your collection list. Collections let you sort audios by topic — tap any collection to see the audio files in it.'**
-  String get guideLibraryCollectionListDescription;
-
-  /// No description provided for @guideLibraryCollectionMenuDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here to pin, rename, or delete this collection.'**
-  String get guideLibraryCollectionMenuDescription;
-
   /// No description provided for @guideLibraryCreateCollectionDescription.
   ///
   /// In en, this message translates to:
   /// **'Tap here to create a new collection.'**
   String get guideLibraryCreateCollectionDescription;
-
-  /// No description provided for @guideCollectionAudioListDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap any audio to view its practice plan and current progress.'**
-  String get guideCollectionAudioListDescription;
 
   /// No description provided for @guideCollectionAudioMenuDescription.
   ///
@@ -6655,24 +6637,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generate subtitles with AI in one tap, or upload a local subtitle file. You can start practicing this audio right after.'**
   String get guidePlanAddSubtitleDescription;
-
-  /// No description provided for @guidePlanAiTranscriptionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Use AI transcription'**
-  String get guidePlanAiTranscriptionTitle;
-
-  /// No description provided for @guidePlanAiTranscriptionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'If you do not have a subtitle file, AI transcription is the fastest way.'**
-  String get guidePlanAiTranscriptionDescription;
-
-  /// No description provided for @guidePlanStartTranscriptionDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here to let AI generate subtitles for this audio.'**
-  String get guidePlanStartTranscriptionDescription;
 
   /// No description provided for @guidePlanFreePlayTitle.
   ///
@@ -6728,30 +6692,6 @@ abstract class AppLocalizations {
   /// **'Failed to load learning progress. Please try again later.'**
   String get learningProgressLoadFailed;
 
-  /// No description provided for @guideMainShellVisitLibraryTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Start from Library'**
-  String get guideMainShellVisitLibraryTitle;
-
-  /// No description provided for @guideMainShellVisitLibraryDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here to learn how to use this app.'**
-  String get guideMainShellVisitLibraryDescription;
-
-  /// No description provided for @guideStudyTasksOverviewTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Your study tasks'**
-  String get guideStudyTasksOverviewTitle;
-
-  /// No description provided for @guideStudyTasksOverviewDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'This area includes new audio to practice, due reviews, completed tasks, and more. Echo Loop will pace your learning for you.'**
-  String get guideStudyTasksOverviewDescription;
-
   /// No description provided for @guideStudyStatsHeaderTitle.
   ///
   /// In en, this message translates to:
@@ -6767,38 +6707,20 @@ abstract class AppLocalizations {
   /// No description provided for @guideStudyStreakDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap here to open your activity calendar. Check in every day and build a good learning habit little by little.'**
+  /// **'Tap here to view your learning calendar.'**
   String get guideStudyStreakDescription;
 
   /// No description provided for @guideFavoritesSentencesListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your saved sentences, grouped by source audio. Expand a group to view its saved sentences.'**
+  /// **'Your saved sentences, grouped by source.'**
   String get guideFavoritesSentencesListDescription;
-
-  /// No description provided for @guideFavoritesSentencesReviewDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here to review every saved sentence at once.'**
-  String get guideFavoritesSentencesReviewDescription;
 
   /// No description provided for @guideFavoritesVocabularyListDescription.
   ///
   /// In en, this message translates to:
-  /// **'Your saved words, phrases, and sense groups. Expand a flashcard to view meanings of a saved item and hear it in its original sentence.'**
+  /// **'Your saved words, phrases, and sense groups.'**
   String get guideFavoritesVocabularyListDescription;
-
-  /// No description provided for @guideFavoritesFlashcardDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here to enter flashcard mode and review every saved words. Viewing the word and hearing it in context makes memory stick.'**
-  String get guideFavoritesFlashcardDescription;
-
-  /// No description provided for @guideIntensiveListenCantUnderstandDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap here when a sentence is hard to follow. It will be auto-saved and you\'ll enter the explanation mode.'**
-  String get guideIntensiveListenCantUnderstandDescription;
 
   /// No description provided for @guideSentenceTileNumberDescription.
   ///
@@ -6833,7 +6755,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideSentenceAnnotationSentenceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Tap any word to open the dictionary; long-press the sentence to copy the text.'**
+  /// **'Tap or press and hold to select text and look up words.'**
   String get guideSentenceAnnotationSentenceDescription;
 
   /// No description provided for @guideSentenceAnnotationSenseGroupDescription.
@@ -6841,12 +6763,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Break the sentence into sense groups to make long, complex lines easier to follow.'**
   String get guideSentenceAnnotationSenseGroupDescription;
-
-  /// No description provided for @guideSentenceAnnotationTranslationDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Translate this sentence into your native language.'**
-  String get guideSentenceAnnotationTranslationDescription;
 
   /// No description provided for @guideSentenceAnnotationAnalysisDescription.
   ///

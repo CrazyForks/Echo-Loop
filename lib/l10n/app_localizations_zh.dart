@@ -3626,17 +3626,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guideDone => '知道了';
 
   @override
-  String get guideLibraryCollectionListDescription =>
-      '这里是合集列表。合集用于将音频按主题分类整理，点击任意合集，可以查看其中包含的音频。';
-
-  @override
-  String get guideLibraryCollectionMenuDescription => '点击这里，可以置顶、重命名或删除合集。';
-
-  @override
   String get guideLibraryCreateCollectionDescription => '点击这里，可以创建新的合集。';
-
-  @override
-  String get guideCollectionAudioListDescription => '点击任意音频，可以查看它的学习计划和当前进度。';
 
   @override
   String get guideCollectionAudioMenuDescription =>
@@ -3651,16 +3641,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get guidePlanAddSubtitleDescription =>
       '可以用 AI 一键生成字幕，或上传本地字幕文件。完成后即可开始学习这段音频。';
-
-  @override
-  String get guidePlanAiTranscriptionTitle => '使用 AI 转录';
-
-  @override
-  String get guidePlanAiTranscriptionDescription =>
-      '如果你手头没有字幕文件，使用 AI 转录是最快的方式。';
-
-  @override
-  String get guidePlanStartTranscriptionDescription => '点击这里，让 AI 为这段音频生成字幕。';
 
   @override
   String get guidePlanFreePlayTitle => '随心听';
@@ -3693,19 +3673,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get learningProgressLoadFailed => '学习进度加载失败，请稍后重试';
 
   @override
-  String get guideMainShellVisitLibraryTitle => '从资源库开始';
-
-  @override
-  String get guideMainShellVisitLibraryDescription => '点击这里，了解如何使用本 App。';
-
-  @override
-  String get guideStudyTasksOverviewTitle => '这里是你的学习任务';
-
-  @override
-  String get guideStudyTasksOverviewDescription =>
-      '包括待学习的新音频、到期的复习任务和已完成的任务等。Echo Loop 会自动帮你安排学习节奏。';
-
-  @override
   String get guideStudyStatsHeaderTitle => '今日学习统计';
 
   @override
@@ -3713,26 +3680,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '今天的听力时长、口语练习时长和新学词汇量都汇总在这里。点击卡片或柱状图，可查看更详细的数据分布。';
 
   @override
-  String get guideStudyStreakDescription => '点击这里查看学习日历。坚持每天打卡，逐步养成稳定的学习习惯。';
+  String get guideStudyStreakDescription => '点击这里查看学习日历';
 
   @override
-  String get guideFavoritesSentencesListDescription =>
-      '这里是你收藏的句子，并按来源音频分组展示。展开分组即可查看其中的收藏句子。';
+  String get guideFavoritesSentencesListDescription => '这里是你收藏的句子，并按来源分组展示。';
 
   @override
-  String get guideFavoritesSentencesReviewDescription => '点击这里，一键复习所有收藏的句子。';
-
-  @override
-  String get guideFavoritesVocabularyListDescription =>
-      '这里是你收藏的单词和意群。展开后可查看释义，也可以收听它们在原句中的发音。';
-
-  @override
-  String get guideFavoritesFlashcardDescription =>
-      '点击这里进入闪卡模式，复习所有收藏的词汇。通过看单词、听原句，可以更高效地巩固记忆。';
-
-  @override
-  String get guideIntensiveListenCantUnderstandDescription =>
-      '遇到听不懂的句子时点这里，会自动标记为难句并进入讲解模式。';
+  String get guideFavoritesVocabularyListDescription => '这里是你收藏的单词、词组、意群。';
 
   @override
   String get guideSentenceTileNumberDescription => '点击编号从这句开始播放。';
@@ -3752,13 +3706,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guideSentenceAnnotationSentenceDescription =>
-      '点击任意单词可查看词典；长按句子可复制文字。';
+      '点击或长按选中文本，即可查看词典释义。';
 
   @override
   String get guideSentenceAnnotationSenseGroupDescription => '按意群切分，帮你轻松听懂长难句。';
-
-  @override
-  String get guideSentenceAnnotationTranslationDescription => '把这句话翻译成你的母语。';
 
   @override
   String get guideSentenceAnnotationAnalysisDescription =>

@@ -27,7 +27,6 @@ import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../providers/audio_sentences_provider.dart';
 import '../providers/learning_progress_provider.dart';
 import '../providers/listening_practice/listening_practice_provider.dart';
-import '../providers/new_user_guide_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/transcription_task_provider.dart';
 import '../providers/local_transcription_task_provider.dart';
@@ -45,7 +44,6 @@ import '../utils/audio_duration.dart';
 import '../utils/file_size.dart';
 import '../utils/transcript_picker.dart';
 import 'common/anchored_bubble.dart';
-import 'guide_flow.dart';
 
 /// 字幕操作选项
 enum _SubtitleAction { localUpload, aiTranscription, offlineTranscription }
@@ -112,10 +110,6 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
 
   /// 防止本地门禁与后端 402 同时抵达时叠加额度提示。
   bool _isShowingAiQuotaDialog = false;
-
-  // Guide step keys
-  final _keyAiTranscription = GlobalKey();
-  final _keyStartTranscription = GlobalKey();
 
   /// 识别模型档位选择气泡浮层控制器。
   final OverlayPortalController _modelMenuController =
@@ -419,29 +413,8 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
         ),
       ),
     );
-    if (audioItem.hasTranscript) return content;
-    return GuideFlowSequenceHost(
-      flows: [
-        GuideFlow(
-          flowId: GuideFlowIds.subtitleSheetTranscription,
-          shouldRun: true,
-          steps: [_stepAiTranscription(l10n), _stepStartTranscription(l10n)],
-        ),
-      ],
-      child: content,
-    );
+    return content;
   }
-
-  GuideStep _stepAiTranscription(AppLocalizations l10n) => GuideStep(
-    key: _keyAiTranscription,
-    title: l10n.guidePlanAiTranscriptionTitle,
-    description: l10n.guidePlanAiTranscriptionDescription,
-  );
-
-  GuideStep _stepStartTranscription(AppLocalizations l10n) => GuideStep(
-    key: _keyStartTranscription,
-    description: l10n.guidePlanStartTranscriptionDescription,
-  );
 
   /// 关闭管理弹窗后打开字幕编辑器，与音频菜单的编辑入口保持一致。
   void _openSubtitleEditor(BuildContext context, AudioItem audioItem) {
@@ -947,17 +920,14 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 排序：AI 转录（推荐默认）→ 本地转录（离线替代）→ 本地上传（进阶手动）。
-          GuideTarget(
-            step: _stepAiTranscription(l10n),
-            child: _buildOptionTile(
-              theme: theme,
-              icon: Icons.auto_awesome_outlined,
-              title: l10n.aiTranscription,
-              subtitle: l10n.aiTranscriptionSubtitle,
-              selected: _selectedAction == _SubtitleAction.aiTranscription,
-              onTap: () => setState(
-                () => _selectedAction = _SubtitleAction.aiTranscription,
-              ),
+          _buildOptionTile(
+            theme: theme,
+            icon: Icons.auto_awesome_outlined,
+            title: l10n.aiTranscription,
+            subtitle: l10n.aiTranscriptionSubtitle,
+            selected: _selectedAction == _SubtitleAction.aiTranscription,
+            onTap: () => setState(
+              () => _selectedAction = _SubtitleAction.aiTranscription,
             ),
           ),
           // AI 转录语言选择（动画展开/收起）
@@ -1601,7 +1571,7 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
       child: Text(label),
     );
 
-    return GuideTarget(step: _stepStartTranscription(l10n), child: button);
+    return button;
   }
 
   /// 处理操作按钮点击

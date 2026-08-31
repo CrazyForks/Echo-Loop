@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/screens/favorites_screen.dart';
 import 'package:echo_loop/screens/sentence_detail_screen.dart';
@@ -21,6 +23,9 @@ import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
 import 'package:echo_loop/providers/learning_session/favorite_review_due_count_provider.dart';
+import 'package:echo_loop/providers/new_user_guide_provider.dart';
+import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey_provider.dart'
+    show sharedPreferencesProvider;
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
@@ -171,6 +176,7 @@ void main() {
     Future<int> Function()? sentenceDueLoader,
     int? vocabularyDueCount,
     Future<int>? vocabularyDueFuture,
+    SharedPreferences? guidePrefs,
   }) {
     final router = GoRouter(
       initialLocation: '/favorites',
@@ -239,6 +245,12 @@ void main() {
           favoriteVocabularyDueCountProvider.overrideWith(
             (ref) => vocabularyDueFuture,
           ),
+        if (guidePrefs != null) ...[
+          sharedPreferencesProvider.overrideWithValue(guidePrefs),
+          guideRegistryProvider.overrideWithValue(
+            GuideRegistry(prefs: guidePrefs),
+          ),
+        ],
         sentenceAiNotifierProvider.overrideWithValue(
           SentenceAiNotifier(
             cacheDao: _MockCacheDao(),
@@ -267,6 +279,54 @@ void main() {
   }
 
   group('FavoritesScreen — SegmentedButton 切换', () {
+    testWidgets('新手引导目标绑定到两个收藏 Tab 而不是列表首项', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      bookmarkController.add([
+        BookmarkWithAudio(
+          bookmark: _createBookmark(
+            id: 1,
+            audioItemId: 'audio-1',
+            sentenceIndex: 0,
+          ),
+          audioName: 'Audio 1',
+        ),
+      ]);
+      wordController.add([_createSavedWord(id: 1, word: 'hello')]);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('favorites-sentences-segment')),
+          matching: find.byType(Showcase),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('favorites-vocabulary-segment')),
+          matching: find.byType(Showcase),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('首次进入收藏页按句子再词汇顺序展示两个 Tab 引导', (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(createTestWidget(guidePrefs: prefs));
+      await tester.pump();
+
+      await tester.pump(const Duration(milliseconds: 500));
+      final firstActiveKey = ShowcaseView.get().getActiveShowcaseKey;
+      expect(firstActiveKey, isNotNull);
+
+      ShowcaseView.get().next();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        ShowcaseView.get().getActiveShowcaseKey,
+        isNot(same(firstActiveKey)),
+      );
+    });
+
     testWidgets('重新显示句子 tab 时重新读取待复习数量', (tester) async {
       var dueCount = 2;
       var requests = 0;

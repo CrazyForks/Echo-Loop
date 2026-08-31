@@ -93,8 +93,8 @@ class AudioListView extends ConsumerStatefulWidget {
   /// 是否将第一条音频的菜单作为合集详情引导 target。
   final bool guideFirstAudioMenu;
 
-  /// 是否将第一条音频作为列表区域引导 target。
-  final bool guideLeadingItems;
+  /// 外部传入的菜单引导步骤。传入后由外部 flow 统一调度，避免嵌套 flow 抢先启动。
+  final GuideStep? menuGuideStep;
 
   /// 当前音频列表是否允许启动页面引导。
   final bool guideEnabled;
@@ -122,7 +122,7 @@ class AudioListView extends ConsumerStatefulWidget {
     this.collectionId,
     this.emptyState,
     this.guideFirstAudioMenu = false,
-    this.guideLeadingItems = false,
+    this.menuGuideStep,
     this.guideEnabled = true,
     this.overrideSortType,
     this.selectionMode = false,
@@ -138,7 +138,6 @@ class AudioListView extends ConsumerStatefulWidget {
 class _AudioListViewState extends ConsumerState<AudioListView> {
   // Guide step keys 在 state 层持有，避免 rebuild 时重建导致 showcaseview
   // 拿到过期的 key。
-  final _keyAudioList = GlobalKey();
   final _keyAudioMenu = GlobalKey();
 
   @override
@@ -163,17 +162,14 @@ class _AudioListViewState extends ConsumerState<AudioListView> {
       return widget.emptyState ?? _DefaultEmptyState(l10n: l10n);
     }
 
-    final showItemGuide = widget.guideEnabled && widget.guideLeadingItems;
     final showMenuGuide = widget.guideEnabled && widget.guideFirstAudioMenu;
 
-    final stepAudioList = GuideStep(
-      key: _keyAudioList,
-      description: l10n.guideCollectionAudioListDescription,
-    );
-    final stepAudioMenu = GuideStep(
-      key: _keyAudioMenu,
-      description: l10n.guideCollectionAudioMenuDescription,
-    );
+    final stepAudioMenu =
+        widget.menuGuideStep ??
+        GuideStep(
+          key: _keyAudioMenu,
+          description: l10n.guideCollectionAudioMenuDescription,
+        );
 
     final listView = ListView.builder(
       padding: const EdgeInsets.all(8),
@@ -184,7 +180,6 @@ class _AudioListViewState extends ConsumerState<AudioListView> {
         final tile = AudioListTile(
           audioItem: item,
           collectionId: widget.collectionId,
-          itemStep: (isFirst && showItemGuide) ? stepAudioList : null,
           menuStep: (isFirst && showMenuGuide) ? stepAudioMenu : null,
           onManageCollections: () =>
               _showManageCollectionsSheet(context, item.id),
@@ -203,17 +198,14 @@ class _AudioListViewState extends ConsumerState<AudioListView> {
       },
     );
 
-    if (!showItemGuide && !showMenuGuide) return listView;
+    if (!showMenuGuide || widget.menuGuideStep != null) return listView;
 
     return GuideFlowSequenceHost(
       flows: [
         GuideFlow(
           flowId: GuideFlowIds.collectionDetailAudioList,
           shouldRun: true,
-          steps: [
-            if (showItemGuide) stepAudioList,
-            if (showMenuGuide) stepAudioMenu,
-          ],
+          steps: [if (showMenuGuide) stepAudioMenu],
         ),
       ],
       child: listView,

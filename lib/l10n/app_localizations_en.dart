@@ -3783,20 +3783,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guideDone => 'Done';
 
   @override
-  String get guideLibraryCollectionListDescription =>
-      'This is your collection list. Collections let you sort audios by topic — tap any collection to see the audio files in it.';
-
-  @override
-  String get guideLibraryCollectionMenuDescription =>
-      'Tap here to pin, rename, or delete this collection.';
-
-  @override
   String get guideLibraryCreateCollectionDescription =>
       'Tap here to create a new collection.';
-
-  @override
-  String get guideCollectionAudioListDescription =>
-      'Tap any audio to view its practice plan and current progress.';
 
   @override
   String get guideCollectionAudioMenuDescription =>
@@ -3812,17 +3800,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get guidePlanAddSubtitleDescription =>
       'Generate subtitles with AI in one tap, or upload a local subtitle file. You can start practicing this audio right after.';
-
-  @override
-  String get guidePlanAiTranscriptionTitle => 'Use AI transcription';
-
-  @override
-  String get guidePlanAiTranscriptionDescription =>
-      'If you do not have a subtitle file, AI transcription is the fastest way.';
-
-  @override
-  String get guidePlanStartTranscriptionDescription =>
-      'Tap here to let AI generate subtitles for this audio.';
 
   @override
   String get guidePlanFreePlayTitle => 'Listen Your Way';
@@ -3857,20 +3834,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to load learning progress. Please try again later.';
 
   @override
-  String get guideMainShellVisitLibraryTitle => 'Start from Library';
-
-  @override
-  String get guideMainShellVisitLibraryDescription =>
-      'Tap here to learn how to use this app.';
-
-  @override
-  String get guideStudyTasksOverviewTitle => 'Your study tasks';
-
-  @override
-  String get guideStudyTasksOverviewDescription =>
-      'This area includes new audio to practice, due reviews, completed tasks, and more. Echo Loop will pace your learning for you.';
-
-  @override
   String get guideStudyStatsHeaderTitle => 'Today at a glance';
 
   @override
@@ -3879,27 +3842,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guideStudyStreakDescription =>
-      'Tap here to open your activity calendar. Check in every day and build a good learning habit little by little.';
+      'Tap here to view your learning calendar.';
 
   @override
   String get guideFavoritesSentencesListDescription =>
-      'Your saved sentences, grouped by source audio. Expand a group to view its saved sentences.';
-
-  @override
-  String get guideFavoritesSentencesReviewDescription =>
-      'Tap here to review every saved sentence at once.';
+      'Your saved sentences, grouped by source.';
 
   @override
   String get guideFavoritesVocabularyListDescription =>
-      'Your saved words, phrases, and sense groups. Expand a flashcard to view meanings of a saved item and hear it in its original sentence.';
-
-  @override
-  String get guideFavoritesFlashcardDescription =>
-      'Tap here to enter flashcard mode and review every saved words. Viewing the word and hearing it in context makes memory stick.';
-
-  @override
-  String get guideIntensiveListenCantUnderstandDescription =>
-      'Tap here when a sentence is hard to follow. It will be auto-saved and you\'ll enter the explanation mode.';
+      'Your saved words, phrases, and sense groups.';
 
   @override
   String get guideSentenceTileNumberDescription =>
@@ -3923,15 +3874,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guideSentenceAnnotationSentenceDescription =>
-      'Tap any word to open the dictionary; long-press the sentence to copy the text.';
+      'Tap or press and hold to select text and look up words.';
 
   @override
   String get guideSentenceAnnotationSenseGroupDescription =>
       'Break the sentence into sense groups to make long, complex lines easier to follow.';
-
-  @override
-  String get guideSentenceAnnotationTranslationDescription =>
-      'Translate this sentence into your native language.';
 
   @override
   String get guideSentenceAnnotationAnalysisDescription =>
