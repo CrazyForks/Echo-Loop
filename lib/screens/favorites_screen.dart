@@ -267,7 +267,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       context: context,
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.8,
       ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

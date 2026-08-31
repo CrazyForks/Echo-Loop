@@ -49,140 +49,178 @@ class _BookmarkReviewSettingsSheetState
           AppSpacing.l,
           AppSpacing.l,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 32,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.m),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(
-                      alpha: 0.4,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 固定头部不参与滚动，保证内容较长时关闭入口始终可见。
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: AppSpacing.m),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.4,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.bookmarkReviewSettingsTitle,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-              Text(
-                l10n.bookmarkReviewSettingsTitle,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                IconButton(
+                  key: const Key('bookmark-review-settings-close'),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close_rounded),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.m),
-              _SettingsGroup(
-                title: l10n.bookmarkReviewOrder,
-                child: _BookmarkReviewOrderSelector(
-                  labels: {
-                    FavoriteReviewOrder.smart: l10n.bookmarkReviewOrderSmart,
-                    FavoriteReviewOrder.dueAt: l10n.bookmarkReviewOrderDueAt,
-                    FavoriteReviewOrder.random: l10n.bookmarkReviewOrderRandom,
-                  },
-                  selected: settings.order,
-                  onSelected: (order) =>
-                      notifier.update(settings.copyWith(order: order)),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.l),
-              _SettingsGroup(
+              ],
+            ),
+            const SizedBox(height: AppSpacing.m),
+            Flexible(
+              child: SingleChildScrollView(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _SettingsSwitch(
-                      title: l10n.bookmarkReviewShowNextReviewTime,
-                      value: settings.showNextReviewTime,
-                      onChanged: (value) => notifier.update(
-                        settings.copyWith(showNextReviewTime: value),
+                    _SettingsGroup(
+                      title: l10n.bookmarkReviewOrder,
+                      child: _BookmarkReviewOrderSelector(
+                        labels: {
+                          FavoriteReviewOrder.smart:
+                              l10n.bookmarkReviewOrderSmart,
+                          FavoriteReviewOrder.dueAt:
+                              l10n.bookmarkReviewOrderDueAt,
+                          FavoriteReviewOrder.random:
+                              l10n.bookmarkReviewOrderRandom,
+                        },
+                        selected: settings.order,
+                        onSelected: (order) =>
+                            notifier.update(settings.copyWith(order: order)),
                       ),
                     ),
-                    _SettingsSwitch(
-                      title: l10n.favoriteReviewAutoPlayFront,
-                      value: settings.autoPlayFront,
-                      onChanged: (value) => notifier.update(
-                        settings.copyWith(autoPlayFront: value),
+                    const SizedBox(height: AppSpacing.l),
+                    _SettingsGroup(
+                      child: Column(
+                        children: [
+                          _SettingsSwitch(
+                            title: l10n.bookmarkReviewShowNextReviewTime,
+                            value: settings.showNextReviewTime,
+                            onChanged: (value) => notifier.update(
+                              settings.copyWith(showNextReviewTime: value),
+                            ),
+                          ),
+                          _SettingsSwitch(
+                            title: l10n.favoriteReviewAutoPlayFront,
+                            value: settings.autoPlayFront,
+                            onChanged: (value) => notifier.update(
+                              settings.copyWith(autoPlayFront: value),
+                            ),
+                          ),
+                          _SettingsSwitch(
+                            title: l10n.favoriteReviewAutoPlayBack,
+                            value: settings.autoPlayBack,
+                            onChanged: (value) => notifier.update(
+                              settings.copyWith(autoPlayBack: value),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    _SettingsSwitch(
-                      title: l10n.favoriteReviewAutoPlayBack,
-                      value: settings.autoPlayBack,
-                      onChanged: (value) => notifier.update(
-                        settings.copyWith(autoPlayBack: value),
+                    const SizedBox(height: AppSpacing.l),
+                    _ReviewDetailSection(
+                      key: const Key(
+                        'favorite-review-settings-sentence-section',
                       ),
+                      title: l10n.favoriteReviewSentenceSettings,
+                      expanded: _sentenceExpanded,
+                      onExpansionChanged: (expanded) =>
+                          setState(() => _sentenceExpanded = expanded),
+                      children: [
+                        _SettingsSwitch(
+                          title: l10n.autoShowAiExplanationToggle,
+                          value: sentenceSettings.autoShowAiExplanation,
+                          onChanged: (value) => sentenceNotifier.update(
+                            sentenceSettings.copyWith(
+                              autoShowAiExplanation: value,
+                            ),
+                          ),
+                        ),
+                        if (sentenceSettings.autoShowAiExplanation) ...[
+                          _AiExplanationSubSwitch(
+                            title: l10n.autoShowAiAnalysisToggle,
+                            value: sentenceSettings.autoShowAiAnalysis,
+                            onChanged: (value) => sentenceNotifier.update(
+                              sentenceSettings.copyWith(
+                                autoShowAiAnalysis: value,
+                              ),
+                            ),
+                          ),
+                          _AiExplanationSubSwitch(
+                            title: l10n.autoShowAiTranslationToggle,
+                            value: sentenceSettings.autoShowAiTranslation,
+                            onChanged: (value) => sentenceNotifier.update(
+                              sentenceSettings.copyWith(
+                                autoShowAiTranslation: value,
+                              ),
+                            ),
+                          ),
+                          _AiExplanationSubSwitch(
+                            title: l10n.autoShowAiSenseGroupsToggle,
+                            value: sentenceSettings.autoShowAiSenseGroups,
+                            onChanged: (value) => sentenceNotifier.update(
+                              sentenceSettings.copyWith(
+                                autoShowAiSenseGroups: value,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    // 仅在两个不同复习类型之间保留轻分隔，避免无边界的连续列表。
+                    const Divider(height: AppSpacing.l),
+                    _ReviewDetailSection(
+                      key: const Key(
+                        'favorite-review-settings-vocabulary-section',
+                      ),
+                      title: l10n.favoriteReviewVocabularySettings,
+                      expanded: _vocabularyExpanded,
+                      onExpansionChanged: (expanded) =>
+                          setState(() => _vocabularyExpanded = expanded),
+                      children: [
+                        _SettingsSwitch(
+                          title: l10n.autoShowAiExplanationToggle,
+                          value: settings.autoShowAiLookup,
+                          onChanged: (value) => notifier.update(
+                            settings.copyWith(autoShowAiLookup: value),
+                          ),
+                        ),
+                        _SettingsSwitch(
+                          key: const Key(
+                            'favorite-review-show-vocabulary-on-front',
+                          ),
+                          title: l10n.favoriteReviewShowVocabularyOnFront,
+                          value: settings.showVocabularyOnFront,
+                          onChanged: (value) => notifier.update(
+                            settings.copyWith(showVocabularyOnFront: value),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.l),
-              _ReviewDetailSection(
-                key: const Key('favorite-review-settings-sentence-section'),
-                title: l10n.favoriteReviewSentenceSettings,
-                expanded: _sentenceExpanded,
-                onExpansionChanged: (expanded) =>
-                    setState(() => _sentenceExpanded = expanded),
-                children: [
-                  _SettingsSwitch(
-                    title: l10n.autoShowAiExplanationToggle,
-                    value: sentenceSettings.autoShowAiExplanation,
-                    onChanged: (value) => sentenceNotifier.update(
-                      sentenceSettings.copyWith(autoShowAiExplanation: value),
-                    ),
-                  ),
-                  if (sentenceSettings.autoShowAiExplanation) ...[
-                    _AiExplanationSubSwitch(
-                      title: l10n.autoShowAiAnalysisToggle,
-                      value: sentenceSettings.autoShowAiAnalysis,
-                      onChanged: (value) => sentenceNotifier.update(
-                        sentenceSettings.copyWith(autoShowAiAnalysis: value),
-                      ),
-                    ),
-                    _AiExplanationSubSwitch(
-                      title: l10n.autoShowAiTranslationToggle,
-                      value: sentenceSettings.autoShowAiTranslation,
-                      onChanged: (value) => sentenceNotifier.update(
-                        sentenceSettings.copyWith(autoShowAiTranslation: value),
-                      ),
-                    ),
-                    _AiExplanationSubSwitch(
-                      title: l10n.autoShowAiSenseGroupsToggle,
-                      value: sentenceSettings.autoShowAiSenseGroups,
-                      onChanged: (value) => sentenceNotifier.update(
-                        sentenceSettings.copyWith(autoShowAiSenseGroups: value),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              // 仅在两个不同复习类型之间保留轻分隔，避免无边界的连续列表。
-              const Divider(height: AppSpacing.l),
-              _ReviewDetailSection(
-                key: const Key('favorite-review-settings-vocabulary-section'),
-                title: l10n.favoriteReviewVocabularySettings,
-                expanded: _vocabularyExpanded,
-                onExpansionChanged: (expanded) =>
-                    setState(() => _vocabularyExpanded = expanded),
-                children: [
-                  _SettingsSwitch(
-                    title: l10n.autoShowAiExplanationToggle,
-                    value: settings.autoShowAiLookup,
-                    onChanged: (value) => notifier.update(
-                      settings.copyWith(autoShowAiLookup: value),
-                    ),
-                  ),
-                  _SettingsSwitch(
-                    key: const Key('favorite-review-show-vocabulary-on-front'),
-                    title: l10n.favoriteReviewShowVocabularyOnFront,
-                    value: settings.showVocabularyOnFront,
-                    onChanged: (value) => notifier.update(
-                      settings.copyWith(showVocabularyOnFront: value),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
