@@ -2068,7 +2068,7 @@ class _ManageSubtitlesSheetState extends ConsumerState<ManageSubtitlesSheet> {
     // 若不重置，重新导入字幕时旧断点会指向错位的句子。
     await ref
         .read(learningProgressNotifierProvider.notifier)
-        .deleteProgress(audioItem.id);
+        .resetProgress(audioItem.id);
 
     // 7. 清除 listeningPracticeProvider 中缓存的句子数据
     // 字幕内容入库后 transcriptPath 恒为 null，loadAudio 去重守卫（比较 id +
