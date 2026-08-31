@@ -27,76 +27,88 @@ class ReviewStatisticsScreen extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 sliver: SliverList.list(
                   children: [
-                    _ScopeSelector(
-                      selected: notifier.scope,
-                      onChanged: notifier.setScope,
-                      l10n: l10n,
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionHeader(
-                      title: l10n.reviewStatisticsTodayOverview,
-                      icon: Icons.dashboard_rounded,
-                      accent: _SectionAccent.primary,
-                    ),
-                    const SizedBox(height: 12),
-                    _TodayOverview(stats: stats, l10n: l10n),
-                    const SizedBox(height: 12),
-                    _CurrentDueNotice(stats: stats, l10n: l10n),
-                    const SizedBox(height: 28),
-                    _SectionHeader(
-                      title: l10n.reviewStatisticsLearningRhythm,
-                      icon: Icons.insights_rounded,
-                      accent: _SectionAccent.secondary,
-                    ),
-                    const SizedBox(height: 12),
-                    _StreakCard(stats: stats, l10n: l10n),
-                    const SizedBox(height: 14),
-                    _JournalCard(
-                      title: l10n.reviewStatisticsTrend,
-                      subtitle: l10n.reviewStatisticsTrendExplanation,
-                      child: _TrendChart(stats: stats, l10n: l10n),
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionHeader(
-                      title: l10n.reviewStatisticsReviewPlan,
-                      icon: Icons.event_available_rounded,
-                      accent: _SectionAccent.tertiary,
-                    ),
-                    const SizedBox(height: 12),
-                    _JournalCard(
-                      title: l10n.reviewStatisticsUpcoming,
-                      subtitle: l10n.reviewStatisticsUpcomingExplanation,
-                      child: _UpcomingChart(stats: stats, l10n: l10n),
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionHeader(
-                      title: l10n.reviewStatisticsRecentPerformance,
-                      icon: Icons.trending_up_rounded,
-                      accent: _SectionAccent.surface,
-                    ),
-                    const SizedBox(height: 12),
-                    _JournalCard(
-                      title: l10n.reviewStatisticsRatings,
-                      subtitle: l10n.reviewStatisticsRetentionExplanation,
-                      child: _RatingChart(stats: stats, l10n: l10n),
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionHeader(
-                      title: l10n.reviewStatisticsHistory,
-                      icon: Icons.timeline_rounded,
-                      accent: _SectionAccent.error,
-                    ),
-                    const SizedBox(height: 12),
-                    _JournalCard(
-                      title: l10n.reviewStatisticsContent,
-                      subtitle: l10n.reviewStatisticsContentExplanation,
-                      child: _ContentSummary(
-                        stats: stats,
-                        scope: notifier.scope,
-                        l10n: l10n,
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: Column(
+                          children: [
+                            _ScopeSelector(
+                              selected: notifier.scope,
+                              onChanged: notifier.setScope,
+                              l10n: l10n,
+                            ),
+                            const SizedBox(height: 24),
+                            _SectionHeader(
+                              title: l10n.reviewStatisticsTodayOverview,
+                              icon: Icons.dashboard_rounded,
+                              accent: _SectionAccent.primary,
+                            ),
+                            const SizedBox(height: 12),
+                            _TodayOverview(stats: stats, l10n: l10n),
+                            const SizedBox(height: 12),
+                            _CurrentDueNotice(stats: stats, l10n: l10n),
+                            const SizedBox(height: 28),
+                            _SectionHeader(
+                              title: l10n.reviewStatisticsLearningRhythm,
+                              icon: Icons.insights_rounded,
+                              accent: _SectionAccent.secondary,
+                            ),
+                            const SizedBox(height: 12),
+                            _StreakCard(stats: stats, l10n: l10n),
+                            const SizedBox(height: 14),
+                            _JournalCard(
+                              title: l10n.reviewStatisticsTrend,
+                              subtitle: l10n.reviewStatisticsTrendExplanation,
+                              child: _TrendChart(stats: stats, l10n: l10n),
+                            ),
+                            const SizedBox(height: 24),
+                            _SectionHeader(
+                              title: l10n.reviewStatisticsReviewPlan,
+                              icon: Icons.event_available_rounded,
+                              accent: _SectionAccent.tertiary,
+                            ),
+                            const SizedBox(height: 12),
+                            _JournalCard(
+                              title: l10n.reviewStatisticsUpcoming,
+                              subtitle:
+                                  l10n.reviewStatisticsUpcomingExplanation,
+                              child: _UpcomingChart(stats: stats, l10n: l10n),
+                            ),
+                            const SizedBox(height: 24),
+                            _SectionHeader(
+                              title: l10n.reviewStatisticsRecentPerformance,
+                              icon: Icons.trending_up_rounded,
+                              accent: _SectionAccent.surface,
+                            ),
+                            const SizedBox(height: 12),
+                            _JournalCard(
+                              title: l10n.reviewStatisticsRatings,
+                              subtitle:
+                                  l10n.reviewStatisticsRetentionExplanation,
+                              child: _RatingChart(stats: stats, l10n: l10n),
+                            ),
+                            const SizedBox(height: 24),
+                            _SectionHeader(
+                              title: l10n.reviewStatisticsHistory,
+                              icon: Icons.timeline_rounded,
+                              accent: _SectionAccent.error,
+                            ),
+                            const SizedBox(height: 12),
+                            _JournalCard(
+                              title: l10n.reviewStatisticsContent,
+                              subtitle: l10n.reviewStatisticsContentExplanation,
+                              child: _ContentSummary(
+                                stats: stats,
+                                scope: notifier.scope,
+                                l10n: l10n,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -125,7 +137,17 @@ class _ScopeSelector extends StatelessWidget {
   Widget build(BuildContext context) => SegmentedButton<ReviewStatisticsScope>(
     showSelectedIcon: false,
     style: ButtonStyle(
-      visualDensity: VisualDensity.compact,
+      minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44)),
+      visualDensity: VisualDensity.standard,
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return Theme.of(context).colorScheme.primaryContainer;
+        }
+        return Theme.of(context).colorScheme.surface;
+      }),
+      side: WidgetStatePropertyAll(
+        BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
       textStyle: WidgetStatePropertyAll(
         Theme.of(
           context,
@@ -221,26 +243,35 @@ class _TodayOverview extends StatelessWidget {
   const _TodayOverview({required this.stats, required this.l10n});
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: _MetricCard(
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final metrics = [
+        _MetricCard(
           value: _formatItemCount(stats.todayReviewedCards, l10n),
           label: l10n.reviewStatisticsTodayCompleted,
           icon: Icons.task_alt_rounded,
           accent: Theme.of(context).colorScheme.primary,
         ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: _MetricCard(
+        _MetricCard(
           value: _formatDuration(stats.todaySeconds, l10n),
           label: l10n.reviewStatisticsDuration,
           icon: Icons.timer_outlined,
           accent: const Color(0xFF4D9271),
         ),
-      ),
-    ],
+      ];
+      if (constraints.maxWidth < 360) {
+        return Column(
+          children: [metrics.first, const SizedBox(height: 10), metrics.last],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(child: metrics.first),
+          const SizedBox(width: 12),
+          Expanded(child: metrics.last),
+        ],
+      );
+    },
   );
 }
 
@@ -274,7 +305,7 @@ class _MetricCard extends StatelessWidget {
             ),
             child: Icon(icon, size: 19, color: accent),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           Text(
             value,
             style: theme.textTheme.headlineSmall?.copyWith(
@@ -420,18 +451,18 @@ class _Surface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(
-            alpha: theme.brightness == Brightness.dark ? 0.56 : 0.68,
-          ),
-        ),
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: theme.brightness == Brightness.light ? 1 : 0,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: theme.brightness == Brightness.dark
+            ? BorderSide(color: theme.colorScheme.outlineVariant)
+            : BorderSide.none,
       ),
-      child: child,
+      child: Padding(padding: padding, child: child),
     );
   }
 }

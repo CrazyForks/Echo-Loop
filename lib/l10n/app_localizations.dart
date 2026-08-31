@@ -6245,13 +6245,13 @@ abstract class AppLocalizations {
   /// No description provided for @reviewStatisticsSentences.
   ///
   /// In en, this message translates to:
-  /// **'Saved sentences'**
+  /// **'Sentences'**
   String get reviewStatisticsSentences;
 
   /// No description provided for @reviewStatisticsVocabulary.
   ///
   /// In en, this message translates to:
-  /// **'Saved vocabulary'**
+  /// **'Vocabulary'**
   String get reviewStatisticsVocabulary;
 
   /// No description provided for @reviewStatisticsTodayOverview.

@@ -32,8 +32,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('全部'), findsOneWidget);
-    expect(find.text('收藏句子'), findsOneWidget);
-    expect(find.text('收藏词汇'), findsOneWidget);
+    expect(find.text('收藏句子'), findsAtLeastNWidgets(1));
+    expect(find.text('收藏词汇'), findsAtLeastNWidgets(1));
     expect(find.text('今日概览'), findsOneWidget);
     expect(find.byIcon(Icons.dashboard_rounded), findsAtLeastNWidgets(1));
     expect(find.text('学习节奏'), findsOneWidget);
@@ -100,6 +100,8 @@ void main() {
       const Locale('en'),
     );
 
+    expect(localizations.reviewStatisticsSentences, 'Sentences');
+    expect(localizations.reviewStatisticsVocabulary, 'Vocabulary');
     expect(localizations.reviewStatisticsRatings, '30-day retention rate');
     expect(
       localizations.reviewStatisticsRetentionExplanation,

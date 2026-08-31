@@ -3560,10 +3560,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewStatisticsAll => 'All';
 
   @override
-  String get reviewStatisticsSentences => 'Saved sentences';
+  String get reviewStatisticsSentences => 'Sentences';
 
   @override
-  String get reviewStatisticsVocabulary => 'Saved vocabulary';
+  String get reviewStatisticsVocabulary => 'Vocabulary';
 
   @override
   String get reviewStatisticsTodayOverview => 'Today at a glance';
