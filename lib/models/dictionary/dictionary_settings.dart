@@ -18,31 +18,39 @@ class DictionarySettings {
   /// 被用户禁用的源 id 集合（仅含可禁用的源）
   final Set<String> disabledIds;
 
+  /// 查词面板打开或切换到新词时是否自动播放发音
+  final bool autoSpeakOnLookup;
+
   /// 默认源 id 缺省值
   static const defaultId = 'local';
 
   DictionarySettings({
     this.defaultSourceId = defaultId,
     Set<String> disabledIds = const {},
+    this.autoSpeakOnLookup = true,
   }) : disabledIds = UnmodifiableSetView(Set.of(disabledIds));
 
   DictionarySettings copyWith({
     String? defaultSourceId,
     Set<String>? disabledIds,
+    bool? autoSpeakOnLookup,
   }) => DictionarySettings(
     defaultSourceId: defaultSourceId ?? this.defaultSourceId,
     disabledIds: disabledIds ?? this.disabledIds,
+    autoSpeakOnLookup: autoSpeakOnLookup ?? this.autoSpeakOnLookup,
   );
 
   Map<String, dynamic> toJson() => {
     'defaultSourceId': defaultSourceId,
     'disabledIds': disabledIds.toList(),
+    'autoSpeakOnLookup': autoSpeakOnLookup,
   };
 
   /// 防御性解析：字段缺失/类型不符回退缺省
   factory DictionarySettings.fromJson(Map<String, dynamic> json) {
     final rawDefault = json['defaultSourceId'];
     final rawDisabled = json['disabledIds'];
+    final rawAutoSpeak = json['autoSpeakOnLookup'];
     return DictionarySettings(
       defaultSourceId: rawDefault is String && rawDefault.isNotEmpty
           ? rawDefault
@@ -50,6 +58,7 @@ class DictionarySettings {
       disabledIds: rawDisabled is List
           ? rawDisabled.whereType<String>().toSet()
           : const {},
+      autoSpeakOnLookup: rawAutoSpeak is bool ? rawAutoSpeak : true,
     );
   }
 
@@ -59,12 +68,14 @@ class DictionarySettings {
       other is DictionarySettings &&
           runtimeType == other.runtimeType &&
           defaultSourceId == other.defaultSourceId &&
-          _setEquals(disabledIds, other.disabledIds);
+          _setEquals(disabledIds, other.disabledIds) &&
+          autoSpeakOnLookup == other.autoSpeakOnLookup;
 
   @override
   int get hashCode => Object.hash(
     defaultSourceId,
     Object.hashAllUnordered(disabledIds),
+    autoSpeakOnLookup,
   );
 
   static bool _setEquals(Set<String> a, Set<String> b) =>

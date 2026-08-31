@@ -48,6 +48,12 @@ class DictionarySettingsNotifier extends _$DictionarySettingsNotifier {
     await _persist(state.copyWith(defaultSourceId: id));
   }
 
+  /// 设置查词时是否自动播放发音。
+  Future<void> setAutoSpeakOnLookup(bool enabled) async {
+    if (state.autoSpeakOnLookup == enabled) return;
+    await _persist(state.copyWith(autoSpeakOnLookup: enabled));
+  }
+
   /// 启用/禁用某词典源
   ///
   /// 禁用前校验该源 `canBeDisabled`；禁用当前默认源时默认自动回退。

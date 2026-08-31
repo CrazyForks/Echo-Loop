@@ -9014,6 +9014,12 @@ abstract class AppLocalizations {
   /// **'Disabled dictionaries won\'t appear in the lookup switcher'**
   String get dictionarySourcesDescription;
 
+  /// No description provided for @dictionaryAutoSpeakOnLookup.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-play Pronunciation'**
+  String get dictionaryAutoSpeakOnLookup;
+
   /// No description provided for @dictSourceLocal.
   ///
   /// In en, this message translates to:

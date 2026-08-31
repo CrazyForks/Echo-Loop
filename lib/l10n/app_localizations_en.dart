@@ -5147,6 +5147,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Disabled dictionaries won\'t appear in the lookup switcher';
 
   @override
+  String get dictionaryAutoSpeakOnLookup => 'Auto-play Pronunciation';
+
+  @override
   String get dictSourceLocal => 'Local Dictionary';
 
   @override

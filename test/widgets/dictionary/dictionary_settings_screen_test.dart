@@ -78,8 +78,28 @@ void main() {
 
     // local + ai 显示「Always on」锁定
     expect(find.text('Always on'), findsNWidgets(2));
-    // cambridge 一个 Switch
-    expect(find.byType(Switch), findsOneWidget);
+    // 顶部自动发音开关 + Cambridge 一个 Switch
+    expect(find.byType(Switch), findsNWidgets(2));
+  });
+
+  testWidgets('顶部自动发音开关默认开启并可切换', (tester) async {
+    final (container, widget) = build();
+    await tester.pumpWidget(widget);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Auto-play Pronunciation'),
+      findsOneWidget,
+    );
+    final toggle = find.byType(Switch).first;
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup,
+      isFalse,
+    );
   });
 
   testWidgets('切换默认词典', (tester) async {
@@ -108,7 +128,7 @@ void main() {
     // 初始：默认区 + 词典源区各一个 Cambridge
     expect(find.text('Cambridge'), findsNWidgets(2));
 
-    await tester.tap(find.byType(Switch));
+    await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
 
     expect(container.read(dictionarySettingsNotifierProvider).disabledIds, {

@@ -4909,6 +4909,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dictionarySourcesDescription => '关闭的词典不会出现在查词切换器中';
 
   @override
+  String get dictionaryAutoSpeakOnLookup => '查词时自动播放发音';
+
+  @override
   String get dictSourceLocal => '本地词典';
 
   @override

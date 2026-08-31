@@ -59,6 +59,7 @@ void main() {
     final s = c.read(dictionarySettingsNotifierProvider);
     expect(s.defaultSourceId, 'local');
     expect(s.disabledIds, isEmpty);
+    expect(s.autoSpeakOnLookup, isTrue);
   });
 
   test('setDefault 更新并持久化', () async {
@@ -67,6 +68,19 @@ void main() {
     expect(c.read(dictionarySettingsNotifierProvider).defaultSourceId, 'ai');
 
     expect(prefs.getString('dictionary_settings'), contains('ai'));
+  });
+
+  test('setAutoSpeakOnLookup 更新并持久化', () async {
+    final c = makeContainer();
+    await c
+        .read(dictionarySettingsNotifierProvider.notifier)
+        .setAutoSpeakOnLookup(false);
+
+    expect(
+      c.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup,
+      isFalse,
+    );
+    expect(prefs.getString('dictionary_settings'), contains('false'));
   });
 
   test('冷启动同步读取持久化的默认源（不再先返缺省 local）', () async {
@@ -78,6 +92,10 @@ void main() {
     final c = makeContainer();
     // 首次 build 同步即为 ai，不需要任何异步等待
     expect(c.read(dictionarySettingsNotifierProvider).defaultSourceId, 'ai');
+    expect(
+      c.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup,
+      isTrue,
+    );
   });
 
   test('禁用可禁用源 cambridge → 进入禁用集合', () async {
@@ -129,5 +147,19 @@ void main() {
     final s = c2.read(dictionarySettingsNotifierProvider);
     expect(s.defaultSourceId, 'ai');
     expect(s.disabledIds, {'cambridge'});
+    expect(s.autoSpeakOnLookup, isTrue);
+  });
+
+  test('持久化后重建可恢复自动发音开关', () async {
+    final c1 = makeContainer();
+    await c1
+        .read(dictionarySettingsNotifierProvider.notifier)
+        .setAutoSpeakOnLookup(false);
+
+    final c2 = makeContainer();
+    expect(
+      c2.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup,
+      isFalse,
+    );
   });
 }

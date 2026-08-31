@@ -36,6 +36,15 @@ class DictionarySettingsScreen extends ConsumerWidget {
           vertical: AppSpacing.s,
         ),
         children: [
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.volume_up_outlined),
+              title: Text(l10n.dictionaryAutoSpeakOnLookup),
+              value: settings.autoSpeakOnLookup,
+              onChanged: notifier.setAutoSpeakOnLookup,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.m),
           _SectionHeader(
             title: l10n.dictionaryDefault,
             description: l10n.dictionaryDefaultDescription,

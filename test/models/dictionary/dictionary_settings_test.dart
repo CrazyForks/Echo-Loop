@@ -7,16 +7,19 @@ void main() {
       final s = DictionarySettings();
       expect(s.defaultSourceId, 'local');
       expect(s.disabledIds, isEmpty);
+      expect(s.autoSpeakOnLookup, isTrue);
     });
 
     test('toJson / fromJson 往返一致', () {
       final s = DictionarySettings(
         defaultSourceId: 'ai',
         disabledIds: {'cambridge', 'oxford'},
+        autoSpeakOnLookup: false,
       );
       final back = DictionarySettings.fromJson(s.toJson());
       expect(back.defaultSourceId, 'ai');
       expect(back.disabledIds, {'cambridge', 'oxford'});
+      expect(back.autoSpeakOnLookup, isFalse);
       expect(back, s);
     });
 
@@ -27,6 +30,7 @@ void main() {
       });
       expect(s.defaultSourceId, 'local');
       expect(s.disabledIds, isEmpty);
+      expect(s.autoSpeakOnLookup, isTrue);
     });
 
     test('disabledIds 过滤非字符串元素', () {
@@ -44,6 +48,7 @@ void main() {
       final c = s.copyWith(defaultSourceId: 'ai');
       expect(c.defaultSourceId, 'ai');
       expect(c.disabledIds, {'cambridge'});
+      expect(c.autoSpeakOnLookup, isTrue);
     });
 
     test('disabledIds 不可变（外部修改原集合不影响实例）', () {

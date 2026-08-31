@@ -20,6 +20,7 @@ import '../../features/subscription/widgets/feature_gate.dart';
 import '../../models/dictionary/dict_speakable_texts.dart';
 import '../../models/pronunciation/pronunciation_clip.dart';
 import '../../providers/dictionary/dictionary_registry.dart';
+import '../../providers/dictionary/dictionary_settings_provider.dart';
 import '../../providers/dictionary/lookup_controller.dart';
 import '../../providers/dictionary_provider.dart';
 import '../../providers/pronunciation/pronunciation_providers.dart';
@@ -90,6 +91,10 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   int _prewarmVisibilityEpoch = 0;
   List<String> _lastDictionaryPrewarmTexts = const [];
 
+  /// 自动发音查询代际，防止切词时旧的 post-frame 回调继续播放。
+  int _autoSpeakEpoch = 0;
+  String? _lastAutoSpokenWord;
+
   /// 可拉伸源面板的当前高度（像素）。默认 3/5 屏高（真机反馈：1/2 偏低、
   /// 2/3 偏高），
   /// 用户上拉拖拽指示条可放大、下拉可缩小（夹在 [_minSheetHeight] 与
@@ -124,6 +129,42 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   void initState() {
     super.initState();
     _watchEntryAnimation();
+    _scheduleAutoSpeak(widget.query.word);
+  }
+
+  @override
+  void didUpdateWidget(DictionaryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldWord = normalizeWord(oldWidget.query.word);
+    if (oldWord != _normalizedWord) {
+      _scheduleAutoSpeak(widget.query.word);
+    }
+    if (oldWord != _normalizedWord) {
+      // 切词：停掉旧词的在途预热/朗读，立即预热新词。
+      _ttsController?.cancelTextsPrewarm();
+      _stopDictionaryPlayback();
+      _dictionaryPlaybackKeys.clear();
+      _headwordPrewarmSignature = null;
+      _lastDictionaryPrewarmTexts = const [];
+      _prewarmVisibilityEpoch++;
+    }
+  }
+
+  /// 在面板完成当前帧布局后，按播放按钮的统一链路自动朗读当前查词。
+  void _scheduleAutoSpeak(String queryWord) {
+    final word = normalizeDictionaryQueryForPrompt(queryWord);
+    final normalized = normalizeWord(word);
+    if (normalized.isEmpty || _lastAutoSpokenWord == normalized) return;
+    if (!ref.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup) return;
+    _lastAutoSpokenWord = normalized;
+    final epoch = ++_autoSpeakEpoch;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || epoch != _autoSpeakEpoch) return;
+      if (!ref.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup) {
+        return;
+      }
+      unawaited(ref.read(textPlaybackProvider.notifier).speak(word, key: word));
+    });
   }
 
   /// 面板每次重新可见都重新开始当前查询的模型和文本预热。
@@ -166,22 +207,6 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   void _onEntryAnimationStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed && !_entered && mounted) {
       setState(() => _entered = true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(DictionaryPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final oldWord = normalizeWord(oldWidget.query.word);
-    if (oldWord != _normalizedWord) {
-      // 切词：停掉旧词的在途预热/朗读，立即预热新词。
-      // 用户调整过的面板高度保留（连续查词不跳动）。
-      _ttsController?.cancelTextsPrewarm();
-      _stopDictionaryPlayback();
-      _dictionaryPlaybackKeys.clear();
-      _headwordPrewarmSignature = null;
-      _lastDictionaryPrewarmTexts = const [];
-      _prewarmVisibilityEpoch++;
     }
   }
 

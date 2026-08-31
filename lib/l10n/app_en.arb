@@ -2557,6 +2557,7 @@
   "dictionaryDefaultDescription": "Dictionary shown by default when looking up a word",
   "dictionarySources": "Dictionary Sources",
   "dictionarySourcesDescription": "Disabled dictionaries won't appear in the lookup switcher",
+  "dictionaryAutoSpeakOnLookup": "Auto-play Pronunciation",
   "dictSourceLocal": "Local Dictionary",
   "dictSourceAi": "AI Dictionary",
   "dictSourceCambridge": "Cambridge",
