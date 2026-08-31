@@ -124,10 +124,10 @@ class AppTheme {
   /// 设置类底部弹窗的分组卡片背景色。
   ///
   /// 浅色比弹层背景略灰（内凹分组，类似 iOS 分组列表）；
-  /// 深色比 `_sheetBlack`(#1E1E20) 略亮（浮起分组）。
+  /// 深色保持透明，让设置项融入弹层背景，避免出现突兀的灰色块。
   static Color settingsSectionBackground(Brightness brightness) =>
       brightness == Brightness.dark
-      ? const Color(0xFF242427)
+      ? Colors.transparent
       : const Color(0xFFF2F3F7);
 
   /// 设置类底部弹窗中，展开态的可折叠分组标题行背景色。
