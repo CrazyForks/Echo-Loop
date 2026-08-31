@@ -394,7 +394,7 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                     padding: const EdgeInsets.fromLTRB(
                       AppSpacing.m,
                       AppSpacing.m,
-                      AppSpacing.l,
+                      AppSpacing.m,
                       0,
                     ),
                     child: Row(
@@ -410,9 +410,12 @@ class _SentenceDetailScreenState extends ConsumerState<SentenceDetailScreen> {
                         if (_bookmarkLoaded)
                           SizedBox(
                             width: 104,
-                            child: BookmarkToggleRow(
-                              isDifficult: _isBookmarked,
-                              onTap: _toggleBookmark,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: BookmarkToggleRow(
+                                isDifficult: _isBookmarked,
+                                onTap: _toggleBookmark,
+                              ),
                             ),
                           ),
                       ],

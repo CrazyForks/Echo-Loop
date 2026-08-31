@@ -7,6 +7,7 @@ import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/screens/sentence_detail_screen.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/common/bookmark_toggle_row.dart';
 import 'package:echo_loop/widgets/practice/sentence_explanation_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,6 +141,40 @@ void main() {
           .height,
       6,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('详情页收藏行贴齐信息区右侧内边距', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        SentenceDetailScreen(
+          args: const SentenceDetailArgs(
+            audioItemId: 'audio-item',
+            audioName: 'Audio item',
+            sentenceText: 'A sentence for alignment.',
+            sentenceIndex: 0,
+            totalSentenceCount: 10,
+            startTimeMs: 1000,
+            endTimeMs: 3000,
+          ),
+        ),
+        overrides: detailOverrides(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final bookmark = find.byType(BookmarkToggleRow);
+    expect(bookmark, findsOneWidget);
+    final bookmarkIcon = find.byIcon(Icons.bookmark_border);
+    expect(bookmarkIcon, findsOneWidget);
+    final annotation = find.byType(SentenceExplanationView);
+    expect(
+      tester.getRect(bookmarkIcon).right,
+      closeTo(tester.getRect(annotation).right, 1),
+    );
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
