@@ -750,23 +750,34 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     }
   }
 
-  /// 处理"开始学习/继续学习"按钮点击
-  void _handleStartLearning(BuildContext context, LearningProgress? progress) {
-    final now = ref.read(nowProvider)();
-    if (progress?.isReviewLockedAt(now) ?? false) return;
+  /// 处理"开始学习/继续学习"按钮点击。
+  ///
+  /// 首帧进入计划页时，进度可能仍在 [ensureProgress] 异步创建中；此时
+  /// 必须等待并读取真实进度，不能把 null 误判为盲听入口。
+  Future<void> _handleStartLearning(
+    BuildContext context,
+    LearningProgress? progress,
+  ) async {
+    final effectiveProgress =
+        progress ??
+        await ref
+            .read(learningProgressNotifierProvider.notifier)
+            .getLatestOrEnsureProgress(widget.audioItemId);
+    if (!context.mounted) return;
 
-    if (progress != null &&
-        progress.currentStage.index >= LearningStage.review0.index &&
-        progress.currentStage.index <= LearningStage.review28.index) {
-      _startReviewSubStage(context, progress);
+    final now = ref.read(nowProvider)();
+    if (effectiveProgress.isReviewLockedAt(now)) return;
+
+    if (effectiveProgress.currentStage.index >= LearningStage.review0.index &&
+        effectiveProgress.currentStage.index <= LearningStage.review28.index) {
+      _startReviewSubStage(context, effectiveProgress);
       return;
     }
 
-    final currentSubStage =
-        progress?.currentSubStage ?? SubStageType.blindListen;
+    final currentSubStage = effectiveProgress.currentSubStage;
 
     if (currentSubStage == SubStageType.blindListen) {
-      _startBlindListen(context, progress);
+      _startBlindListen(context, effectiveProgress);
     } else if (currentSubStage == SubStageType.intensiveListen) {
       _startIntensiveListen(context);
     } else if (currentSubStage == SubStageType.listenAndRepeat) {

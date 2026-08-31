@@ -179,6 +179,7 @@ void main() {
     Locale locale = const Locale('en'),
     LearningProgressState? progressState,
     AudioItem? audioItem,
+    bool autoStart = false,
     DateTime? fixedNow,
     ListeningPracticeState? lpState,
     TestListeningPractice Function()? listeningPracticeOverride,
@@ -198,6 +199,7 @@ void main() {
             return LearningPlanScreen(
               collectionId: collectionId,
               audioItemId: audioId,
+              autoStart: autoStart,
             );
           },
         ),
@@ -299,6 +301,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Test Audio'), findsOneWidget);
+    });
+
+    testWidgets('无进度自动开始时按 v2 首步进入精听而不是盲听', (tester) async {
+      await tester.pumpWidget(createTestWidget(autoStart: true));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Listen sentence by sentence'), findsAtLeast(1));
     });
 
     testWidgets('AppBar 显示强化后的自由练习入口并可点击进入播放器', (tester) async {
