@@ -13,6 +13,7 @@ import '../../models/intensive_listen_settings.dart';
 import '../../providers/listen_and_repeat/listen_and_repeat_settings_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
+import '../common/settings_sheet_scaffold.dart';
 
 /// 显示跟读设置底部弹窗
 void showListenAndRepeatSettingsSheet({required BuildContext context}) {
@@ -36,86 +37,45 @@ class _ListenAndRepeatSettingsSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final settings = ref.watch(listenAndRepeatSettingsProvider);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.l,
-          AppSpacing.s,
-          AppSpacing.l,
-          AppSpacing.l,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 拖拽条
-            Center(
-              child: Container(
-                width: 32,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.m),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.4,
-                  ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+    return SettingsSheetScaffold(
+      title: l10n.listenAndRepeatSettings,
+      subtitle: l10n.listenAndRepeatSettingsTemporaryHint,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 控制模式
+          _buildControlModeSection(l10n, theme, settings, ref),
+          const SizedBox(height: AppSpacing.l),
 
-            // 标题
+          // 播放速度（手动/自动模式下都生效）
+          _buildPlaybackSpeedSection(l10n, theme, settings, ref),
+
+          // 自动模式才显示循环次数和停顿设置
+          if (!settings.isManualMode) ...[
+            const SizedBox(height: AppSpacing.l),
+
+            // 每句循环次数
+            _buildRepeatCountRow(l10n, theme, settings, ref),
+            const SizedBox(height: AppSpacing.l),
+
+            // 句间停顿
             Text(
-              l10n.listenAndRepeatSettings,
-              style: theme.textTheme.titleMedium?.copyWith(
+              l10n.intensiveListenPauseLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.s),
 
-            // 临时提示
-            Text(
-              l10n.listenAndRepeatSettingsTemporaryHint,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.6,
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.l),
+            // 模式切换
+            _buildPauseModeSelector(l10n, settings, ref),
+            const SizedBox(height: AppSpacing.m),
 
-            // 控制模式
-            _buildControlModeSection(l10n, theme, settings, ref),
-            const SizedBox(height: AppSpacing.l),
-
-            // 播放速度（手动/自动模式下都生效）
-            _buildPlaybackSpeedSection(l10n, theme, settings, ref),
-
-            // 自动模式才显示循环次数和停顿设置
-            if (!settings.isManualMode) ...[
-              const SizedBox(height: AppSpacing.l),
-
-              // 每句循环次数
-              _buildRepeatCountRow(l10n, theme, settings, ref),
-              const SizedBox(height: AppSpacing.l),
-
-              // 句间停顿
-              Text(
-                l10n.intensiveListenPauseLabel,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s),
-
-              // 模式切换
-              _buildPauseModeSelector(l10n, settings, ref),
-              const SizedBox(height: AppSpacing.m),
-
-              // 模式详情
-              _buildPauseModeDetail(l10n, theme, settings, ref),
-            ],
+            // 模式详情
+            _buildPauseModeDetail(l10n, theme, settings, ref),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -245,7 +205,13 @@ class _ListenAndRepeatSettingsSheet extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(l10n.intensiveListenRepeatCount, style: theme.textTheme.bodyLarge),
+        Expanded(
+          child: Text(
+            l10n.intensiveListenRepeatCount,
+            style: theme.textTheme.bodyLarge,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.s),
         AppDropdown<int>(
           value: settings.repeatCount,
           items: [

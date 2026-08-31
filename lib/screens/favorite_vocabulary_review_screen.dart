@@ -91,9 +91,6 @@ class _FavoriteVocabularyReviewScreenState
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),

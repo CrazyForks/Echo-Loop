@@ -16,6 +16,7 @@ import '../models/intensive_listen_settings.dart'
 import '../providers/learning_session/blind_listen_player_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/playback_speed.dart';
+import 'common/settings_sheet_scaffold.dart';
 
 /// 显示盲听设置面板
 Future<void> showBlindListenSettingsSheet(BuildContext context) {
@@ -39,150 +40,112 @@ class _BlindListenSettingsSheet extends ConsumerWidget {
     final state = ref.watch(blindListenPlayerProvider);
     final settings = state.settings;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.l,
-          AppSpacing.s,
-          AppSpacing.l,
-          AppSpacing.l,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 拖拽指示条
-            Center(
-              child: Container(
-                width: 32,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.m),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.4,
-                  ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+    return SettingsSheetScaffold(
+      title: l10n.blindListenSettingsTitle,
+      subtitle: l10n.settingsSessionOnly,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 控制模式
+          _buildControlModeSection(l10n, theme, settings, ref),
+          const SizedBox(height: AppSpacing.l),
 
-            // 标题
-            Text(
-              l10n.blindListenSettingsTitle,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-
-            // 本次生效提示
-            Text(
-              l10n.settingsSessionOnly,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.6,
-                ),
-              ),
-            ),
+          // 重复次数和停顿设置仅在自动模式下显示
+          if (!settings.isManualMode) ...[
             const SizedBox(height: AppSpacing.l),
 
-            // 控制模式
-            _buildControlModeSection(l10n, theme, settings, ref),
-            const SizedBox(height: AppSpacing.l),
-
-            // 重复次数和停顿设置仅在自动模式下显示
-            if (!settings.isManualMode) ...[
-              const SizedBox(height: AppSpacing.l),
-
-              // 每段重复次数
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
+            // 每段重复次数
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
                     l10n.retellRepeatCount,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  AppDropdown<int>(
-                    value: settings.repeatCount,
-                    items: [
-                      ...List.generate(10, (i) {
-                        final count = i + 1;
-                        return DropdownMenuItem(
-                          value: count,
-                          child: Text('$count'),
-                        );
-                      }),
-                      DropdownMenuItem(
-                        value: 0,
-                        child: Text(l10n.infiniteRepeat),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(blindListenPlayerProvider.notifier)
-                            .updateSettings(
-                              settings.copyWith(repeatCount: value),
-                            );
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.l),
-
-              // 段间停顿标题
-              Text(
-                l10n.blindListenPauseBetween,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
                 ),
-              ),
-              const SizedBox(height: AppSpacing.s),
-
-              // 停顿模式切换
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<PauseMode>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(
-                      value: PauseMode.smart,
-                      label: Text(l10n.pauseModeSmart),
-                    ),
-                    ButtonSegment(
-                      value: PauseMode.fixed,
-                      label: Text(l10n.pauseModeFixed),
-                    ),
-                    ButtonSegment(
-                      value: PauseMode.multiplier,
-                      label: Text(l10n.pauseModeMultiplier),
+                const SizedBox(width: AppSpacing.s),
+                AppDropdown<int>(
+                  value: settings.repeatCount,
+                  items: [
+                    ...List.generate(10, (i) {
+                      final count = i + 1;
+                      return DropdownMenuItem(
+                        value: count,
+                        child: Text('$count'),
+                      );
+                    }),
+                    DropdownMenuItem(
+                      value: 0,
+                      child: Text(l10n.infiniteRepeat),
                     ),
                   ],
-                  selected: {settings.pauseMode},
-                  onSelectionChanged: (selected) {
-                    ref
-                        .read(blindListenPlayerProvider.notifier)
-                        .updateSettings(
-                          settings.copyWith(pauseMode: selected.first),
-                        );
+                  onChanged: (value) {
+                    if (value != null) {
+                      ref
+                          .read(blindListenPlayerProvider.notifier)
+                          .updateSettings(
+                            settings.copyWith(repeatCount: value),
+                          );
+                    }
                   },
                 ),
-              ),
-              const SizedBox(height: AppSpacing.m),
-
-              // 停顿模式详情
-              _buildPauseModeDetail(l10n, theme, settings, ref),
-            ],
-
+              ],
+            ),
             const SizedBox(height: AppSpacing.l),
 
-            // 播放速度放在控制相关设置之后，作为本次盲听的全局播放参数。
-            _buildPlaybackSpeedSection(l10n, theme, settings, ref),
+            // 段间停顿标题
+            Text(
+              l10n.blindListenPauseBetween,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s),
+
+            // 停顿模式切换
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<PauseMode>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(
+                    value: PauseMode.smart,
+                    label: Text(l10n.pauseModeSmart),
+                  ),
+                  ButtonSegment(
+                    value: PauseMode.fixed,
+                    label: Text(l10n.pauseModeFixed),
+                  ),
+                  ButtonSegment(
+                    value: PauseMode.multiplier,
+                    label: Text(l10n.pauseModeMultiplier),
+                  ),
+                ],
+                selected: {settings.pauseMode},
+                onSelectionChanged: (selected) {
+                  ref
+                      .read(blindListenPlayerProvider.notifier)
+                      .updateSettings(
+                        settings.copyWith(pauseMode: selected.first),
+                      );
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.m),
+
+            // 停顿模式详情
+            _buildPauseModeDetail(l10n, theme, settings, ref),
           ],
-        ),
+
+          const SizedBox(height: AppSpacing.l),
+
+          // 播放速度放在控制相关设置之后，作为本次盲听的全局播放参数。
+          _buildPlaybackSpeedSection(l10n, theme, settings, ref),
+        ],
       ),
     );
   }

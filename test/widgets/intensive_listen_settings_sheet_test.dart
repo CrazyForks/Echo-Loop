@@ -188,5 +188,24 @@ void main() {
       // 固定间隔模式下 Slider 右侧显示当前秒数（硬编码后缀 s）
       expect(find.text('10s'), findsOneWidget);
     });
+
+    testWidgets('小视口下内容可滚动且关闭按钮保持可见', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 320));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(createTestWidget());
+      await openSheet(tester);
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -160),
+      );
+      await tester.pumpAndSettle();
+
+      final closeButton = find.byKey(const Key('settings-sheet-close'));
+      expect(closeButton, findsOneWidget);
+      await tester.tap(closeButton);
+      await tester.pumpAndSettle();
+      expect(closeButton, findsNothing);
+    });
   });
 }

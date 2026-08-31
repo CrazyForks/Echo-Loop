@@ -136,4 +136,27 @@ void main() {
 
     expect(closeButton, findsNothing);
   });
+
+  testWidgets('内容滚动后，固定关闭按钮仍可关闭弹窗', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.binding.setSurfaceSize(const Size(360, 320));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(buildModalHost(container));
+    await tester.tap(find.byKey(const Key('open-bookmark-review-settings')));
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -160),
+    );
+    await tester.pumpAndSettle();
+
+    final closeButton = find.byKey(const Key('bookmark-review-settings-close'));
+    expect(closeButton, findsOneWidget);
+    await tester.tap(closeButton);
+    await tester.pumpAndSettle();
+    expect(closeButton, findsNothing);
+  });
 }

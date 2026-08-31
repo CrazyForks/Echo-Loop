@@ -15,6 +15,7 @@ import '../../models/intensive_listen_settings.dart';
 import '../../providers/learning_session/review_difficult_practice_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
+import '../common/settings_sheet_scaffold.dart';
 
 /// 显示难句补练设置底部弹窗
 void showDifficultPracticeSettingsSheet({required BuildContext context}) {
@@ -53,110 +54,67 @@ class _DifficultPracticeSettingsSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final settings = settingsSelector(ref);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.l,
-          AppSpacing.s,
-          AppSpacing.l,
-          AppSpacing.l,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 拖拽条
-              Center(
-                child: Container(
-                  width: 32,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.m),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(
-                      alpha: 0.4,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+    return SettingsSheetScaffold(
+      title: l10n.difficultPracticeSettings,
+      subtitle: l10n.difficultPracticeSettingsHint,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 控制模式
+          _buildControlModeSection(l10n, theme, settings, ref),
+          const SizedBox(height: AppSpacing.l),
+
+          // 播放速度（手动/自动都生效）
+          _buildPlaybackSpeedSection(l10n, theme, settings, ref),
+
+          // 自动模式才显示循环次数和停顿设置
+          if (!settings.isManualMode) ...[
+            const SizedBox(height: AppSpacing.l),
+
+            // 盲听循环次数
+            _buildRepeatRow(
+              label: l10n.difficultPracticeBlindListenRepeat,
+              value: settings.blindListenRepeatCount,
+              l10n: l10n,
+              theme: theme,
+              onChanged: (value) => onUpdate(
+                ref,
+                settings.copyWith(blindListenRepeatCount: value),
               ),
+            ),
+            const SizedBox(height: AppSpacing.m),
 
-              // 标题
-              Text(
-                l10n.difficultPracticeSettings,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            // 跟读循环次数
+            _buildRepeatRow(
+              label: l10n.difficultPracticeShadowReadingRepeat,
+              value: settings.shadowReadingRepeatCount,
+              l10n: l10n,
+              theme: theme,
+              onChanged: (value) => onUpdate(
+                ref,
+                settings.copyWith(shadowReadingRepeatCount: value),
               ),
-              const SizedBox(height: AppSpacing.xs),
+            ),
+            const SizedBox(height: AppSpacing.l),
 
-              // 临时提示
-              Text(
-                l10n.difficultPracticeSettingsHint,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.6,
-                  ),
-                ),
+            // 句间停顿
+            Text(
+              l10n.intensiveListenPauseLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(height: AppSpacing.l),
+            ),
+            const SizedBox(height: AppSpacing.s),
 
-              // 控制模式
-              _buildControlModeSection(l10n, theme, settings, ref),
-              const SizedBox(height: AppSpacing.l),
+            // 模式切换
+            _buildPauseModeSelector(l10n, settings, ref),
+            const SizedBox(height: AppSpacing.m),
 
-              // 播放速度（手动/自动都生效）
-              _buildPlaybackSpeedSection(l10n, theme, settings, ref),
-
-              // 自动模式才显示循环次数和停顿设置
-              if (!settings.isManualMode) ...[
-                const SizedBox(height: AppSpacing.l),
-
-                // 盲听循环次数
-                _buildRepeatRow(
-                  label: l10n.difficultPracticeBlindListenRepeat,
-                  value: settings.blindListenRepeatCount,
-                  l10n: l10n,
-                  theme: theme,
-                  onChanged: (value) => onUpdate(
-                    ref,
-                    settings.copyWith(blindListenRepeatCount: value),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.m),
-
-                // 跟读循环次数
-                _buildRepeatRow(
-                  label: l10n.difficultPracticeShadowReadingRepeat,
-                  value: settings.shadowReadingRepeatCount,
-                  l10n: l10n,
-                  theme: theme,
-                  onChanged: (value) => onUpdate(
-                    ref,
-                    settings.copyWith(shadowReadingRepeatCount: value),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.l),
-
-                // 句间停顿
-                Text(
-                  l10n.intensiveListenPauseLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s),
-
-                // 模式切换
-                _buildPauseModeSelector(l10n, settings, ref),
-                const SizedBox(height: AppSpacing.m),
-
-                // 模式详情
-                _buildPauseModeDetail(l10n, theme, settings, ref),
-              ],
-            ],
-          ),
-        ),
+            // 模式详情
+            _buildPauseModeDetail(l10n, theme, settings, ref),
+          ],
+        ],
       ),
     );
   }

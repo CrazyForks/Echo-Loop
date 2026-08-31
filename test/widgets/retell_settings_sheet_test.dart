@@ -78,4 +78,23 @@ void main() {
     expect(audioEngine.recordedSpeed, 1.2);
     expect(find.text('1.2x'), findsOneWidget);
   });
+
+  testWidgets('小视口滚动内容后仍可通过固定关闭按钮关闭', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 320));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(createTestWidget());
+    await openSheet(tester);
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -160),
+    );
+    await tester.pumpAndSettle();
+
+    final closeButton = find.byKey(const Key('settings-sheet-close'));
+    expect(closeButton, findsOneWidget);
+    await tester.tap(closeButton);
+    await tester.pumpAndSettle();
+    expect(closeButton, findsNothing);
+  });
 }
