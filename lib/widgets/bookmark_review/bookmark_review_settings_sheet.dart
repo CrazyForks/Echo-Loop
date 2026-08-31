@@ -8,7 +8,6 @@ import '../../models/favorite_review_settings.dart';
 import '../../providers/bookmark_review_settings_provider.dart';
 import '../../providers/favorite_review_settings_provider.dart';
 import '../../theme/app_theme.dart';
-import '../common/settings_section_card.dart';
 
 enum FavoriteReviewSettingsTask { sentence, vocabulary, favorites }
 
@@ -75,180 +74,111 @@ class _BookmarkReviewSettingsSheetState
                 ),
               ),
               const SizedBox(height: AppSpacing.m),
-              SettingsSectionCard(
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.bookmarkReviewShowNextReviewTime),
-                    value: settings.showNextReviewTime,
-                    onChanged: (value) => notifier.update(
-                      settings.copyWith(showNextReviewTime: value),
-                    ),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.favoriteReviewAutoPlayFront),
-                    value: settings.autoPlayFront,
-                    onChanged: (value) => notifier.update(
-                      settings.copyWith(autoPlayFront: value),
-                    ),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l10n.favoriteReviewAutoPlayBack),
-                    value: settings.autoPlayBack,
-                    onChanged: (value) =>
-                        notifier.update(settings.copyWith(autoPlayBack: value)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
-                    child: Text(
-                      l10n.bookmarkReviewOrder,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface,
+              _SettingsGroup(
+                title: l10n.bookmarkReviewOrder,
+                child: _BookmarkReviewOrderSelector(
+                  labels: {
+                    FavoriteReviewOrder.smart: l10n.bookmarkReviewOrderSmart,
+                    FavoriteReviewOrder.dueAt: l10n.bookmarkReviewOrderDueAt,
+                    FavoriteReviewOrder.random: l10n.bookmarkReviewOrderRandom,
+                  },
+                  selected: settings.order,
+                  onSelected: (order) =>
+                      notifier.update(settings.copyWith(order: order)),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.l),
+              _SettingsGroup(
+                child: Column(
+                  children: [
+                    _SettingsSwitch(
+                      title: l10n.bookmarkReviewShowNextReviewTime,
+                      value: settings.showNextReviewTime,
+                      onChanged: (value) => notifier.update(
+                        settings.copyWith(showNextReviewTime: value),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s),
-                    child: _BookmarkReviewOrderSelector(
-                      labels: {
-                        FavoriteReviewOrder.smart:
-                            l10n.bookmarkReviewOrderSmart,
-                        FavoriteReviewOrder.dueAt:
-                            l10n.bookmarkReviewOrderDueAt,
-                        FavoriteReviewOrder.random:
-                            l10n.bookmarkReviewOrderRandom,
-                      },
-                      selected: settings.order,
-                      onSelected: (order) =>
-                          notifier.update(settings.copyWith(order: order)),
+                    _SettingsSwitch(
+                      title: l10n.favoriteReviewAutoPlayFront,
+                      value: settings.autoPlayFront,
+                      onChanged: (value) => notifier.update(
+                        settings.copyWith(autoPlayFront: value),
+                      ),
+                    ),
+                    _SettingsSwitch(
+                      title: l10n.favoriteReviewAutoPlayBack,
+                      value: settings.autoPlayBack,
+                      onChanged: (value) => notifier.update(
+                        settings.copyWith(autoPlayBack: value),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.l),
+              _ReviewDetailSection(
+                key: const Key('favorite-review-settings-sentence-section'),
+                title: l10n.favoriteReviewSentenceSettings,
+                expanded: _sentenceExpanded,
+                onExpansionChanged: (expanded) =>
+                    setState(() => _sentenceExpanded = expanded),
+                children: [
+                  _SettingsSwitch(
+                    title: l10n.autoShowAiExplanationToggle,
+                    value: sentenceSettings.autoShowAiExplanation,
+                    onChanged: (value) => sentenceNotifier.update(
+                      sentenceSettings.copyWith(autoShowAiExplanation: value),
                     ),
                   ),
+                  if (sentenceSettings.autoShowAiExplanation) ...[
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiAnalysisToggle,
+                      value: sentenceSettings.autoShowAiAnalysis,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiAnalysis: value),
+                      ),
+                    ),
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiTranslationToggle,
+                      value: sentenceSettings.autoShowAiTranslation,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiTranslation: value),
+                      ),
+                    ),
+                    _AiExplanationSubSwitch(
+                      title: l10n.autoShowAiSenseGroupsToggle,
+                      value: sentenceSettings.autoShowAiSenseGroups,
+                      onChanged: (value) => sentenceNotifier.update(
+                        sentenceSettings.copyWith(autoShowAiSenseGroups: value),
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: AppSpacing.m),
-              SettingsSectionCard(
+              // 仅在两个不同复习类型之间保留轻分隔，避免无边界的连续列表。
+              const Divider(height: AppSpacing.l),
+              _ReviewDetailSection(
+                key: const Key('favorite-review-settings-vocabulary-section'),
+                title: l10n.favoriteReviewVocabularySettings,
+                expanded: _vocabularyExpanded,
+                onExpansionChanged: (expanded) =>
+                    setState(() => _vocabularyExpanded = expanded),
                 children: [
-                  ExpansionTile(
-                    key: const Key('favorite-review-settings-sentence-section'),
-                    title: Text(
-                      l10n.favoriteReviewSentenceSettings,
-                      style: AppTextStyles.sectionHeader(context),
+                  _SettingsSwitch(
+                    title: l10n.autoShowAiExplanationToggle,
+                    value: settings.autoShowAiLookup,
+                    onChanged: (value) => notifier.update(
+                      settings.copyWith(autoShowAiLookup: value),
                     ),
-                    initiallyExpanded: _sentenceExpanded,
-                    onExpansionChanged: (expanded) =>
-                        setState(() => _sentenceExpanded = expanded),
-                    tilePadding: EdgeInsets.zero,
-                    shape: const Border(),
-                    backgroundColor: AppTheme.settingsExpandedBackground(
-                      theme.brightness,
-                    ),
-                    collapsedBackgroundColor: Colors.transparent,
-                    iconColor: theme.colorScheme.onSurfaceVariant,
-                    collapsedIconColor: theme.colorScheme.onSurfaceVariant,
-                    children: const [],
                   ),
-                  if (_sentenceExpanded) ...[
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.autoShowAiExplanationToggle),
-                      value: sentenceSettings.autoShowAiExplanation,
-                      onChanged: (value) => sentenceNotifier.update(
-                        sentenceSettings.copyWith(autoShowAiExplanation: value),
-                      ),
+                  _SettingsSwitch(
+                    key: const Key('favorite-review-show-vocabulary-on-front'),
+                    title: l10n.favoriteReviewShowVocabularyOnFront,
+                    value: settings.showVocabularyOnFront,
+                    onChanged: (value) => notifier.update(
+                      settings.copyWith(showVocabularyOnFront: value),
                     ),
-                    if (sentenceSettings.autoShowAiExplanation)
-                      Padding(
-                        padding: const EdgeInsets.only(left: AppSpacing.l),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(
-                                color: theme.colorScheme.outlineVariant,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              _AiExplanationSubSwitch(
-                                title: l10n.autoShowAiAnalysisToggle,
-                                value: sentenceSettings.autoShowAiAnalysis,
-                                onChanged: (value) => sentenceNotifier.update(
-                                  sentenceSettings.copyWith(
-                                    autoShowAiAnalysis: value,
-                                  ),
-                                ),
-                              ),
-                              _AiExplanationSubSwitch(
-                                title: l10n.autoShowAiTranslationToggle,
-                                value: sentenceSettings.autoShowAiTranslation,
-                                onChanged: (value) => sentenceNotifier.update(
-                                  sentenceSettings.copyWith(
-                                    autoShowAiTranslation: value,
-                                  ),
-                                ),
-                              ),
-                              _AiExplanationSubSwitch(
-                                title: l10n.autoShowAiSenseGroupsToggle,
-                                value: sentenceSettings.autoShowAiSenseGroups,
-                                onChanged: (value) => sentenceNotifier.update(
-                                  sentenceSettings.copyWith(
-                                    autoShowAiSenseGroups: value,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                  ExpansionTile(
-                    key: const Key(
-                      'favorite-review-settings-vocabulary-section',
-                    ),
-                    title: Text(
-                      l10n.favoriteReviewVocabularySettings,
-                      style: AppTextStyles.sectionHeader(context),
-                    ),
-                    initiallyExpanded: _vocabularyExpanded,
-                    onExpansionChanged: (expanded) =>
-                        setState(() => _vocabularyExpanded = expanded),
-                    tilePadding: EdgeInsets.zero,
-                    shape: const Border(),
-                    backgroundColor: AppTheme.settingsExpandedBackground(
-                      theme.brightness,
-                    ),
-                    collapsedBackgroundColor: Colors.transparent,
-                    iconColor: theme.colorScheme.onSurfaceVariant,
-                    collapsedIconColor: theme.colorScheme.onSurfaceVariant,
-                    children: const [],
                   ),
-                  if (_vocabularyExpanded)
-                    Column(
-                      children: [
-                        SwitchListTile(
-                          key: const Key(
-                            'favorite-review-show-vocabulary-on-front',
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.autoShowAiExplanationToggle),
-                          value: settings.autoShowAiLookup,
-                          onChanged: (value) => notifier.update(
-                            settings.copyWith(autoShowAiLookup: value),
-                          ),
-                        ),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.favoriteReviewShowVocabularyOnFront),
-                          value: settings.showVocabularyOnFront,
-                          onChanged: (value) => notifier.update(
-                            settings.copyWith(showVocabularyOnFront: value),
-                          ),
-                        ),
-                      ],
-                    ),
                 ],
               ),
             ],
@@ -257,6 +187,85 @@ class _BookmarkReviewSettingsSheetState
       ),
     );
   }
+}
+
+/// 无卡片边框的紧凑设置区；可选标题按普通设置字段呈现。
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({this.title, required this.child});
+
+  final String? title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (title != null) ...[
+          // “复习顺序”与开关同属普通字段，复用 ListTile 标题的正文层级。
+          Text(title!, style: theme.textTheme.bodyLarge),
+          const SizedBox(height: AppSpacing.s),
+        ],
+        child,
+      ],
+    );
+  }
+}
+
+/// 复习类型的专属设置使用原生 [ExpansionTile] 承载标题与内容，
+/// 展开时不再依赖标题外的条件渲染，保持语义与可访问性一致。
+class _ReviewDetailSection extends StatelessWidget {
+  const _ReviewDetailSection({
+    super.key,
+    required this.title,
+    required this.expanded,
+    required this.onExpansionChanged,
+    required this.children,
+  });
+
+  final String title;
+  final bool expanded;
+  final ValueChanged<bool> onExpansionChanged;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ExpansionTile(
+      initiallyExpanded: expanded,
+      onExpansionChanged: onExpansionChanged,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: EdgeInsets.zero,
+      shape: const Border(),
+      collapsedShape: const Border(),
+      iconColor: theme.colorScheme.onSurfaceVariant,
+      collapsedIconColor: theme.colorScheme.onSurfaceVariant,
+      title: Text(title, style: AppTextStyles.sectionHeader(context)),
+      children: children,
+    );
+  }
+}
+
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+    title: Text(title),
+    value: value,
+    onChanged: onChanged,
+  );
 }
 
 class _AiExplanationSubSwitch extends StatelessWidget {
@@ -272,7 +281,10 @@ class _AiExplanationSubSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SwitchListTile(
-    contentPadding: const EdgeInsets.only(left: AppSpacing.s),
+    contentPadding: const EdgeInsets.only(
+      left: AppSpacing.l,
+      right: AppSpacing.xs,
+    ),
     title: Text(title),
     value: value,
     onChanged: onChanged,
