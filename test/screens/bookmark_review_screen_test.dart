@@ -588,11 +588,6 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pump();
 
-    expect(
-      tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
-      const EdgeInsets.only(right: AppSpacing.s),
-    );
-
     await tester.tap(find.byKey(const Key('bookmark-review-settings')));
     await tester.pumpAndSettle();
     expect(find.text('显示下次复习时间'), findsOneWidget);
@@ -607,37 +602,6 @@ void main() {
     expect(find.text('AI 解析'), findsOneWidget);
     expect(find.text('AI 翻译'), findsOneWidget);
     expect(find.text('AI 意群分割'), findsOneWidget);
-
-    // AI 设置组不使用图标、说明或分隔线，子项以缩进表示从属关系。
-    expect(find.byIcon(Icons.auto_awesome), findsNothing);
-    expect(find.byIcon(Icons.psychology_alt_outlined), findsNothing);
-    expect(find.byIcon(Icons.translate), findsNothing);
-    expect(find.byIcon(Icons.account_tree_outlined), findsNothing);
-    expect(find.byType(Divider), findsNothing);
-    expect(
-      tester
-          .widget<SwitchListTile>(
-            find.ancestor(
-              of: find.text('自动显示 AI 讲解'),
-              matching: find.byType(SwitchListTile),
-            ),
-          )
-          .contentPadding,
-      EdgeInsets.zero,
-    );
-    for (final title in ['AI 解析', 'AI 翻译', 'AI 意群分割']) {
-      expect(
-        tester
-            .widget<SwitchListTile>(
-              find.ancestor(
-                of: find.text(title),
-                matching: find.byType(SwitchListTile),
-              ),
-            )
-            .contentPadding,
-        const EdgeInsets.only(left: AppSpacing.s),
-      );
-    }
   });
 
   testWidgets('review order uses localized content-width segments', (

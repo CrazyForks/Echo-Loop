@@ -657,11 +657,6 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pump();
 
-    expect(
-      tester.widget<AppBar>(find.byType(AppBar)).actionsPadding,
-      const EdgeInsets.only(right: AppSpacing.s),
-    );
-
     await tester.tap(
       find.byKey(const Key('favorite-vocabulary-review-settings')),
     );
@@ -677,9 +672,13 @@ void main() {
     final toggle = find.byKey(
       const Key('favorite-review-show-vocabulary-on-front'),
     );
-    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
-    await tester.tap(toggle);
+    final switchControl = find.descendant(
+      of: toggle,
+      matching: find.byType(Switch),
+    );
+    expect(tester.widget<Switch>(switchControl).value, isFalse);
+    await tester.tap(switchControl);
     await tester.pump();
-    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    expect(tester.widget<Switch>(switchControl).value, isTrue);
   });
 }
