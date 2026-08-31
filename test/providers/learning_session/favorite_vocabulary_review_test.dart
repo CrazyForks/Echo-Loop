@@ -14,6 +14,7 @@ import 'package:echo_loop/features/memory_scheduler/providers/memory_scheduler_p
 import 'package:echo_loop/models/favorite_review_settings.dart';
 import 'package:echo_loop/models/flashcard_item.dart';
 import 'package:echo_loop/providers/pronunciation/pronunciation_providers.dart';
+import 'package:echo_loop/providers/tts/tts_controller_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,6 +41,35 @@ class _FakeTextPlaybackController extends TextPlaybackController {
     stops++;
     pendingSpeak?.complete();
     pendingSpeak = null;
+  }
+}
+
+class _FakeTtsController extends TtsController {
+  bool holdSpeak = false;
+  final spoken = <String>[];
+  final speakStarted = Completer<void>();
+  Completer<void>? pendingSpeak;
+
+  @override
+  TtsControllerState build() => const TtsControllerState();
+
+  @override
+  Future<void> speak(String text, {String? key}) async {
+    spoken.add(text);
+    state = TtsControllerState(speakingKey: key ?? text);
+    if (!speakStarted.isCompleted) speakStarted.complete();
+    if (holdSpeak) {
+      final pending = pendingSpeak ??= Completer<void>();
+      await pending.future;
+    }
+    state = const TtsControllerState();
+  }
+
+  @override
+  Future<void> stop() async {
+    pendingSpeak?.complete();
+    pendingSpeak = null;
+    state = const TtsControllerState();
   }
 }
 
@@ -78,14 +108,17 @@ void main() {
   late db.AppDatabase database;
   late ProviderContainer container;
   late _FakeTextPlaybackController fakePlayback;
+  late _FakeTtsController fakeTts;
 
   setUp(() {
     database = db.AppDatabase(NativeDatabase.memory());
     fakePlayback = _FakeTextPlaybackController();
+    fakeTts = _FakeTtsController();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         textPlaybackProvider.overrideWith(() => fakePlayback),
+        ttsControllerProvider.overrideWith(() => fakeTts),
       ],
     );
   });
@@ -168,9 +201,9 @@ void main() {
     ], []);
     await notifier.revealBack();
 
-    fakePlayback.holdSpeak = true;
+    fakeTts.holdSpeak = true;
     final playback = notifier.toggleSourcePlayback();
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await fakeTts.speakStarted.future;
     expect(
       container.read(favoriteVocabularyReviewProvider).sourcePlaybackState,
       FavoriteVocabularyReviewPlaybackState.playing,
