@@ -790,6 +790,15 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
     }
   }
 
+  /// 无字幕时保留学习入口的可点击反馈，明确告知用户开始学习的前置条件。
+  void _showMissingTranscriptSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context)!.noTranscriptWarning),
+      ),
+    );
+  }
+
   /// 复习阶段：按 subStage 分发到真实页面。
   ///
   /// 盲听和段落复述自带段落选择弹窗，无需再展示复习简报；
@@ -1716,6 +1725,11 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
 
     final hasTranscript = audioItem.hasTranscript;
     final isLockedReview = progress?.isReviewLockedAt(now) ?? false;
+    final startLearningAction = !isLockedReview
+        ? hasTranscript
+              ? () => _handleStartLearning(context, progress)
+              : () => _showMissingTranscriptSnackBar(context)
+        : null;
 
     final stepFreePlay = GuideStep(
       key: _keyFreePlay,
@@ -1832,9 +1846,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
                       () => _isFirstLearnExpanded =
                           !(_isFirstLearnExpanded ?? true),
                     ),
-                    onStartCurrentStage: hasTranscript && !isLockedReview
-                        ? () => _handleStartLearning(context, progress)
-                        : null,
+                    onStartCurrentStage: startLearningAction,
                   ),
                   const SizedBox(height: AppSpacing.m),
                   ...List.generate(reviewStages.length, (index) {
@@ -1858,9 +1870,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
                         ),
                         onToggle: () =>
                             _toggleReviewRoundExpanded(review.stage),
-                        onStartCurrentStage: hasTranscript && !isLockedReview
-                            ? () => _handleStartLearning(context, progress)
-                            : null,
+                        onStartCurrentStage: startLearningAction,
                       ),
                     );
                   }),
@@ -1876,9 +1886,7 @@ class _LearningPlanScreenState extends ConsumerState<LearningPlanScreen> {
               pauseLearningStep: showPauseLearningGuide
                   ? stepPauseLearning
                   : null,
-              onPressed: hasTranscript && !isLockedReview
-                  ? () => _handleStartLearning(context, progress)
-                  : null,
+              onPressed: startLearningAction,
             ),
           ],
         ),

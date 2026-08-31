@@ -731,6 +731,33 @@ void main() {
       expect(find.text('Start practicing'), findsOneWidget);
     });
 
+    testWidgets('无字幕时当前步骤和底部按钮可点击并提示先添加字幕', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(audioItem: testAudioItemNoTranscript),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Listen sentence by sentence'));
+      await tester.pump();
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SnackBar),
+          matching: find.text('This audio has no subtitles yet'),
+        ),
+        findsOneWidget,
+      );
+
+      ScaffoldMessenger.of(
+        tester.element(find.byType(LearningPlanScreen)),
+      ).hideCurrentSnackBar();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Start practicing'));
+      await tester.pump();
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
     testWidgets('进行中时底部显示"继续学习"', (tester) async {
       final progressState = LearningProgressState(
         progressMap: {
@@ -1419,7 +1446,7 @@ void main() {
       expect(inkWell.onTap, isNotNull, reason: '过去阶段跳过的复述卡应支持点击进入自由练习');
     });
 
-    testWidgets('无字幕时显示警告横幅且禁用开始按钮', (tester) async {
+    testWidgets('无字幕时显示警告横幅且开始按钮可点击', (tester) async {
       await tester.pumpWidget(
         createTestWidget(audioItem: testAudioItemNoTranscript),
       );
@@ -1428,11 +1455,11 @@ void main() {
       // 显示无字幕警告
       expect(find.text('This audio has no subtitles yet'), findsOneWidget);
 
-      // 开始学习按钮应被禁用（查找底部按钮区域）
+      // 开始学习按钮保留点击反馈（查找底部按钮区域）
       final startButton = find.widgetWithText(FilledButton, 'Start practicing');
       expect(startButton, findsOneWidget);
       final button = tester.widget<FilledButton>(startButton);
-      expect(button.onPressed, isNull);
+      expect(button.onPressed, isNotNull);
     });
 
     testWidgets('有字幕时显示句子数和单词数', (tester) async {
@@ -1785,7 +1812,7 @@ void main() {
 
     // ====== Phase 2 Pilot：从 integration_test 下沉的 case ======
 
-    testWidgets('无字幕音频显示警告横幅且开始学习按钮禁用', (tester) async {
+    testWidgets('无字幕音频显示警告横幅且开始学习按钮可点击', (tester) async {
       // v2 入口为精听、未开始 → 底部按钮为「Start Learning」
       final progressState = LearningProgressState(
         progressMap: {
@@ -1809,11 +1836,11 @@ void main() {
       // 验证警告横幅出现（warning 图标）
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
 
-      // 验证底部按钮存在但被禁用
+      // 验证底部按钮存在且保留点击反馈
       final button = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Start practicing'),
       );
-      expect(button.onPressed, isNull);
+      expect(button.onPressed, isNotNull);
     });
 
     testWidgets('Phase 2 Pilot：精听已完成时显示完成标记和继续学习', (tester) async {
