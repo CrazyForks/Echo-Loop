@@ -1303,6 +1303,10 @@ class LearningSession extends _$LearningSession {
     _stopPeriodicSaveTimer();
     await _saveStudyTime();
     final mode = state.learningMode;
+    AppLogger.log(
+      'Session',
+      'exitLearningMode: begin mode=$mode chain=${state.playbackChain}',
+    );
 
     _playerStateSub?.cancel();
     _playerStateSub = null;
@@ -1345,11 +1349,13 @@ class LearningSession extends _$LearningSession {
     }
 
     if (usesMediaChain) {
+      AppLogger.log('Session', 'exitLearningMode: releasing media chain mode=$mode');
       await ref.read(mediaEngineProvider.notifier).releaseFromScreen();
       await _flushLearnedVocabulary();
       ref.read(dailyStudyTimeProvider.notifier).refresh();
       ref.read(studyStatsNotifierProvider.notifier).refresh();
       state = const LearningSessionState();
+      AppLogger.log('Session', 'exitLearningMode: complete mode=$mode media chain');
       return;
     }
 

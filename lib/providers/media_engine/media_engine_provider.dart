@@ -36,6 +36,9 @@ class MediaEngine extends _$MediaEngine {
   int _rangeRequestId = 0;
   bool _hasActiveRangeRequest = false;
   Future<void> _rangeControlTail = Future<void>.value();
+  int _rangeControlId = 0;
+  Future<void> _lifecycleTail = Future<void>.value();
+  int _resourceGeneration = 0;
 
   @override
   MediaEngineState build() {
@@ -46,7 +49,13 @@ class MediaEngine extends _$MediaEngine {
   }
 
   Future<void> ensureChain() async {
-    if (_backend != null && _handler != null) return;
+    if (_backend != null && _handler != null) {
+      AppLogger.log(
+        'MediaEngine',
+        'ensureChain: reuse session=${state.sessionId} backend=${identityHashCode(_backend)}',
+      );
+      return;
+    }
     final backend = ref.read(mediaBackendFactoryProvider)();
     // 测试可注入纯 Dart backend；只有真实 media_kit backend 才需要加载原生库。
     // 这样状态机单测不会因为 flutter_tester 不携带 Runner 的 Mpv.framework 失败。
@@ -58,18 +67,43 @@ class MediaEngine extends _$MediaEngine {
     _backend = backend;
     _handler = handler;
     _router = router;
+    _resourceGeneration += 1;
+    AppLogger.log(
+      'MediaEngine',
+      'ensureChain: create session=${state.sessionId} backend=${identityHashCode(backend)}',
+    );
     unawaited(handler.prepareArtwork());
     unawaited(handler.configureInterruptions());
   }
 
   Future<void> disposeChain() async {
-    await _disposeChain(resetState: true, reason: 'explicit');
+    await _enqueueLifecycle(
+      'dispose-explicit',
+      () => _disposeChain(resetState: true, reason: 'explicit'),
+    );
   }
 
   /// 所有者销毁时释放 native 链路，不写 provider state。
   Future<void> releaseForOwnerDispose() async {
-    await _disposeChain(resetState: false, reason: 'owner-dispose');
+    await _enqueueLifecycle(
+      'dispose-owner',
+      () => _disposeChain(resetState: false, reason: 'owner-dispose'),
+    );
   }
+
+  /// 当前媒体链路是否仍然加载着指定媒体。
+  ///
+  /// MediaEngine 会被多个学习入口共享，调用方自己的 ready 标记不能代表
+  /// backend 仍然存在；所有需要复用媒体的判断都必须以这里的真实资源状态为准。
+  bool isReadyFor(String mediaId) =>
+      !_disposingChain &&
+      _backend != null &&
+      _handler != null &&
+      !state.isLoading &&
+      state.currentMediaId == mediaId;
+
+  /// 当前 native 媒体链路的代际标识，与播放 session 分开管理。
+  int get resourceGeneration => _resourceGeneration;
 
   /// 释放 media_kit 原生链路。
   ///
@@ -80,7 +114,15 @@ class MediaEngine extends _$MediaEngine {
     required bool resetState,
     required String reason,
   }) async {
-    if (_disposingChain) return;
+    if (_disposingChain) {
+      AppLogger.log('MediaEngine', 'disposeChain: skip already disposing reason=$reason');
+      return;
+    }
+    AppLogger.log(
+      'MediaEngine',
+      'disposeChain: begin reason=$reason backend=${identityHashCode(_backend)} '
+          'handler=${identityHashCode(_handler)}',
+    );
     _invalidateRangeRequest('dispose-$reason');
     _disposingChain = true;
     final handler = _handler;
@@ -103,8 +145,11 @@ class MediaEngine extends _$MediaEngine {
       if (resetState) {
         state = const MediaEngineState().copyWith(
           sessionId: state.sessionId + 1,
+          clearCurrentMediaId: true,
+          clearTotalDuration: true,
         );
       }
+      AppLogger.log('MediaEngine', 'disposeChain: complete reason=$reason');
     } catch (e) {
       // 释放路径不能沉默失败；日志保留 reason 方便区分页面退出与容器销毁。
       // 不向上抛，避免 dispose 阶段异常打断 Flutter 清理流程。
@@ -118,7 +163,21 @@ class MediaEngine extends _$MediaEngine {
     AudioItem item,
     double speed, {
     Duration initialPosition = Duration.zero,
+  }) => _enqueueLifecycle(
+    'load-${item.id}',
+    () => _loadMedia(item, speed, initialPosition: initialPosition),
+  );
+
+  Future<Duration?> _loadMedia(
+    AudioItem item,
+    double speed, {
+    required Duration initialPosition,
   }) async {
+    AppLogger.log(
+      'MediaEngine',
+      'loadMedia: begin id=${item.id} session=${state.sessionId} '
+          'backend=${identityHashCode(_backend)}',
+    );
     await ensureChain();
     // media_kit 前台播放不依赖 AudioService；测试 fake backend 也不应触发
     // 真实平台媒体会话初始化，否则 flutter_tester 会访问不存在的平台插件。
@@ -132,6 +191,7 @@ class MediaEngine extends _$MediaEngine {
     );
     final path = await item.getFullAudioPath();
     if (path == null) {
+      AppLogger.log('MediaEngine', 'loadMedia: file unavailable id=${item.id}');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'file not available',
@@ -141,6 +201,7 @@ class MediaEngine extends _$MediaEngine {
     final handler = _handler;
     final backend = _backend;
     if (handler == null || backend == null) {
+      AppLogger.log('MediaEngine', 'loadMedia: chain unavailable id=${item.id}');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'media chain not available',
@@ -162,8 +223,14 @@ class MediaEngine extends _$MediaEngine {
         currentMediaId: item.id,
         isLoading: false,
       );
+      AppLogger.log(
+        'MediaEngine',
+        'loadMedia: complete id=${item.id} session=${state.sessionId} '
+            'backend=${identityHashCode(backend)} duration=${duration.inMilliseconds}ms',
+      );
       return duration;
     } catch (e) {
+      AppLogger.log('MediaEngine', 'loadMedia: failed id=${item.id} error=$e');
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return null;
     }
@@ -208,11 +275,27 @@ class MediaEngine extends _$MediaEngine {
   }
 
   /// 页面退出释放链路：只让业务 session 失效并释放 backend，不等待系统 stop 回调。
-  Future<void> releaseFromScreen() async {
+  Future<void> releaseFromScreen() => _enqueueLifecycle(
+    'release-screen',
+    _releaseFromScreen,
+  );
+
+  Future<void> _releaseFromScreen() async {
+    AppLogger.log(
+      'MediaEngine',
+      'releaseFromScreen: begin session=${state.sessionId} '
+          'activeRange=$_hasActiveRangeRequest rangeId=$_rangeRequestId '
+          'backend=${identityHashCode(_backend)}',
+    );
     _invalidateRangeRequest('screen-release');
+    // 区间播放的暂停/seek/play 通过串行队列执行。释放前必须等待队列排空，
+    // 否则旧精听会话的迟到暂停可能在下一次随心听重新加载后作用到新播放器。
+    await _rangeControlTail;
+    AppLogger.log('MediaEngine', 'releaseFromScreen: range queue drained');
     state = state.copyWith(sessionId: state.sessionId + 1);
     await _handler?.pauseBackend();
-    await disposeChain();
+    await _disposeChain(resetState: true, reason: 'explicit');
+    AppLogger.log('MediaEngine', 'releaseFromScreen: complete session=${state.sessionId}');
   }
 
   Future<void> seek(Duration pos) async => _handler?.seek(pos);
@@ -299,7 +382,7 @@ class MediaEngine extends _$MediaEngine {
           '${end.inMilliseconds}ms speed=$speed',
     );
 
-    final setupResult = await _enqueueRangeControl(() async {
+    final setupResult = await _enqueueRangeControl('range-setup-$requestId', () async {
       final handler = _handler;
       final backend = _backend;
       if (handler == null || backend == null) {
@@ -340,7 +423,7 @@ class MediaEngine extends _$MediaEngine {
     }
 
     final reached = _awaitRangeEndOrRequestInvalid(backend, end, requestId);
-    final playResult = await _enqueueRangeControl(() async {
+    final playResult = await _enqueueRangeControl('range-play-$requestId', () async {
       final handler = _handler;
       if (handler == null || !_isActiveRangeRequest(requestId)) {
         return SentencePlaybackResult.cancelled;
@@ -367,7 +450,7 @@ class MediaEngine extends _$MediaEngine {
 
     final result = await reached;
     if (result == SentencePlaybackResult.completed) {
-      await _enqueueRangeControl(() async {
+      await _enqueueRangeControl('range-finish-$requestId', () async {
         if (_isActiveRangeRequest(requestId)) {
           await _handler?.pauseBackend();
         }
@@ -384,8 +467,13 @@ class MediaEngine extends _$MediaEngine {
 
   /// 取消当前自管理区间播放，并等待底层暂停排在已发出的控制命令之后执行。
   Future<void> cancelActiveRange({String reason = 'caller-cancel'}) async {
+    AppLogger.log(
+      'MediaEngine Range',
+      'cancel request: reason=$reason active=$_hasActiveRangeRequest '
+          'rangeId=$_rangeRequestId',
+    );
     _invalidateRangeRequest(reason);
-    await _enqueueRangeControl(() async {
+    await _enqueueRangeControl('range-cancel-$reason', () async {
       await _handler?.pauseBackend();
     });
   }
@@ -417,9 +505,46 @@ class MediaEngine extends _$MediaEngine {
     );
   }
 
-  Future<T> _enqueueRangeControl<T>(Future<T> Function() operation) {
-    final queued = _rangeControlTail.then((_) => operation());
+  Future<T> _enqueueRangeControl<T>(
+    String label,
+    Future<T> Function() operation,
+  ) {
+    final controlId = ++_rangeControlId;
+    AppLogger.log('MediaEngine Range', 'control enqueue: id=$controlId label=$label');
+    final queued = _rangeControlTail.then((_) async {
+      AppLogger.log('MediaEngine Range', 'control begin: id=$controlId label=$label');
+      try {
+        final result = await operation();
+        AppLogger.log('MediaEngine Range', 'control complete: id=$controlId label=$label');
+        return result;
+      } catch (error) {
+        AppLogger.log(
+          'MediaEngine Range',
+          'control failed: id=$controlId label=$label error=$error',
+        );
+        rethrow;
+      }
+    });
     _rangeControlTail = queued.then<void>((_) {}, onError: (_, _) {});
+    return queued;
+  }
+
+  Future<T> _enqueueLifecycle<T>(
+    String label,
+    Future<T> Function() operation,
+  ) {
+    final queued = _lifecycleTail.then((_) async {
+      AppLogger.log('MediaEngine', 'lifecycle begin: $label');
+      try {
+        final result = await operation();
+        AppLogger.log('MediaEngine', 'lifecycle complete: $label');
+        return result;
+      } catch (error) {
+        AppLogger.log('MediaEngine', 'lifecycle failed: $label error=$error');
+        rethrow;
+      }
+    });
+    _lifecycleTail = queued.then<void>((_) {}, onError: (_, _) {});
     return queued;
   }
 

@@ -675,6 +675,21 @@ void main() {
     expect(backend.disposed, isTrue);
   });
 
+  test('MediaEngine 被学习模式释放后，同一媒体再次进入会重新加载', () async {
+    backend.closeStreamsOnDispose = false;
+    final controller = await loadController();
+    final engine = container.read(mediaEngineProvider.notifier);
+
+    await engine.releaseFromScreen();
+
+    expect(await controller.load(item()), MediaLoadResult.ready);
+    expect(backend.openCalls, hasLength(2));
+    expect(
+      container.read(mediaPlaybackProvider).duration,
+      const Duration(seconds: 120),
+    );
+  });
+
   test('视频字幕默认关闭，且由 media controller 统一管理', () async {
     final controller = await loadController();
 

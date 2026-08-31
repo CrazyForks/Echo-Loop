@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -13,6 +14,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/shared/fake_media_player_backend.dart';
+
+class _FirstPauseGateBackend extends FakeMediaPlayerBackend {
+  final pauseGate = Completer<void>();
+  bool _blockFirstPause = true;
+
+  @override
+  Future<void> pause() async {
+    if (_blockFirstPause) {
+      _blockFirstPause = false;
+      await pauseGate.future;
+    }
+    await super.pause();
+  }
+}
 
 void main() {
   late FakeMediaPlayerBackend backend;
@@ -127,6 +142,52 @@ void main() {
 
     expect(await playing, SentencePlaybackResult.cancelled);
     expect(backend.pauseCalls, 2);
+  });
+
+  test('释放媒体前等待已排队的区间控制，避免迟到暂停污染下一次播放', () async {
+    final gatedBackend = _FirstPauseGateBackend();
+    final gatedContainer = ProviderContainer(
+      overrides: [
+        mediaBackendFactoryProvider.overrideWithValue(() => gatedBackend),
+        mediaSessionRouterProvider.overrideWithValue(router),
+      ],
+    );
+    addTearDown(gatedContainer.dispose);
+    final engine = gatedContainer.read(mediaEngineProvider.notifier);
+
+    await engine.loadMedia(item(), 1.0);
+    final playing = engine.playRange(
+      const Duration(seconds: 1),
+      const Duration(seconds: 3),
+      speed: 1.0,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final cancel = engine.cancelActiveRange(reason: 'intensive-dispose');
+    var releaseCompleted = false;
+    final release = engine.releaseFromScreen().then((_) {
+      releaseCompleted = true;
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    expect(releaseCompleted, isFalse);
+    gatedBackend.pauseGate.complete();
+    await release;
+    await cancel;
+    expect(await playing, SentencePlaybackResult.cancelled);
+  });
+
+  test('媒体释放与重新加载串行执行，旧链路不会释放新链路', () async {
+    backend.closeStreamsOnDispose = false;
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+
+    final release = engine.releaseFromScreen();
+    final reload = engine.loadMedia(item(), 1.0);
+
+    await release;
+    expect(await reload, const Duration(seconds: 10));
+    expect(backend.openCalls, hasLength(2));
   });
 
   test('pause 会取消旧区间，旧终点不再二次暂停', () async {

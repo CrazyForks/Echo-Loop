@@ -705,11 +705,17 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   }
 
   void disposePlayer() {
+    AppLogger.log(
+      'IntensivePlayer',
+      'disposePlayer: begin sentences=${_sentences.length} '
+          'session=$_currentSessionId',
+    );
     _playback.unbindLockScreen();
     _blindEngine.stopSession();
     _cleanupAnnotationSession();
     _sentences = [];
     state = const IntensiveListenState();
+    AppLogger.log('IntensivePlayer', 'disposePlayer: complete');
   }
 
   void _prepareBlindFlow({int? startIndex}) {

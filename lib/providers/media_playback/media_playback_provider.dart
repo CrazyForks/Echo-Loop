@@ -48,6 +48,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   bool _changingPlaylistMode = false;
   String? _videoSubtitleSrt;
   MediaEngine? _engineCache;
+  int? _loadedResourceGeneration;
   SenseGroupRangePlayback? _senseGroupRangePlayback;
   PlaybackStateDao? _playbackStateDaoCache;
 
@@ -97,7 +98,16 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   /// 每次调用都会分配独立 generation；退出、取消或后续重试会使旧任务失效，
   /// 防止迟到的字幕、断点和播放器结果重新污染已经释放的页面状态。
   Future<MediaLoadResult> load(AudioItem item) async {
-    if (state.audioItem?.id == item.id && !_released && _loadReady) {
+    final pendingRelease = _releaseInFlight;
+    if (pendingRelease != null) {
+      await pendingRelease;
+    }
+    final engine = _engine;
+    if (state.audioItem?.id == item.id &&
+        !_released &&
+        _loadReady &&
+        _loadedResourceGeneration == engine.resourceGeneration &&
+        engine.isReadyFor(item.id)) {
       return MediaLoadResult.ready;
     }
     final generation = ++_loadGeneration;
@@ -135,7 +145,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     _videoSubtitleSrt = null;
 
     try {
-      _engineCache = ref.read(mediaEngineProvider.notifier);
+      _engineCache = engine;
       final audioEngine = ref.read(audioEngineProvider.notifier);
       final playbackRestoreFuture = _loadPlaybackState(item);
       if (audioEngine.isPlaying) await audioEngine.pause();
@@ -223,6 +233,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       _positionUpdatesEnabled = true;
       _applyTransportSpeed();
       _loadReady = true;
+      _loadedResourceGeneration = engine.resourceGeneration;
       return MediaLoadResult.ready;
     } catch (e) {
       AppLogger.log('MediaPlayback', '✗ load failed: $e');
@@ -349,14 +360,25 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   /// [resetWholeLoops] 为 false：这些都是同一整篇循环会话内的导航，不能把已经
   /// 自然完成的整篇遍数清零。仅明确新起播时才使用默认值重置计数。
   Future<void> play({bool resetWholeLoops = true}) async {
-    if (state.audioItem == null || state.isLoading) return;
+    AppLogger.log(
+      'MediaPlayback',
+      'play tap: item=${state.audioItem?.id} loading=${state.isLoading} '
+          'sentences=${state.sentences.length} isPlaying=${state.isPlaying} '
+          'session=$_playbackSessionId engineSession=${_engine.currentSessionId}',
+    );
+    if (state.audioItem == null || state.isLoading) {
+      AppLogger.log('MediaPlayback', 'play ignored: no item or loading');
+      return;
+    }
     if (state.sentences.isEmpty) {
+      AppLogger.log('MediaPlayback', 'play route: whole playback without subtitles');
       await _startWholeDriven(startAtBeginning: _shouldRestartWhole());
       return;
     }
     _ensureValidIndex();
     if (state.playlistMode == PlaylistMode.bookmarks &&
         state.bookmarkedSentences.isEmpty) {
+      AppLogger.log('MediaPlayback', 'play ignored: bookmark playlist is empty');
       return;
     }
     if (_awaitingReplayFromStart || _isAtEnd()) {
@@ -364,6 +386,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       return;
     }
     if (_usesSentenceDrivenPlayback) {
+      AppLogger.log('MediaPlayback', 'play route: sentence playback');
       _launchSentenceDriven(
         resetWholeLoops: resetWholeLoops,
         resetSentenceRepeats: true,
@@ -374,6 +397,11 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
   }
 
   Future<void> pause() async {
+    AppLogger.log(
+      'MediaPlayback',
+      'pause tap: item=${state.audioItem?.id} session=$_playbackSessionId '
+          'engineSession=${_engine.currentSessionId}',
+    );
     _playbackGen++;
     _activeSentenceDrivenPlayback = false;
     _awaitingReplayFromStart = false;
@@ -770,11 +798,30 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
 
   /// 取消尚未完成的加载，不保存尚未开放给用户的临时播放位置。
   Future<void> cancelLoad() async {
-    await _releaseFromScreen(saveProgress: false);
+    await _releaseMedia(saveProgress: false);
   }
 
+  Future<void>? _releaseInFlight;
+
   Future<void> releaseFromScreen() async {
-    await _releaseFromScreen(saveProgress: _loadReady);
+    await _releaseMedia(saveProgress: _loadReady);
+  }
+
+  Future<void> _releaseMedia({required bool saveProgress}) async {
+    final existing = _releaseInFlight;
+    if (existing != null) {
+      await existing;
+      return;
+    }
+    final release = _releaseFromScreen(saveProgress: saveProgress);
+    _releaseInFlight = release;
+    try {
+      await release;
+    } finally {
+      if (identical(_releaseInFlight, release)) {
+        _releaseInFlight = null;
+      }
+    }
   }
 
   /// 统一释放页面拥有的媒体资源；加载取消与正常退出仅在断点保存上不同。
@@ -782,6 +829,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     _loadGeneration++;
     _released = true;
     _loadReady = false;
+    _loadedResourceGeneration = null;
     _positionUpdatesEnabled = false;
     _playbackGen++;
     _pauseAfterPosition = null;
