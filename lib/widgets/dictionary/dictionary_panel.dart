@@ -94,6 +94,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// 自动发音查询代际，防止切词时旧的 post-frame 回调继续播放。
   int _autoSpeakEpoch = 0;
   String? _lastAutoSpokenWord;
+  bool _autoSpeakInFlight = false;
 
   /// 可拉伸源面板的当前高度（像素）。默认 3/5 屏高（真机反馈：1/2 偏低、
   /// 2/3 偏高），
@@ -104,6 +105,9 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   /// 会话粘滞源 notifier（build 时缓存，供 [dispose] 清除——
   /// `ConsumerState.dispose` 内不可用 `ref`，见 CLAUDE.md §7.14）。
   DictionarySessionSource? _sessionSource;
+
+  /// 当前词典宿主，关闭开始时立即取消本面板发起的播放。
+  DictionaryPanelHostState? _panelHost;
 
   /// 拖拽过程中的「逻辑高度」（仅手势期间有值，可低于 [_minSheetHeight]）。
   ///
@@ -128,8 +132,23 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   @override
   void initState() {
     super.initState();
+    _panelHost = DictionaryPanelHost.maybeOf(context);
+    _panelHost?.addOpenStateListener(_handlePanelOpenStateChanged);
     _watchEntryAnimation();
     _scheduleAutoSpeak(widget.query.word);
+  }
+
+  /// 面板开始关闭时立即停止发音，并使尚未执行的自动发音回调失效。
+  void _handlePanelOpenStateChanged() {
+    final host = _panelHost;
+    if (host == null || host.isOpen) return;
+    _autoSpeakEpoch++;
+    _ttsController?.cancelTextsPrewarm();
+    _stopDictionaryPlayback();
+    if (_autoSpeakInFlight) {
+      // 自动发音可能尚未把 speakingKey 同步回面板，不能只依赖播放状态判断。
+      unawaited(_ttsController?.stop() ?? Future<void>.value());
+    }
   }
 
   @override
@@ -159,12 +178,22 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
     _lastAutoSpokenWord = normalized;
     final epoch = ++_autoSpeakEpoch;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || epoch != _autoSpeakEpoch) return;
-      if (!ref.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup) {
-        return;
-      }
-      unawaited(ref.read(textPlaybackProvider.notifier).speak(word, key: word));
+      unawaited(_playAutoSpeak(word, epoch));
     });
+  }
+
+  /// 播放自动发音并保留请求所有权，关闭面板时可直接取消尚未同步 UI 状态的 TTS。
+  Future<void> _playAutoSpeak(String word, int epoch) async {
+    if (!mounted || epoch != _autoSpeakEpoch) return;
+    if (!ref.read(dictionarySettingsNotifierProvider).autoSpeakOnLookup) {
+      return;
+    }
+    _autoSpeakInFlight = true;
+    try {
+      await ref.read(textPlaybackProvider.notifier).speak(word, key: word);
+    } finally {
+      if (epoch == _autoSpeakEpoch) _autoSpeakInFlight = false;
+    }
   }
 
   /// 面板每次重新可见都重新开始当前查询的模型和文本预热。
@@ -213,6 +242,7 @@ class _DictionaryPanelState extends ConsumerState<DictionaryPanel> {
   @override
   void dispose() {
     widget.entryAnimation?.removeStatusListener(_onEntryAnimationStatus);
+    _panelHost?.removeOpenStateListener(_handlePanelOpenStateChanged);
     // 面板关闭即停在途预热，避免离开后继续占用 CPU 合成用不到的例句。
     _ttsController?.cancelTextsPrewarm();
     // 共享播放器也承载复习页来源句，只停止由本面板发起的朗读。

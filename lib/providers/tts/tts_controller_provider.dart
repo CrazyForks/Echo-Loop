@@ -238,10 +238,14 @@ class TtsController extends Notifier<TtsControllerState> {
   ///
   /// fire-and-forget 调用方无需 await；连续调用由协调器打断重播。
   Future<void> speak(String text, {String? key}) async {
-    if (!await ensureTtsModelReadyForPlayback(ref)) return;
-    if (!await warmUpCurrentEngine()) return;
-    final k = key ?? text;
+    // 必须在模型检查前登记代际：模型加载/弹窗等待期间关闭词典时，stop()
+    // 递增代际，旧请求回来后不得再继续设置播放状态或启动协调器。
     final token = ++_speakingToken;
+    if (!await ensureTtsModelReadyForPlayback(ref)) return;
+    if (token != _speakingToken) return;
+    if (!await warmUpCurrentEngine()) return;
+    if (token != _speakingToken) return;
+    final k = key ?? text;
     state = _stateWithSpeaking(k);
     try {
       final ok = await _readyCoordinator.speak(text);

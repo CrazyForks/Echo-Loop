@@ -200,14 +200,22 @@ class TextPlaybackController extends Notifier<TextPlaybackState> {
   /// 通用播放入口均调用本方法，避免页面分别判断离线发音状态而造成预热与点击
   /// 播放走不同链路。
   Future<void> speak(String text, {String? key}) async {
+    final sessionId = ++_sessionId;
+    final playbackKey = key ?? text;
     final clips = ref.read(pronunciationClipsProvider(text));
     if (clips.isNotEmpty) {
-      await play(clips.first, fallbackText: text, fallbackKey: key ?? text);
+      await play(clips.first, fallbackText: text, fallbackKey: playbackKey);
       return;
     }
-    await ref
-        .read(ttsControllerProvider.notifier)
-        .speak(text, key: key ?? text);
+    if (sessionId != _sessionId) return;
+    state = TextPlaybackState(playingKey: playbackKey);
+    try {
+      await ref
+          .read(ttsControllerProvider.notifier)
+          .speak(text, key: playbackKey);
+    } finally {
+      if (sessionId == _sessionId) state = const TextPlaybackState();
+    }
   }
 
   /// 顺序播放单个单词命中的全部离线发音。

@@ -32,6 +32,7 @@ final List<List<String>> _prewarmCalls = [];
 final List<String> _autoSpeakCalls = [];
 String? _initialSpeakingKey;
 int _ttsStopCalls = 0;
+int _textPlaybackStopCalls = 0;
 
 /// 桩 [TtsController]：弹窗内嵌发音按钮、查词完成会自动触发例句预热，
 /// 真实控制器会经平台 TTS 引擎/method channel 异步合成，在 widget 测试中
@@ -69,6 +70,12 @@ class _StubTextPlaybackController extends TextPlaybackController {
   @override
   Future<void> speak(String text, {String? key}) async {
     _autoSpeakCalls.add(text);
+    state = TextPlaybackState(playingKey: key ?? text);
+  }
+
+  @override
+  Future<void> stop() async {
+    _textPlaybackStopCalls++;
   }
 }
 
@@ -173,6 +180,7 @@ void main() {
     _autoSpeakCalls.clear();
     _initialSpeakingKey = null;
     _ttsStopCalls = 0;
+    _textPlaybackStopCalls = 0;
     db = _createTestDb();
     oldInstance = DictionaryService.replaceInstance(
       DictionaryService.withDatabase(db),
@@ -203,6 +211,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_ttsStopCalls, greaterThan(0));
+    });
+
+    testWidgets('关闭面板立即停止自动发音', (tester) async {
+      await _openSheet(tester, 'run');
+
+      await tester.tap(find.byKey(const Key('dict_panel_close')));
+
+      expect(_textPlaybackStopCalls, greaterThan(0));
     });
 
     testWidgets('显示完整词典内容（音标、释义、星级、标签）', (tester) async {
