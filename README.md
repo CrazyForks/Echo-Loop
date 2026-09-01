@@ -401,6 +401,8 @@ flutter run --release -d <DEVICE_ID> --dart-define-from-file=.dev.env
 
 ---
 
+国内 AtomGit 托管：<a href="https://atomgit.com/echo-loop/Echo-Loop">Echo Loop AtomGit 项目主页</a>
+
 ## 📄 License
 
 [AGPL-3.0](./LICENSE)

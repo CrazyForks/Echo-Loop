@@ -378,6 +378,8 @@ flutter run --release -d <DEVICE_ID> --dart-define-from-file=.dev.env
 
 ---
 
+AtomGit mirror for users in China: <a href="https://atomgit.com/echo-loop/Echo-Loop">Echo Loop on AtomGit</a>
+
 ## 📄 License
 
 [AGPL-3.0](./LICENSE)

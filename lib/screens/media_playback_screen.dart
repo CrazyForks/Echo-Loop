@@ -108,8 +108,10 @@ class _MediaPlaybackScreenState extends ConsumerState<MediaPlaybackScreen>
     unawaited(_fullscreenSubscription.cancel());
     unawaited(_releaseFullscreen());
     _playlistViewController.dispose();
-    // ManagedMediaVisualSurface 负责在媒体内容卸载时调用 cancelLoad；这里不再
-    // 并发重复释放，避免断点保存与 Provider 销毁交错访问 Drift 查询流。
+    // MediaPlayback 是 keep-alive provider，不能依赖 Provider dispose 感知页面退出。
+    // 页面作为媒体链路 owner，必须在销毁时统一释放；加载中的 cancelLoad 与这里的
+    // releaseFromScreen 由 controller 去重，避免断点保存和媒体释放并发交错。
+    scheduleMicrotask(_controller.releaseFromScreen);
     scheduleMicrotask(_sleepTimer.cancel);
     super.dispose();
   }
