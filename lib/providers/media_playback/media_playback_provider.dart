@@ -371,14 +371,20 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
       return;
     }
     if (state.sentences.isEmpty) {
-      AppLogger.log('MediaPlayback', 'play route: whole playback without subtitles');
+      AppLogger.log(
+        'MediaPlayback',
+        'play route: whole playback without subtitles',
+      );
       await _startWholeDriven(startAtBeginning: _shouldRestartWhole());
       return;
     }
     _ensureValidIndex();
     if (state.playlistMode == PlaylistMode.bookmarks &&
         state.bookmarkedSentences.isEmpty) {
-      AppLogger.log('MediaPlayback', 'play ignored: bookmark playlist is empty');
+      AppLogger.log(
+        'MediaPlayback',
+        'play ignored: bookmark playlist is empty',
+      );
       return;
     }
     if (_awaitingReplayFromStart || _isAtEnd()) {

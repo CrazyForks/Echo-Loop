@@ -3,6 +3,10 @@
 > 仅保留未完成任务；历史完成记录见 [docs/tasks-archive/tasks-2026-08-28-full.md](./docs/tasks-archive/tasks-2026-08-28-full.md)。
 
 ## 最近完成
+- [x] 按单实例播放器生命周期复用 MediaEngine native backend：页面退出只暂停并解绑媒体会话，Provider 销毁才 dispose，避免精听切换随心听时旧 mpv 延迟销毁污染新播放。**完成时间**: 2026-09-01
+
+- [x] 补充视频媒体链路关键诊断日志：覆盖 native backend 播放/释放、playing/buffering 状态与位置推进，用于定位精听后进入随心听的卡播放问题。**完成时间**: 2026-09-01
+
 - [x] 修复随心听视频页退出后仍继续播放：由页面 owner 在 dispose 生命周期统一释放 MediaPlayback/MediaEngine，保持与音频随心听一致。**完成时间**: 2026-09-01
 
 - [x] 修复随心听与视频学习模式共享 MediaEngine 时的生命周期失真：以底层资源状态判定媒体是否 ready，串行化媒体加载/释放，并隔离旧资源代际。**完成时间**: 2026-09-01

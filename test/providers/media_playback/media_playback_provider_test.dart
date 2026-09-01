@@ -656,7 +656,7 @@ void main() {
     expect(container.read(mediaPlaybackProvider).settings.loopSentence, isTrue);
   });
 
-  test('releaseFromScreen 后迟到的底层播放事件不再污染状态', () async {
+  test('releaseFromScreen 后迟到的底层播放事件不再污染状态且 backend 保留', () async {
     backend.closeStreamsOnDispose = false;
     final controller = await loadController();
     unawaited(controller.play());
@@ -672,7 +672,7 @@ void main() {
     final state = container.read(mediaPlaybackProvider);
     expect(state.isPlaying, isFalse);
     expect(state.position, Duration.zero);
-    expect(backend.disposed, isTrue);
+    expect(backend.disposed, isFalse);
   });
 
   test('MediaEngine 被学习模式释放后，同一媒体再次进入会重新加载', () async {
@@ -688,6 +688,7 @@ void main() {
       container.read(mediaPlaybackProvider).duration,
       const Duration(seconds: 120),
     );
+    expect(backend.disposed, isFalse);
   });
 
   test('视频字幕默认关闭，且由 media controller 统一管理', () async {

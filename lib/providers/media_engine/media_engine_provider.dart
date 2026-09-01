@@ -43,7 +43,14 @@ class MediaEngine extends _$MediaEngine {
   @override
   MediaEngineState build() {
     ref.onDispose(() {
-      unawaited(_disposeChain(resetState: false, reason: 'provider-dispose'));
+      // Provider 销毁也必须进入同一生命周期队列，不能和页面 detach 并发操作
+      // 同一个 native Player。
+      unawaited(
+        _enqueueLifecycle(
+          'dispose-provider',
+          () => _disposeChain(resetState: false, reason: 'provider-dispose'),
+        ),
+      );
     });
     return const MediaEngineState();
   }
@@ -83,11 +90,11 @@ class MediaEngine extends _$MediaEngine {
     );
   }
 
-  /// 所有者销毁时释放 native 链路，不写 provider state。
+  /// 所有者销毁时解绑媒体会话，但保留全局复用的 native 链路。
   Future<void> releaseForOwnerDispose() async {
     await _enqueueLifecycle(
-      'dispose-owner',
-      () => _disposeChain(resetState: false, reason: 'owner-dispose'),
+      'detach-owner',
+      () => _detachFromScreen(reason: 'owner-dispose'),
     );
   }
 
@@ -105,17 +112,19 @@ class MediaEngine extends _$MediaEngine {
   /// 当前 native 媒体链路的代际标识，与播放 session 分开管理。
   int get resourceGeneration => _resourceGeneration;
 
-  /// 释放 media_kit 原生链路。
+  /// 真正释放 media_kit 原生链路。
   ///
-  /// debug hot restart 会销毁旧 Dart isolate，但旧 mpv 线程可能仍持有 FFI
-  /// callback。这里在页面退出、ProviderScope 销毁等可控路径尽早卸载媒体并释放
-  /// backend，减少下一次启动由 media_kit 清理旧 mpv handle 时触发旧 callback 的机会。
+  /// 页面退出不能调用此方法。media_kit 的 native mpv 终止可能晚于 Dart
+  /// [Player.dispose] 返回，因此全局复用期间只允许 Provider 销毁路径执行这里。
   Future<void> _disposeChain({
     required bool resetState,
     required String reason,
   }) async {
     if (_disposingChain) {
-      AppLogger.log('MediaEngine', 'disposeChain: skip already disposing reason=$reason');
+      AppLogger.log(
+        'MediaEngine',
+        'disposeChain: skip already disposing reason=$reason',
+      );
       return;
     }
     AppLogger.log(
@@ -201,7 +210,10 @@ class MediaEngine extends _$MediaEngine {
     final handler = _handler;
     final backend = _backend;
     if (handler == null || backend == null) {
-      AppLogger.log('MediaEngine', 'loadMedia: chain unavailable id=${item.id}');
+      AppLogger.log(
+        'MediaEngine',
+        'loadMedia: chain unavailable id=${item.id}',
+      );
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'media chain not available',
@@ -274,16 +286,17 @@ class MediaEngine extends _$MediaEngine {
     await _handler?.stop();
   }
 
-  /// 页面退出释放链路：只让业务 session 失效并释放 backend，不等待系统 stop 回调。
+  /// 页面退出只解绑会话，保留 backend 供下一个页面复用。
   Future<void> releaseFromScreen() => _enqueueLifecycle(
-    'release-screen',
-    _releaseFromScreen,
+    'detach-screen',
+    () => _detachFromScreen(reason: 'screen-release'),
   );
 
-  Future<void> _releaseFromScreen() async {
+  /// 释放页面所有权，但不销毁全局共享的 native Player。
+  Future<void> _detachFromScreen({required String reason}) async {
     AppLogger.log(
       'MediaEngine',
-      'releaseFromScreen: begin session=${state.sessionId} '
+      'detachFromScreen: begin reason=$reason session=${state.sessionId} '
           'activeRange=$_hasActiveRangeRequest rangeId=$_rangeRequestId '
           'backend=${identityHashCode(_backend)}',
     );
@@ -291,11 +304,18 @@ class MediaEngine extends _$MediaEngine {
     // 区间播放的暂停/seek/play 通过串行队列执行。释放前必须等待队列排空，
     // 否则旧精听会话的迟到暂停可能在下一次随心听重新加载后作用到新播放器。
     await _rangeControlTail;
-    AppLogger.log('MediaEngine', 'releaseFromScreen: range queue drained');
+    AppLogger.log('MediaEngine', 'detachFromScreen: range queue drained');
     state = state.copyWith(sessionId: state.sessionId + 1);
-    await _handler?.pauseBackend();
-    await _disposeChain(resetState: true, reason: 'explicit');
-    AppLogger.log('MediaEngine', 'releaseFromScreen: complete session=${state.sessionId}');
+    final handler = _handler;
+    final router = _router;
+    await handler?.pauseBackend();
+    if (handler != null) router?.deactivate(handler);
+    state = state.copyWith(clearCurrentMediaId: true, clearTotalDuration: true);
+    AppLogger.log(
+      'MediaEngine',
+      'detachFromScreen: complete reason=$reason session=${state.sessionId} '
+          'backendRetained=${_backend != null}',
+    );
   }
 
   Future<void> seek(Duration pos) async => _handler?.seek(pos);
@@ -382,38 +402,41 @@ class MediaEngine extends _$MediaEngine {
           '${end.inMilliseconds}ms speed=$speed',
     );
 
-    final setupResult = await _enqueueRangeControl('range-setup-$requestId', () async {
-      final handler = _handler;
-      final backend = _backend;
-      if (handler == null || backend == null) {
-        return (result: SentencePlaybackResult.cancelled, backend: backend);
-      }
-      if (!_isActiveRangeRequest(requestId)) {
-        return (result: SentencePlaybackResult.cancelled, backend: backend);
-      }
-      try {
-        await handler.pauseBackend();
+    final setupResult = await _enqueueRangeControl(
+      'range-setup-$requestId',
+      () async {
+        final handler = _handler;
+        final backend = _backend;
+        if (handler == null || backend == null) {
+          return (result: SentencePlaybackResult.cancelled, backend: backend);
+        }
         if (!_isActiveRangeRequest(requestId)) {
           return (result: SentencePlaybackResult.cancelled, backend: backend);
         }
-        await handler.setSpeed(speed);
-        if (!_isActiveRangeRequest(requestId)) {
-          return (result: SentencePlaybackResult.cancelled, backend: backend);
+        try {
+          await handler.pauseBackend();
+          if (!_isActiveRangeRequest(requestId)) {
+            return (result: SentencePlaybackResult.cancelled, backend: backend);
+          }
+          await handler.setSpeed(speed);
+          if (!_isActiveRangeRequest(requestId)) {
+            return (result: SentencePlaybackResult.cancelled, backend: backend);
+          }
+          await handler.seek(start);
+          if (!_isActiveRangeRequest(requestId)) {
+            return (result: SentencePlaybackResult.cancelled, backend: backend);
+          }
+          return (result: SentencePlaybackResult.completed, backend: backend);
+        } catch (error) {
+          AppLogger.log(
+            'MediaEngine Range',
+            'failed: id=$requestId setup-error=$error',
+          );
+          _invalidateRangeRequest('setup-failed');
+          return (result: SentencePlaybackResult.failed, backend: backend);
         }
-        await handler.seek(start);
-        if (!_isActiveRangeRequest(requestId)) {
-          return (result: SentencePlaybackResult.cancelled, backend: backend);
-        }
-        return (result: SentencePlaybackResult.completed, backend: backend);
-      } catch (error) {
-        AppLogger.log(
-          'MediaEngine Range',
-          'failed: id=$requestId setup-error=$error',
-        );
-        _invalidateRangeRequest('setup-failed');
-        return (result: SentencePlaybackResult.failed, backend: backend);
-      }
-    });
+      },
+    );
 
     final backend = setupResult.backend;
     if (setupResult.result != SentencePlaybackResult.completed ||
@@ -423,27 +446,30 @@ class MediaEngine extends _$MediaEngine {
     }
 
     final reached = _awaitRangeEndOrRequestInvalid(backend, end, requestId);
-    final playResult = await _enqueueRangeControl('range-play-$requestId', () async {
-      final handler = _handler;
-      if (handler == null || !_isActiveRangeRequest(requestId)) {
-        return SentencePlaybackResult.cancelled;
-      }
-      try {
-        // seek 已完成且请求仍有效，调用方此刻才能安全订阅位置流。
-        onRangeReady?.call();
-        await handler.playBackend();
-        return _isActiveRangeRequest(requestId)
-            ? SentencePlaybackResult.completed
-            : SentencePlaybackResult.cancelled;
-      } catch (error) {
-        AppLogger.log(
-          'MediaEngine Range',
-          'failed: id=$requestId play-error=$error',
-        );
-        _invalidateRangeRequest('play-failed');
-        return SentencePlaybackResult.failed;
-      }
-    });
+    final playResult = await _enqueueRangeControl(
+      'range-play-$requestId',
+      () async {
+        final handler = _handler;
+        if (handler == null || !_isActiveRangeRequest(requestId)) {
+          return SentencePlaybackResult.cancelled;
+        }
+        try {
+          // seek 已完成且请求仍有效，调用方此刻才能安全订阅位置流。
+          onRangeReady?.call();
+          await handler.playBackend();
+          return _isActiveRangeRequest(requestId)
+              ? SentencePlaybackResult.completed
+              : SentencePlaybackResult.cancelled;
+        } catch (error) {
+          AppLogger.log(
+            'MediaEngine Range',
+            'failed: id=$requestId play-error=$error',
+          );
+          _invalidateRangeRequest('play-failed');
+          return SentencePlaybackResult.failed;
+        }
+      },
+    );
     if (playResult != SentencePlaybackResult.completed) {
       return playResult;
     }
@@ -510,12 +536,21 @@ class MediaEngine extends _$MediaEngine {
     Future<T> Function() operation,
   ) {
     final controlId = ++_rangeControlId;
-    AppLogger.log('MediaEngine Range', 'control enqueue: id=$controlId label=$label');
+    AppLogger.log(
+      'MediaEngine Range',
+      'control enqueue: id=$controlId label=$label',
+    );
     final queued = _rangeControlTail.then((_) async {
-      AppLogger.log('MediaEngine Range', 'control begin: id=$controlId label=$label');
+      AppLogger.log(
+        'MediaEngine Range',
+        'control begin: id=$controlId label=$label',
+      );
       try {
         final result = await operation();
-        AppLogger.log('MediaEngine Range', 'control complete: id=$controlId label=$label');
+        AppLogger.log(
+          'MediaEngine Range',
+          'control complete: id=$controlId label=$label',
+        );
         return result;
       } catch (error) {
         AppLogger.log(
@@ -529,10 +564,7 @@ class MediaEngine extends _$MediaEngine {
     return queued;
   }
 
-  Future<T> _enqueueLifecycle<T>(
-    String label,
-    Future<T> Function() operation,
-  ) {
+  Future<T> _enqueueLifecycle<T>(String label, Future<T> Function() operation) {
     final queued = _lifecycleTail.then((_) async {
       AppLogger.log('MediaEngine', 'lifecycle begin: $label');
       try {
@@ -597,15 +629,49 @@ class MediaEngine extends _$MediaEngine {
     final handler = _handler;
     final backend = _backend;
     if (handler == null || backend == null || !isActiveSession(sessionId)) {
+      AppLogger.log(
+        'MediaEngine',
+        'playToEnd ignored session=$sessionId active=${isActiveSession(sessionId)} '
+            'hasHandler=${handler != null} hasBackend=${backend != null}',
+      );
       return;
     }
 
+    AppLogger.log(
+      'MediaEngine',
+      'playToEnd begin session=$sessionId backend=${identityHashCode(backend)} '
+          'position=${backend.position.inMilliseconds}ms playing=${backend.playing} '
+          'duration=${backend.duration?.inMilliseconds}ms',
+    );
     final done = _awaitCompletedOrInvalid(backend, sessionId);
-    await handler.playBackend();
+    try {
+      await handler.playBackend();
+    } catch (error, stackTrace) {
+      AppLogger.log(
+        'MediaEngine',
+        'playToEnd play failed session=$sessionId error=$error\n$stackTrace',
+      );
+      rethrow;
+    }
+    AppLogger.log(
+      'MediaEngine',
+      'playToEnd play returned session=$sessionId active=${isActiveSession(sessionId)} '
+          'position=${backend.position.inMilliseconds}ms playing=${backend.playing}',
+    );
     if (!isActiveSession(sessionId)) {
       await handler.pauseBackend();
+      AppLogger.log(
+        'MediaEngine',
+        'playToEnd paused invalid session=$sessionId position='
+            '${backend.position.inMilliseconds}ms',
+      );
     }
     await done;
+    AppLogger.log(
+      'MediaEngine',
+      'playToEnd done session=$sessionId active=${isActiveSession(sessionId)} '
+          'position=${backend.position.inMilliseconds}ms playing=${backend.playing}',
+    );
   }
 
   Future<void> _awaitCompletedOrInvalid(
@@ -619,12 +685,27 @@ class MediaEngine extends _$MediaEngine {
       if (completer.isCompleted) return;
       unawaited(doneSub?.cancel());
       guard?.cancel();
+      AppLogger.log(
+        'MediaEngine',
+        'playToEnd wait finished session=$sessionId active=${isActiveSession(sessionId)} '
+            'position=${backend.position.inMilliseconds}ms playing=${backend.playing}',
+      );
       completer.complete();
     }
 
-    doneSub = backend.completedStream.listen((_) => finish());
+    doneSub = backend.completedStream.listen((_) {
+      AppLogger.log(
+        'MediaEngine',
+        'backend completed event session=$sessionId '
+            'position=${backend.position.inMilliseconds}ms playing=${backend.playing}',
+      );
+      finish();
+    });
     guard = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (!isActiveSession(sessionId)) finish();
+      if (!isActiveSession(sessionId)) {
+        finish();
+        return;
+      }
     });
     return completer.future;
   }

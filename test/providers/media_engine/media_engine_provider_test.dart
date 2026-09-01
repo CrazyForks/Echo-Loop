@@ -35,15 +35,20 @@ void main() {
   late ProviderContainer container;
   late Directory appDir;
   late File mediaFile;
+  var backendFactoryCalls = 0;
 
   setUp(() async {
+    backendFactoryCalls = 0;
     appDir = await Directory.systemTemp.createTemp('echo-loop-media-engine-');
     appDataDirectoryOverride = appDir;
     backend = FakeMediaPlayerBackend();
     router = MediaSessionRouter(defaultHandler: BaseAudioHandler());
     container = ProviderContainer(
       overrides: [
-        mediaBackendFactoryProvider.overrideWithValue(() => backend),
+        mediaBackendFactoryProvider.overrideWithValue(() {
+          backendFactoryCalls += 1;
+          return backend;
+        }),
         mediaSessionRouterProvider.overrideWithValue(router),
       ],
     );
@@ -177,7 +182,7 @@ void main() {
     expect(await playing, SentencePlaybackResult.cancelled);
   });
 
-  test('媒体释放与重新加载串行执行，旧链路不会释放新链路', () async {
+  test('页面解绑与重新加载串行执行，并复用同一 native backend', () async {
     backend.closeStreamsOnDispose = false;
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
@@ -188,6 +193,8 @@ void main() {
     await release;
     expect(await reload, const Duration(seconds: 10));
     expect(backend.openCalls, hasLength(2));
+    expect(backendFactoryCalls, 1);
+    expect(backend.disposed, isFalse);
   });
 
   test('pause 会取消旧区间，旧终点不再二次暂停', () async {
@@ -282,7 +289,7 @@ void main() {
     expect(backend.disposed, isTrue);
   });
 
-  test('releaseFromScreen 使 session 失效并释放 backend', () async {
+  test('releaseFromScreen 使 session 失效但保留 backend 供全局复用', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
     final sid = engine.newSession();
@@ -291,9 +298,9 @@ void main() {
 
     expect(engine.isActiveSession(sid), isFalse);
     expect(backend.pauseCalls, 1);
-    expect(backend.stopCalls, 1);
+    expect(backend.stopCalls, 0);
     expect(router.isRouted, isFalse);
-    expect(backend.disposed, isTrue);
+    expect(backend.disposed, isFalse);
   });
 
   test('setSubtitleTrackData 加载或关闭视频字幕轨', () async {

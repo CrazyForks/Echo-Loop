@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'media_subtitle_style.dart';
+import 'app_logger.dart';
 import 'media_kit_debug_initializer.dart';
 import 'media_player_backend.dart';
 
@@ -79,16 +80,41 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
   Future<void> open(
     String filePath, {
     Duration initialPosition = Duration.zero,
-  }) => _player.open(
-    Media(
-      filePath,
-      start: initialPosition > Duration.zero ? initialPosition : null,
-    ),
-    play: false,
-  );
+  }) async {
+    AppLogger.log(
+      'MediaKitBackend',
+      'open begin backend=${identityHashCode(this)} '
+          'position=${initialPosition.inMilliseconds}ms',
+    );
+    await _player.open(
+      Media(
+        filePath,
+        start: initialPosition > Duration.zero ? initialPosition : null,
+      ),
+      play: false,
+    );
+    AppLogger.log(
+      'MediaKitBackend',
+      'open complete backend=${identityHashCode(this)} '
+          'duration=${duration?.inMilliseconds}ms position=${position.inMilliseconds}ms '
+          'playing=$playing',
+    );
+  }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    AppLogger.log(
+      'MediaKitBackend',
+      'play begin backend=${identityHashCode(this)} '
+          'position=${position.inMilliseconds}ms playing=$playing',
+    );
+    await _player.play();
+    AppLogger.log(
+      'MediaKitBackend',
+      'play complete backend=${identityHashCode(this)} '
+          'position=${position.inMilliseconds}ms playing=$playing',
+    );
+  }
 
   @override
   Future<void> pause() => _player.pause();
@@ -181,6 +207,12 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
 
   Future<void> _dispose() async {
     if (_disposed) return;
+    final startedAt = DateTime.now();
+    AppLogger.log(
+      'MediaKitBackend',
+      'dispose begin backend=${identityHashCode(this)} '
+          'position=${position.inMilliseconds}ms playing=$playing',
+    );
     _disposed = true;
     try {
       await _player.setVideoTrack(VideoTrack.no());
@@ -191,6 +223,11 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
     await _player.dispose();
     await _keepAlivePlayer?.dispose();
     _keepAlivePlayer = null;
+    AppLogger.log(
+      'MediaKitBackend',
+      'dispose complete backend=${identityHashCode(this)} '
+          'elapsed_ms=${DateTime.now().difference(startedAt).inMilliseconds}',
+    );
   }
 
   /// media_kit 的 width/height 已按视频旋转元数据校正，可直接用于方向判断。
