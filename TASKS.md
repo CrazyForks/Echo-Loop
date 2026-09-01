@@ -3,6 +3,8 @@
 > 仅保留未完成任务；历史完成记录见 [docs/tasks-archive/tasks-2026-08-28-full.md](./docs/tasks-archive/tasks-2026-08-28-full.md)。
 
 ## 最近完成
+- [x] 验证并收口单实例 MediaEngine 生命周期：补充旧会话迟到命令、区间监听清理、释放失败重试和退出失败隔离回归测试，并防止 AudioSession 初始化竞态重新挂载已销毁订阅。**完成时间**: 2026-09-02
+
 - [x] 按单实例播放器生命周期复用 MediaEngine native backend：页面退出只暂停并解绑媒体会话，Provider 销毁才 dispose，避免精听切换随心听时旧 mpv 延迟销毁污染新播放。**完成时间**: 2026-09-01
 
 - [x] 补充视频媒体链路关键诊断日志：覆盖 native backend 播放/释放、playing/buffering 状态与位置推进，用于定位精听后进入随心听的卡播放问题。**完成时间**: 2026-09-01

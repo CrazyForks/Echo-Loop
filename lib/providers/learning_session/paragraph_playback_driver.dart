@@ -198,6 +198,7 @@ class MediaParagraphPlaybackDriver implements ParagraphPlaybackDriver {
       end,
       speed: speed,
       onRangeReady: onRangeReady,
+      sessionId: sessionId,
     );
   }
 

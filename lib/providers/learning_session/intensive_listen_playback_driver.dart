@@ -254,6 +254,7 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
     sentence.startTime,
     sentence.endTime,
     speed: _playbackSpeed,
+    sessionId: sessionId,
   );
 
   Future<SentencePlaybackResult> _playSentenceWithDiagnostics(
@@ -270,6 +271,7 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
       sentence.startTime,
       sentence.endTime,
       speed: speed,
+      sessionId: _engine.currentSessionId,
     );
     AppLogger.log(
       'SentencePlaybackDriver',
@@ -284,7 +286,12 @@ class MediaSentencePlaybackDriver implements IntensiveListenPlaybackDriver {
     Duration start,
     Duration end,
     int sessionId,
-  ) => _engine.playRange(start, end, speed: _playbackSpeed);
+  ) => _engine.playRange(
+    start,
+    end,
+    speed: _playbackSpeed,
+    sessionId: sessionId,
+  );
 
   @override
   void bindLockScreen({

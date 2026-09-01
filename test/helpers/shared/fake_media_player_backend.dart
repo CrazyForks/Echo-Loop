@@ -5,7 +5,15 @@ import 'package:flutter/widgets.dart';
 
 /// 测试用 media backend：纯 Dart 状态机，不触达 media_kit 原生层。
 class FakeMediaPlayerBackend implements MediaPlayerBackend {
-  final positionController = StreamController<Duration>.broadcast();
+  final positionStreamCancelled = Completer<void>();
+  late final StreamController<Duration> positionController =
+      StreamController<Duration>.broadcast(
+        onCancel: () {
+          if (!positionStreamCancelled.isCompleted) {
+            positionStreamCancelled.complete();
+          }
+        },
+      );
   final durationController = StreamController<Duration>.broadcast();
   final playingController = StreamController<bool>.broadcast();
   final bufferingController = StreamController<bool>.broadcast();
@@ -26,10 +34,16 @@ class FakeMediaPlayerBackend implements MediaPlayerBackend {
   int startKeepAliveCalls = 0;
   int stopKeepAliveCalls = 0;
   bool disposed = false;
+  int disposeCalls = 0;
   bool closeStreamsOnDispose = true;
   Duration disposeDelay = Duration.zero;
   Duration pauseDelay = Duration.zero;
   Object? openError;
+  Object? pauseError;
+  Object? playError;
+  Object? disposeError;
+  Completer<void>? playGate;
+  Completer<void>? playStarted;
 
   Duration _position = Duration.zero;
   Duration? _duration = const Duration(seconds: 10);
@@ -93,6 +107,10 @@ class FakeMediaPlayerBackend implements MediaPlayerBackend {
 
   @override
   Future<void> play() async {
+    playStarted?.complete();
+    final gate = playGate;
+    if (gate != null) await gate.future;
+    if (playError != null) throw playError!;
     playCalls += 1;
     _playing = true;
     playingController.add(true);
@@ -102,6 +120,8 @@ class FakeMediaPlayerBackend implements MediaPlayerBackend {
   Future<void> pause() async {
     pauseCalls += 1;
     if (pauseDelay > Duration.zero) await Future<void>.delayed(pauseDelay);
+    final error = pauseError;
+    if (error != null) throw error;
     _playing = false;
     playingController.add(false);
   }
@@ -185,10 +205,13 @@ class FakeMediaPlayerBackend implements MediaPlayerBackend {
 
   @override
   Future<void> dispose() async {
-    disposed = true;
+    disposeCalls += 1;
     if (disposeDelay > Duration.zero) {
       await Future<void>.delayed(disposeDelay);
     }
+    final error = disposeError;
+    if (error != null) throw error;
+    disposed = true;
     if (!closeStreamsOnDispose) return;
     await positionController.close();
     await durationController.close();

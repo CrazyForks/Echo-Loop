@@ -133,6 +133,30 @@ void main() {
     expect(backend.pauseCalls, 3);
   });
 
+  test('旧 playToEnd 返回后不能暂停页面退出后重新加载的媒体', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    final sessionId = engine.newSession();
+    backend.playStarted = Completer<void>();
+    backend.playGate = Completer<void>();
+
+    final oldPlayback = engine.playToEnd(sessionId);
+    await backend.playStarted!.future;
+
+    var releaseCompleted = false;
+    final release = engine.releaseFromScreen().then((_) {
+      releaseCompleted = true;
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(releaseCompleted, isFalse);
+    backend.playGate!.complete();
+    await release;
+    await engine.loadMedia(item(), 1.0);
+    await oldPlayback;
+
+    expect(backend.playing, isFalse);
+  });
+
   test('cancelActiveRange 会取消当前请求且不等待句尾事件', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
@@ -231,6 +255,21 @@ void main() {
     expect(backend.pauseCalls, 1);
   });
 
+  test('区间起播失败时清理结束监听，避免共享 backend 保留订阅', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    backend.playError = StateError('play failed');
+
+    final result = await engine.playRange(
+      const Duration(seconds: 1),
+      const Duration(seconds: 3),
+      speed: 1.0,
+    );
+
+    expect(result, SentencePlaybackResult.failed);
+    await backend.positionStreamCancelled.future;
+  });
+
   test('媒体意群播放按当前速度播放区间，取消后活动 range 不再生效', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
@@ -289,6 +328,23 @@ void main() {
     expect(backend.disposed, isTrue);
   });
 
+  test('backend 释放失败时保留 owner，并允许后续重试释放', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    backend.closeStreamsOnDispose = false;
+    backend.disposeError = StateError('native dispose failed');
+
+    await engine.disposeChain();
+
+    expect(backend.disposed, isFalse);
+    expect(backend.disposeCalls, 1);
+    backend.disposeError = null;
+    await engine.disposeChain();
+
+    expect(backend.disposed, isTrue);
+    expect(backend.disposeCalls, 2);
+  });
+
   test('releaseFromScreen 使 session 失效但保留 backend 供全局复用', () async {
     final engine = container.read(mediaEngineProvider.notifier);
     await engine.loadMedia(item(), 1.0);
@@ -300,6 +356,18 @@ void main() {
     expect(backend.pauseCalls, 1);
     expect(backend.stopCalls, 0);
     expect(router.isRouted, isFalse);
+    expect(backend.disposed, isFalse);
+  });
+
+  test('detach 暂停失败也会解绑会话并清理媒体状态', () async {
+    final engine = container.read(mediaEngineProvider.notifier);
+    await engine.loadMedia(item(), 1.0);
+    backend.pauseError = StateError('pause failed');
+
+    await expectLater(engine.releaseFromScreen(), throwsStateError);
+
+    expect(router.isRouted, isFalse);
+    expect(container.read(mediaEngineProvider).currentMediaId, isNull);
     expect(backend.disposed, isFalse);
   });
 

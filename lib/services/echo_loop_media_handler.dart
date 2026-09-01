@@ -45,6 +45,7 @@ class EchoLoopMediaHandler extends BaseAudioHandler with SeekHandler {
   bool? _logicalPlaying;
   bool _progressFrozen = false;
   bool _opened = false;
+  bool _disposed = false;
   bool _buffering = false;
   Uri? _artworkUri;
 
@@ -100,11 +101,13 @@ class EchoLoopMediaHandler extends BaseAudioHandler with SeekHandler {
 
   /// 只订阅中断与 becoming noisy；AudioSession 全局配置仍由默认音频 handler 完成。
   Future<void> configureInterruptions() async {
-    if (kIsWeb) return;
+    if (kIsWeb || _disposed) return;
     try {
       final session = await AudioSession.instance;
-      await _interruptionSub?.cancel();
-      _interruptionSub = session.interruptionEventStream.listen((event) async {
+      if (_disposed) return;
+      final interruptionSub = session.interruptionEventStream.listen((
+        event,
+      ) async {
         if (event.begin && _backend.playing) {
           await pause();
           return;
@@ -113,10 +116,32 @@ class EchoLoopMediaHandler extends BaseAudioHandler with SeekHandler {
           _broadcastState();
         }
       });
-      await _becomingNoisySub?.cancel();
-      _becomingNoisySub = session.becomingNoisyEventStream.listen((_) async {
+      if (_disposed) {
+        await interruptionSub.cancel();
+        return;
+      }
+      await _interruptionSub?.cancel();
+      if (_disposed) {
+        await interruptionSub.cancel();
+        return;
+      }
+      _interruptionSub = interruptionSub;
+
+      final becomingNoisySub = session.becomingNoisyEventStream.listen((
+        _,
+      ) async {
         if (_backend.playing) await pause();
       });
+      if (_disposed) {
+        await becomingNoisySub.cancel();
+        return;
+      }
+      await _becomingNoisySub?.cancel();
+      if (_disposed) {
+        await becomingNoisySub.cancel();
+        return;
+      }
+      _becomingNoisySub = becomingNoisySub;
     } catch (_) {
       // 测试环境或平台通道不可用时跳过中断监听；播放主链路不依赖它。
     }
@@ -194,6 +219,7 @@ class EchoLoopMediaHandler extends BaseAudioHandler with SeekHandler {
   Future<void> skipToPrevious() async => _onSkipToPrevious?.call();
 
   Future<void> dispose() async {
+    _disposed = true;
     await _playingSub?.cancel();
     await _bufferingSub?.cancel();
     await _durationSub?.cancel();

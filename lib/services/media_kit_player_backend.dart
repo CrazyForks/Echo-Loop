@@ -201,8 +201,16 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
     final existing = _disposeFuture;
     if (existing != null) return existing;
     final future = _dispose();
-    _disposeFuture = future;
-    return future;
+    late final Future<void> tracked;
+    tracked = future.whenComplete(() {
+      // 原生释放失败时保留 backend owner，并允许生命周期管理器重试；成功时
+      // [_dispose] 已将 _disposed 置为 true，后续调用自然幂等返回。
+      if (!_disposed && identical(_disposeFuture, tracked)) {
+        _disposeFuture = null;
+      }
+    });
+    _disposeFuture = tracked;
+    return tracked;
   }
 
   Future<void> _dispose() async {
@@ -213,7 +221,6 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
       'dispose begin backend=${identityHashCode(this)} '
           'position=${position.inMilliseconds}ms playing=$playing',
     );
-    _disposed = true;
     try {
       await _player.setVideoTrack(VideoTrack.no());
     } catch (_) {}
@@ -223,6 +230,7 @@ class MediaKitPlayerBackend implements MediaPlayerBackend {
     await _player.dispose();
     await _keepAlivePlayer?.dispose();
     _keepAlivePlayer = null;
+    _disposed = true;
     AppLogger.log(
       'MediaKitBackend',
       'dispose complete backend=${identityHashCode(this)} '

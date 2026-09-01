@@ -839,24 +839,45 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     _positionUpdatesEnabled = false;
     _playbackGen++;
     _pauseAfterPosition = null;
-    await _senseGroupRangePlayback?.cancel();
-    _senseGroupRangePlayback = null;
-    final engine = _engineCache;
-    engine?.setTransportHandlers(onPlay: null, onPause: null);
-    await _positionSub?.cancel();
-    await _playingSub?.cancel();
-    await _landscapeVideoSub?.cancel();
-    await _videoAspectRatioSub?.cancel();
-    // 自然完成后 UI 可继续停在终点展示完成态，但持久化断点必须保持为开头；
-    // 否则退出页面会用 state.position 的终点值覆盖刚写入的 0:00。
-    if (saveProgress) {
-      await saveCurrentPlaybackState(
-        silent: true,
-        position: _awaitingReplayFromStart ? Duration.zero : null,
-      );
+    Object? releaseError;
+    try {
+      await _senseGroupRangePlayback?.cancel();
+      _senseGroupRangePlayback = null;
+      final engine = _engineCache;
+      engine?.setTransportHandlers(onPlay: null, onPause: null);
+      await _positionSub?.cancel();
+      await _playingSub?.cancel();
+      await _landscapeVideoSub?.cancel();
+      await _videoAspectRatioSub?.cancel();
+    } catch (error) {
+      releaseError = error;
+      AppLogger.log('MediaPlayback', 'release subscriptions failed: $error');
     }
-    await engine?.releaseFromScreen();
-    state = const MediaPlaybackState();
+    final engine = _engineCache;
+    // 自然完成后 UI 可继续停在终点展示完成态，但持久化断点必须保持为开头；
+    // 否则退出页面会用 state.position 的终点值覆盖刚写入的 0:00。持久化失败
+    // 不能阻止 engine detach，否则页面 owner 已销毁而 native Player 仍在工作。
+    if (saveProgress) {
+      try {
+        await saveCurrentPlaybackState(
+          silent: true,
+          position: _awaitingReplayFromStart ? Duration.zero : null,
+        );
+      } catch (error) {
+        releaseError ??= error;
+        AppLogger.log('MediaPlayback', 'release progress save failed: $error');
+      }
+    }
+    try {
+      await engine?.releaseFromScreen();
+    } catch (error) {
+      releaseError ??= error;
+      AppLogger.log('MediaPlayback', 'release engine detach failed: $error');
+    } finally {
+      state = const MediaPlaybackState();
+    }
+    final error = releaseError;
+    if (error != null) throw error;
   }
 
   Future<void> _applyTransportSpeed() async {
@@ -1014,7 +1035,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
     final gen = ++_playbackGen;
     _activeSentenceDrivenPlayback = true;
     _awaitingReplayFromStart = false;
-    _playbackSessionId = _engine.currentSessionId;
+    _playbackSessionId = _engine.newSession();
     state = state.copyWith(
       isPlaying: true,
       wholeLoopsDone: resetWholeLoops ? 0 : state.wholeLoopsDone,
@@ -1037,6 +1058,7 @@ class MediaPlayback extends Notifier<MediaPlaybackState> {
         sentence.startTime,
         sentence.endTime,
         speed: state.settings.playbackSpeed,
+        sessionId: _playbackSessionId,
       );
       if (gen != _playbackGen || result != SentencePlaybackResult.completed) {
         return;
