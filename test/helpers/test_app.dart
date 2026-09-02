@@ -36,6 +36,8 @@ import 'package:echo_loop/providers/tag_provider.dart';
 import 'package:echo_loop/providers/listening_practice/listening_practice_provider.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/audio_engine/foreground_audio_engine_provider.dart';
+import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
+import 'package:echo_loop/providers/media_playback/media_playback_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
 import 'package:echo_loop/providers/learning_session/blind_listen_player_provider.dart';
@@ -89,6 +91,10 @@ Widget createTestApp(
     foregroundAudioEngineProvider.overrideWith(
       () => TestForegroundAudioEngine(),
     ),
+    // media engine 在生产中 keep-alive，但测试 App 每次都必须拥有独立实例，
+    // 避免上一用例的异步生命周期队列污染下一用例。
+    mediaEngineProvider.overrideWith(MediaEngine.new),
+    mediaPlaybackProvider.overrideWith(MediaPlayback.new),
     // 收藏生命周期、播放断点等 Provider 会在 widget 测试中读取数据库；
     // 默认注入独立内存库，避免测试意外依赖生产启动流程的全局数据库。
     appDatabaseProvider.overrideWithValue(_testAppDatabase),
@@ -105,7 +111,10 @@ Widget createTestApp(
   // 合并自定义 overrides（覆盖同名 provider）
   final allOverrides = <Override>[...defaultOverrides, ...(overrides ?? [])];
 
+  // 每次创建测试 App 都使用新的作用域，避免 Flutter 复用根 ProviderScope
+  // 时保留 keep-alive Provider 的状态，污染后续测试。
   return ProviderScope(
+    key: UniqueKey(),
     overrides: allOverrides,
     child: Builder(
       builder: (context) {

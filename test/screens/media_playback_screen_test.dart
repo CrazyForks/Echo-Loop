@@ -112,10 +112,16 @@ void main() {
     Future<void> Function(WidgetTester tester) body,
   ) {
     testWidgets(description, (tester) async {
-      await body(tester);
-      // 必须在测试回调仍运行时卸载 ProviderScope；若放进 addTearDown，
-      // 测试框架会先校验 Provider 产生的 Drift 关闭定时器。
+      // flutter_test 会在相邻用例间保留上一棵 widget tree；先切出旧的
+      // ProviderScope，确保 keep-alive controller 不会被下一用例复用。
       await tester.pumpWidget(const SizedBox.shrink());
+      await body(tester);
+      // 必须在测试回调仍运行时卸载 ProviderScope；仅替换其 child 会保留
+      // keep-alive Provider，导致媒体 controller/engine 跨测试污染。
+      // 唯一 key 让根节点类型变化，确保旧 ProviderScope 真正销毁。
+      await tester.pumpWidget(
+        KeyedSubtree(key: UniqueKey(), child: const SizedBox.shrink()),
+      );
       await tester.pump(const Duration(seconds: 6));
     });
   }
