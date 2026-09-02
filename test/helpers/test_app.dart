@@ -114,7 +114,7 @@ Widget createTestApp(
   // Flutter 的子树更新语义，让同一用例内重建 App 时 StatefulWidget 状态
   // 可以继续存在。
   return ProviderScope(
-    key: key,
+    key: key ?? UniqueKey(),
     overrides: allOverrides,
     child: Builder(
       builder: (context) {

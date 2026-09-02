@@ -3,6 +3,8 @@
 > 仅保留未完成任务；历史完成记录见 [docs/tasks-archive/tasks-2026-08-28-full.md](./docs/tasks-archive/tasks-2026-08-28-full.md)。
 
 ## 最近完成
+- [x] 修复 GitHub CI 媒体播放测试的跨用例异步污染：隔离测试 ProviderScope、取消旧 controller 加载代际，并稳定控制区弹层与布局时序。**完成时间**: 2026-09-02
+
 - [x] 修复 GitHub CI 媒体播放与字幕波形 widget 测试失败：移除测试 App 默认 `UniqueKey`，保留同一用例内 StatefulWidget 状态并支持显式 key 隔离。**完成时间**: 2026-09-02
 
 - [x] 统一播放控制区手动模式与自动模式的底部 status label 样式，手动模式沿用自动模式的弱化文字样式，并补充回归测试。**完成时间**: 2026-09-02

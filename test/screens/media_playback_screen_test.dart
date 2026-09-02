@@ -135,6 +135,9 @@ void main() {
     final screen = find.byType(MediaPlaybackScreen);
     if (screen.evaluate().isEmpty) return;
     final container = ProviderScope.containerOf(tester.element(screen.first));
+    // 必须先取消 MediaPlayback 的 load generation，再解绑 MediaEngine；只释放
+    // engine 会让旧 controller 的迟到 load 结果跨越测试边界写回状态。
+    unawaited(container.read(mediaPlaybackProvider.notifier).cancelLoad());
     await container.read(mediaEngineProvider.notifier).releaseFromScreen();
   }
 
@@ -147,7 +150,13 @@ void main() {
       // ProviderScope，确保 keep-alive controller 不会被下一用例复用。
       await releaseMediaPage(tester);
       await tester.pumpWidget(const SizedBox.shrink());
+      // ProviderScope 的 onDispose 通过异步生命周期队列释放 backend；切出旧树后
+      // 先把该队列推进完，再创建下一用例的 MediaEngine。
+      await tester.pump(const Duration(seconds: 6));
       await body(tester);
+      // body 可能只等待 backend 就绪；让 MediaPlayback 的最后一帧状态提交完成，
+      // 再开始下一用例的作用域切换，避免前一用例的 load 回调跨越测试边界。
+      await tester.pump(const Duration(milliseconds: 500));
       // 必须在测试回调仍运行时卸载 ProviderScope；仅替换其 child 会保留
       // keep-alive Provider，导致媒体 controller/engine 跨测试污染。
       // 唯一 key 让根节点类型变化，确保旧 ProviderScope 真正销毁。
@@ -568,7 +577,7 @@ void main() {
           .copyWith(singleSentenceMode: true),
     );
     // 单句讲解区可能包含持续刷新的异步内容，固定推进等待设置生效即可。
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(find.byType(FreePlayerSentencePager), findsOneWidget);
     expect(find.byType(SentenceExplanationView), findsOneWidget);
@@ -1121,7 +1130,7 @@ void main() {
       context,
     ).read(mediaPlaybackProvider.notifier);
     await controller.setVisualTrackVisible(false);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 600));
     expect(
       find.byKey(const ValueKey('media-playback-single-layout')),
       findsOneWidget,
@@ -1452,9 +1461,9 @@ void main() {
     await pumpMediaReady(tester);
 
     await tester.tap(find.byIcon(Icons.repeat));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(SegmentedButton<int>), findsNothing);
     expect(find.text('Repeat Count'), findsOneWidget);
