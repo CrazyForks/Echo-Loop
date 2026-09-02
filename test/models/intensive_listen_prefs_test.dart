@@ -16,7 +16,7 @@ void main() {
 
       expect(s.playbackSpeed, 0.9); // 速度=智能默认
       expect(s.pauseMode, PauseMode.smart);
-      expect(s.fixedPauseSeconds, 5);
+      expect(s.fixedPauseSeconds, 3);
       expect(s.pauseMultiplier, 2.0);
       expect(s.controlMode, ShadowingControlMode.auto);
       expect(s.repeatCount, 1);

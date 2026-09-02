@@ -118,9 +118,9 @@ void main() {
       await tester.tap(find.text('固定间隔'));
       await tester.pumpAndSettle();
 
-      // 固定间隔模式有停顿 Slider + 播放速度 Slider，右侧显示当前秒数（默认 5s）
+      // 固定间隔模式有停顿 Slider + 播放速度 Slider，右侧显示当前秒数（默认 3s）
       expect(find.byType(Slider), findsNWidgets(2));
-      expect(find.text('5s'), findsOneWidget);
+      expect(find.text('3s'), findsOneWidget);
     });
 
     testWidgets('切换到倍数模式显示倍数选择', (tester) async {

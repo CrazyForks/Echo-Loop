@@ -302,7 +302,7 @@ class _ListenAndRepeatSettingsSheet extends ConsumerWidget {
       case PauseMode.fixed:
         final options = IntensiveListenSettings.fixedPauseOptions;
         var idx = options.indexOf(settings.fixedPauseSeconds);
-        if (idx < 0) idx = 2; // 回退到 5 秒
+        if (idx < 0) idx = 2; // 回退到 3 秒
         return Row(
           children: [
             Expanded(

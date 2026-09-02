@@ -26,7 +26,7 @@ class DifficultPracticeSettings {
   /// 停顿模式（默认 smart）
   final PauseMode pauseMode;
 
-  /// 固定间隔秒数（默认 5）
+  /// 固定间隔秒数（默认 3）
   final int fixedPauseSeconds;
 
   /// 句长倍数（默认 2.0）
@@ -46,7 +46,7 @@ class DifficultPracticeSettings {
     this.blindListenRepeatCount = 1,
     this.shadowReadingRepeatCount = 3,
     this.pauseMode = PauseMode.smart,
-    this.fixedPauseSeconds = 5,
+    this.fixedPauseSeconds = 3,
     this.pauseMultiplier = 2.0,
     this.playbackSpeed = 1.0,
   });
@@ -150,8 +150,8 @@ class DifficultPracticeSettings {
   }
 
   static int _parseFixedPause(dynamic raw) {
-    if (raw is! int) return 5;
-    if (!IntensiveListenSettings.fixedPauseOptions.contains(raw)) return 5;
+    if (raw is! int) return 3;
+    if (!IntensiveListenSettings.fixedPauseOptions.contains(raw)) return 3;
     return raw;
   }
 

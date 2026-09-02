@@ -293,18 +293,18 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    // 打开停顿下拉,选「固定间隔 5s」——未点「开始练习」也应即时回调。
+    // 打开停顿下拉,选「固定间隔 2s」——未点「开始练习」也应即时回调。
     await tester.tap(find.text('Auto'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('5s'),
+      find.text('2s'),
       80,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('5s'));
+    await tester.tap(find.text('2s'));
     await tester.pumpAndSettle();
 
-    expect(changedPause, const BriefingPauseChoice.fixed(5));
+    expect(changedPause, const BriefingPauseChoice.fixed(2));
   });
 }

@@ -331,7 +331,7 @@ class _DifficultPracticeSettingsSheet extends ConsumerWidget {
         final seconds = settings.fixedPauseSeconds;
         // 将当前值映射到选项索引，保证 divisions 数量少、刻度点清晰可见
         var idx = options.indexOf(seconds);
-        if (idx < 0) idx = 2; // 回退到 5 秒
+        if (idx < 0) idx = 2; // 回退到 3 秒
         return Row(
           children: [
             Expanded(

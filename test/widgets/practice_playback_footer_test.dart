@@ -8,6 +8,52 @@ import 'package:echo_loop/widgets/practice/practice_play_count_label.dart';
 import '../helpers/test_app.dart';
 
 void main() {
+  testWidgets('手动模式 status label 与自动模式使用相同文字样式', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        Builder(
+          builder: (context) {
+            final l10n = AppLocalizations.of(context)!;
+            final theme = Theme.of(context);
+            return Column(
+              children: [
+                PracticePlayCountLabel(
+                  isManualMode: false,
+                  playCountText: formatPracticePlayCount(
+                    l10n,
+                    currentCount: 1,
+                    totalCount: 2,
+                  ),
+                  statusSuffixText: '1.0x',
+                  l10n: l10n,
+                  theme: theme,
+                ),
+                PracticePlayCountLabel(
+                  isManualMode: true,
+                  playCountText: formatPracticePlayCount(
+                    l10n,
+                    currentCount: 1,
+                    totalCount: 2,
+                  ),
+                  statusSuffixText: '1.0x',
+                  l10n: l10n,
+                  theme: theme,
+                ),
+              ],
+            );
+          },
+        ),
+        locale: const Locale('zh'),
+      ),
+    );
+    await tester.pump();
+
+    final autoLabel = tester.widget<Text>(find.text('自动 · 第 1/2 遍 · 1.0x'));
+    final manualLabel = tester.widget<Text>(find.text('手动 · 1.0x'));
+
+    expect(manualLabel.style, autoLabel.style);
+  });
+
   testWidgets('播放控制按钮提供 Material 悬浮按压和聚焦反馈', (tester) async {
     await tester.pumpWidget(
       createTestApp(

@@ -9,7 +9,7 @@ void main() {
 
       expect(settings.repeatCount, 1);
       expect(settings.pauseMode, PauseMode.smart);
-      expect(settings.fixedPauseSeconds, 5);
+      expect(settings.fixedPauseSeconds, 3);
       expect(settings.pauseMultiplier, 2.0);
       expect(settings.playbackSpeed, 1.0);
     });
@@ -55,7 +55,7 @@ void main() {
 
       expect(updated.repeatCount, 3);
       expect(updated.pauseMode, PauseMode.smart);
-      expect(updated.fixedPauseSeconds, 5);
+      expect(updated.fixedPauseSeconds, 3);
       expect(updated.pauseMultiplier, 2.0);
     });
 
@@ -121,7 +121,7 @@ void main() {
 
       expect(restored.repeatCount, 1);
       expect(restored.pauseMode, PauseMode.smart);
-      expect(restored.fixedPauseSeconds, 5);
+      expect(restored.fixedPauseSeconds, 3);
       expect(restored.pauseMultiplier, 2.0);
     });
 
@@ -131,7 +131,7 @@ void main() {
 
         expect(settings.repeatCount, 1);
         expect(settings.pauseMode, PauseMode.smart);
-        expect(settings.fixedPauseSeconds, 5);
+        expect(settings.fixedPauseSeconds, 3);
         expect(settings.pauseMultiplier, 2.0);
       });
 
@@ -168,18 +168,18 @@ void main() {
         );
       });
 
-      test('fixedPauseSeconds 不在可选列表中回退 5', () {
+      test('fixedPauseSeconds 不在可选列表中回退 3', () {
         expect(
           IntensiveListenSettings.fromJson({
-            'fixedPauseSeconds': 2,
+            'fixedPauseSeconds': 4,
           }).fixedPauseSeconds,
-          5,
+          3,
         );
         expect(
           IntensiveListenSettings.fromJson({
             'fixedPauseSeconds': 'abc',
           }).fixedPauseSeconds,
-          5,
+          3,
         );
       });
 
@@ -219,8 +219,9 @@ void main() {
 
     test('fixedPauseOptions 包含预期值', () {
       expect(IntensiveListenSettings.fixedPauseOptions, contains(1));
+      expect(IntensiveListenSettings.fixedPauseOptions, contains(2));
       expect(IntensiveListenSettings.fixedPauseOptions, contains(60));
-      expect(IntensiveListenSettings.fixedPauseOptions.length, 15);
+      expect(IntensiveListenSettings.fixedPauseOptions.length, 16);
     });
 
     test('multiplierOptions 包含预期值', () {

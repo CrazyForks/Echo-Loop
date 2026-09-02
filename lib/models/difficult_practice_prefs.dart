@@ -32,7 +32,7 @@ class DifficultPracticePrefs {
   /// 停顿模式覆盖(`null`=smart)。
   final PauseMode? pauseMode;
 
-  /// 固定间隔秒数覆盖(`null`=5)。
+  /// 固定间隔秒数覆盖(`null`=3)。
   final int? fixedPauseSeconds;
 
   /// 句长倍数覆盖(`null`=2.0)。
@@ -71,7 +71,7 @@ class DifficultPracticePrefs {
         blindListenRepeatCount: blindListenRepeatCount ?? 1,
         shadowReadingRepeatCount: shadowReadingRepeatCount ?? 3,
         pauseMode: pauseMode ?? PauseMode.smart,
-        fixedPauseSeconds: fixedPauseSeconds ?? 5,
+        fixedPauseSeconds: fixedPauseSeconds ?? 3,
         pauseMultiplier: pauseMultiplier ?? 2.0,
         playbackSpeed: playbackSpeed ?? smartSpeed,
       );

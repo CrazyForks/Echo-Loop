@@ -19,7 +19,7 @@ void main() {
       expect(s.blindListenRepeatCount, 1);
       expect(s.shadowReadingRepeatCount, 3);
       expect(s.pauseMode, PauseMode.smart);
-      expect(s.fixedPauseSeconds, 5);
+      expect(s.fixedPauseSeconds, 3);
       expect(s.pauseMultiplier, 2.0);
     });
 

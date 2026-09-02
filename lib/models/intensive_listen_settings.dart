@@ -35,7 +35,7 @@ class IntensiveListenSettings {
   /// 停顿模式（默认 smart）
   final PauseMode pauseMode;
 
-  /// 固定间隔秒数（默认 5）
+  /// 固定间隔秒数（默认 3）
   final int fixedPauseSeconds;
 
   /// 句长倍数（默认 2.0）
@@ -58,6 +58,7 @@ class IntensiveListenSettings {
   /// 固定间隔可选值
   static const List<int> fixedPauseOptions = [
     1,
+    2,
     3,
     5,
     7,
@@ -88,7 +89,7 @@ class IntensiveListenSettings {
   const IntensiveListenSettings({
     this.repeatCount = 1,
     this.pauseMode = PauseMode.smart,
-    this.fixedPauseSeconds = 5,
+    this.fixedPauseSeconds = 3,
     this.pauseMultiplier = 2.0,
     this.controlMode = ShadowingControlMode.auto,
     this.playbackSpeed = 1.0,
@@ -157,10 +158,10 @@ class IntensiveListenSettings {
         PauseMode.smart;
   }
 
-  /// 解析固定间隔：必须在可选值列表中，否则回退 5
+  /// 解析固定间隔：必须在可选值列表中，否则回退 3
   static int _parseFixedPauseSeconds(dynamic raw) {
-    if (raw is! int) return 5;
-    if (!fixedPauseOptions.contains(raw)) return 5;
+    if (raw is! int) return 3;
+    if (!fixedPauseOptions.contains(raw)) return 3;
     return raw;
   }
 

@@ -128,9 +128,9 @@ void main() {
       );
       await openSheet(tester);
 
-      // Fixed 模式使用 Slider，右侧显示当前秒数（默认 5s）。
+      // Fixed 模式使用 Slider，右侧显示当前秒数（默认 3s）。
       // 面板里还有一个"播放速度"滑块，所以 Slider 总共 2 个。
-      expect(find.text('5s'), findsOneWidget);
+      expect(find.text('3s'), findsOneWidget);
       expect(find.byType(Slider), findsNWidgets(2));
     });
 

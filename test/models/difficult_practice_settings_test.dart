@@ -11,7 +11,7 @@ void main() {
       expect(settings.blindListenRepeatCount, 1);
       expect(settings.shadowReadingRepeatCount, 3);
       expect(settings.pauseMode, PauseMode.smart);
-      expect(settings.fixedPauseSeconds, 5);
+      expect(settings.fixedPauseSeconds, 3);
       expect(settings.pauseMultiplier, 2.0);
       expect(settings.playbackSpeed, 1.0);
     });
@@ -60,7 +60,7 @@ void main() {
       expect(updated.shadowReadingRepeatCount, 2);
       // 未更新字段保持默认
       expect(updated.pauseMode, PauseMode.smart);
-      expect(updated.fixedPauseSeconds, 5);
+      expect(updated.fixedPauseSeconds, 3);
     });
 
     test('copyWith — 更新停顿模式', () {
@@ -105,7 +105,7 @@ void main() {
         expect(restored.blindListenRepeatCount, 1);
         expect(restored.shadowReadingRepeatCount, 10); // clamp to max
         expect(restored.pauseMode, PauseMode.smart);
-        expect(restored.fixedPauseSeconds, 5);
+        expect(restored.fixedPauseSeconds, 3);
         expect(restored.pauseMultiplier, 2.0);
       });
 
