@@ -79,6 +79,7 @@ class _ControlledMediaEngine extends MediaEngine {
     Duration end, {
     required double speed,
     void Function()? onRangeReady,
+    int? sessionId,
   }) async {
     _rangeCancelled = false;
     onRangeReady?.call();
