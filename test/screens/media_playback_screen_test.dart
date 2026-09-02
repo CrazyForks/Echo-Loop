@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' hide PlaybackState;
-import 'package:echo_loop/database/app_database.dart' show PlaybackState;
+import 'package:drift/drift.dart' show Value;
+import 'package:echo_loop/database/app_database.dart' hide AudioItem;
 import 'package:echo_loop/database/daos/playback_state_dao.dart';
 import 'package:echo_loop/database/providers.dart';
 import 'package:echo_loop/models/audio_item.dart';
@@ -11,6 +12,7 @@ import 'package:echo_loop/models/sentence.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/media_engine/media_engine_provider.dart';
 import 'package:echo_loop/providers/media_playback/media_playback_provider.dart';
+import 'package:echo_loop/providers/favorite_sentence_lifecycle_provider.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/screens/media_playback_screen.dart';
 import 'package:echo_loop/services/media_session_router.dart';
@@ -37,6 +39,10 @@ import '../helpers/test_app.dart';
 class _MockApiClient extends Mock implements SentenceAiApiClient {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(_FakePlaybackStatesCompanion());
+  });
+
   late FakeMediaPlayerBackend backend;
   late MediaSessionRouter router;
   late Directory appDir;
@@ -84,28 +90,53 @@ void main() {
     Future<List<Sentence>>? transcriptFuture,
     List<Sentence>? transcriptOverride,
     PlaybackStateDao? playbackStateDao,
-  }) => [
-    mediaBackendFactoryProvider.overrideWithValue(() => backend),
-    mediaSessionRouterProvider.overrideWithValue(router),
-    if (playbackStateDao != null)
-      playbackStateDaoProvider.overrideWithValue(playbackStateDao),
-    if (withTranscript) ...[
-      audioItemDaoProvider.overrideWithValue(audioItemDao),
-      bookmarkDaoProvider.overrideWithValue(TestBookmarkDao()),
-      audioEngineProvider.overrideWith(
-        () => transcriptFuture == null
-            ? _TranscriptAudioEngine(transcriptOverride ?? transcriptSentences)
-            : _FutureTranscriptAudioEngine(transcriptFuture),
+  }) {
+    final isolatedPlaybackStateDao =
+        playbackStateDao ?? _MockPlaybackStateDao();
+    final bookmarkDao = TestBookmarkDao();
+    if (playbackStateDao == null) {
+      when(
+        () => isolatedPlaybackStateDao.getByAudioId(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => isolatedPlaybackStateDao.saveState(any()),
+      ).thenAnswer((_) async {});
+    }
+    return [
+      mediaBackendFactoryProvider.overrideWithValue(() => backend),
+      mediaSessionRouterProvider.overrideWithValue(router),
+      playbackStateDaoProvider.overrideWithValue(isolatedPlaybackStateDao),
+      bookmarkDaoProvider.overrideWithValue(bookmarkDao),
+      favoriteSentenceLifecycleProvider.overrideWithValue(
+        _TestFavoriteSentenceLifecycle(bookmarkDao),
       ),
-      ...learningSettingsOverrides(),
-      sentenceAiNotifierProvider.overrideWithValue(
-        SentenceAiNotifier(
-          cacheDao: createStubbedMockCacheDao(),
-          apiClient: _MockApiClient(),
+      if (withTranscript) ...[
+        audioItemDaoProvider.overrideWithValue(audioItemDao),
+        audioEngineProvider.overrideWith(
+          () => transcriptFuture == null
+              ? _TranscriptAudioEngine(
+                  transcriptOverride ?? transcriptSentences,
+                )
+              : _FutureTranscriptAudioEngine(transcriptFuture),
         ),
-      ),
-    ],
-  ];
+        ...learningSettingsOverrides(),
+        sentenceAiNotifierProvider.overrideWithValue(
+          SentenceAiNotifier(
+            cacheDao: createStubbedMockCacheDao(),
+            apiClient: _MockApiClient(),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  /// 在卸载 ProviderScope 前等待底层媒体链路 release，避免异步释放跨用例。
+  Future<void> releaseMediaPage(WidgetTester tester) async {
+    final screen = find.byType(MediaPlaybackScreen);
+    if (screen.evaluate().isEmpty) return;
+    final container = ProviderScope.containerOf(tester.element(screen.first));
+    await container.read(mediaEngineProvider.notifier).releaseFromScreen();
+  }
 
   void testMediaWidgets(
     String description,
@@ -114,11 +145,13 @@ void main() {
     testWidgets(description, (tester) async {
       // flutter_test 会在相邻用例间保留上一棵 widget tree；先切出旧的
       // ProviderScope，确保 keep-alive controller 不会被下一用例复用。
+      await releaseMediaPage(tester);
       await tester.pumpWidget(const SizedBox.shrink());
       await body(tester);
       // 必须在测试回调仍运行时卸载 ProviderScope；仅替换其 child 会保留
       // keep-alive Provider，导致媒体 controller/engine 跨测试污染。
       // 唯一 key 让根节点类型变化，确保旧 ProviderScope 真正销毁。
+      await releaseMediaPage(tester);
       await tester.pumpWidget(
         KeyedSubtree(key: UniqueKey(), child: const SizedBox.shrink()),
       );
@@ -229,6 +262,7 @@ void main() {
       context,
     ).read(mediaPlaybackProvider.notifier).senseGroupRangePlayback;
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
@@ -263,6 +297,7 @@ void main() {
     );
     expect(playButton.bottom, lessThanOrEqualTo(844 - 34));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -302,6 +337,7 @@ void main() {
     await tester.pump();
     expect(backend.seekCalls.last, const Duration(seconds: 1));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     // 卸载媒体页并推进启动保护定时器，避免测试结束时遗留 pending timer。
     await tester.pump(const Duration(seconds: 6));
@@ -344,6 +380,7 @@ void main() {
       'Second sentence.',
     ]);
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     // 释放 Drift 查询流的关闭定时器，避免测试框架误报 pending timer。
     await tester.pump(const Duration(seconds: 6));
@@ -413,7 +450,19 @@ void main() {
 
     blockingBackend.openCompleter.complete();
     await pumpMediaReady(tester);
-    await tester.pump(const Duration(milliseconds: 16));
+    for (var i = 0; i < 20; i += 1) {
+      await tester.pump(const Duration(milliseconds: 50));
+      if (find
+              .byKey(const ValueKey('media-progress-elapsed-label'))
+              .evaluate()
+              .isNotEmpty &&
+          find
+              .byKey(const ValueKey('media-progress-remaining-label'))
+              .evaluate()
+              .isNotEmpty) {
+        break;
+      }
+    }
 
     final elapsed = tester.widget<Text>(
       find.byKey(const ValueKey('media-progress-elapsed-label')),
@@ -470,6 +519,7 @@ void main() {
     expect(cardRect.left, greaterThan(0));
     expect(cardRect.right, closeTo(viewportWidth, 0.1));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 6));
   });
@@ -542,6 +592,7 @@ void main() {
     expect(pagerRect.left, greaterThan(0));
     expect(pagerRect.right, greaterThanOrEqualTo(viewportWidth));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     // 消耗测试环境中的启动保护定时器，避免卸载时留下 pending timer。
     await tester.pump(const Duration(seconds: 6));
@@ -612,6 +663,7 @@ void main() {
           '否则底部会被 SingleChildScrollView 裁掉一截',
     );
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 6));
   });
@@ -647,6 +699,7 @@ void main() {
     expect(container.read(mediaPlaybackProvider).isPlaying, isFalse);
     expect(backend.seekCalls.last, const Duration(seconds: 4));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 6));
   });
@@ -670,6 +723,7 @@ void main() {
     );
     expect(nextButton.onPressed, isNotNull);
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 6));
   });
@@ -700,6 +754,7 @@ void main() {
     );
     expect(nextButton.onPressed, isNull);
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 6));
   });
@@ -951,6 +1006,7 @@ void main() {
 
     // 先卸载小屏页面再恢复测试视口，避免恢复尺寸时旧树重布局
     // 产生迟到的 overflow，污染下一个 widget 用例。
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -1020,6 +1076,7 @@ void main() {
     expect(infoBarRect.center.dx, closeTo(controlPanelRect.center.dx, 0.1));
     expect(videoRect.left, closeTo(0, 0.1));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -1074,6 +1131,7 @@ void main() {
       findsOneWidget,
     );
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -1109,6 +1167,7 @@ void main() {
     expect(videoRect.height, greaterThan(videoRect.width * 3 / 4));
     expect(controlPanelRect.top, closeTo(videoRect.bottom, 0.1));
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -1149,6 +1208,7 @@ void main() {
     expect(canvasRect.width, closeTo(800, 0.1));
     expect(canvasRect.height, 260);
 
+    await releaseMediaPage(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.devicePixelRatio = originalDevicePixelRatio;
     tester.view.physicalSize = originalPhysicalSize;
@@ -1462,6 +1522,37 @@ class _TranscriptAudioEngine extends TestAudioEngine {
 }
 
 class _MockPlaybackStateDao extends Mock implements PlaybackStateDao {}
+
+class _FakePlaybackStatesCompanion extends Fake
+    implements PlaybackStatesCompanion {}
+
+class _TestFavoriteSentenceLifecycle extends Mock
+    implements FavoriteSentenceLifecycle {
+  _TestFavoriteSentenceLifecycle(this._bookmarkDao);
+
+  final TestBookmarkDao _bookmarkDao;
+
+  @override
+  Future<void> save(String audioItemId, Sentence sentence) {
+    return _bookmarkDao.addBookmark(
+      BookmarksCompanion(
+        audioItemId: Value(audioItemId),
+        memorySubjectId: Value('test-$audioItemId-${sentence.index}'),
+        sentenceIndex: Value(sentence.index),
+        sentenceText: Value(sentence.text),
+        startTime: Value(sentence.startTime.inMilliseconds / 1000.0),
+        endTime: Value(sentence.endTime.inMilliseconds / 1000.0),
+        createdAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @override
+  Future<void> remove(String audioItemId, Set<int> sentenceIndices) {
+    return _bookmarkDao.removeBookmarks(audioItemId, sentenceIndices);
+  }
+}
 
 class _FutureTranscriptAudioEngine extends TestAudioEngine {
   _FutureTranscriptAudioEngine(this.sentencesFuture);

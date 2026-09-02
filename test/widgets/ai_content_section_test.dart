@@ -8,6 +8,8 @@ import '../helpers/test_app.dart';
 
 void main() {
   group('AiContentSection', () {
+    const rebuildKey = ValueKey<String>('ai-content-section-test-app');
+
     testWidgets('初始状态为折叠，只显示标题', (tester) async {
       await tester.pumpWidget(
         createTestApp(
@@ -227,6 +229,7 @@ void main() {
             title: 'Translation',
             cachedContent: '旧内容',
           ),
+          key: rebuildKey,
         ),
       );
 
@@ -245,6 +248,7 @@ void main() {
             title: 'Translation',
             cachedContent: '新内容',
           ),
+          key: rebuildKey,
         ),
       );
 
@@ -262,6 +266,7 @@ void main() {
             title: 'Translation',
             onRequest: () => completer.future,
           ),
+          key: rebuildKey,
         ),
       );
 
@@ -279,6 +284,7 @@ void main() {
             cachedContent: '从缓存加载',
             onRequest: () => completer.future,
           ),
+          key: rebuildKey,
         ),
       );
 

@@ -55,9 +55,7 @@ import 'mock_providers.dart';
 // 所有轻量 widget 测试共享一份内存数据库，避免每次 pump 都创建 Drift 数据库，
 // 导致异步查询流在 ProviderScope 销毁时留下 pending timer。
 final _testAppDatabase = AppDatabase(
-  NativeDatabase.memory(
-    setup: (db) => db.execute('PRAGMA foreign_keys = ON'),
-  ),
+  NativeDatabase.memory(setup: (db) => db.execute('PRAGMA foreign_keys = ON')),
 );
 
 /// 创建测试用 App 包装器
@@ -67,6 +65,7 @@ final _testAppDatabase = AppDatabase(
 /// [size] 用于设置窗口大小模拟不同设备。
 Widget createTestApp(
   Widget child, {
+  Key? key,
   List<Override>? overrides,
   Locale locale = const Locale('en'),
   ThemeMode themeMode = ThemeMode.light,
@@ -111,10 +110,10 @@ Widget createTestApp(
   // 合并自定义 overrides（覆盖同名 provider）
   final allOverrides = <Override>[...defaultOverrides, ...(overrides ?? [])];
 
-  // 每次创建测试 App 都使用新的作用域，避免 Flutter 复用根 ProviderScope
-  // 时保留 keep-alive Provider 的状态，污染后续测试。
+  // 默认隔离不同测试用例的 Provider 状态；需要在同一用例内重建并保留
+  // StatefulWidget 状态的测试，可传入稳定 key。
   return ProviderScope(
-    key: UniqueKey(),
+    key: key ?? UniqueKey(),
     overrides: allOverrides,
     child: Builder(
       builder: (context) {
