@@ -286,6 +286,8 @@ void main() {
           onScrubEnd: (_) {},
           onAdjustEnd: () {},
         ),
+        // 同一用例内多次 pumpWidget 时保留缩放焦点对应的偏移状态。
+        key: const ValueKey('subtitle-waveform-zoom-focus'),
       );
 
       await tester.pumpWidget(build(1));

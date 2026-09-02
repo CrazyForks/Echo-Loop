@@ -49,6 +49,8 @@ void main() {
         onScrubEnd: (_) {},
         onAdjustEnd: () {},
       ),
+      // 同一用例内多次 pumpWidget 时保留波形的持久偏移状态。
+      key: const ValueKey('subtitle-waveform-stop-no-jump'),
     );
 
     testWidgets('播放到句尾后停止：viewOffset 不变且红线消失', (tester) async {
