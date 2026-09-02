@@ -110,10 +110,11 @@ Widget createTestApp(
   // 合并自定义 overrides（覆盖同名 provider）
   final allOverrides = <Override>[...defaultOverrides, ...(overrides ?? [])];
 
-  // 默认隔离不同测试用例的 Provider 状态；需要在同一用例内重建并保留
-  // StatefulWidget 状态的测试，可传入稳定 key。
+  // 需要显式隔离同一用例内的 Provider 状态时可传入 key；默认保留
+  // Flutter 的子树更新语义，让同一用例内重建 App 时 StatefulWidget 状态
+  // 可以继续存在。
   return ProviderScope(
-    key: key ?? UniqueKey(),
+    key: key,
     overrides: allOverrides,
     child: Builder(
       builder: (context) {
