@@ -29,7 +29,7 @@ class BlindPracticeFlowConfig {
   final void Function(Sentence sentence)? onSentencePlayed;
 
   /// 是否为手动模式。手动模式下当前句播完后直接进入等待态。
-  final bool Function()? isManualMode;
+  final bool Function() isManualMode;
 
   const BlindPracticeFlowConfig({
     required this.getRepeatCount,
@@ -37,7 +37,7 @@ class BlindPracticeFlowConfig {
     required this.getSentenceIntervalDuration,
     this.onBeforeSentenceStart,
     this.onSentencePlayed,
-    this.isManualMode,
+    required this.isManualMode,
   });
 }
 
@@ -314,7 +314,7 @@ class BlindPracticeFlowEngine {
       return;
     }
 
-    if (_config.isManualMode?.call() ?? false) {
+    if (_config.isManualMode()) {
       _updateState(
         _state.copyWith(
           repeatIndex: 0,

@@ -862,6 +862,7 @@ class ReviewDifficultPractice extends _$ReviewDifficultPractice {
         getSentenceIntervalDuration: (sentence) =>
             state.settings.calculateInterSentencePause(sentence.duration),
         onSentencePlayed: _recorder.onSentencePlayed,
+        isManualMode: () => state.isManualMode,
       ),
     );
   }

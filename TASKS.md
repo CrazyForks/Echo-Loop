@@ -3,6 +3,8 @@
 > 仅保留未完成任务；历史完成记录见 [docs/tasks-archive/tasks-2026-08-28-full.md](./docs/tasks-archive/tasks-2026-08-28-full.md)。
 
 ## 最近完成
+- [x] 修复难句补练手动模式播放完成后仍自动推进到下一句：收紧共享盲听流程的手动模式配置契约，并补充回归测试。**完成时间**: 2026-09-02
+
 - [x] 修复 GitHub CI 静态分析因 `_ControlledMediaEngine.playRange` 未同步 `sessionId` 参数导致的 override 失败。**完成时间**: 2026-09-02
 
 - [x] 验证并收口单实例 MediaEngine 生命周期：补充旧会话迟到命令、区间监听清理、释放失败重试和退出失败隔离回归测试，并防止 AudioSession 初始化竞态重新挂载已销毁订阅。**完成时间**: 2026-09-02

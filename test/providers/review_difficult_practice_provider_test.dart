@@ -254,6 +254,66 @@ void main() {
   });
 
   group('ReviewDifficultPractice 开始播放时保存断点', () {
+    test('盲听手动模式播放完当前句后等待用户，不自动推进', () async {
+      final playback = _ControlledPlaybackDriver();
+      addTearDown(playback.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          foregroundAudioEngineProvider.overrideWith(
+            () => _ReplayTestAudioEngine(),
+          ),
+          learningProgressNotifierProvider.overrideWith(
+            () => _RecordingLearningProgressNotifier(
+              const LearningProgressState(),
+            ),
+          ),
+          learningSessionProvider.overrideWith(
+            () => _PassiveLearningSession(
+              const LearningSessionState(
+                learningMode: LearningMode.reviewDifficultPractice,
+                audioItemId: 'audio-1',
+              ),
+            ),
+          ),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(reviewDifficultPracticeProvider.notifier);
+      notifier.initialize(
+        [
+          Sentence(
+            index: 0,
+            text: 'First sentence',
+            startTime: Duration.zero,
+            endTime: const Duration(seconds: 1),
+          ),
+          Sentence(
+            index: 1,
+            text: 'Second sentence',
+            startTime: const Duration(seconds: 2),
+            endTime: const Duration(seconds: 3),
+          ),
+        ],
+        settings: const DifficultPracticeSettings(
+          controlMode: ShadowingControlMode.manual,
+        ),
+        playbackDriver: playback,
+      );
+
+      final playing = notifier.startPlaying();
+      await playback.waitForPlayCount(1);
+      playback.complete(0, SentencePlaybackResult.completed);
+      await playing;
+
+      final state = container.read(reviewDifficultPracticeProvider);
+      expect(state.currentSentenceIndex, 0);
+      expect(state.blindFlowState?.phase, isA<BlindWaitingForUser>());
+      expect(playback.playedSentences.map((sentence) => sentence.index), [0]);
+    });
+
     test('媒体会话复用注入驱动播放原句且发布媒体标记', () async {
       final playback = _RecordingPlaybackDriver();
       final container = ProviderContainer(
