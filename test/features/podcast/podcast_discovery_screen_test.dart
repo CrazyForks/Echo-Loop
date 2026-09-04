@@ -76,6 +76,66 @@ TestCollectionList Function() _seeded(String feedUrl) =>
     );
 
 void main() {
+  testWidgets('进入页面时搜索框不会自动聚焦', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        const PodcastDiscoveryScreen(),
+        overrides: [discoverPodcastsProvider.overrideWith((ref) => const [])],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editableText.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('聚焦搜索框后点击页面其他区域会释放焦点', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        const PodcastDiscoveryScreen(),
+        overrides: [discoverPodcastsProvider.overrideWith((ref) => const [])],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    await tester.tap(find.byType(AppBar));
+    await tester.pump();
+
+    expect(editableText.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('聚焦搜索框后开始滑动列表会自动释放焦点', (tester) async {
+    await tester.pumpWidget(
+      createTestApp(
+        const PodcastDiscoveryScreen(),
+        overrides: [
+          discoverPodcastsProvider.overrideWith(
+            (ref) => [
+              for (var index = 0; index < 20; index++)
+                makeCatalogPodcast(id: 'p$index', title: 'Podcast $index'),
+            ],
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    final editableText = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editableText.focusNode.hasFocus, isTrue);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pump();
+
+    expect(editableText.focusNode.hasFocus, isFalse);
+  });
+
   testWidgets('搜索框为空时展示精选播客列表', (tester) async {
     await tester.pumpWidget(
       createTestApp(

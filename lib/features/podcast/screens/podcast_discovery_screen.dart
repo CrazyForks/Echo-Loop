@@ -71,6 +71,11 @@ class _PodcastDiscoveryScreenState
     });
   }
 
+  /// 点击搜索框外部时释放焦点，让移动端用户可以直接收起键盘。
+  void _dismissKeyboardOnTapOutside(PointerDownEvent event) {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   /// 输入是 http/https 且 host 非空 → 返回可订阅的链接，否则 null。
   Uri? _asLink(String value) {
     final uri = Uri.tryParse(value.trim());
@@ -105,7 +110,7 @@ class _PodcastDiscoveryScreenState
             children: [
               TextField(
                 controller: _searchController,
-                autofocus: true,
+                autofocus: false,
                 style: compactFormTextStyle(context),
                 keyboardType: TextInputType.url,
                 textInputAction: TextInputAction.search,
@@ -126,6 +131,7 @@ class _PodcastDiscoveryScreenState
                           },
                         ),
                 ),
+                onTapOutside: _dismissKeyboardOnTapOutside,
                 onChanged: _onSearchChanged,
               ),
               const SizedBox(height: AppSpacing.s),
@@ -155,6 +161,7 @@ class _PodcastDiscoveryScreenState
         final local = _subscribedByFeed()[meta.feedUrl];
         return ListView(
           padding: EdgeInsets.zero,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             PodcastSubscribeTile(
               imageUrl: meta.imageUrl,
@@ -204,6 +211,7 @@ class _PodcastDiscoveryScreenState
     final subscribed = _subscribedByFeed();
     return ListView.builder(
       padding: EdgeInsets.zero,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: podcasts.length,
       itemBuilder: (context, index) {
         final podcast = podcasts[index];
@@ -251,6 +259,7 @@ class _PodcastDiscoveryScreenState
         final subscribed = _subscribedByFeed();
         return ListView.builder(
           padding: EdgeInsets.zero,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           itemCount: results.length,
           itemBuilder: (context, index) {
             final r = results[index];
