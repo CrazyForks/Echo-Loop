@@ -363,6 +363,21 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     await _goToSentence(target);
   }
 
+  /// 提交讲解页自动翻页。
+  ///
+  /// 讲解页倒计时结束后，页面先完成分页动画，再调用此方法切换业务状态，
+  /// 避免旧页面在动画期间因状态变化闪回盲听内容。
+  Future<void> commitPendingAnnotationAdvance(int targetSentenceIndex) async {
+    final phase = state.annotationState?.phase;
+    if (phase is! WaitingAnnotationPageTransition ||
+        phase.targetSentenceIndex != targetSentenceIndex ||
+        targetSentenceIndex < 0 ||
+        targetSentenceIndex >= state.totalSentences) {
+      return;
+    }
+    await _goToSentence(targetSentenceIndex);
+  }
+
   void enterAnnotationMode() {
     if (state.annotationState != null) return;
 
@@ -387,7 +402,10 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   }
 
   Future<void> exitAnnotationMode() async {
-    if (state.annotationState == null) return;
+    if (state.annotationState == null ||
+        state.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
     stopSenseGroupPlayback();
     // “继续”始终只重播一次，再沿用原有自动推进流程。
     await _startInlineAnnotationReplay(
@@ -406,6 +424,10 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   /// 详情模式下用户接管流程。
   void onAnnotationUserInteraction() {
     if (state.annotationState == null) return;
+
+    if (state.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
 
     if (state.playingSenseGroupIndex != null) {
       stopSenseGroupPlayback();
@@ -428,7 +450,10 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   }
 
   Future<void> replayInAnnotationMode() async {
-    if (state.annotationState == null) return;
+    if (state.annotationState == null ||
+        state.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
     await _startInlineAnnotationReplay(
       repeatCount: _annotationReplayRepeatCount,
       advanceAfterReplay: false,
@@ -583,6 +608,9 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
 
   Future<void> replayDuringCountdown() async {
     if (state.annotationState != null) {
+      if (state.annotationState?.phase is WaitingAnnotationPageTransition) {
+        return;
+      }
       _cleanupAnnotationSession();
       state = state.copyWith(
         isPauseBetweenPlays: false,
@@ -1006,27 +1034,12 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
       return;
     }
 
-    state = state.copyWith(
-      currentSentenceIndex: state.currentSentenceIndex + 1,
-      currentPlayCount: 1,
-      isTextRevealed: false,
-      isPauseBetweenPlays: false,
-      isPauseBetweenSentences: false,
-      pauseRemaining: Duration.zero,
-      pauseDuration: Duration.zero,
-      isCurrentSentenceAutoMarked: false,
-      isCountdownPaused: false,
-      isCountdownFastForward: false,
-      annotationState: null,
-      isAnnotationMode: false,
-      isAnnotationReplay: false,
-      annotationReplayRemaining: Duration.zero,
-      annotationReplayDuration: Duration.zero,
-      stepFinished: false,
-      playingSenseGroupIndex: null,
-      playedSenseGroupIndices: const {},
+    // 保留当前句讲解内容，交由页面层先完成横向分页动画，再提交切句。
+    _setAnnotationPhase(
+      WaitingAnnotationPageTransition(
+        targetSentenceIndex: state.currentSentenceIndex + 1,
+      ),
     );
-    unawaited(_startBlindFlow());
   }
 
   void _persistCurrentSentenceIndexAsync() {

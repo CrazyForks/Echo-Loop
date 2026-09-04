@@ -42,6 +42,7 @@ class PracticeSentencePager extends StatefulWidget {
     required this.controller,
     required this.currentIndex,
     required this.itemCount,
+    this.isTransitionLocked = false,
     required this.onSentenceSettled,
     required this.itemBuilder,
   });
@@ -57,6 +58,9 @@ class PracticeSentencePager extends StatefulWidget {
 
   /// 可分页的句子总数。
   final int itemCount;
+
+  /// 是否正在执行不可被用户手势打断的自动翻页。
+  final bool isTransitionLocked;
 
   /// 用户手势停稳后提交目标句索引。
   final Future<void> Function(int index) onSentenceSettled;
@@ -107,7 +111,9 @@ class _PracticeSentencePagerState extends State<PracticeSentencePager> {
       onNotification: _handleScrollNotification,
       child: PageView.builder(
         key: widget.pageViewKey,
-        physics: DictionaryPanelHost.isPanelOpenOf(context)
+        physics:
+            widget.isTransitionLocked ||
+                DictionaryPanelHost.isPanelOpenOf(context)
             ? const NeverScrollableScrollPhysics()
             : null,
         controller: _pageController,

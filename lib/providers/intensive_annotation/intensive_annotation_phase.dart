@@ -59,6 +59,14 @@ class WaitingAnnotationInterval extends IntensiveAnnotationPhase {
   }
 }
 
+/// 详情页倒计时结束后，等待页面动画完成再进入下一句。
+class WaitingAnnotationPageTransition extends IntensiveAnnotationPhase {
+  /// 页面动画完成后要进入的句子索引。
+  final int targetSentenceIndex;
+
+  const WaitingAnnotationPageTransition({required this.targetSentenceIndex});
+}
+
 /// 等待用户操作
 class WaitingAnnotationUser extends IntensiveAnnotationPhase {
   const WaitingAnnotationUser();

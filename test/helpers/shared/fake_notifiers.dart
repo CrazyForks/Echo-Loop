@@ -43,6 +43,7 @@ export 'package:echo_loop/services/asr/offline_asr_engine.dart'
 export 'package:echo_loop/database/app_database.dart' show SavedWord;
 import 'package:echo_loop/database/enums.dart';
 import 'package:echo_loop/models/audio_engine_state.dart';
+import 'package:echo_loop/providers/intensive_annotation/intensive_annotation_phase.dart';
 import 'package:echo_loop/models/audio_item.dart';
 import 'package:echo_loop/models/blind_listen_settings.dart';
 import 'package:echo_loop/models/collection.dart';
@@ -1284,6 +1285,33 @@ class FakeIntensiveListenPlayer extends IntensiveListenPlayer {
         isCurrentSentenceAutoMarked: false,
       );
     }
+  }
+
+  @override
+  Future<void> commitPendingAnnotationAdvance(int targetSentenceIndex) async {
+    final phase = state.annotationState?.phase;
+    if (phase is! WaitingAnnotationPageTransition ||
+        phase.targetSentenceIndex != targetSentenceIndex ||
+        targetSentenceIndex < 0 ||
+        targetSentenceIndex >= state.totalSentences) {
+      return;
+    }
+    state = state.copyWith(
+      currentSentenceIndex: targetSentenceIndex,
+      currentPlayCount: 1,
+      isPlaying: true,
+      isPauseBetweenPlays: false,
+      isPauseBetweenSentences: false,
+      pauseRemaining: Duration.zero,
+      pauseDuration: Duration.zero,
+      isAnnotationMode: false,
+      isAnnotationReplay: false,
+      annotationReplayRemaining: Duration.zero,
+      annotationReplayDuration: Duration.zero,
+      annotationState: null,
+      isTextRevealed: false,
+      isCurrentSentenceAutoMarked: false,
+    );
   }
 
   @override

@@ -18,6 +18,8 @@ import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_progress_provider.dart';
 import 'package:echo_loop/providers/learning_session/learning_session_provider.dart';
 import 'package:echo_loop/providers/learning_session/intensive_listen_player_provider.dart';
+import 'package:echo_loop/providers/intensive_annotation/intensive_annotation_phase.dart';
+import 'package:echo_loop/providers/intensive_annotation/intensive_annotation_state.dart';
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/database/app_database.dart' show AudioItem, Bookmark;
 import 'package:echo_loop/database/daos/audio_item_dao.dart';
@@ -130,6 +132,7 @@ class _RecordingIntensiveListenPlayer extends TestIntensiveListenPlayer {
       currentPlayCount: 1,
       isAnnotationMode: false,
       isAnnotationReplay: false,
+      annotationState: null,
       isTextRevealed: false,
       isCurrentSentenceAutoMarked: false,
     );
@@ -1077,6 +1080,53 @@ void main() {
       expect(player.goToSentenceCalls, 1);
       expect(player.currentIndex, 3);
       expect(player.state.isAnnotationMode, isFalse);
+    });
+
+    testWidgets('讲解自动翻页动画期间保持讲解页，不闪回当前句盲听页', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      player.emit(
+        player.state.copyWith(
+          isAnnotationMode: true,
+          isAnnotationReplay: false,
+          isPlaying: false,
+          annotationState: const IntensiveAnnotationState(
+            phase: WaitingAnnotationPageTransition(targetSentenceIndex: 1),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(find.byType(SentenceAnnotationCard), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('intensive-sentence-mode-0-blind')),
+        findsNothing,
+      );
+      expect(player.currentIndex, 0);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+
+      expect(player.currentIndex, 1);
+      expect(player.state.isAnnotationMode, isFalse);
+      expect(
+        find.byKey(const ValueKey('intensive-sentence-mode-1-blind')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('讲解状态取消横滑时保留源句讲解态', (tester) async {

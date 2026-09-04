@@ -668,11 +668,41 @@ void main() {
       expect(pausing.isPauseBetweenSentences, true);
 
       await future;
+      final pending = container.read(intensiveListenPlayerProvider);
+      expect(pending.currentSentenceIndex, 0);
+      expect(pending.isAnnotationReplay, false);
+      expect(pending.isAnnotationMode, true);
+      expect(pending.isPauseBetweenSentences, false);
+      final phase = pending.annotationState?.phase;
+      expect(phase, isA<WaitingAnnotationPageTransition>());
+      expect(
+        (phase! as WaitingAnnotationPageTransition).targetSentenceIndex,
+        1,
+      );
+
+      await notifier.commitPendingAnnotationAdvance(1);
+
       final advanced = container.read(intensiveListenPlayerProvider);
       expect(advanced.currentSentenceIndex, 1);
       expect(advanced.isAnnotationReplay, false);
       expect(advanced.isAnnotationMode, false);
-      expect(advanced.isPauseBetweenSentences, false);
+      expect(advanced.annotationState, isNull);
+    });
+
+    test('待翻页提交目标过期时不会推进句子', () async {
+      notifier.enterAnnotationMode();
+
+      final future = notifier.exitAnnotationMode();
+      await future;
+
+      await notifier.commitPendingAnnotationAdvance(2);
+
+      final state = container.read(intensiveListenPlayerProvider);
+      expect(state.currentSentenceIndex, 0);
+      expect(
+        state.annotationState?.phase,
+        isA<WaitingAnnotationPageTransition>(),
+      );
     });
 
     test('开启讲解页循环后，播放按钮按设置次数播放且不自动切句', () async {
@@ -746,6 +776,14 @@ void main() {
       await replayNotifier.exitAnnotationMode();
 
       expect(audioEngine.playedSentenceIndices, [0]);
+      expect(
+        replayContainer
+            .read(intensiveListenPlayerProvider)
+            .annotationState
+            ?.phase,
+        isA<WaitingAnnotationPageTransition>(),
+      );
+      await replayNotifier.commitPendingAnnotationAdvance(1);
       expect(
         replayContainer
             .read(intensiveListenPlayerProvider)

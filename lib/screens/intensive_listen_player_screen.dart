@@ -24,6 +24,7 @@ import '../providers/learning_plan_provider.dart';
 import '../providers/learning_progress_provider.dart';
 import '../providers/learning_session/intensive_listen_player_provider.dart';
 import '../providers/learning_session/learning_session_provider.dart';
+import '../providers/intensive_annotation/intensive_annotation_phase.dart';
 import '../providers/sentence_ai_provider.dart';
 import '../providers/favorite_sentence_lifecycle_provider.dart';
 import '../theme/app_theme.dart';
@@ -94,6 +95,7 @@ class _IntensiveListenPlayerScreenState
   ProviderSubscription<IntensiveListenState>? _playerSubscription;
   bool _mediaStartupReady = false;
   bool _autoPlayScheduled = false;
+  bool _isAutoAdvancingAnnotationPage = false;
 
   @override
   void initState() {
@@ -102,6 +104,16 @@ class _IntensiveListenPlayerScreenState
       intensiveListenPlayerProvider,
       (prev, next) {
         if (_isExiting || prev == null) return;
+        final nextPhase = next.annotationState?.phase;
+        final previousPhase = prev.annotationState?.phase;
+        if (nextPhase is WaitingAnnotationPageTransition &&
+            (previousPhase is! WaitingAnnotationPageTransition ||
+                previousPhase.targetSentenceIndex !=
+                    nextPhase.targetSentenceIndex)) {
+          unawaited(
+            _animatePendingAnnotationAdvance(nextPhase.targetSentenceIndex),
+          );
+        }
         // 切句即结束查词会话。横滑、自动推进、进度条跳句、底部切句最终都汇入
         // provider 的 goToSentence，所以这里是覆盖全部路径的单一入口。面板与
         // 选区绑在同一个句子上，而 PageView 每页是独立实例，跨句存活会让已经
@@ -139,6 +151,22 @@ class _IntensiveListenPlayerScreenState
       } else {
         _scheduleAutoPlay();
       }
+    }
+  }
+
+  /// 先完成讲解页到下一句的分页动画，再提交 provider 的切句状态。
+  Future<void> _animatePendingAnnotationAdvance(int targetSentenceIndex) async {
+    if (_isAutoAdvancingAnnotationPage || !mounted) return;
+    _isAutoAdvancingAnnotationPage = true;
+    try {
+      await _sentencePager.animateAndCommit(
+        targetSentenceIndex,
+        commit: () => ref
+            .read(intensiveListenPlayerProvider.notifier)
+            .commitPendingAnnotationAdvance(targetSentenceIndex),
+      );
+    } finally {
+      _isAutoAdvancingAnnotationPage = false;
     }
   }
 
@@ -705,6 +733,10 @@ class _IntensiveListenPlayerScreenState
                                 ),
                                 currentIndex: playerState.currentSentenceIndex,
                                 itemCount: player.sentences.length,
+                                isTransitionLocked:
+                                    _isAutoAdvancingAnnotationPage ||
+                                    playerState.annotationState?.phase
+                                        is WaitingAnnotationPageTransition,
                                 onSentenceSettled: player.goToSentence,
                                 itemBuilder: (context, sentenceIndex) {
                                   final sentence =
@@ -1009,7 +1041,8 @@ class _AnnotationContent extends StatelessWidget {
 bool _showContinueButton(IntensiveListenState playerState) {
   return playerState.isAnnotationMode &&
       !playerState.isAnnotationReplay &&
-      !playerState.isPauseBetweenSentences;
+      !playerState.isPauseBetweenSentences &&
+      playerState.annotationState?.phase is! WaitingAnnotationPageTransition;
 }
 
 bool _showAnnotationCountdown(IntensiveListenState playerState) {
@@ -1031,6 +1064,9 @@ bool _isIntensiveMainPlaybackActive(IntensiveListenState state) {
 extension on _IntensiveListenPlayerScreenState {
   void _handlePrevious() {
     final playerState = ref.read(intensiveListenPlayerProvider);
+    if (playerState.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
     if (playerState.currentSentenceIndex <= 0) {
       return;
     }
@@ -1051,6 +1087,9 @@ extension on _IntensiveListenPlayerScreenState {
 
   void _handleNext() {
     final playerState = ref.read(intensiveListenPlayerProvider);
+    if (playerState.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
     final player = ref.read(intensiveListenPlayerProvider.notifier);
     final isLast =
         playerState.currentSentenceIndex >= playerState.totalSentences - 1;
@@ -1069,6 +1108,9 @@ extension on _IntensiveListenPlayerScreenState {
 
   void _handleCenter() {
     final playerState = ref.read(intensiveListenPlayerProvider);
+    if (playerState.annotationState?.phase is WaitingAnnotationPageTransition) {
+      return;
+    }
     final player = ref.read(intensiveListenPlayerProvider.notifier);
     AppLogger.log(
       'IntensivePlayPause',
