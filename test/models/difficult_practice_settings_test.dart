@@ -103,7 +103,7 @@ void main() {
         });
 
         expect(restored.blindListenRepeatCount, 1);
-        expect(restored.shadowReadingRepeatCount, 10); // clamp to max
+        expect(restored.shadowReadingRepeatCount, 50); // clamp to max
         expect(restored.pauseMode, PauseMode.smart);
         expect(restored.fixedPauseSeconds, 3);
         expect(restored.pauseMultiplier, 2.0);

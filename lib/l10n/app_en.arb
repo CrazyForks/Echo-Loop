@@ -731,7 +731,7 @@
   "aiListening": "Listening tips",
   "intensiveListenWordDictNotFound": "Word not found in dictionary",
   "intensiveListenContinue": "Next",
-  "intensiveListenReplayingWithSubtitle": "Replaying with subtitles...",
+  "intensiveListenReplayingWithSubtitle": "Listen again to help it stick",
   "intensiveListenPauseBetweenPlays": "Next play in {seconds}s",
   "@intensiveListenPauseBetweenPlays": {
     "placeholders": {
@@ -764,6 +764,7 @@
   "intensiveListenNoSubtitleMessage": "This audio has no subtitles. Please upload a subtitle file first.",
   "intensiveListenSettings": "Settings",
   "intensiveListenRepeatCount": "Repeat per sentence",
+  "intensiveListenAnnotationReplayUsesRepeatCount": "Repeat on explanation page",
   "intensiveListenRepeatCountValue": "{count} time(s)",
   "@intensiveListenRepeatCountValue": {
     "placeholders": {

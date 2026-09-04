@@ -106,9 +106,15 @@ void main() {
       expect(prefs, const BlindListenPrefs.empty());
     });
 
-    test('repeatCount > 10 截到 10', () {
+    test('repeatCount > 50 截到 50，新增档位可保留', () {
+      for (final count in [20, 30, 40, 50]) {
+        expect(
+          BlindListenPrefs.fromJson({'repeatCount': count}).repeatCount,
+          count,
+        );
+      }
       final prefs = BlindListenPrefs.fromJson(const {'repeatCount': 99});
-      expect(prefs.repeatCount, 10);
+      expect(prefs.repeatCount, 50);
     });
 
     test('速度归一化到档位', () {

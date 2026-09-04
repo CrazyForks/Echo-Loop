@@ -20,7 +20,7 @@ class PlaybackSettings {
   /// 整篇循环开关。
   final bool loopWhole;
 
-  /// 整篇循环的总播放遍数。`1-10`：播该遍数后停止；`0`：无限循环（∞）。
+  /// 整篇循环的总播放遍数。`1-10/20/30/40/50`：播该遍数后停止；`0`：无限循环（∞）。
   final int wholeLoopCount;
 
   /// 整篇每遍之间的间隔时间（0-10 秒）。
@@ -29,7 +29,7 @@ class PlaybackSettings {
   /// 单句循环开关。
   final bool loopSentence;
 
-  /// 单句循环时当前句的重复次数。`1-10`：重复该次数后进下一句；`0`：无限重复（∞）。
+  /// 单句循环时当前句的重复次数。`1-10/20/30/40/50`：重复该次数后进下一句；`0`：无限重复（∞）。
   final int sentenceLoopCount;
 
   /// 单句每次重复之间的间隔时间（0-10 秒）。
@@ -130,12 +130,12 @@ class PlaybackSettings {
     );
   }
 
-  /// 解析循环次数：`0`=∞；`1-10` 合法；`>10` 截到 10；其余非法值回退 [def]。
+  /// 解析循环次数：`0`=∞；有限次数上限为 50；其余非法值回退 [def]。
   static int _parseCount(dynamic raw, int def) {
     if (raw is! int) return def;
     if (raw == 0) return 0; // ∞
     if (raw < 1) return def;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
 
   /// 解析间隔时间：范围 0-10 秒，越界截断；缺失则用 [defSecs]。

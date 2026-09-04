@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../models/playback_settings.dart';
+import '../models/repeat_count_options.dart';
 import '../providers/listening_practice/listening_practice_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -139,7 +140,7 @@ class _LoopSection extends StatelessWidget {
   /// 该循环是否开启。
   final bool enabled;
 
-  /// 重复次数模型值：`0`=∞，`1-10`=有限。
+  /// 重复次数模型值：`0`=∞，`1-10/20/30/40/50`=有限。
   final int count;
 
   /// 间隔秒数（0-10）。
@@ -198,13 +199,13 @@ class _LoopSection extends StatelessWidget {
           child: enabled
               ? Column(
                   children: [
-                    // 重复次数：1-10 + ∞（末位）
+                    // 重复次数：1-10、20、30、40、50 + ∞（末位）
                     _LabeledSliderRow(
                       label: l10n.repeatCount,
                       sliderValue: _countToSlider(count),
-                      min: 1,
-                      max: 11,
-                      divisions: 10,
+                      min: 0,
+                      max: (kRepeatCountOptions.length - 1).toDouble(),
+                      divisions: kRepeatCountOptions.length - 1,
                       valueLabel: _countLabel(l10n, count),
                       onChanged: (pos) => onCountChanged(_sliderToCount(pos)),
                     ),
@@ -226,11 +227,17 @@ class _LoopSection extends StatelessWidget {
     );
   }
 
-  /// 次数模型值 → 滑块位置：∞(0) 放最右端 11。
-  static double _countToSlider(int count) => count == 0 ? 11 : count.toDouble();
+  /// 次数模型值 → 滑块位置；∞(0) 位于选项列表最右端。
+  static double _countToSlider(int count) {
+    final index = kRepeatCountOptions.indexOf(count);
+    return (index < 0 ? 0 : index).toDouble();
+  }
 
-  /// 滑块位置 → 次数模型值：11=∞(0)。
-  static int _sliderToCount(double pos) => pos >= 11 ? 0 : pos.round();
+  /// 滑块位置 → 次数模型值。
+  static int _sliderToCount(double pos) {
+    final index = pos.round().clamp(0, kRepeatCountOptions.length - 1);
+    return kRepeatCountOptions[index];
+  }
 
   /// 次数显示文案：∞ 或本地化「N 次 / Nx」。
   static String _countLabel(AppLocalizations l10n, int count) =>

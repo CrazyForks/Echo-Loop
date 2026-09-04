@@ -54,13 +54,16 @@ void main() {
     expect(slider.divisions, 12);
   });
 
-  testWidgets('重复次数包含 Infinite ∞ 选项', (tester) async {
+  testWidgets('重复次数包含新增档位和 Infinite ∞ 选项', (tester) async {
     await tester.pumpWidget(createTestWidget());
     await openSheet(tester);
 
     await tester.tap(find.byIcon(Icons.arrow_drop_down).first);
     await tester.pumpAndSettle();
     expect(find.text('Infinite ∞'), findsWidgets);
+    for (final count in [20, 30, 40, 50]) {
+      expect(find.text('$count'), findsOneWidget);
+    }
   });
 
   testWidgets('滑块更新复述设置并同步 AudioEngine 速度', (tester) async {

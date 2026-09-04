@@ -9,7 +9,7 @@ import '../utils/playback_speed.dart';
 
 /// 盲听设置（会话内临时生效）
 class BlindListenSettings {
-  /// 每段重复次数（`0`=∞ 无限，`1-10`=有限次数，默认 1）
+  /// 每段重复次数（`0`=∞ 无限，`1-10/20/30/40/50`=有限次数，默认 1）
   final int repeatCount;
 
   /// 停顿模式（默认 multiplier）
@@ -104,7 +104,7 @@ class BlindListenSettings {
     );
   }
 
-  /// 防御性解析：`0`=∞；`1-10` 合法；`>10` 截到 10；其余非法值回退默认。
+  /// 防御性解析：`0`=∞；有限次数上限为 50；其余非法值回退默认。
   factory BlindListenSettings.fromJson(Map<String, dynamic> json) {
     return BlindListenSettings(
       repeatCount: _parseRepeatCount(json['repeatCount']),
@@ -129,7 +129,7 @@ class BlindListenSettings {
     if (raw is! int) return 1;
     if (raw == 0) return 0;
     if (raw < 1) return 1;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
 
   static PauseMode _parsePauseMode(dynamic raw) {

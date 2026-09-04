@@ -110,6 +110,31 @@ void main() {
       expect(reloaded.maybe(intensiveSlot)?.fixedPauseSeconds, 5);
     });
 
+    test('讲解页循环开关写入精听槽位并可读回', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = makeContainer(prefs);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(intensiveListenPrefsProvider.notifier);
+      await notifier.setAnnotationReplayUsesRepeatCount(intensiveSlot, true);
+
+      expect(
+        notifier.prefsFor(intensiveSlot).annotationReplayUsesRepeatCount,
+        true,
+      );
+      expect(
+        intensiveListenPrefsFromPrefsSync(
+          prefs,
+        ).maybe(intensiveSlot)?.annotationReplayUsesRepeatCount,
+        true,
+      );
+      expect(
+        notifier.prefsFor(repeatSlot).annotationReplayUsesRepeatCount,
+        isNull,
+      );
+    });
+
     test('槽位独立:精听写入不影响跟读', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

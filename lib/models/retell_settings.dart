@@ -125,7 +125,7 @@ enum RetellDisplayMode {
 
 /// 复述设置（会话内临时生效）
 class RetellSettings {
-  /// 每段重复次数（`0`=∞ 无限，`1-10`=有限次数，默认 1）
+  /// 每段重复次数（`0`=∞ 无限，`1-10/20/30/40/50`=有限次数，默认 1）
   ///
   /// 播放→复述为一遍，达到遍数后推进下一段。
   final int repeatCount;
@@ -296,7 +296,7 @@ class RetellSettings {
     if (raw is! int) return 1;
     if (raw == 0) return 0;
     if (raw < 1) return 1;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
 
   static PauseMode _parsePauseMode(dynamic raw) {

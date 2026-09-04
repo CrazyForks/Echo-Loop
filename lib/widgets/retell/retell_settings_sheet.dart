@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/intensive_listen_settings.dart'
     show PauseMode, ShadowingControlMode;
+import '../../models/repeat_count_options.dart';
 import '../../models/retell_settings.dart';
 import '../../providers/learning_session/retell_player_provider.dart';
 import '../../theme/app_theme.dart';
@@ -286,8 +287,7 @@ class _RetellSettingsSheet extends ConsumerWidget {
         AppDropdown<int>(
           value: settings.repeatCount,
           items: [
-            ...List.generate(10, (i) {
-              final count = i + 1;
+            ...kRepeatCountOptions.where((count) => count != 0).map((count) {
               return DropdownMenuItem(value: count, child: Text('$count'));
             }),
             DropdownMenuItem(value: 0, child: Text(l10n.infiniteRepeat)),

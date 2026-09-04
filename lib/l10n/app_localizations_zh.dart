@@ -1299,7 +1299,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get intensiveListenContinue => '继续';
 
   @override
-  String get intensiveListenReplayingWithSubtitle => '带字幕重播中...';
+  String get intensiveListenReplayingWithSubtitle => '再听一遍，巩固记忆';
 
   @override
   String intensiveListenPauseBetweenPlays(int seconds) {
@@ -1357,6 +1357,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get intensiveListenRepeatCount => '每句循环次数';
+
+  @override
+  String get intensiveListenAnnotationReplayUsesRepeatCount => '讲解页按循环次数播放';
 
   @override
   String intensiveListenRepeatCountValue(int count) {

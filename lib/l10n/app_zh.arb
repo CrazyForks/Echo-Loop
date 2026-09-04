@@ -529,7 +529,7 @@
   "aiListening": "听力提示",
   "intensiveListenWordDictNotFound": "未收录该单词",
   "intensiveListenContinue": "继续",
-  "intensiveListenReplayingWithSubtitle": "带字幕重播中...",
+  "intensiveListenReplayingWithSubtitle": "再听一遍，巩固记忆",
   "intensiveListenPauseBetweenPlays": "{seconds}秒后播放下一遍",
   "@intensiveListenPauseBetweenPlays": {
     "placeholders": {
@@ -557,6 +557,7 @@
   "intensiveListenNoSubtitleMessage": "该音频没有字幕，请先上传字幕文件。",
   "intensiveListenSettings": "精听设置",
   "intensiveListenRepeatCount": "每句循环次数",
+  "intensiveListenAnnotationReplayUsesRepeatCount": "讲解页按循环次数播放",
   "intensiveListenRepeatCountValue": "{count} 次",
   "@intensiveListenRepeatCountValue": {
     "placeholders": {

@@ -17,10 +17,10 @@ class DifficultPracticeSettings {
   /// 控制模式（默认 auto），复用跟读页已有枚举
   final ShadowingControlMode controlMode;
 
-  /// 盲听循环次数（`0`=∞ 无限，`1-10`=有限次数，默认 1）
+  /// 盲听循环次数（`0`=∞ 无限，`1-10/20/30/40/50`=有限次数，默认 1）
   final int blindListenRepeatCount;
 
-  /// 跟读循环次数（`0`=∞ 无限，`1-10`=有限次数，默认 3）
+  /// 跟读循环次数（`0`=∞ 无限，`1-10/20/30/40/50`=有限次数，默认 3）
   final int shadowReadingRepeatCount;
 
   /// 停顿模式（默认 smart）
@@ -109,11 +109,11 @@ class DifficultPracticeSettings {
   factory DifficultPracticeSettings.fromJson(Map<String, dynamic> json) {
     return DifficultPracticeSettings(
       controlMode: _parseControlMode(json['controlMode']),
-      blindListenRepeatCount: _clampInt(json['blindListenRepeatCount'], 1, 10),
+      blindListenRepeatCount: _clampInt(json['blindListenRepeatCount'], 1, 50),
       shadowReadingRepeatCount: _clampInt(
         json['shadowReadingRepeatCount'],
         1,
-        10,
+        50,
         fallback: 3,
       ),
       pauseMode: _parsePauseMode(json['pauseMode']),

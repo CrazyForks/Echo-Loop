@@ -85,6 +85,13 @@ class IntensiveListenPrefsNotifier
   Future<void> setRepeatCount(String slot, int value) =>
       updateSlot(slot, prefsFor(slot).copyWith(repeatCount: value));
 
+  /// 记录讲解页是否按循环次数播放。
+  Future<void> setAnnotationReplayUsesRepeatCount(String slot, bool value) =>
+      updateSlot(
+        slot,
+        prefsFor(slot).copyWith(annotationReplayUsesRepeatCount: value),
+      );
+
   /// 读取难句跟读入口范围；缺省时保持既有“仅难句”行为。
   ListenAndRepeatScope listenAndRepeatScopeFor(String slot) =>
       prefsFor(slot).listenAndRepeatScope ?? ListenAndRepeatScope.difficultOnly;
@@ -123,6 +130,13 @@ void persistIntensiveSettingsDiff(
   }
   if (next.repeatCount != old.repeatCount) {
     notifier.setRepeatCount(slot, next.repeatCount);
+  }
+  if (next.annotationReplayUsesRepeatCount !=
+      old.annotationReplayUsesRepeatCount) {
+    notifier.setAnnotationReplayUsesRepeatCount(
+      slot,
+      next.annotationReplayUsesRepeatCount,
+    );
   }
 }
 

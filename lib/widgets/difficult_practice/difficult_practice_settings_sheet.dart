@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/difficult_practice_settings.dart';
 import '../../models/intensive_listen_settings.dart';
+import '../../models/repeat_count_options.dart';
 import '../../providers/learning_session/review_difficult_practice_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/playback_speed.dart';
@@ -248,7 +249,7 @@ class _DifficultPracticeSettingsSheet extends ConsumerWidget {
         AppDropdown<int>(
           value: value,
           items: [
-            ...List.generate(10, (i) => i + 1).map((count) {
+            ...kRepeatCountOptions.where((count) => count != 0).map((count) {
               return DropdownMenuItem(
                 value: count,
                 child: Text(l10n.intensiveListenRepeatCountValue(count)),

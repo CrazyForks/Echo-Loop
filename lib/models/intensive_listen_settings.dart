@@ -29,8 +29,11 @@ enum PauseMode {
 
 /// 精听设置（独立于播放状态，持久化存储）
 class IntensiveListenSettings {
-  /// 每句循环次数（`0`=∞ 无限，`1-10`=有限次数，默认 1）
+  /// 每句循环次数（`0`=∞ 无限，`1-10/20/30/40/50`=有限次数，默认 1）
   final int repeatCount;
+
+  /// 讲解页点击播放按钮时是否沿用每句循环次数（默认关闭）。
+  final bool annotationReplayUsesRepeatCount;
 
   /// 停顿模式（默认 smart）
   final PauseMode pauseMode;
@@ -88,6 +91,7 @@ class IntensiveListenSettings {
 
   const IntensiveListenSettings({
     this.repeatCount = 1,
+    this.annotationReplayUsesRepeatCount = false,
     this.pauseMode = PauseMode.smart,
     this.fixedPauseSeconds = 3,
     this.pauseMultiplier = 2.0,
@@ -100,6 +104,7 @@ class IntensiveListenSettings {
 
   IntensiveListenSettings copyWith({
     int? repeatCount,
+    bool? annotationReplayUsesRepeatCount,
     PauseMode? pauseMode,
     int? fixedPauseSeconds,
     double? pauseMultiplier,
@@ -108,6 +113,9 @@ class IntensiveListenSettings {
   }) {
     return IntensiveListenSettings(
       repeatCount: repeatCount ?? this.repeatCount,
+      annotationReplayUsesRepeatCount:
+          annotationReplayUsesRepeatCount ??
+          this.annotationReplayUsesRepeatCount,
       pauseMode: pauseMode ?? this.pauseMode,
       fixedPauseSeconds: fixedPauseSeconds ?? this.fixedPauseSeconds,
       pauseMultiplier: pauseMultiplier ?? this.pauseMultiplier,
@@ -118,6 +126,7 @@ class IntensiveListenSettings {
 
   Map<String, dynamic> toJson() => {
     'repeatCount': repeatCount,
+    'annotationReplayUsesRepeatCount': annotationReplayUsesRepeatCount,
     'pauseMode': pauseMode.name,
     'fixedPauseSeconds': fixedPauseSeconds,
     'pauseMultiplier': pauseMultiplier,
@@ -129,6 +138,9 @@ class IntensiveListenSettings {
   factory IntensiveListenSettings.fromJson(Map<String, dynamic> json) {
     return IntensiveListenSettings(
       repeatCount: _parseRepeatCount(json['repeatCount']),
+      annotationReplayUsesRepeatCount: _parseAnnotationReplayUsesRepeatCount(
+        json['annotationReplayUsesRepeatCount'],
+      ),
       pauseMode: _parsePauseMode(json['pauseMode']),
       fixedPauseSeconds: _parseFixedPauseSeconds(json['fixedPauseSeconds']),
       pauseMultiplier: _parsePauseMultiplier(json['pauseMultiplier']),
@@ -143,13 +155,17 @@ class IntensiveListenSettings {
     return normalizePlaybackSpeed(raw.toDouble());
   }
 
-  /// 解析循环次数：`0`=∞；`1-10` 合法；`>10` 截到 10；其余非法值回退 1。
+  /// 解析循环次数：`0`=∞；有限次数上限为 50；其余非法值回退 1。
   static int _parseRepeatCount(dynamic raw) {
     if (raw is! int) return 1;
     if (raw == 0) return 0;
     if (raw < 1) return 1;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
+
+  /// 解析讲解页循环开关：非法值回退关闭。
+  static bool _parseAnnotationReplayUsesRepeatCount(dynamic raw) =>
+      raw is bool ? raw : false;
 
   /// 解析停顿模式：非法值回退 smart
   static PauseMode _parsePauseMode(dynamic raw) {

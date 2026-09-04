@@ -43,6 +43,9 @@ class IntensiveListenPrefs {
   /// 每句循环次数覆盖(`null`=1)。
   final int? repeatCount;
 
+  /// 讲解页是否按循环次数播放覆盖（`null`=关闭）。
+  final bool? annotationReplayUsesRepeatCount;
+
   /// 难句跟读入口范围覆盖（`null`=默认仅难句）。
   final ListenAndRepeatScope? listenAndRepeatScope;
 
@@ -53,6 +56,7 @@ class IntensiveListenPrefs {
     this.pauseMultiplier,
     this.controlMode,
     this.repeatCount,
+    this.annotationReplayUsesRepeatCount,
     this.listenAndRepeatScope,
   });
 
@@ -64,6 +68,7 @@ class IntensiveListenPrefs {
       pauseMultiplier = null,
       controlMode = null,
       repeatCount = null,
+      annotationReplayUsesRepeatCount = null,
       listenAndRepeatScope = null;
 
   /// 把偏好叠加到默认值,得到本次会话生效的完整 [IntensiveListenSettings]。
@@ -80,6 +85,7 @@ class IntensiveListenPrefs {
     pauseMultiplier: pauseMultiplier ?? 2.0,
     controlMode: controlMode ?? ShadowingControlMode.auto,
     repeatCount: repeatCount ?? smartRepeatCount,
+    annotationReplayUsesRepeatCount: annotationReplayUsesRepeatCount ?? false,
   );
 
   /// 返回叠加 [other] 非空字段后的新偏好(用于细粒度 setter:只改传入的字段)。
@@ -93,6 +99,7 @@ class IntensiveListenPrefs {
     double? pauseMultiplier,
     ShadowingControlMode? controlMode,
     int? repeatCount,
+    bool? annotationReplayUsesRepeatCount,
     ListenAndRepeatScope? listenAndRepeatScope,
   }) => IntensiveListenPrefs(
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -101,6 +108,8 @@ class IntensiveListenPrefs {
     pauseMultiplier: pauseMultiplier ?? this.pauseMultiplier,
     controlMode: controlMode ?? this.controlMode,
     repeatCount: repeatCount ?? this.repeatCount,
+    annotationReplayUsesRepeatCount:
+        annotationReplayUsesRepeatCount ?? this.annotationReplayUsesRepeatCount,
     listenAndRepeatScope: listenAndRepeatScope ?? this.listenAndRepeatScope,
   );
 
@@ -112,6 +121,8 @@ class IntensiveListenPrefs {
     if (pauseMultiplier != null) 'pauseMultiplier': pauseMultiplier,
     if (controlMode != null) 'controlMode': controlMode!.name,
     if (repeatCount != null) 'repeatCount': repeatCount,
+    if (annotationReplayUsesRepeatCount != null)
+      'annotationReplayUsesRepeatCount': annotationReplayUsesRepeatCount,
     if (listenAndRepeatScope != null)
       'listenAndRepeatScope': listenAndRepeatScope!.name,
   };
@@ -125,6 +136,9 @@ class IntensiveListenPrefs {
         pauseMultiplier: _parsePauseMultiplier(json['pauseMultiplier']),
         controlMode: _parseControlMode(json['controlMode']),
         repeatCount: _parseRepeatCount(json['repeatCount']),
+        annotationReplayUsesRepeatCount: _parseBool(
+          json['annotationReplayUsesRepeatCount'],
+        ),
         listenAndRepeatScope: _parseListenAndRepeatScope(
           json['listenAndRepeatScope'],
         ),
@@ -159,13 +173,16 @@ class IntensiveListenPrefs {
       ? ShadowingControlMode.values.where((e) => e.name == raw).firstOrNull
       : null;
 
-  /// 循环次数:`0`(∞)或 `1-10` 合法;`>10` 截到 10;其余视作未设。
+  /// 循环次数:`0`(∞)或有限次数上限 50;超过 50 截到 50;其余视作未设。
   static int? _parseRepeatCount(dynamic raw) {
     if (raw is! int) return null;
     if (raw == 0) return 0;
     if (raw < 1) return null;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
+
+  /// 布尔开关：类型错误视作未设置，使用默认关闭。
+  static bool? _parseBool(dynamic raw) => raw is bool ? raw : null;
 
   static ListenAndRepeatScope? _parseListenAndRepeatScope(dynamic raw) =>
       raw is String
@@ -183,6 +200,8 @@ class IntensiveListenPrefs {
           pauseMultiplier == other.pauseMultiplier &&
           controlMode == other.controlMode &&
           repeatCount == other.repeatCount &&
+          annotationReplayUsesRepeatCount ==
+              other.annotationReplayUsesRepeatCount &&
           listenAndRepeatScope == other.listenAndRepeatScope;
 
   @override
@@ -193,6 +212,7 @@ class IntensiveListenPrefs {
     pauseMultiplier,
     controlMode,
     repeatCount,
+    annotationReplayUsesRepeatCount,
     listenAndRepeatScope,
   );
 }

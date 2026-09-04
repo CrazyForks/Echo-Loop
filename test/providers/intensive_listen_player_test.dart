@@ -18,6 +18,7 @@ import '../helpers/mock_providers.dart';
 
 class _ReplayTestAudioEngine extends TestAudioEngine {
   int _sessionId = 0;
+  final List<int> playedSentenceIndices = [];
 
   @override
   int newSession() {
@@ -31,6 +32,7 @@ class _ReplayTestAudioEngine extends TestAudioEngine {
   @override
   Future<void> playClipOnce(Sentence sentence, int sessionId) async {
     if (!isActiveSession(sessionId)) return;
+    playedSentenceIndices.add(sentence.index);
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
@@ -671,6 +673,85 @@ void main() {
       expect(advanced.isAnnotationReplay, false);
       expect(advanced.isAnnotationMode, false);
       expect(advanced.isPauseBetweenSentences, false);
+    });
+
+    test('开启讲解页循环后，播放按钮按设置次数播放且不自动切句', () async {
+      final audioEngine = _ReplayTestAudioEngine();
+      final replayContainer = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWith(() => audioEngine),
+          learningSessionProvider.overrideWith(() => TestLearningSession()),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(replayContainer.dispose);
+      final replayNotifier = replayContainer.read(
+        intensiveListenPlayerProvider.notifier,
+      );
+      await replayNotifier.initialize(
+        sentences,
+        settings: const IntensiveListenSettings(
+          repeatCount: 3,
+          annotationReplayUsesRepeatCount: true,
+          pauseMode: PauseMode.multiplier,
+          pauseMultiplier: 1.0,
+        ),
+      );
+      replayNotifier.enterAnnotationMode();
+
+      await replayNotifier.replayInAnnotationMode();
+
+      expect(audioEngine.playedSentenceIndices, [0, 0, 0]);
+      expect(
+        replayContainer
+            .read(intensiveListenPlayerProvider)
+            .currentSentenceIndex,
+        0,
+      );
+      expect(
+        replayContainer
+            .read(intensiveListenPlayerProvider)
+            .annotationState
+            ?.phase,
+        isA<InspectingAnnotation>(),
+      );
+    });
+
+    test('开启讲解页循环后，点击继续仍只重播一次', () async {
+      final audioEngine = _ReplayTestAudioEngine();
+      final replayContainer = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWith(() => audioEngine),
+          learningSessionProvider.overrideWith(() => TestLearningSession()),
+          analyticsOverride(),
+          ...studyTimeOverrides(),
+        ],
+      );
+      addTearDown(replayContainer.dispose);
+      final replayNotifier = replayContainer.read(
+        intensiveListenPlayerProvider.notifier,
+      );
+      await replayNotifier.initialize(
+        sentences,
+        settings: const IntensiveListenSettings(
+          repeatCount: 3,
+          annotationReplayUsesRepeatCount: true,
+          pauseMode: PauseMode.multiplier,
+          pauseMultiplier: 1.0,
+        ),
+      );
+      replayNotifier.enterAnnotationMode();
+
+      await replayNotifier.exitAnnotationMode();
+
+      expect(audioEngine.playedSentenceIndices, [0]);
+      expect(
+        replayContainer
+            .read(intensiveListenPlayerProvider)
+            .currentSentenceIndex,
+        1,
+      );
     });
 
     test('点击详情倒计时后取消自动推进并等待用户', () async {

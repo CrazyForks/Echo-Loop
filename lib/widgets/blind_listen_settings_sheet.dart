@@ -13,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../models/blind_listen_settings.dart';
 import '../models/intensive_listen_settings.dart'
     show PauseMode, ShadowingControlMode;
+import '../models/repeat_count_options.dart';
 import '../providers/learning_session/blind_listen_player_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/playback_speed.dart';
@@ -71,8 +72,9 @@ class _BlindListenSettingsSheet extends ConsumerWidget {
                 AppDropdown<int>(
                   value: settings.repeatCount,
                   items: [
-                    ...List.generate(10, (i) {
-                      final count = i + 1;
+                    ...kRepeatCountOptions.where((count) => count != 0).map((
+                      count,
+                    ) {
                       return DropdownMenuItem(
                         value: count,
                         child: Text('$count'),

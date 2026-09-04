@@ -79,6 +79,88 @@ void main() {
       await tester.tap(find.byIcon(Icons.arrow_drop_down));
       await tester.pumpAndSettle();
       expect(find.text('无限 ∞'), findsWidgets);
+      for (final count in [20, 30, 40, 50]) {
+        expect(find.text('$count 次'), findsOneWidget);
+      }
+    });
+
+    testWidgets('循环次数为 1 时不显示讲解页循环开关', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: const IntensiveListenState(
+            settings: IntensiveListenSettings(repeatCount: 1),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await openSheet(tester);
+
+      expect(find.text('讲解页按循环次数播放'), findsNothing);
+    });
+
+    testWidgets('循环次数超过 1 时显示讲解页循环开关并可切换', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: const IntensiveListenState(
+            settings: IntensiveListenSettings(repeatCount: 2),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await openSheet(tester);
+
+      expect(find.text('讲解页按循环次数播放'), findsOneWidget);
+      final switchTile = tester.widget<SwitchListTile>(
+        find.ancestor(
+          of: find.text('讲解页按循环次数播放'),
+          matching: find.byType(SwitchListTile),
+        ),
+      );
+      expect(switchTile.value, false);
+
+      await tester.tap(find.text('讲解页按循环次数播放'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SwitchListTile)),
+      );
+      expect(
+        container
+            .read(intensiveListenPlayerProvider)
+            .settings
+            .annotationReplayUsesRepeatCount,
+        true,
+      );
+    });
+
+    testWidgets('无限循环时显示讲解页循环开关', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: const IntensiveListenState(
+            settings: IntensiveListenSettings(repeatCount: 0),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await openSheet(tester);
+
+      expect(find.text('讲解页按循环次数播放'), findsOneWidget);
+    });
+
+    testWidgets('手动模式不显示讲解页循环开关', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: const IntensiveListenState(
+            settings: IntensiveListenSettings(
+              controlMode: ShadowingControlMode.manual,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await openSheet(tester);
+
+      expect(find.text('讲解页按循环次数播放'), findsNothing);
     });
 
     testWidgets('显示句间停顿标签', (tester) async {
@@ -163,7 +245,7 @@ void main() {
       expect(find.text('精听设置'), findsOneWidget);
 
       // 下拉关闭（模拟拖拽手势）
-      await tester.drag(find.text('精听设置'), const Offset(0, 300));
+      await tester.drag(find.text('精听设置'), const Offset(0, 500));
       await tester.pumpAndSettle();
 
       // 面板关闭

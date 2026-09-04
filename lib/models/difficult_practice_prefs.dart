@@ -158,12 +158,12 @@ class DifficultPracticePrefs {
         : null;
   }
 
-  /// 循环次数:`0`(∞)或 `1-10` 合法;`>10` 截到 10;其余视作未设。
+  /// 循环次数:`0`(∞)或有限次数上限 50;超过 50 截到 50;其余视作未设。
   static int? _parseRepeatCount(dynamic raw) {
     if (raw is! int) return null;
     if (raw == 0) return 0;
     if (raw < 1) return null;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
 
   @override

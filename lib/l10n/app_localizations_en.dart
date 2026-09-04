@@ -1339,7 +1339,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get intensiveListenReplayingWithSubtitle =>
-      'Replaying with subtitles...';
+      'Listen again to help it stick';
 
   @override
   String intensiveListenPauseBetweenPlays(int seconds) {
@@ -1402,6 +1402,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get intensiveListenRepeatCount => 'Repeat per sentence';
+
+  @override
+  String get intensiveListenAnnotationReplayUsesRepeatCount =>
+      'Repeat on explanation page';
 
   @override
   String intensiveListenRepeatCountValue(int count) {

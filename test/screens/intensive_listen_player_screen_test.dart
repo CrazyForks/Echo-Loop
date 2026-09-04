@@ -524,7 +524,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('3s'), findsNothing);
-      expect(find.text('Replaying with subtitles...'), findsNothing);
+      expect(find.text('Listen again to help it stick'), findsNothing);
     });
 
     testWidgets('详情重播时保留详情页并显示重播提示', (tester) async {
@@ -543,7 +543,7 @@ void main() {
 
       expect(find.byType(SentenceAnnotationCard), findsOneWidget);
       expect(find.text('Next'), findsNothing);
-      expect(find.text('Replaying with subtitles...'), findsOneWidget);
+      expect(find.text('Listen again to help it stick'), findsOneWidget);
     });
 
     testWidgets('详情页重播后显示正常样式倒计时', (tester) async {
@@ -1268,6 +1268,33 @@ void main() {
       expect(player.replayInDetailsCalls, 0);
     });
 
+    testWidgets('详情页查看讲解时点击播放不显示重播提示且保留继续按钮', (tester) async {
+      late _RecordingIntensiveListenPlayer player;
+      await tester.pumpWidget(
+        createTestWidget(
+          playerState: createPlayerState(
+            isAnnotationMode: true,
+            isPlaying: false,
+          ),
+          playerFactory: (state, sentences) {
+            player = _RecordingIntensiveListenPlayer(state, sentences);
+            return player;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      await tester.pumpAndSettle();
+
+      expect(player.replayInDetailsCalls, 1);
+      expect(find.text('Listen again to help it stick'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('intensive-annotation-continue-button')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('详情页倒计时中点击播放按钮会回到带字幕重播态', (tester) async {
       late _RecordingIntensiveListenPlayer player;
       await tester.pumpWidget(
@@ -1294,7 +1321,7 @@ void main() {
       expect(player.replayDuringCountdownCalls, 1);
       expect(player.replayInDetailsCalls, 0);
       expect(player.resumeCalls, 0);
-      expect(find.text('Replaying with subtitles...'), findsOneWidget);
+      expect(find.text('Listen again to help it stick'), findsOneWidget);
       expect(find.text('Next'), findsNothing);
     });
 

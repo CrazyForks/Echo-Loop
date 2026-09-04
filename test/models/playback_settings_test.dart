@@ -1,9 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/models/playback_settings.dart';
+import 'package:echo_loop/models/repeat_count_options.dart';
 
 void main() {
   group('PlaybackSettings', () {
     group('默认值正确性', () {
+      test('循环次数选项顺序包含新增档位和无限', () {
+        expect(kRepeatCountOptions, const [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          20,
+          30,
+          40,
+          50,
+          0,
+        ]);
+      });
+
       test('Free Player 支持的速度档位符合预期', () {
         expect(kFreePlayerPlaybackSpeeds, const [
           0.4,
@@ -153,12 +174,12 @@ void main() {
         expect(settings.loopSentence, isFalse);
       });
 
-      test('迁移时旧 loopCount 超范围截断到 10', () {
+      test('迁移时旧 loopCount 在新上限内保留', () {
         final settings = PlaybackSettings.fromJson({
           'repeatMode': 'one',
           'loopCount': 18,
         });
-        expect(settings.sentenceLoopCount, 10);
+        expect(settings.sentenceLoopCount, 18);
       });
 
       test('仅含参数键的 JSON 被识别为新 schema，参数保留', () {
@@ -189,9 +210,15 @@ void main() {
         expect(settings.sentenceLoopCount, 0);
       });
 
-      test('次数 > 10 截断为 10', () {
+      test('次数 > 50 截断为 50，新增档位可读取', () {
+        for (final count in [20, 30, 40, 50]) {
+          expect(
+            PlaybackSettings.fromJson({'wholeLoopCount': count}).wholeLoopCount,
+            count,
+          );
+        }
         final settings = PlaybackSettings.fromJson({'wholeLoopCount': 100});
-        expect(settings.wholeLoopCount, 10);
+        expect(settings.wholeLoopCount, 50);
       });
 
       test('次数为负重置为默认 3', () {

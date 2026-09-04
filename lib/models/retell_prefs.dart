@@ -167,7 +167,7 @@ class RetellPrefs {
     if (raw is! int) return null;
     if (raw == 0) return 0;
     if (raw < 1) return null;
-    return raw > 10 ? 10 : raw;
+    return raw > 50 ? 50 : raw;
   }
 
   @override

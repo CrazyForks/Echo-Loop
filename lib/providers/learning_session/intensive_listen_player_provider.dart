@@ -327,7 +327,11 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   Future<void> resume() async {
     if (state.annotationState != null) {
       if (state.annotationState?.phase is ReplayingWithSubtitle) {
-        await _startInlineAnnotationReplay();
+        await _startInlineAnnotationReplay(
+          repeatCount: _annotationReplayRepeatCount,
+          advanceAfterReplay: false,
+          showReplayStatus: true,
+        );
       }
       return;
     }
@@ -385,7 +389,12 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
   Future<void> exitAnnotationMode() async {
     if (state.annotationState == null) return;
     stopSenseGroupPlayback();
-    await _startInlineAnnotationReplay();
+    // “继续”始终只重播一次，再沿用原有自动推进流程。
+    await _startInlineAnnotationReplay(
+      repeatCount: 1,
+      advanceAfterReplay: true,
+      showReplayStatus: true,
+    );
   }
 
   /// 盲听模式下用户接管流程。
@@ -420,27 +429,11 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
 
   Future<void> replayInAnnotationMode() async {
     if (state.annotationState == null) return;
-    final sentence = currentSentence;
-    if (sentence == null || sentence.duration <= Duration.zero) return;
-
-    stopSenseGroupPlayback();
-    _cleanupAnnotationSession();
-
-    final engine = _playback;
-    _currentSessionId = engine.newSession();
-    final sessionId = _currentSessionId;
-    state = state.copyWith(isPlaying: true);
-
-    await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playSentence(sentence, sessionId);
-    if (!engine.isActiveSession(sessionId)) {
-      _clearPlayingIfCurrentSession(sessionId);
-      return;
-    }
-
-    _recorder.onSentencePlayed(sentence);
-    state = state.copyWith(isPlaying: false);
-    _setAnnotationPhase(const InspectingAnnotation());
+    await _startInlineAnnotationReplay(
+      repeatCount: _annotationReplayRepeatCount,
+      advanceAfterReplay: false,
+      showReplayStatus: false,
+    );
   }
 
   void toggleDifficultSentence() {
@@ -599,7 +592,11 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
         isCountdownPaused: false,
         isCountdownFastForward: false,
       );
-      await _startInlineAnnotationReplay();
+      await _startInlineAnnotationReplay(
+        repeatCount: _annotationReplayRepeatCount,
+        advanceAfterReplay: true,
+        showReplayStatus: true,
+      );
       return;
     }
 
@@ -843,39 +840,105 @@ class IntensiveListenPlayer extends _$IntensiveListenPlayer {
     await _startBlindFlow();
   }
 
-  Future<void> _startInlineAnnotationReplay() async {
+  /// 讲解页按指定次数播放当前句。
+  ///
+  /// [advanceAfterReplay] 仅供“继续”流程使用；播放按钮完成后仍停留在讲解页。
+  Future<void> _startInlineAnnotationReplay({
+    required int repeatCount,
+    required bool advanceAfterReplay,
+    required bool showReplayStatus,
+  }) async {
     final sentence = currentSentence;
     if (sentence == null || sentence.duration <= Duration.zero) {
-      await _finishAnnotationReplay();
+      if (advanceAfterReplay) await _finishAnnotationReplay();
       return;
     }
 
     stopSenseGroupPlayback();
     _cleanupAnnotationSession();
     _annotationWaitAfterCurrentPlayback = false;
-    _setAnnotationPhase(
-      ReplayingWithSubtitle(
-        remaining: sentence.duration,
-        total: sentence.duration,
-      ),
-    );
-
     final engine = _playback;
     _currentSessionId = engine.newSession();
     final sessionId = _currentSessionId;
 
     await engine.setSpeed(state.settings.playbackSpeed);
-    await engine.playSentence(sentence, sessionId);
-    // 暂停会立即放弃当前讲解会话。即使底层播放器的取消回调晚到，
-    // 旧重播也不能进入倒计时或覆盖图中的“继续”等待态。
-    if (_currentSessionId != sessionId || !engine.isActiveSession(sessionId)) {
-      _clearPlayingIfCurrentSession(sessionId);
-      return;
+    var playCount = 1;
+    while (repeatCount == 0 || playCount <= repeatCount) {
+      if (_currentSessionId != sessionId ||
+          !engine.isActiveSession(sessionId)) {
+        _clearPlayingIfCurrentSession(sessionId);
+        return;
+      }
+
+      state = state.copyWith(currentPlayCount: playCount);
+      if (showReplayStatus) {
+        _setAnnotationPhase(
+          ReplayingWithSubtitle(
+            remaining: sentence.duration,
+            total: sentence.duration,
+          ),
+        );
+      } else {
+        // 播放按钮只是讲解页内重听：保留讲解态和“继续”按钮，不显示重听提示。
+        _setAnnotationPhase(const InspectingAnnotation());
+        state = state.copyWith(isPlaying: true);
+      }
+      await engine.playSentence(sentence, sessionId);
+
+      // 暂停会立即放弃当前讲解会话。即使底层播放器的取消回调晚到，
+      // 旧重播也不能进入倒计时或覆盖图中的“继续”等待态。
+      if (_currentSessionId != sessionId ||
+          !engine.isActiveSession(sessionId)) {
+        _clearPlayingIfCurrentSession(sessionId);
+        return;
+      }
+
+      _recorder.onSentencePlayed(sentence);
+      if (_annotationWaitAfterCurrentPlayback) {
+        _annotationWaitAfterCurrentPlayback = false;
+        _setAnnotationPhase(const WaitingAnnotationUser());
+        return;
+      }
+      if (repeatCount == 0 || playCount < repeatCount) {
+        final pauseDuration = calculatePauseDuration(
+          sentence.duration,
+          state.settings,
+        );
+        _setAnnotationPhase(
+          WaitingAnnotationInterval(
+            remaining: pauseDuration,
+            total: pauseDuration,
+          ),
+        );
+        if (!showReplayStatus) {
+          // 循环间停顿不属于“继续”流程，继续按钮仍保持可用。
+          state = state.copyWith(isPauseBetweenSentences: false);
+        }
+        await _annotationCountdown.start(pauseDuration);
+        if (_currentSessionId != sessionId ||
+            !engine.isActiveSession(sessionId) ||
+            state.annotationState?.phase is! WaitingAnnotationInterval) {
+          return;
+        }
+      }
+      playCount += 1;
     }
 
-    _recorder.onSentencePlayed(sentence);
-    await _finishAnnotationReplay();
+    if (_currentSessionId != sessionId || !engine.isActiveSession(sessionId)) {
+      return;
+    }
+    if (advanceAfterReplay) {
+      await _finishAnnotationReplay();
+    } else {
+      _setAnnotationPhase(const InspectingAnnotation());
+    }
   }
+
+  /// 返回讲解页播放按钮应使用的循环次数；关闭时固定为一遍。
+  int get _annotationReplayRepeatCount =>
+      state.settings.annotationReplayUsesRepeatCount
+      ? state.settings.repeatCount
+      : 1;
 
   Future<void> _finishAnnotationReplay() async {
     if (_annotationWaitAfterCurrentPlayback) {

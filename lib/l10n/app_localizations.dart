@@ -2447,7 +2447,7 @@ abstract class AppLocalizations {
   /// No description provided for @intensiveListenReplayingWithSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Replaying with subtitles...'**
+  /// **'Listen again to help it stick'**
   String get intensiveListenReplayingWithSubtitle;
 
   /// No description provided for @intensiveListenPauseBetweenPlays.
@@ -2551,6 +2551,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Repeat per sentence'**
   String get intensiveListenRepeatCount;
+
+  /// No description provided for @intensiveListenAnnotationReplayUsesRepeatCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat on explanation page'**
+  String get intensiveListenAnnotationReplayUsesRepeatCount;
 
   /// No description provided for @intensiveListenRepeatCountValue.
   ///

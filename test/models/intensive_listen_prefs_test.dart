@@ -20,6 +20,7 @@ void main() {
       expect(s.pauseMultiplier, 2.0);
       expect(s.controlMode, ShadowingControlMode.auto);
       expect(s.repeatCount, 1);
+      expect(s.annotationReplayUsesRepeatCount, false);
     });
 
     test('设过的字段用设值,未设的字段仍按各自默认', () {
@@ -74,6 +75,7 @@ void main() {
         pauseMultiplier: 2.5,
         controlMode: ShadowingControlMode.manual,
         repeatCount: 3,
+        annotationReplayUsesRepeatCount: true,
       );
       expect(IntensiveListenPrefs.fromJson(prefs.toJson()), prefs);
     });
@@ -105,9 +107,15 @@ void main() {
       expect(prefs, const IntensiveListenPrefs.empty());
     });
 
-    test('repeatCount > 10 截到 10', () {
+    test('repeatCount > 50 截到 50，新增档位可保留', () {
+      for (final count in [20, 30, 40, 50]) {
+        expect(
+          IntensiveListenPrefs.fromJson({'repeatCount': count}).repeatCount,
+          count,
+        );
+      }
       final prefs = IntensiveListenPrefs.fromJson(const {'repeatCount': 99});
-      expect(prefs.repeatCount, 10);
+      expect(prefs.repeatCount, 50);
     });
 
     test('速度归一化到档位', () {
