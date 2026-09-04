@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +34,30 @@ class _FakeEpisodeDownloadService extends AudioImportService {
     return const DownloadedAudio(
       relativePath: 'audios/imported/episode.m4a',
       durationSeconds: 321,
+      created: true,
       audioSha256: 'sha-xyz',
       originalAudioSha256: 'source-sha-xyz',
+    );
+  }
+}
+
+class _BlockingEpisodeDownloadService extends AudioImportService {
+  final started = Completer<CancelToken>();
+
+  @override
+  Future<DownloadedAudio> downloadEpisodeToSandbox({
+    required String url,
+    String? enclosureType,
+    CancelToken? cancelToken,
+    AudioImportProgressCallback? onProgress,
+  }) async {
+    final token = cancelToken;
+    if (token == null) throw StateError('cancel token is required');
+    started.complete(token);
+    await token.whenCancel;
+    throw const AudioImportException(
+      AudioImportFailureCode.canceled,
+      'download canceled',
     );
   }
 }
@@ -125,6 +149,32 @@ void main() {
           .downloadPodcastEpisode(item);
 
       expect(ok, isFalse);
+    });
+
+    test('取消下载会清空状态、取消 token，并忽略迟到结果', () async {
+      final item = podcastItem();
+      final service = _BlockingEpisodeDownloadService();
+      final container = makeContainer(service, item);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(
+        podcastDownloadControllerProvider.notifier,
+      );
+      final download = notifier.downloadPodcastEpisode(item);
+      final token = await service.started.future;
+
+      await notifier.cancel();
+
+      expect(token.isCancelled, isTrue);
+      expect(
+        container.read(podcastDownloadControllerProvider),
+        isA<AudioImportIdle>(),
+      );
+      expect(await download, isFalse);
+      expect(
+        container.read(audioLibraryProvider).audioItems.single.audioPath,
+        isNull,
+      );
     });
 
     test('播客下载失败不污染链接导入 controller 状态（两条流程独立）', () async {

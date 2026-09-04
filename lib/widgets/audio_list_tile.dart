@@ -231,7 +231,13 @@ class AudioListTile extends ConsumerWidget {
                       ),
                     )
                   else
-                    _buildTrailing(context, ref, l10n, theme),
+                    _buildTrailing(
+                      context,
+                      ref,
+                      l10n,
+                      theme,
+                      isDownloading: downloadProgress != null,
+                    ),
                 ],
               ),
             ),
@@ -650,11 +656,18 @@ class AudioListTile extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required bool isDownloading,
+  }) {
     final menu = SizedBox(
       width: _kTrailingButtonSize,
-      child: _buildPopupMenu(context, ref, l10n, theme),
+      child: _buildPopupMenu(
+        context,
+        ref,
+        l10n,
+        theme,
+        isDownloading: isDownloading,
+      ),
     );
     if (menuStep == null) return menu;
     return GuideTarget(step: menuStep!, child: menu);
@@ -686,8 +699,9 @@ class AudioListTile extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required bool isDownloading,
+  }) {
     final progressForMenu = ref.read(
       learningProgressNotifierProvider.select(
         (s) => s.progressMap[audioItem.id],
@@ -712,6 +726,13 @@ class AudioListTile extends ConsumerWidget {
         padding: EdgeInsets.zero,
         child: Center(child: _buildMenuIcon(theme)),
         itemBuilder: (context) => [
+          if (isDownloading)
+            appPopupMenuItem(
+              context,
+              value: 'cancelDownload',
+              icon: const Icon(Icons.cancel_outlined, size: 20),
+              label: l10n.cancelDownload,
+            ),
           appPopupMenuItem(
             context,
             value: 'togglePin',
@@ -842,7 +863,15 @@ class AudioListTile extends ConsumerWidget {
             ),
         ],
         onSelected: (value) {
-          if (value == 'togglePin') {
+          if (value == 'cancelDownload') {
+            if (isPodcastEpisode) {
+              unawaited(
+                ref.read(podcastDownloadControllerProvider.notifier).cancel(),
+              );
+            } else if (isOfficial) {
+              unawaited(ref.read(officialDownloadProvider.notifier).cancel());
+            }
+          } else if (value == 'togglePin') {
             ref.read(audioLibraryProvider.notifier).togglePin(audioItem.id);
           } else if (value == 'rename') {
             _showRenameDialog(context, ref);

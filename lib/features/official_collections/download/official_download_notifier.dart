@@ -81,7 +81,8 @@ class OfficialDownload extends _$OfficialDownload {
 
     _sessionId++;
     final sid = _sessionId;
-    _cancelToken = CancelToken();
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
     _activeDisplayName = displayName;
     state = DownloadInProgress(
       audioItemId: audioItemId,
@@ -91,7 +92,7 @@ class OfficialDownload extends _$OfficialDownload {
 
     // 异步执行下载主流程；不 await，避免卡住调用方。
     // 同时记录任务 future，供 UI 层 [awaitCompletion] 在下载完成后跳转学习计划页。
-    final completion = _runDownload(sid, audioItem, remoteAudioId);
+    final completion = _runDownload(sid, audioItem, remoteAudioId, cancelToken);
     _activeDownload = completion;
     unawaited(completion);
     return StartResult.started;
@@ -104,12 +105,14 @@ class OfficialDownload extends _$OfficialDownload {
   /// 取消当前下载任务。
   Future<void> cancel() async {
     if (state is! DownloadInProgress) return;
+    final activeDownload = _activeDownload;
     final token = _cancelToken;
     _cancelToken = null;
     _sessionId++; // 过期当前 session，后续回调全部被丢弃
     token?.cancel('user-cancelled');
     state = const DownloadIdle();
-    // tmp 文件由 _runDownload 的 finally 负责清理
+    // 等待旧任务的 finally 完成，避免用户立即重试时旧任务删除新任务的 tmp 文件。
+    if (activeDownload != null) await activeDownload;
   }
 
   /// 当前正在下载的音频 id（UI 层决定是否为该音频 tile 展示下载态）。
@@ -239,6 +242,7 @@ class OfficialDownload extends _$OfficialDownload {
     int sid,
     db.AudioItem audioItem,
     String remoteAudioId,
+    CancelToken cancelToken,
   ) async {
     final api = ref.read(officialCollectionApiProvider);
     final downloader = DioReliableHttpDownloader(dio: Dio());
@@ -249,7 +253,10 @@ class OfficialDownload extends _$OfficialDownload {
 
     try {
       // 1) 拉 /content（SRT + wordTimestamps + audioUrl）
-      final content = await api.getAudioContent(remoteAudioId);
+      final content = await api.getAudioContent(
+        remoteAudioId,
+        cancelToken: cancelToken,
+      );
       if (sid != _sessionId) return false; // 过期
 
       // 2) 下载音频到 tmp（allowResume: false——失败/取消不留 `.part` 残留，
@@ -259,7 +266,7 @@ class OfficialDownload extends _$OfficialDownload {
         uri: Uri.parse(content.audioUrl),
         savePath: tmpAudioFile.path,
         allowResume: false,
-        cancelToken: _cancelToken,
+        cancelToken: cancelToken,
         onProgress: (received, total) {
           if (sid != _sessionId) return;
           if (state is! DownloadInProgress) return;

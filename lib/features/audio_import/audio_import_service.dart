@@ -184,9 +184,17 @@ class AudioImportService {
     return DownloadedAudio(
       relativePath: finalizedAudio.relativePath,
       durationSeconds: duration,
+      created: finalizedAudio.created,
       audioSha256: finalizedAudio.sha256,
       originalAudioSha256: finalizedAudio.originalSha256,
     );
+  }
+
+  /// 丢弃尚未写入 AudioItem 的下载结果，只删除本次新建的文件。
+  Future<void> discardDownloadedAudio(DownloadedAudio downloaded) async {
+    if (!downloaded.created) return;
+    final dataDir = await _resolveDataDir();
+    await _deleteIfExists(File(p.join(dataDir.path, downloaded.relativePath)));
   }
 
   Future<ResolvedAudioImport> resolveUrl(

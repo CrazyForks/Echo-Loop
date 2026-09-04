@@ -135,7 +135,8 @@ class PodcastDownloadController extends _$PodcastDownloadController {
 
     _sessionId++;
     final sid = _sessionId;
-    _cancelToken = CancelToken();
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
     // 立即进入下载态，保证行内进度条第一时间出现（不定进度）。
     state = AudioImportDownloading(displayName: enclosureUrl, progress: -1.0);
 
@@ -145,7 +146,7 @@ class PodcastDownloadController extends _$PodcastDownloadController {
           .downloadEpisodeToSandbox(
             url: enclosureUrl,
             enclosureType: item.podcastEnclosureType,
-            cancelToken: _cancelToken,
+            cancelToken: cancelToken,
             onProgress: (received, total) {
               if (sid != _sessionId) return;
               final progress = total == null || total <= 0
@@ -159,7 +160,12 @@ class PodcastDownloadController extends _$PodcastDownloadController {
               );
             },
           );
-      if (sid != _sessionId) return false;
+      if (sid != _sessionId) {
+        await ref
+            .read(audioImportServiceProvider)
+            .discardDownloadedAudio(result);
+        return false;
+      }
 
       // 解码失败（durationSeconds==0）不再回退 RSS 时长：宁可不显示，也不展示
       // 假时长。内容检测另用 FFmpeg 短解码和波形判断，不依赖此时长。
@@ -201,6 +207,17 @@ class PodcastDownloadController extends _$PodcastDownloadController {
     } finally {
       if (sid == _sessionId) _cancelToken = null;
     }
+  }
+
+  /// 取消播客单集下载，并让迟到的下载结果失效。
+  Future<void> cancel() async {
+    if (state is! AudioImportDownloading && state is! AudioImportSaving) {
+      return;
+    }
+    _sessionId++;
+    _cancelToken?.cancel('user-cancelled');
+    _cancelToken = null;
+    state = const AudioImportIdle();
   }
 
   void reset() {

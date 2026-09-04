@@ -55,12 +55,16 @@ class DownloadedAudio {
   const DownloadedAudio({
     required this.relativePath,
     required this.durationSeconds,
+    required this.created,
     this.audioSha256,
     this.originalAudioSha256,
   });
 
   final String relativePath;
   final int durationSeconds;
+
+  /// 是否由本次下载新建；取消未提交结果时只能删除本次新建的文件。
+  final bool created;
   final String? audioSha256;
   final String? originalAudioSha256;
 }

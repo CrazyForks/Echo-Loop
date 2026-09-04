@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -22,6 +23,7 @@ import '../../helpers/mock_providers.dart';
 class _FakeOfficialCollectionApi extends OfficialCollectionApi {
   AudioContent? nextContent;
   int callCount = 0;
+  Completer<CancelToken>? contentStarted;
 
   _FakeOfficialCollectionApi() : super.withDio(Dio());
 
@@ -31,6 +33,16 @@ class _FakeOfficialCollectionApi extends OfficialCollectionApi {
     CancelToken? cancelToken,
   }) async {
     callCount++;
+    if (contentStarted case final started?) {
+      final token = cancelToken;
+      if (token == null) throw StateError('cancel token is required');
+      started.complete(token);
+      await token.whenCancel;
+      throw DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.cancel,
+      );
+    }
     return nextContent ??
         const AudioContent(
           audioUrl: 'https://example.com/audio.m4a',
@@ -168,6 +180,30 @@ void main() {
     // 再次 cancel 不抛
     await notifier.cancel();
     expect(container.read(officialDownloadProvider), isA<DownloadIdle>());
+  });
+
+  test('下载准备阶段取消会中止内容请求并清理临时目录', () async {
+    await seedAudio('a1', remoteAudioId: 'r1');
+    fakeApi.contentStarted = Completer<CancelToken>();
+
+    final notifier = container.read(officialDownloadProvider.notifier);
+    final result = await notifier.start(
+      audioItemId: 'a1',
+      displayName: 'Track 1',
+    );
+    expect(result, StartResult.started);
+
+    final token = await fakeApi.contentStarted!.future;
+    await notifier.cancel();
+
+    expect(token.isCancelled, isTrue);
+    expect(container.read(officialDownloadProvider), isA<DownloadIdle>());
+    expect(await notifier.awaitCompletion(), isFalse);
+
+    final tmpAudioDir = Directory('${tmpDir.path}/tmp/official_audio');
+    if (await tmpAudioDir.exists()) {
+      expect(await tmpAudioDir.list().toList(), isEmpty);
+    }
   });
 
   test('activeAudioItemId 反映当前 InProgress 的 audioItemId', () async {

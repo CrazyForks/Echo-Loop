@@ -334,6 +334,75 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Delete Audio'), findsNothing);
+      expect(find.text('Cancel Download'), findsNothing);
+    });
+
+    testWidgets('播客下载中菜单显示并支持取消下载', (tester) async {
+      final item = createTestAudioItem(name: 'Podcast Episode').copyWith(
+        audioPath: null,
+        podcastEpisodeGuid: 'guid-1',
+        podcastEnclosureUrl: 'https://example.com/episode.mp3',
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          Center(child: AudioListTile(audioItem: item)),
+          overrides: [
+            audioLibraryProvider.overrideWith(
+              () => TestAudioLibrary(AudioLibraryState(audioItems: [item])),
+            ),
+            podcastDownloadControllerProvider.overrideWith(
+              _DownloadingAudioImportController.new,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cancel Download'), findsOneWidget);
+      await tester.tap(find.text('Cancel Download'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cancel Download'), findsNothing);
+      expect(
+        find.byKey(const Key('audio_list_tile_download_progress')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('官方音频下载中菜单显示并支持取消下载', (tester) async {
+      final item = createTestAudioItem(
+        name: 'Official Audio',
+      ).copyWith(audioPath: null, remoteAudioId: 'remote-1');
+
+      await tester.pumpWidget(
+        createTestApp(
+          Center(child: AudioListTile(audioItem: item)),
+          overrides: [
+            audioLibraryProvider.overrideWith(
+              () => TestAudioLibrary(AudioLibraryState(audioItems: [item])),
+            ),
+            officialDownloadProvider.overrideWith(
+              () => _DownloadingOfficial(item.id),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('audio_list_tile_menu_hit_area')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cancel Download'), findsOneWidget);
+      await tester.tap(find.text('Cancel Download'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cancel Download'), findsNothing);
+      expect(
+        find.byKey(const Key('audio_list_tile_download_progress')),
+        findsNothing,
+      );
     });
 
     testWidgets('播客已下载单集菜单含「删除下载」', (tester) async {
