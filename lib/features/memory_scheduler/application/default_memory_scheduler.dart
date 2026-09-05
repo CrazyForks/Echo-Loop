@@ -3,6 +3,7 @@ library;
 
 import 'package:clock/clock.dart';
 
+import '../../../services/app_logger.dart';
 import 'memory_model_registry.dart';
 import 'memory_profile_registry.dart';
 import 'memory_schedule_repository.dart';
@@ -124,7 +125,7 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
       current: _stateFor(schedule, adapter),
       reviewedAt: query.reviewedAt,
     );
-    return MemoryRatingPreviewSet(
+    final result = MemoryRatingPreviewSet(
       scheduleId: schedule.id,
       revision: schedule.revision,
       reviewedAt: query.reviewedAt,
@@ -153,6 +154,15 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
         query.reviewedAt,
       ),
     );
+    _log(
+      'preview subject=${_subjectId(query.subject)} schedule=${schedule.id} '
+      'revision=${schedule.revision} reviewedAt=${query.reviewedAt.toIso8601String()} '
+      'again=${_previewSummary(result.again)} '
+      'hard=${_previewSummary(result.hard)} '
+      'good=${_previewSummary(result.good)} '
+      'easy=${_previewSummary(result.easy)}',
+    );
+    return result;
   }
 
   @override
@@ -191,7 +201,17 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
       modelState: transition.state.values,
       archivedAt: null,
     );
-    return _repository.commitReview(
+    _log(
+      'review.commit subject=${_subjectId(command.subject)} '
+      'rating=${command.rating} operationId=${command.operationId} '
+      'beforeRevision=${before.revision} afterRevision=${after.revision} '
+      'reviewedAt=${command.reviewedAt.toIso8601String()} '
+      'responseTimeMs=${command.responseTime?.inMilliseconds ?? 0} '
+      'dueBefore=${before.dueAt.toIso8601String()} '
+      'dueAfter=${after.dueAt.toIso8601String()} '
+      'intervalMs=${after.dueAt.difference(command.reviewedAt.toUtc()).inMilliseconds}',
+    );
+    final result = await _repository.commitReview(
       MemoryReviewCommit(
         before: before,
         after: after,
@@ -208,6 +228,13 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
         expectedRevision: command.expectedRevision,
       ),
     );
+    _log(
+      'review.success subject=${_subjectId(command.subject)} '
+      'operationId=${command.operationId} revision=${result.schedule.revision} '
+      'dueAt=${result.schedule.dueAt.toIso8601String()} '
+      'wasIdempotentReplay=${result.wasIdempotentReplay}',
+    );
+    return result;
   }
 
   @override
@@ -253,6 +280,15 @@ final class DefaultMemoryScheduler implements MemoryScheduler {
     adapter.validateProfile(profile);
     return adapter;
   }
+
+  String _subjectId(MemorySubjectRef subject) =>
+      '${subject.namespace}:${subject.subjectId}';
+
+  String _previewSummary(MemoryRatingPreview preview) =>
+      'dueAt=${preview.dueAt.toIso8601String()},'
+      'intervalMs=${preview.interval.inMilliseconds}';
+
+  void _log(String message) => AppLogger.log('MemoryScheduler', message);
 
   MemoryModelTransition _transitionFor(
     MemorySchedule before,

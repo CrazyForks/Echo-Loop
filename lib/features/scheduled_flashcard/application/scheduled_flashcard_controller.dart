@@ -41,7 +41,7 @@ final class ScheduledFlashcardController<T> {
   final List<void Function()> _listeners = <void Function()>[];
   int _generation = 0;
   DateTime? _promptedAt;
-  String? _pendingOperationId;
+  _PendingRatingSubmission? _pendingRatingSubmission;
   bool _disposed = false;
 
   ScheduledFlashcardSessionState<T> get state => _engine.state;
@@ -62,6 +62,7 @@ final class ScheduledFlashcardController<T> {
       _engine.setDeck(deck, _clock.now().toUtc());
       _log('load.success generation=$generation cards=${deck.length}');
       _promptedAt = _clock.now().toUtc();
+      _pendingRatingSubmission = null;
       _notify();
     } catch (error) {
       if (!_valid(generation)) return;
@@ -81,16 +82,17 @@ final class ScheduledFlashcardController<T> {
     final card = state.current;
     if (card == null || state.phase != ScheduledFlashcardPhase.answer) return;
     final generation = _generation;
+    final reviewedAt = _clock.now().toUtc();
     _log(
       'preview.start card=${card.subject.subjectId} revision=${card.scheduleRevision} generation=$generation',
     );
     try {
-      final result = await _ratingPort.preview(
-        subject: card.subject,
-        expectedRevision: card.scheduleRevision,
-        reviewedAt: _clock.now().toUtc(),
+      final result = await _requestPreview(
+        card: card,
+        generation: generation,
+        reviewedAt: reviewedAt,
       );
-      if (!_valid(generation) || state.current?.subject != card.subject) {
+      if (result == null) {
         _log(
           'preview.discarded card=${card.subject.subjectId} generation=$generation',
         );
@@ -98,7 +100,12 @@ final class ScheduledFlashcardController<T> {
       }
       _engine.setPreview(result);
       _log(
-        'preview.success card=${card.subject.subjectId} revision=${result.revision}',
+        'preview.success card=${card.subject.subjectId} revision=${result.revision} '
+        'reviewedAt=${result.reviewedAt.toIso8601String()} '
+        'again=${_previewSummary(result.again)} '
+        'hard=${_previewSummary(result.hard)} '
+        'good=${_previewSummary(result.good)} '
+        'easy=${_previewSummary(result.easy)}',
       );
       _notify();
     } catch (error) {
@@ -114,42 +121,79 @@ final class ScheduledFlashcardController<T> {
     if (card == null || state.phase != ScheduledFlashcardPhase.answer) return;
     final preview = state.preview;
     if (preview == null) return;
+    var pending = _pendingRatingSubmission;
+    if (pending != null && pending.rating != rating) {
+      // 改选评分是新的用户动作，不能复用旧动作的幂等快照。
+      _pendingRatingSubmission = null;
+      _log(
+        'submit.replaced_different_rating card=${card.subject.subjectId} '
+        'pending=${pending.rating} requested=$rating operationId=${pending.operationId}',
+      );
+      pending = null;
+    }
     _engine.beginSubmitting(rating);
     _notify();
     final generation = _generation;
-    final operationId = _pendingOperationId ??= _operationIdGenerator.newId();
+    final submittedAt = _clock.now().toUtc();
+    final responseTime = _responseTimeAt(submittedAt);
+    var submission = pending;
+    if (submission == null) {
+      // 答案页的预测是本张卡唯一的时间快照；提交和重试都不能重算它。
+      submission = _PendingRatingSubmission(
+        rating: rating,
+        preview: _previewFor(preview, rating),
+        responseTime: responseTime,
+        operationId: _operationIdGenerator.newId(),
+      );
+      _pendingRatingSubmission = submission;
+    }
+    final pendingSubmission = submission;
     _log(
-      'submit.start card=${card.subject.subjectId} rating=$rating revision=${card.scheduleRevision} operationId=$operationId generation=$generation',
+      'submit.start card=${card.subject.subjectId} rating=$rating '
+      'revision=${card.scheduleRevision} '
+      'operationId=${pendingSubmission.operationId} generation=$generation '
+      'reviewedAt=${pendingSubmission.preview.reviewedAt.toIso8601String()} '
+      'dueAt=${pendingSubmission.preview.dueAt.toIso8601String()} '
+      'intervalMs=${pendingSubmission.preview.interval.inMilliseconds} '
+      'responseTimeMs=${pendingSubmission.responseTime.inMilliseconds}',
     );
     try {
       final result = await _ratingPort.submit(
         subject: card.subject,
         rating: rating,
-        preview: _previewFor(preview, rating),
+        preview: pendingSubmission.preview,
         expectedRevision: card.scheduleRevision,
-        responseTime: _responseTime(),
-        operationId: operationId,
+        responseTime: pendingSubmission.responseTime,
+        operationId: pendingSubmission.operationId,
       );
       if (!_valid(generation) || state.current?.subject != card.subject) {
         _log(
-          'submit.discarded card=${card.subject.subjectId} operationId=$operationId',
+          'submit.discarded card=${card.subject.subjectId} operationId=${pendingSubmission.operationId}',
         );
         return;
       }
-      _pendingOperationId = null;
+      _pendingRatingSubmission = null;
       _engine.completeRating(
         rating: rating,
         scheduleRevision: result.schedule.revision,
         dueAt: result.schedule.dueAt,
         now: _clock.now().toUtc(),
       );
-      _log('submit.success card=${card.subject.subjectId}');
+      _log(
+        'submit.success card=${card.subject.subjectId} '
+        'rating=$rating operationId=${pendingSubmission.operationId} '
+        'revision=${result.schedule.revision} '
+        'dueAt=${result.schedule.dueAt.toIso8601String()} '
+        'reviewedAt=${result.event.reviewedAt.toIso8601String()} '
+        'wasIdempotentReplay=${result.wasIdempotentReplay}',
+      );
       _notify();
     } catch (error) {
       if (!_valid(generation)) return;
       if (error is MemoryScheduleConflictException) {
         _log(
-          'submit.conflict card=${card.subject.subjectId} operationId=$operationId',
+          'submit.conflict card=${card.subject.subjectId} '
+          'operationId=${pendingSubmission.operationId}',
         );
         await _reloadAfterConflict(card, generation);
         return;
@@ -157,17 +201,20 @@ final class ScheduledFlashcardController<T> {
       if (error is MemoryOperationIdConflictException ||
           error is MemoryIdempotencyReplayStaleException) {
         // 此 ID 已被历史事件确定性拒绝；下次用户主动评分必须创建新动作。
-        _pendingOperationId = null;
+        _pendingRatingSubmission = null;
         _engine.returnToAnswer(error);
         _log(
           'submit.operation_id_rejected card=${card.subject.subjectId} '
-          'operationId=$operationId error=$error',
+          'operationId=${pendingSubmission.operationId} error=$error',
         );
         _notify();
         return;
       }
       _engine.returnToAnswer(error);
-      _log('submit.error card=${card.subject.subjectId} error=$error');
+      _log(
+        'submit.error card=${card.subject.subjectId} '
+        'operationId=${pendingSubmission.operationId} error=$error',
+      );
       _notify();
     }
   }
@@ -175,7 +222,7 @@ final class ScheduledFlashcardController<T> {
   /// 跳过当前卡片但不提交评分，用于"取消收藏"等业务动作完成后推进队列。
   void removeCurrent() {
     _generation++;
-    _pendingOperationId = null;
+    _pendingRatingSubmission = null;
     _log('remove_current card=${state.current?.subject.subjectId}');
     _engine.removeCurrent(_clock.now().toUtc());
     _promptedAt = _clock.now().toUtc();
@@ -196,7 +243,7 @@ final class ScheduledFlashcardController<T> {
     try {
       final revision = await _ratingPort.reloadRevision(card.subject);
       if (!_valid(generation) || state.current?.subject != card.subject) return;
-      _pendingOperationId = null;
+      _pendingRatingSubmission = null;
       _engine.replaceCurrentRevision(revision);
       _engine.returnToAnswer(
         const MemoryScheduleConflictException('评分已刷新，请重新确认。'),
@@ -210,11 +257,27 @@ final class ScheduledFlashcardController<T> {
     }
   }
 
-  Duration _responseTime() {
+  Duration _responseTimeAt(DateTime at) {
     final start = _promptedAt;
     if (start == null) return Duration.zero;
-    final elapsed = _clock.now().toUtc().difference(start);
+    final elapsed = at.difference(start);
     return elapsed.isNegative ? Duration.zero : elapsed;
+  }
+
+  Future<MemoryRatingPreviewSet?> _requestPreview({
+    required ScheduledFlashcard<T> card,
+    required int generation,
+    required DateTime reviewedAt,
+  }) async {
+    final result = await _ratingPort.preview(
+      subject: card.subject,
+      expectedRevision: card.scheduleRevision,
+      reviewedAt: reviewedAt,
+    );
+    if (!_valid(generation) || state.current?.subject != card.subject) {
+      return null;
+    }
+    return result;
   }
 
   MemoryRatingPreview _previewFor(
@@ -227,6 +290,10 @@ final class ScheduledFlashcardController<T> {
     MemoryRating.easy => previews.easy,
   };
 
+  String _previewSummary(MemoryRatingPreview preview) =>
+      'dueAt=${preview.dueAt.toIso8601String()},'
+      'intervalMs=${preview.interval.inMilliseconds}';
+
   bool _valid(int generation) => !_disposed && generation == _generation;
   static void _ignoreLog(String message) {}
   void _log(String message) => _logger('[SCHEDULED_FLASHCARD] $message');
@@ -235,6 +302,21 @@ final class ScheduledFlashcardController<T> {
       listener();
     }
   }
+}
+
+/// 一次评分动作的不可变提交快照，保证失败重试不会改变已选结果。
+final class _PendingRatingSubmission {
+  const _PendingRatingSubmission({
+    required this.rating,
+    required this.preview,
+    required this.responseTime,
+    required this.operationId,
+  });
+
+  final MemoryRating rating;
+  final MemoryRatingPreview preview;
+  final Duration responseTime;
+  final String operationId;
 }
 
 /// 将通用评分端口映射到 MemoryScheduler facade。

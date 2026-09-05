@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:echo_loop/features/memory_scheduler/domain/memory_profile.dart';
@@ -215,6 +216,103 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'controller submits the preview created when the answer is revealed',
+    () async {
+      var currentTime = now;
+      final port = _RecordingRatingPort();
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card('one')]),
+        ratingPort: port,
+        clock: Clock(() => currentTime),
+        operationIdGenerator: _FixedIds(),
+      );
+
+      await controller.load();
+      controller.revealAnswer();
+      await controller.preview();
+
+      currentTime = now.add(const Duration(minutes: 30));
+      await controller.submitRating(MemoryRating.good);
+
+      expect(port.previewTimes, <DateTime>[now]);
+      expect(port.submittedPreviews, hasLength(1));
+      expect(port.submittedPreviews.single.reviewedAt, now);
+      expect(port.submittedResponseTimes.single, const Duration(minutes: 30));
+      controller.dispose();
+    },
+  );
+
+  test(
+    'rating retries reuse the first submission snapshot for idempotency',
+    () async {
+      var currentTime = now;
+      final port = _RecordingRatingPort(failFirstSubmit: true);
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card('one')]),
+        ratingPort: port,
+        clock: Clock(() => currentTime),
+        operationIdGenerator: _FixedIds(),
+      );
+
+      await controller.load();
+      controller.revealAnswer();
+      await controller.preview();
+      currentTime = now.add(const Duration(minutes: 30));
+
+      await controller.submitRating(MemoryRating.good);
+      expect(controller.state.phase, ScheduledFlashcardPhase.answer);
+
+      currentTime = now.add(const Duration(hours: 1));
+      await controller.submitRating(MemoryRating.good);
+
+      expect(port.operationIds, <String>['op-1', 'op-1']);
+      expect(port.submittedPreviews, hasLength(2));
+      expect(
+        port.submittedPreviews[0].reviewedAt,
+        port.submittedPreviews[1].reviewedAt,
+      );
+      expect(port.submittedResponseTimes, <Duration>[
+        const Duration(minutes: 30),
+        const Duration(minutes: 30),
+      ]);
+      expect(controller.state.phase, ScheduledFlashcardPhase.completed);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'a different rating after a failed submission creates a new action',
+    () async {
+      var currentTime = now;
+      final port = _RecordingRatingPort(failFirstSubmit: true);
+      final controller = ScheduledFlashcardController<String>(
+        deckSource: _FakeDeckSource(<ScheduledFlashcard<String>>[card('one')]),
+        ratingPort: port,
+        clock: Clock(() => currentTime),
+        operationIdGenerator: _SequenceIds(<String>['op-1', 'op-2']),
+      );
+
+      await controller.load();
+      controller.revealAnswer();
+      await controller.preview();
+      currentTime = now.add(const Duration(minutes: 30));
+      await controller.submitRating(MemoryRating.good);
+
+      currentTime = now.add(const Duration(hours: 1));
+      await controller.submitRating(MemoryRating.again);
+
+      expect(port.operationIds, <String>['op-1', 'op-2']);
+      expect(port.submittedRatings, <MemoryRating>[
+        MemoryRating.good,
+        MemoryRating.again,
+      ]);
+      expect(port.previewTimes, <DateTime>[now]);
+      expect(controller.state.phase, ScheduledFlashcardPhase.prompt);
+      controller.dispose();
+    },
+  );
+
   test('late deck result is discarded after dispose', () async {
     final first = card('one');
     final source = _CompletingDeckSource();
@@ -340,6 +438,58 @@ final class _SequenceIds implements MemoryIdGenerator {
 
   @override
   String newId() => _ids[_index++];
+}
+
+final class _RecordingRatingPort extends _FakeRatingPort {
+  _RecordingRatingPort({this.failFirstSubmit = false});
+
+  final bool failFirstSubmit;
+  final previewTimes = <DateTime>[];
+  final submittedPreviews = <MemoryRatingPreview>[];
+  final submittedResponseTimes = <Duration>[];
+  final submittedRatings = <MemoryRating>[];
+  var _submitAttempts = 0;
+
+  @override
+  Future<MemoryRatingPreviewSet> preview({
+    required MemorySubjectRef subject,
+    required int expectedRevision,
+    required DateTime reviewedAt,
+  }) async {
+    previewTimes.add(reviewedAt);
+    return super.preview(
+      subject: subject,
+      expectedRevision: expectedRevision,
+      reviewedAt: reviewedAt,
+    );
+  }
+
+  @override
+  Future<MemoryReviewResult> submit({
+    required MemorySubjectRef subject,
+    required MemoryRating rating,
+    required MemoryRatingPreview preview,
+    required int expectedRevision,
+    required Duration responseTime,
+    required String operationId,
+  }) {
+    _submitAttempts++;
+    submittedPreviews.add(preview);
+    submittedResponseTimes.add(responseTime);
+    submittedRatings.add(rating);
+    if (failFirstSubmit && _submitAttempts == 1) {
+      operationIds.add(operationId);
+      return Future<MemoryReviewResult>.error(StateError('submit failed'));
+    }
+    return super.submit(
+      subject: subject,
+      rating: rating,
+      preview: preview,
+      expectedRevision: expectedRevision,
+      responseTime: responseTime,
+      operationId: operationId,
+    );
+  }
 }
 
 class _FakeRatingPort implements FlashcardRatingPort {

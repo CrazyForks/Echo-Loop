@@ -755,7 +755,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                     detail: formatNextReviewTimeDetail(
                       context,
                       showNextReviewTime: widget.showNextReviewTime,
-                      dueAt: widget.preview?.again.dueAt,
+                      interval: widget.preview?.again.interval,
                     ),
                   ),
                   FlashcardRatingAction(
@@ -765,7 +765,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                     detail: formatNextReviewTimeDetail(
                       context,
                       showNextReviewTime: widget.showNextReviewTime,
-                      dueAt: widget.preview?.good.dueAt,
+                      interval: widget.preview?.good.interval,
                     ),
                   ),
                   FlashcardRatingAction(
@@ -775,7 +775,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                     detail: formatNextReviewTimeDetail(
                       context,
                       showNextReviewTime: widget.showNextReviewTime,
-                      dueAt: widget.preview?.easy.dueAt,
+                      interval: widget.preview?.easy.interval,
                     ),
                   ),
                 ],

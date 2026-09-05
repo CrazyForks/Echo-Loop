@@ -555,7 +555,7 @@ class _ReviewAnswer extends ConsumerWidget {
         detail: formatNextReviewTimeDetail(
           context,
           showNextReviewTime: showNextReviewTime,
-          dueAt: preview?.again.dueAt,
+          interval: preview?.again.interval,
         ),
       ),
       FlashcardRatingAction(
@@ -565,7 +565,7 @@ class _ReviewAnswer extends ConsumerWidget {
         detail: formatNextReviewTimeDetail(
           context,
           showNextReviewTime: showNextReviewTime,
-          dueAt: preview?.good.dueAt,
+          interval: preview?.good.interval,
         ),
       ),
       FlashcardRatingAction(
@@ -575,7 +575,7 @@ class _ReviewAnswer extends ConsumerWidget {
         detail: formatNextReviewTimeDetail(
           context,
           showNextReviewTime: showNextReviewTime,
-          dueAt: preview?.easy.dueAt,
+          interval: preview?.easy.interval,
         ),
       ),
     ];

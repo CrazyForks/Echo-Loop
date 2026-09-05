@@ -36,12 +36,11 @@ void main() {
       formatTimeFromNow(context, now.add(const Duration(days: 16))),
       '16天后',
     );
-    final nextReviewAt = now.add(const Duration(hours: 3));
     expect(
       formatNextReviewTimeDetail(
         context,
         showNextReviewTime: false,
-        dueAt: nextReviewAt,
+        interval: const Duration(hours: 3),
       ),
       isNull,
     );
@@ -49,7 +48,7 @@ void main() {
       formatNextReviewTimeDetail(
         context,
         showNextReviewTime: true,
-        dueAt: null,
+        interval: null,
       ),
       isNull,
     );
@@ -57,9 +56,9 @@ void main() {
       formatNextReviewTimeDetail(
         context,
         showNextReviewTime: true,
-        dueAt: nextReviewAt,
+        interval: const Duration(seconds: 45),
       ),
-      '3小时后',
+      '45秒后',
     );
     expect(
       formatTimeFromNow(

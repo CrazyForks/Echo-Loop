@@ -43,16 +43,28 @@ String formatTimeFromNow(BuildContext context, DateTime dateTime) {
   );
 }
 
-/// 根据复习设置决定是否展示调度器预测的下次复习时间。
+/// 根据复习设置展示答案页预览的固定下次复习间隔。
 ///
-/// 收藏句与收藏词汇共用此函数，确保评分栏始终采用同一显示语义。
+/// 收藏句与收藏词汇共用此函数。间隔在进入答案页时确定，背面重播、等待
+/// 或页面重建都不能让评分栏显示成实时倒计时。
 String? formatNextReviewTimeDetail(
   BuildContext context, {
   required bool showNextReviewTime,
-  required DateTime? dueAt,
+  required Duration? interval,
 }) {
-  if (!showNextReviewTime || dueAt == null) return null;
-  return formatTimeFromNow(context, dueAt);
+  if (!showNextReviewTime || interval == null) return null;
+  final reference = DateTime.utc(2000);
+  final dueAt = reference.add(interval);
+  final seconds = interval.inSeconds;
+  if (interval < const Duration(minutes: 1)) {
+    return AppLocalizations.of(context)!.timeFromNowSeconds(seconds);
+  }
+  return timeago.format(
+    dueAt,
+    clock: reference,
+    locale: Localizations.localeOf(context).languageCode,
+    allowFromNow: true,
+  );
 }
 
 /// 简体中文 timeago 消息
