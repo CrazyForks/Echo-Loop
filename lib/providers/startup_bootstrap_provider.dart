@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/widgets.dart';
@@ -19,8 +20,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../analytics/analytics_providers.dart';
 import '../analytics/analytics_service.dart';
-import '../analytics/channels/log_only_channel.dart';
-import '../analytics/consent_manager.dart';
 import '../analytics/permission_snapshot.dart';
 import '../config/api_config.dart';
 import '../config/auth_config.dart' as auth_config;
@@ -42,7 +41,6 @@ import '../services/speech_practice_platform.dart';
 import '../services/startup_trace.dart';
 import '../services/temp_cleanup_service.dart';
 import '../services/tts/tts_cache_store.dart';
-import '../services/user_id_service.dart';
 import '../utils/app_data_dir.dart';
 
 /// 本次启动的可降级问题；不包含本地数据致命错误。
@@ -90,6 +88,7 @@ final startupBootstrapperProvider = Provider<StartupBootstrapper>((ref) {
     database: ref.read(appDatabaseProvider),
     prefs: ref.read(sharedPreferencesProvider),
     isDemoMode: ref.read(startupDemoModeProvider),
+    analyticsService: ref.read(analyticsServiceProvider),
   );
 });
 
@@ -160,13 +159,16 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
     required AppDatabase database,
     required SharedPreferences prefs,
     required bool isDemoMode,
+    required AnalyticsService analyticsService,
   }) : _database = database,
        _prefs = prefs,
-       _isDemoMode = isDemoMode;
+       _isDemoMode = isDemoMode,
+       _analyticsService = analyticsService;
 
   final AppDatabase _database;
   final SharedPreferences _prefs;
   final bool _isDemoMode;
+  final AnalyticsService _analyticsService;
 
   /// 执行业务导航前必须完成的本地任务。
   @override
@@ -218,11 +220,22 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
       unawaited(NetworkPermissionTrigger.trigger(_prefs, apiBaseUrl));
     }
 
-    await _runBestEffort(issues, 'firebase_initialize', () {
-      return Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    });
+    var firebaseReady = false;
+    try {
+      await _trace('firebase_initialize', () {
+        return Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      });
+      firebaseReady = true;
+    } catch (error, stackTrace) {
+      _recordIssue(issues, 'firebase_initialize', error, stackTrace);
+    }
+    if (firebaseReady && !kDebugMode && !Platform.isMacOS) {
+      await _runBestEffort(issues, 'firebase_analytics_disable', () {
+        return FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
+      });
+    }
 
     var supabaseReady = false;
     String? restoredUserId;
@@ -248,27 +261,9 @@ class DefaultStartupBootstrapper implements StartupBootstrapper {
 
     final revenueCatReady = await _initializeRevenueCat(issues, restoredUserId);
 
-    AnalyticsService analyticsService = AnalyticsService(
-      channel: LogOnlyChannel(),
-      consent: ConsentManager(_prefs),
-    );
-    try {
-      final userId = await _trace(
-        'user_id_initialize',
-        () => initUserIdService(_prefs),
-      );
-      analyticsService = await _trace(
-        'analytics_initialize',
-        () => initAnalyticsService(_prefs, userId: userId),
-      );
-    } catch (error, stackTrace) {
-      _recordIssue(issues, 'analytics_initialize', error, stackTrace);
-    }
-    initAnalytics(analyticsService);
-
     await _runBestEffort(issues, 'permission_snapshot_report', () async {
       final snapshot = await PermissionSnapshot.capture(_prefs);
-      await analyticsService.reportPermissionSnapshot(snapshot, _prefs);
+      await _analyticsService.reportPermissionSnapshot(snapshot, _prefs);
     });
 
     _scheduleMaintenance();

@@ -14,8 +14,11 @@ import 'package:uuid/uuid.dart';
 
 const _anonymousIdKey = 'anonymous_id';
 
-/// 用户 ID 服务单例（在 main() 中通过 [initUserIdService] 初始化）
-late String _userId;
+/// 匿名 ID 的单次初始化 Future。
+///
+/// main 在 `runApp()` 前启动它但不等待；需要 ID 的业务必须 await provider，避免
+/// 首帧路径读取尚未写入的 `late String`。
+late Future<String> _userIdReady;
 
 /// 初始化用户 ID 服务，返回用户 ID
 ///
@@ -43,8 +46,13 @@ Future<String> initUserIdService(
     await prefs.remove(_anonymousIdKey);
   }
 
-  _userId = id;
   return id;
+}
+
+/// 启动本进程的匿名 ID 初始化，并暴露同一个 Future 给所有消费者。
+Future<String> startUserIdService(SharedPreferences prefs) {
+  _userIdReady = initUserIdService(prefs);
+  return _userIdReady;
 }
 
 /// 清除用户 ID（隐私合规：用户撤销同意时调用）
@@ -55,7 +63,7 @@ Future<void> clearUserId() async {
   await prefs.remove(_anonymousIdKey);
 }
 
-/// 用户 ID Provider（同步，与 analyticsServiceProvider 模式一致）
-final userIdProvider = Provider<String>((ref) {
-  return _userId;
+/// 用户 ID Provider。消费者必须 await 返回的 Future。
+final userIdProvider = Provider<Future<String>>((ref) {
+  return _userIdReady;
 });

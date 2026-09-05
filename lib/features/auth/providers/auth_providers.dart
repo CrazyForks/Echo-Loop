@@ -239,7 +239,7 @@ class AuthAnalyticsSync {
       await analytics.setUserProperty('email', resolvedEmail);
     }
 
-    final anonymousId = _ref.read(userIdProvider);
+    final anonymousId = await _ref.read(userIdProvider);
     await analytics.setUserProperty('app_anonymous_id', anonymousId);
   }
 

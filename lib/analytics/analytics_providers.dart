@@ -7,7 +7,6 @@ library;
 
 import 'dart:io';
 
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,23 +18,19 @@ import 'channels/log_only_channel.dart';
 import 'channels/posthog_channel.dart';
 import 'channels/umeng_channel.dart';
 import 'consent_manager.dart';
+import '../services/app_logger.dart';
 
-/// 分析服务单例（在 main() 中通过 [initAnalyticsService] 初始化）
-late AnalyticsService _analyticsService;
-
-/// 初始化分析服务（在 main() 中 runApp 之前调用）
-void initAnalytics(AnalyticsService service) {
-  _analyticsService = service;
-}
-
-/// 分析服务 Provider（同步，与 appDatabaseProvider 模式一致）
+/// 分析服务 Provider。
+///
+/// 生产环境必须由根 [ProviderScope] 在 `runApp()` 前 override 为已初始化的
+/// 最终实例。这样 Riverpod 首次缓存的对象不会在后台初始化完成后被替换。
 final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
-  return _analyticsService;
+  throw StateError(
+    'analyticsServiceProvider must be overridden at app startup',
+  );
 });
 
 /// 初始化分析服务
-///
-/// [userId] 由 [initUserIdService] 提前生成，analytics 不负责 ID 管理。
 ///
 /// 通道选择策略：
 /// - Debug 模式 → LogOnly
@@ -45,22 +40,36 @@ final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
 /// Firebase/友盟通道保留备用，当前不启用。
 Future<AnalyticsService> initAnalyticsService(
   SharedPreferences prefs, {
-  required String userId,
+  AnalyticsChannel Function()? channelFactory,
 }) async {
   final consent = ConsentManager(prefs);
-  final channel = _createChannel();
+  final channel = (channelFactory ?? _createChannel)();
 
-  // 初始化通道。匿名阶段不做 identify，让 PostHog SDK 自己维护匿名 distinct id；
-  // 本地生成的匿名 UUID 仅作为事件级属性保留，供登录后与真实账号关联排查。
+  // 匿名阶段不做 identify，让 PostHog SDK 自己维护匿名 distinct id。
+  // 本地匿名 UUID 会在其异步准备完成后单独注册为 super property，不能阻塞 SDK
+  // 就绪或首帧。
   await channel.initialize();
-  await channel.registerSuperProperties({'app_anonymous_id': userId});
-
-  // 关闭 Firebase 采集（当前使用 PostHog，避免 Firebase SDK 残留上报）
-  if (!kDebugMode && !Platform.isMacOS) {
-    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
-  }
 
   return AnalyticsService(channel: channel, consent: consent);
+}
+
+/// 初始化最终 analytics service；SDK 失败只降级埋点，绝不阻断应用启动。
+Future<AnalyticsService> initializeAnalyticsWithFallback(
+  SharedPreferences prefs, {
+  AnalyticsChannel Function()? channelFactory,
+}) async {
+  try {
+    return await initAnalyticsService(prefs, channelFactory: channelFactory);
+  } catch (error, stackTrace) {
+    AppLogger.log(
+      'Analytics',
+      'PostHog initialization failed; using LogOnly: $error',
+    );
+    AppLogger.log('Analytics', stackTrace.toString());
+    final fallback = LogOnlyChannel();
+    await fallback.initialize();
+    return AnalyticsService(channel: fallback, consent: ConsentManager(prefs));
+  }
 }
 
 /// 根据配置选择分析通道

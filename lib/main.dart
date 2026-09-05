@@ -24,8 +24,6 @@ import 'providers/review_reminder_provider.dart';
 import 'services/notification_tap_router_bridge.dart';
 import 'analytics/analytics_providers.dart';
 import 'analytics/analytics_service.dart';
-import 'analytics/channels/log_only_channel.dart';
-import 'analytics/consent_manager.dart';
 import 'providers/learning_settings_provider.dart';
 import 'providers/tts/tts_settings_provider.dart';
 import 'providers/intensive_listen_prefs_provider.dart';
@@ -37,6 +35,7 @@ import 'services/app_logger.dart';
 import 'services/startup_trace.dart';
 import 'services/app_update_migration.dart';
 import 'services/media_kit_debug_initializer.dart';
+import 'services/user_id_service.dart';
 import 'widgets/app_notice_presenter.dart';
 import 'features/official_collections/data/official_catalog_service.dart';
 import 'features/official_collections/data/trigger_official_sync.dart';
@@ -67,14 +66,17 @@ void main() async {
     'shared_preferences',
     SharedPreferences.getInstance,
   );
+  // SecureStorage 在新装设备上可能较慢。立即并行启动匿名 ID 初始化，但不能让它
+  // 阻塞 PostHog channel ready 或首帧；完成后再注册为事件 super property。
+  final anonymousIdReady = startUserIdService(prefs);
+  final analyticsService = await startupTrace.run(
+    'analytics_initialize',
+    () => initializeAnalyticsWithFallback(prefs),
+  );
+  unawaited(_registerAnonymousIdWhenReady(anonymousIdReady, analyticsService));
   // 应用升级迁移由自身记录结构化日志，不包装成普通 StartupTrace 步骤，
   // 避免日志看起来像启动阶段重复执行了一次迁移。
   await runAppUpdateMigrations(prefs);
-  // 路由 observer 在首帧构建时即会读取 analytics。先安装纯日志实现，第三方
-  // 埋点 SDK 在后续后台阶段成功初始化后再替换，避免首帧依赖 Firebase/PostHog。
-  initAnalytics(
-    AnalyticsService(channel: LogOnlyChannel(), consent: ConsentManager(prefs)),
-  );
   final isDemoMode = prefs.getBool('demo_mode') ?? false;
 
   // 远程配置：启动期只同步读取本地缓存/默认值，不触发网络请求，避免网络慢阻塞首帧。
@@ -142,6 +144,7 @@ void main() async {
     PostHogWidget(
       child: ProviderScope(
         overrides: [
+          analyticsServiceProvider.overrideWithValue(analyticsService),
           packageInfoProvider.overrideWithValue(packageInfo),
           isFirstLaunchProvider.overrideWithValue(isFirstLaunch),
           sharedPreferencesProvider.overrideWithValue(prefs),
@@ -173,6 +176,23 @@ void main() async {
       ),
     ),
   );
+}
+
+/// 匿名 ID 是附加事件属性，不是 PostHog distinct ID；其迟到不得丢弃已入 SDK 队列
+/// 的早期事件，也不得阻塞首帧。
+Future<void> _registerAnonymousIdWhenReady(
+  Future<String> anonymousIdReady,
+  AnalyticsService analyticsService,
+) async {
+  try {
+    final anonymousId = await anonymousIdReady;
+    await analyticsService.registerSuperProperties({
+      'app_anonymous_id': anonymousId,
+    });
+  } catch (error, stackTrace) {
+    AppLogger.log('Analytics', 'anonymous ID initialization failed: $error');
+    AppLogger.log('Analytics', stackTrace.toString());
+  }
 }
 
 class EchoLoopApp extends ConsumerStatefulWidget {

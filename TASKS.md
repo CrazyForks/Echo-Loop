@@ -3,6 +3,8 @@
 > 仅保留未完成任务；历史完成记录见 [docs/tasks-archive/tasks-2026-08-28-full.md](./docs/tasks-archive/tasks-2026-08-28-full.md)。
 
 ## 最近完成
+- [x] 修复 PostHog 启动初始化：在 runApp 前安装固定 AnalyticsService，匿名 ID 异步注册 super property，避免 Riverpod 缓存旧 LogOnly 实例。**完成时间**: 2026-09-05
+
 - [x] 将收藏词汇复习播放区域的无障碍标签接入现有本地化资源，移除硬编码文案。**完成时间**: 2026-09-05
 
 - [x] 将收藏词汇复习标题的播放图标改为文本流内联元素，支持长词组自然换行并消除 RenderFlex 溢出。**完成时间**: 2026-09-05
@@ -199,7 +201,7 @@
 
 ## 产品体验
 
-- [ ] 启动埋点附带 4 类授权状态，并完成 PostHog 手动验证。
+- [ ] 在发布包完成 PostHog 手动验证：核对 onboarding、`$screen`、权限快照、生命周期事件及 `$app_version`。
 - [ ] 查词归一化 Unicode 化，并迁移已有收藏 key（需产品与数据决策）。
 - [ ] 计算并展示每个学习任务的预计/实际耗时。
 - [ ] 学习 Tab 点击学习/复习后直接进入学习页面，跳过学习计划页。

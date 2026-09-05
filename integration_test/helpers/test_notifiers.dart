@@ -310,6 +310,7 @@ class _NoOpChannel implements AnalyticsChannel {
 
 /// 缓存的 SharedPreferences 实例（由 [initTestAnalytics] 初始化）
 SharedPreferences? _testPrefsCache;
+AnalyticsService? _testAnalyticsService;
 
 /// 初始化测试用 AnalyticsService（须在 createTestApp 前调用一次）
 Future<void> initTestAnalytics() async {
@@ -319,11 +320,10 @@ Future<void> initTestAnalytics() async {
   SharedPreferences.setMockInitialValues(guideSeen);
   final prefs = await SharedPreferences.getInstance();
   _testPrefsCache = prefs;
-  final service = AnalyticsService(
+  _testAnalyticsService = AnalyticsService(
     channel: _NoOpChannel(),
     consent: ConsentManager(prefs),
   );
-  initAnalytics(service);
 }
 
 // ========== Override 工厂 ==========
@@ -331,13 +331,15 @@ Future<void> initTestAnalytics() async {
 /// Onboarding 问卷相关的 provider 测试 override
 List<Override> onboardingTestOverrides() {
   final prefs = _testPrefsCache;
-  if (prefs == null) {
+  final analyticsService = _testAnalyticsService;
+  if (prefs == null || analyticsService == null) {
     throw StateError(
       'initTestAnalytics() must be called before createTestApp() '
       'to initialize SharedPreferences for onboarding overrides',
     );
   }
   return [
+    analyticsServiceProvider.overrideWithValue(analyticsService),
     isFirstLaunchProvider.overrideWithValue(false),
     sharedPreferencesProvider.overrideWithValue(prefs),
     initialOnboardingCompletedProvider.overrideWithValue(true),

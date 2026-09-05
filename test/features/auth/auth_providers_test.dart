@@ -109,7 +109,7 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(repository),
           analyticsServiceProvider.overrideWithValue(analytics),
-          userIdProvider.overrideWithValue('anon-123'),
+          userIdProvider.overrideWithValue(Future<String>.value('anon-123')),
         ],
       );
     });
@@ -738,7 +738,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           analyticsServiceProvider.overrideWithValue(analytics),
-          userIdProvider.overrideWithValue('anon-123'),
+          userIdProvider.overrideWithValue(Future<String>.value('anon-123')),
         ],
       );
     });
