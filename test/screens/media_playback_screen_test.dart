@@ -1471,9 +1471,9 @@ void main() {
     expect(find.byType(Slider), findsNWidgets(2));
 
     final sliders = tester.widgetList<Slider>(find.byType(Slider)).toList();
-    expect(sliders.first.min, 1);
-    expect(sliders.first.max, 11);
-    expect(sliders.first.divisions, 10);
+    expect(sliders.first.min, 0);
+    expect(sliders.first.max, 14);
+    expect(sliders.first.divisions, 14);
     expect(sliders.last.min, 0);
     expect(sliders.last.max, 10);
     expect(sliders.last.divisions, 10);
