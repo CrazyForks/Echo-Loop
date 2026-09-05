@@ -3,6 +3,7 @@
 // 验证句子/单词视图切换、按音频分组展示、空状态、收藏操作等 UI 行为。
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,10 +17,12 @@ import 'package:echo_loop/screens/favorites_screen.dart';
 import 'package:echo_loop/screens/sentence_detail_screen.dart';
 import 'package:echo_loop/database/daos/audio_item_dao.dart';
 import 'package:echo_loop/database/daos/bookmark_dao.dart';
+import 'package:echo_loop/database/daos/saved_sense_group_dao.dart';
 import 'package:echo_loop/database/daos/saved_word_dao.dart';
 import 'package:echo_loop/database/daos/sentence_ai_cache_dao.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/models/dict_entry.dart';
 import 'package:echo_loop/providers/audio_engine/audio_engine_provider.dart';
 import 'package:echo_loop/providers/learning_session/bookmark_review_provider.dart';
 import 'package:echo_loop/providers/learning_session/favorite_review_due_count_provider.dart';
@@ -28,6 +31,7 @@ import 'package:echo_loop/features/onboarding_survey/providers/onboarding_survey
     show sharedPreferencesProvider;
 import 'package:echo_loop/providers/sentence_ai_provider.dart';
 import 'package:echo_loop/services/sentence_ai_api_client.dart';
+import 'package:echo_loop/services/dictionary_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 
 import '../helpers/mock_providers.dart';
@@ -37,6 +41,8 @@ import '../helpers/mock_providers.dart';
 class _MockCacheDao extends Mock implements SentenceAiCacheDao {}
 
 class _MockApiClient extends Mock implements SentenceAiApiClient {}
+
+class _MockDictionaryService extends Mock implements DictionaryService {}
 
 class _MockAudioItemDao extends Mock implements AudioItemDao {
   _MockAudioItemDao({AudioItem? audioItem, String? transcriptSrt}) {
@@ -74,6 +80,23 @@ class _TestSavedWordDao implements SavedWordDao {
 
   @override
   Stream<List<SavedWord>> watchAll() => _controller.stream;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
+/// 测试用 SavedSenseGroupDao — 通过 StreamController 控制数据
+class _TestSavedSenseGroupDao implements SavedSenseGroupDao {
+  final StreamController<List<SavedSenseGroup>> _controller;
+
+  _TestSavedSenseGroupDao(this._controller);
+
+  @override
+  Stream<List<SavedSenseGroup>> watchAll() async* {
+    // 词汇页需要单词和意群两个流都完成首帧，默认先发出空意群列表。
+    yield const [];
+    yield* _controller.stream;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
@@ -150,20 +173,53 @@ SavedWord _createSavedWord({
   );
 }
 
+/// 创建测试用 SavedSenseGroup 数据
+SavedSenseGroup _createSavedPhrase({
+  required int id,
+  required String phraseText,
+  String? audioItemId,
+  String? sentenceText,
+}) {
+  return SavedSenseGroup(
+    id: id,
+    phraseText: phraseText,
+    displayText: phraseText,
+    audioItemId: audioItemId,
+    sentenceIndex: null,
+    sentenceText: sentenceText,
+    sentenceStartMs: null,
+    sentenceEndMs: null,
+    groupStartMs: null,
+    groupEndMs: null,
+    practiceCount: 0,
+    totalStudyMs: 0,
+    viewedBack: false,
+    lastPracticedAt: null,
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+    deletedAt: null,
+    syncStatus: 0,
+  );
+}
+
 void main() {
   late StreamController<List<BookmarkWithAudio>> bookmarkController;
   late StreamController<List<SavedWord>> wordController;
+  late StreamController<List<SavedSenseGroup>> phraseController;
   SentenceDetailArgs? openedSentenceDetailArgs;
 
   setUp(() {
     bookmarkController = StreamController<List<BookmarkWithAudio>>.broadcast();
     wordController = StreamController<List<SavedWord>>.broadcast();
+    phraseController = StreamController<List<SavedSenseGroup>>.broadcast();
     openedSentenceDetailArgs = null;
   });
 
   tearDown(() {
     bookmarkController.close();
     wordController.close();
+    phraseController.close();
+    debugDefaultTargetPlatformOverride = null;
   });
 
   Widget createTestWidget({
@@ -219,6 +275,9 @@ void main() {
         ),
         savedWordDaoProvider.overrideWithValue(
           _TestSavedWordDao(wordController),
+        ),
+        savedSenseGroupDaoProvider.overrideWithValue(
+          _TestSavedSenseGroupDao(phraseController),
         ),
         audioItemDaoProvider.overrideWithValue(
           _MockAudioItemDao(
@@ -1006,6 +1065,147 @@ void main() {
       await tester.pump();
 
       expect(find.text('hello'), findsOneWidget);
+    });
+
+    testWidgets('iOS 单词展开后的播放行上下间距保持紧凑', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        final dictionary = _MockDictionaryService();
+        when(() => dictionary.lookupAll(any())).thenReturn({
+          'foxes': const DictEntry(
+            word: 'foxes',
+            phonetic: 'fɒksɪz',
+            translation: 'n. 狐',
+          ),
+        });
+        final previousDictionary = DictionaryService.replaceInstance(
+          dictionary,
+        );
+        addTearDown(
+          () => DictionaryService.replaceInstance(previousDictionary),
+        );
+
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+        await tester.tap(find.text('Vocabulary'));
+        await tester.pump();
+        bookmarkController.add([]);
+        wordController.add([_createSavedWord(id: 1, word: 'foxes')]);
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+
+        await tester.tap(find.text('foxes'));
+        await tester.pump(const Duration(milliseconds: 250));
+
+        final contentRect = tester.getRect(
+          find.byKey(const Key('favorite-word-expanded-content')),
+        );
+        final pronunciationRect = tester.getRect(
+          find.byKey(const Key('favorite-word-pronunciation-row')),
+        );
+        final tileRect = tester.getRect(
+          find
+              .ancestor(of: find.text('foxes'), matching: find.byType(ListTile))
+              .first,
+        );
+        final speakRect = tester.getRect(
+          find.byKey(const Key('favorite_speak')),
+        );
+        final translationRect = tester.getRect(find.text('n. 狐'));
+
+        expect(pronunciationRect.top, closeTo(contentRect.top, 0.01));
+        expect(tileRect.height, closeTo(40, 0.01));
+        expect(pronunciationRect.height, greaterThanOrEqualTo(44));
+        expect(speakRect.width, closeTo(36, 0.01));
+        expect(speakRect.height, closeTo(36, 0.01));
+        expect(
+          translationRect.top - pronunciationRect.bottom,
+          closeTo(AppSpacing.xs, 0.01),
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('Android 意群展开后的播放行与来源句保持紧凑间距', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final sourceAudio = AudioItem(
+          id: 'audio-1',
+          name: 'A source lesson',
+          addedDate: DateTime(2026, 1, 1),
+          totalDuration: 60,
+          sentenceCount: 1,
+          wordCount: 5,
+          isPinned: false,
+          updatedAt: DateTime(2026, 1, 1),
+          syncStatus: 0,
+        );
+        await tester.pumpWidget(createTestWidget(sourceAudio: sourceAudio));
+        await tester.pump();
+        await tester.tap(find.text('Vocabulary'));
+        await tester.pump();
+        bookmarkController.add([]);
+        wordController.add([]);
+        phraseController.add([
+          _createSavedPhrase(
+            id: 1,
+            phraseText: 'said they were shy.',
+            audioItemId: 'audio-1',
+            sentenceText: 'They said they were shy.',
+          ),
+        ]);
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+
+        await tester.tap(find.text('said they were shy.'));
+        await tester.pump(const Duration(milliseconds: 250));
+
+        final contentRect = tester.getRect(
+          find.byKey(const Key('favorite-phrase-expanded-content')),
+        );
+        final speakRect = tester.getRect(
+          find.byKey(const Key('favorite_phrase_speak')),
+        );
+        final pronunciationRect = tester.getRect(
+          find.byKey(const Key('favorite-phrase-pronunciation-row')),
+        );
+        final sourceRect = tester.getRect(
+          find.byKey(const Key('favorite-phrase-source-sentence')),
+        );
+        final sourceAudioRect = tester.getRect(
+          find.byKey(const Key('favorite-source-audio-reference')),
+        );
+
+        expect(pronunciationRect.top, closeTo(contentRect.top, 0.01));
+        expect(
+          tester
+              .getRect(
+                find
+                    .ancestor(
+                      of: find.text('said they were shy.'),
+                      matching: find.byType(ListTile),
+                    )
+                    .first,
+              )
+              .height,
+          closeTo(40, 0.01),
+        );
+        expect(speakRect.width, closeTo(36, 0.01));
+        expect(speakRect.height, closeTo(36, 0.01));
+        expect(
+          sourceRect.top - pronunciationRect.bottom,
+          closeTo(AppSpacing.xs, 0.01),
+        );
+        expect(
+          contentRect.bottom - sourceAudioRect.bottom,
+          closeTo(AppSpacing.s, 0.01),
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets('单词来源句不显示播放图标且来源音频右侧显示箭头', (tester) async {

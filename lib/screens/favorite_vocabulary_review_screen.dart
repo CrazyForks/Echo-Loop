@@ -302,6 +302,9 @@ class _VocabularyFront extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
+    final isPlaybackActive =
+        playbackState == FavoriteVocabularyReviewPlaybackState.loading ||
+        playbackState == FavoriteVocabularyReviewPlaybackState.playing;
     final status = switch (playbackState) {
       FavoriteVocabularyReviewPlaybackState.loading =>
         l10n.favoriteVocabularyReviewLoadingAudio,
@@ -349,7 +352,9 @@ class _VocabularyFront extends StatelessWidget {
                               : '',
                           accent: hasError
                               ? theme.colorScheme.error
-                              : theme.colorScheme.primary,
+                              : isPlaybackActive
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -466,7 +471,7 @@ class _CenteredPrompt extends StatelessWidget {
   }
 }
 
-/// 词汇背面本步只显示收藏文本，内容扩展留待后续任务。
+/// 收藏词汇复习背面：标题内联播放入口，下方展示词典、来源句和 AI 内容。
 class _VocabularyBack extends ConsumerStatefulWidget {
   const _VocabularyBack({
     super.key,
@@ -560,6 +565,7 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final card = widget.card;
     final pronunciationClips = _isSingleWord
@@ -570,6 +576,14 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
         (state) => state.sourcePlaybackState,
       ),
     );
+    final wordPlaybackState = ref.watch(
+      favoriteVocabularyReviewProvider.select(
+        (state) => state.wordPlaybackState,
+      ),
+    );
+    final isWordPlaying =
+        wordPlaybackState == FavoriteVocabularyReviewPlaybackState.loading ||
+        wordPlaybackState == FavoriteVocabularyReviewPlaybackState.playing;
     final sourceSentenceText = card.sentenceText?.trim();
     final hasSourceSentence =
         sourceSentenceText != null && sourceSentenceText.isNotEmpty;
@@ -626,26 +640,21 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: Text(
-                        card.displayText,
-                        key: const Key('favorite-vocabulary-review-back-word'),
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineMedium?.copyWith(fontSize: 24),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _VocabularyPlaybackAction(
+                          vocabulary: card.displayText,
+                          showPlaybackIcon: pronunciationClips.length <= 1,
+                          isPlaying: isWordPlaying,
+                          onReplay: () => unawaited(
+                            ref
+                                .read(favoriteVocabularyReviewProvider.notifier)
+                                .replayCurrent(),
+                          ),
+                        ),
                       ),
                     ),
-                    // 多发音 badge 已提供逐条播放，标题行不再重复提供总播放入口。
-                    if (pronunciationClips.length <= 1)
-                      IconButton(
-                        key: const Key('favorite-vocabulary-review-word-speak'),
-                        tooltip: '播放发音',
-                        onPressed: () => unawaited(
-                          ref
-                              .read(favoriteVocabularyReviewProvider.notifier)
-                              .replayCurrent(),
-                        ),
-                        icon: const Icon(Icons.volume_up_outlined),
-                      ),
+                    const SizedBox(width: AppSpacing.m),
                     _VocabularyUnsaveAction(
                       isRemoving: widget.isRemoving,
                       onRemove: widget.onRemove,
@@ -723,6 +732,9 @@ class _VocabularyBackState extends ConsumerState<_VocabularyBack> {
                       isSourcePlaying
                           ? Icons.stop_rounded
                           : Icons.play_arrow_rounded,
+                      color: isSourcePlaying
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                     label: Text(
                       isSourcePlaying
@@ -901,6 +913,66 @@ class _AiLookupToggle extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 将词汇标题和发音入口合并为一个播放区域，避免误触取消收藏。
+class _VocabularyPlaybackAction extends StatelessWidget {
+  const _VocabularyPlaybackAction({
+    required this.vocabulary,
+    required this.showPlaybackIcon,
+    required this.isPlaying,
+    required this.onReplay,
+  });
+
+  final String vocabulary;
+  final bool showPlaybackIcon;
+  final bool isPlaying;
+  final VoidCallback onReplay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // 多发音 badge 已提供逐条播放，标题行不再重复提供总播放入口。
+    final word = Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: vocabulary),
+          if (showPlaybackIcon)
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.s),
+                child: Icon(
+                  key: const Key('favorite-vocabulary-review-word-speak'),
+                  Icons.volume_up_outlined,
+                  color: isPlaying
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+      key: const Key('favorite-vocabulary-review-back-word'),
+      style: theme.textTheme.headlineMedium?.copyWith(fontSize: 24),
+      softWrap: true,
+    );
+    if (!showPlaybackIcon) return word;
+
+    return Semantics(
+      key: const Key('favorite-vocabulary-review-word-playback'),
+      button: true,
+      label: AppLocalizations.of(context)!.pronunciationPlay,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onReplay,
+          borderRadius: BorderRadius.circular(8),
+          child: word,
         ),
       ),
     );

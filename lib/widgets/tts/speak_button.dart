@@ -24,6 +24,7 @@ class SpeakButton extends ConsumerWidget {
     this.visualDensity,
     this.padding,
     this.constraints,
+    this.style,
   });
 
   /// 待发音文本。
@@ -50,6 +51,9 @@ class SpeakButton extends ConsumerWidget {
 
   /// 紧凑布局约束（如列表内联喇叭，传 `BoxConstraints()` 去掉默认 48 命中区）。
   final BoxConstraints? constraints;
+
+  /// 按钮样式（如需在 Material 3 下固定按钮尺寸或命中区时使用）。
+  final ButtonStyle? style;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -78,6 +82,7 @@ class SpeakButton extends ConsumerWidget {
       constraints: constraints,
       tooltip: tooltip,
       iconSize: size,
+      style: style,
       onPressed: text.trim().isEmpty
           ? null
           : () => ref.read(textPlaybackProvider.notifier).speak(text, key: key),

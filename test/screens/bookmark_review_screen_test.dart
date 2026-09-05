@@ -374,6 +374,28 @@ void main() {
     expect(find.byType(AnimatedSwitcher), findsNothing);
   });
 
+  testWidgets('front playback icon uses neutral and active colors', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    final theme = Theme.of(
+      tester.element(find.byKey(const Key('bookmark-review-listen-zone'))),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.headphones_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
+
+    await tester.tap(find.byKey(const Key('bookmark-review-listen-zone')));
+    await tester.pump();
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.headphones_rounded)).color,
+      theme.colorScheme.primary,
+    );
+  });
+
   testWidgets(
     'back explanation resolves sense-group playback to foreground domain',
     (tester) async {
@@ -561,6 +583,13 @@ void main() {
     expect(status.top - ratings.bottom, closeTo(8, 0.1));
     expect(find.text('再听一遍'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    final theme = Theme.of(
+      tester.element(find.byKey(const Key('bookmark-review-answer'))),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
   });
 
   testWidgets('back playback control switches between play and stop', (
@@ -578,10 +607,21 @@ void main() {
     await tester.pump();
     expect(find.text('停止播放'), findsOneWidget);
     expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+    final theme = Theme.of(
+      tester.element(find.byKey(const Key('bookmark-review-answer'))),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.stop_rounded)).color,
+      theme.colorScheme.primary,
+    );
 
     await tester.tap(toggle);
     await tester.pump();
     expect(find.text('再听一遍'), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
   });
 
   testWidgets('settings opens FSRS review controls', (tester) async {

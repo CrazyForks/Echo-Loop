@@ -84,9 +84,13 @@ class _TestFavoriteReviewSettings extends FavoriteReviewSettingsNotifier {
 }
 
 class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
-  _TestFavoriteVocabularyReview({this.withSource = false});
+  _TestFavoriteVocabularyReview({
+    this.withSource = false,
+    this.vocabulary = 'apple',
+  });
 
   final bool withSource;
+  final String vocabulary;
 
   @override
   FavoriteVocabularyReviewState build() {
@@ -94,7 +98,7 @@ class _TestFavoriteVocabularyReview extends FavoriteVocabularyReview {
     return FavoriteVocabularyReviewState(
       currentCard: FlashcardWordItem(
         savedWord: _word(
-          'apple',
+          vocabulary,
           memorySubjectId: 'w-1',
           sentenceText: withSource ? 'I ate an apple this morning.' : null,
         ),
@@ -183,6 +187,7 @@ Widget _app({
   bool autoShowAiLookup = false,
   bool showVocabularyOnFront = false,
   bool withSource = false,
+  String vocabulary = 'apple',
   List<PronunciationClip> pronunciationClips = const [],
   GoRouter? router,
 }) {
@@ -214,7 +219,10 @@ Widget _app({
   return ProviderScope(
     overrides: [
       favoriteVocabularyReviewProvider.overrideWith(
-        () => _TestFavoriteVocabularyReview(withSource: withSource),
+        () => _TestFavoriteVocabularyReview(
+          withSource: withSource,
+          vocabulary: vocabulary,
+        ),
       ),
       favoriteReviewSettingsProvider.overrideWith(
         () => _TestFavoriteReviewSettings(
@@ -311,6 +319,126 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('apple'), findsOneWidget);
+  });
+
+  testWidgets('front playback icon uses neutral and active colors', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+
+    final theme = Theme.of(
+      tester.element(
+        find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
+      ),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-listen-zone')),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_rounded)).color,
+      theme.colorScheme.primary,
+    );
+  });
+
+  testWidgets('back groups vocabulary playback separately from unsave', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    final playback = find.byKey(
+      const Key('favorite-vocabulary-review-word-playback'),
+    );
+    final unsave = find.byKey(const Key('favorite-vocabulary-review-unsave'));
+    expect(playback, findsOneWidget);
+    expect(unsave, findsOneWidget);
+    expect(
+      tester.getSize(playback).height,
+      lessThanOrEqualTo(tester.getSize(unsave).height),
+    );
+    expect(
+      tester.getTopRight(playback).dx,
+      lessThan(tester.getTopLeft(unsave).dx),
+    );
+    expect(
+      tester.getTopRight(unsave).dx,
+      closeTo(
+        tester
+            .getTopRight(
+              find.byKey(const Key('favorite-vocabulary-review-progress')),
+            )
+            .dx,
+        0.1,
+      ),
+    );
+    expect(tester.getSize(playback).width, lessThan(200));
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-back-word')),
+    );
+    await tester.pump();
+    final theme = Theme.of(tester.element(playback));
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_outlined)).color,
+      theme.colorScheme.primary,
+    );
+  });
+
+  testWidgets('long vocabulary stays inline and wraps without overflow', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _app(vocabulary: 'a tendency towards something remarkably memorable'),
+    );
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-reveal-zone')),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final word = tester.widget<Text>(
+      find.byKey(const Key('favorite-vocabulary-review-back-word')),
+    );
+    expect(word.softWrap, isTrue);
+    var hasInlinePlayback = false;
+    word.textSpan?.visitChildren((span) {
+      if (span is WidgetSpan && span.alignment == PlaceholderAlignment.middle) {
+        hasInlinePlayback = true;
+      }
+      return true;
+    });
+    expect(hasInlinePlayback, isTrue);
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-word-playback')),
+      findsOneWidget,
+    );
+
+    final playback = find.byKey(
+      const Key('favorite-vocabulary-review-word-playback'),
+    );
+    final theme = Theme.of(tester.element(playback));
+    await tester.tap(
+      find.byKey(const Key('favorite-vocabulary-review-back-word')),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_outlined)).color,
+      theme.colorScheme.primary,
+    );
   });
 
   testWidgets(
@@ -412,7 +540,6 @@ void main() {
         find.byKey(const Key('favorite-vocabulary-review-back-word')),
         findsOneWidget,
       );
-      expect(find.text('apple'), findsOneWidget);
       expect(
         find.byKey(const Key('favorite-vocabulary-review-word-speak')),
         findsOneWidget,
@@ -503,6 +630,15 @@ void main() {
     await tester.pump();
 
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    final theme = Theme.of(
+      tester.element(
+        find.byKey(const Key('favorite-vocabulary-review-source-playback')),
+      ),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
     final playback = find.byKey(
       const Key('favorite-vocabulary-review-source-playback'),
     );
@@ -530,6 +666,10 @@ void main() {
     );
     await tester.pump();
     expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.stop_rounded)).color,
+      theme.colorScheme.primary,
+    );
 
     await tester.tap(
       find.byKey(
@@ -538,6 +678,10 @@ void main() {
     );
     await tester.pump();
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
   });
 
   testWidgets('词汇和来源句播放互相抢占但不联动图标状态', (tester) async {
@@ -554,6 +698,15 @@ void main() {
     await tester.pump();
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
     expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
+    final theme = Theme.of(
+      tester.element(
+        find.byKey(const Key('favorite-vocabulary-review-back-word')),
+      ),
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_outlined)).color,
+      theme.colorScheme.primary,
+    );
 
     await tester.tap(
       find.byKey(
@@ -563,6 +716,10 @@ void main() {
     await tester.pump();
     expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
     expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.volume_up_outlined)).color,
+      theme.colorScheme.onSurfaceVariant,
+    );
   });
 
   testWidgets('背面内容与进度条及评分栏左右对齐', (tester) async {
@@ -616,6 +773,10 @@ void main() {
 
     expect(
       find.byKey(const Key('favorite-vocabulary-review-word-speak')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('favorite-vocabulary-review-word-playback')),
       findsNothing,
     );
     expect(find.byKey(const Key('dict_pronunciation_badges')), findsOneWidget);

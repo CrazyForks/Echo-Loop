@@ -1596,6 +1596,8 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
         child: ExpansionTile(
           controller: widget.expansionController,
           childrenPadding: EdgeInsets.zero,
+          dense: true,
+          minTileHeight: 40,
           iconColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           collapsedIconColor: theme.colorScheme.onSurfaceVariant.withValues(
             alpha: 0.4,
@@ -1625,28 +1627,42 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
           // 展开状态：来源句子 + 来源音频
           children: [
             SizedBox(
+              key: const Key('favorite-phrase-expanded-content'),
               width: double.infinity,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.m,
-                  AppSpacing.xs,
+                  0,
                   AppSpacing.m,
-                  AppSpacing.m,
+                  AppSpacing.s,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 意群同样属于收藏词汇：喇叭朗读收藏文本。
-                    SpeakButton(
-                      key: const Key('favorite_phrase_speak'),
-                      text: phrase.displayText,
-                      speakKey: 'favorite-phrase:${phrase.id}',
-                      size: 18,
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(),
+                    SizedBox(
+                      key: const Key('favorite-phrase-pronunciation-row'),
+                      height: 44,
+                      child: Center(
+                        child: SpeakButton(
+                          key: const Key('favorite_phrase_speak'),
+                          text: phrase.displayText,
+                          speakKey: 'favorite-phrase:${phrase.id}',
+                          size: 20,
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 36,
+                            height: 36,
+                          ),
+                          style: IconButton.styleFrom(
+                            fixedSize: const Size.square(36),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.s),
+                    const SizedBox(height: AppSpacing.xs),
                     // 来源句复用收藏句行：正文试听，箭头打开讲解。
                     if (phrase.sentenceText != null) ...[
                       _FavoriteSourceSentenceTile(
@@ -1990,6 +2006,8 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
         child: ExpansionTile(
           controller: widget.expansionController,
           childrenPadding: EdgeInsets.zero,
+          dense: true,
+          minTileHeight: 40,
           iconColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           collapsedIconColor: theme.colorScheme.onSurfaceVariant.withValues(
             alpha: 0.4,
@@ -2019,48 +2037,60 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
           // 展开状态：完整释义（仅多行时）+ 柯林斯星级 + 考试标签 + 来源句子
           children: [
             SizedBox(
+              key: const Key('favorite-word-expanded-content'),
               width: double.infinity,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.m,
-                  AppSpacing.xs,
+                  0,
                   AppSpacing.m,
-                  AppSpacing.m,
+                  AppSpacing.s,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 播放入口不依赖本地词典命中，固定跟随音标左侧排列。
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
-                          Flexible(
-                            child: Text(
-                              '/${widget.dictEntry!.phonetic}/',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Row(
+                        key: const Key('favorite-word-pronunciation-row'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
+                            Flexible(
+                              child: Text(
+                                '/${widget.dictEntry!.phonetic}/',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
+                          if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
+                            const SizedBox(width: AppSpacing.xs),
+                          SpeakButton(
+                            key: const Key('favorite_speak'),
+                            text: word.word,
+                            size: 20,
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.standard,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 36,
+                              height: 36,
+                            ),
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(36),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                           ),
-                        if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
-                          const SizedBox(width: AppSpacing.xs),
-                        SpeakButton(
-                          key: const Key('favorite_speak'),
-                          text: word.word,
-                          size: 18,
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     // 完整释义仅在本地词典精确命中时展示。
                     if (widget.dictEntry != null) ...[
                       if (widget.dictEntry!.translation != null) ...[
-                        const SizedBox(height: AppSpacing.s),
+                        const SizedBox(height: AppSpacing.xs),
                         Text(
                           widget.dictEntry!.translation!,
                           style: theme.textTheme.bodySmall?.copyWith(

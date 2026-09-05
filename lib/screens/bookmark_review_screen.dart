@@ -379,6 +379,9 @@ class _ListeningFront extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
+    final isPlaybackActive =
+        playbackState == BookmarkReviewPlaybackState.loading ||
+        playbackState == BookmarkReviewPlaybackState.playing;
     final status = switch (playbackState) {
       BookmarkReviewPlaybackState.loading => l10n.bookmarkReviewLoadingAudio,
       BookmarkReviewPlaybackState.playing => l10n.bookmarkReviewPlaying,
@@ -421,7 +424,9 @@ class _ListeningFront extends StatelessWidget {
                               : l10n.bookmarkReviewListenPrompt,
                           accent: hasError
                               ? theme.colorScheme.error
-                              : theme.colorScheme.primary,
+                              : isPlaybackActive
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -540,6 +545,7 @@ class _ReviewAnswer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
     final actions = [
       FlashcardRatingAction(
@@ -616,6 +622,9 @@ class _ReviewAnswer extends ConsumerWidget {
                   onPressed: onTogglePlayback,
                   icon: Icon(
                     isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                    color: isPlaying
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
                   label: Text(
                     isPlaying
