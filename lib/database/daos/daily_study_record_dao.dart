@@ -85,6 +85,13 @@ class DailyStudyRecordDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// 获取全部按日学习记录，按日期升序返回。
+  Future<List<DailyStudyRecord>> getAll() {
+    return (select(
+      dailyStudyRecords,
+    )..orderBy([(t) => OrderingTerm.asc(t.date)])).get();
+  }
+
   /// 计算连续学习天数（streak）
   ///
   /// 从昨天往回数连续有学习记录的天数，今天有学习则 +1。

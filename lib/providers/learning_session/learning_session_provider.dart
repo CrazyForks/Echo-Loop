@@ -30,6 +30,7 @@ import '../daily_study_time_provider.dart';
 import '../../services/learned_vocabulary_tracker.dart';
 import '../learned_vocabulary_tracker_provider.dart';
 import '../study_stats_provider.dart';
+import '../study_duration_provider.dart';
 import '../../services/app_logger.dart';
 import '../audio_engine/audio_engine_provider.dart';
 import '../audio_engine/foreground_audio_engine_provider.dart';
@@ -1349,13 +1350,20 @@ class LearningSession extends _$LearningSession {
     }
 
     if (usesMediaChain) {
-      AppLogger.log('Session', 'exitLearningMode: releasing media chain mode=$mode');
+      AppLogger.log(
+        'Session',
+        'exitLearningMode: releasing media chain mode=$mode',
+      );
       await ref.read(mediaEngineProvider.notifier).releaseFromScreen();
       await _flushLearnedVocabulary();
       ref.read(dailyStudyTimeProvider.notifier).refresh();
+      ref.invalidate(studyDurationRecordsProvider);
       ref.read(studyStatsNotifierProvider.notifier).refresh();
       state = const LearningSessionState();
-      AppLogger.log('Session', 'exitLearningMode: complete mode=$mode media chain');
+      AppLogger.log(
+        'Session',
+        'exitLearningMode: complete mode=$mode media chain',
+      );
       return;
     }
 
@@ -1385,6 +1393,7 @@ class LearningSession extends _$LearningSession {
 
     // 通知 UI 刷新今日学习时长
     ref.read(dailyStudyTimeProvider.notifier).refresh();
+    ref.invalidate(studyDurationRecordsProvider);
     ref.read(studyStatsNotifierProvider.notifier).refresh();
 
     state = const LearningSessionState();

@@ -452,6 +452,148 @@ Future<void> showDayStageBreakdownSheet({
   );
 }
 
+/// 显示统计周期的学习时长明细底部弹窗。
+///
+/// 与每日阶段明细共用底部弹窗的层级、间距与拖动指示条，避免图表
+/// 使用独立的对话框样式。
+Future<void> showStudyDurationBreakdownSheet({
+  required BuildContext context,
+  required String periodLabel,
+  required int totalSeconds,
+  required int inputSeconds,
+  required int outputSeconds,
+  required int otherSeconds,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => _StudyDurationBreakdownSheet(
+      periodLabel: periodLabel,
+      totalSeconds: totalSeconds,
+      inputSeconds: inputSeconds,
+      outputSeconds: outputSeconds,
+      otherSeconds: otherSeconds,
+    ),
+  );
+}
+
+class _StudyDurationBreakdownSheet extends StatelessWidget {
+  final String periodLabel;
+  final int totalSeconds;
+  final int inputSeconds;
+  final int outputSeconds;
+  final int otherSeconds;
+
+  const _StudyDurationBreakdownSheet({
+    required this.periodLabel,
+    required this.totalSeconds,
+    required this.inputSeconds,
+    required this.outputSeconds,
+    required this.otherSeconds,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              periodLabel,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _DurationBreakdownRow(
+              label: isZh ? '总时长' : 'Total',
+              value: _formatCompactDuration(totalSeconds),
+              color: theme.colorScheme.primary,
+              isTotal: true,
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            _DurationBreakdownRow(
+              label: isZh ? '输入' : 'Input',
+              value: _formatCompactDuration(inputSeconds),
+              color: kInputColor,
+            ),
+            _DurationBreakdownRow(
+              label: isZh ? '输出' : 'Output',
+              value: _formatCompactDuration(outputSeconds),
+              color: kOutputColor,
+            ),
+            _DurationBreakdownRow(
+              label: isZh ? '其它' : 'Other',
+              value: _formatCompactDuration(otherSeconds),
+              color: kOtherColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DurationBreakdownRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool isTotal;
+
+  const _DurationBreakdownRow({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.isTotal = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = isTotal
+        ? Theme.of(context).textTheme.titleMedium
+        : Theme.of(context).textTheme.bodyMedium;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: style),
+        const Spacer(),
+        Text(value, style: style?.copyWith(fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+String _formatCompactDuration(int seconds) {
+  if (seconds > 0 && seconds < 60) return '<1m';
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  if (hours > 0) return minutes > 0 ? '${hours}h${minutes}m' : '${hours}h';
+  return '${minutes}m';
+}
+
 /// 柱状图三色图例（听/说/其它）
 class _ChartLegend extends StatelessWidget {
   final AppLocalizations l10n;

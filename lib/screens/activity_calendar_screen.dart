@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../widgets/study/activity_day_cell.dart';
 import '../widgets/study/day_stage_breakdown_sheet.dart';
 import '../widgets/study/monthly_summary_card.dart';
+import '../widgets/study/study_duration_chart.dart';
 
 /// 活动日历页面
 ///
@@ -109,6 +110,8 @@ class _ActivityCalendarScreenState
                           : _buildEmptyHint(theme, l10n),
                     ) ??
                     const SizedBox.shrink(),
+                const SizedBox(height: AppSpacing.s),
+                const StudyDurationChart(),
               ],
             ),
           ),

@@ -33,6 +33,7 @@ import '../providers/listen_and_repeat/listen_and_repeat_controller.dart';
 import '../providers/learning_session/review_difficult_practice_provider.dart';
 import '../providers/transcription_task_provider.dart';
 import '../providers/study_stats_provider.dart';
+import '../providers/study_duration_provider.dart';
 import '../providers/study_task_provider.dart';
 import '../providers/learned_vocabulary_tracker_provider.dart';
 import '../providers/sentence_ai_provider.dart';
@@ -96,6 +97,7 @@ void switchAppDatabase(AppDatabase newDb, WidgetRef ref) {
 
   // 3. Invalidate 非 keepAlive 但依赖 DB 的提供者
   ref.invalidate(studyStatsNotifierProvider);
+  ref.invalidate(studyDurationRecordsProvider);
   ref.invalidate(studyTaskProvider);
   ref.invalidate(learnedVocabularyTrackerProvider);
 
