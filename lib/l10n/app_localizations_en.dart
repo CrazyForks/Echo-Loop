@@ -3106,7 +3106,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stageBookmarkReview => 'Sentence Review';
 
   @override
-  String get stageFlashcard => 'Word Review';
+  String get stageFlashcard => 'Vocabulary Review';
 
   @override
   String stageBreakdownTitle(String date) {

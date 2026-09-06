@@ -5459,7 +5459,7 @@ abstract class AppLocalizations {
   /// No description provided for @stageFlashcard.
   ///
   /// In en, this message translates to:
-  /// **'Word Review'**
+  /// **'Vocabulary Review'**
   String get stageFlashcard;
 
   /// No description provided for @stageBreakdownTitle.

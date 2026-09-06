@@ -2984,7 +2984,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stageBookmarkReview => '句子复习';
 
   @override
-  String get stageFlashcard => '单词复习';
+  String get stageFlashcard => '词汇复习';
 
   @override
   String stageBreakdownTitle(String date) {

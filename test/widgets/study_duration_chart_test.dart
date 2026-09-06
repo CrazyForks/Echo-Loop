@@ -198,6 +198,11 @@ void main() {
           StudyStage.savedVocabularyReview,
           studyTime: 180,
         );
+        await db.dailyStageStudyRecordDao.upsertAdd(
+          DateTime(2026, 9, 1),
+          StudyStage.savedSentencesReview,
+          studyTime: 60,
+        );
       });
       await tester.pumpWidget(buildChart());
       await tester.pumpAndSettle();
@@ -210,7 +215,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DayStageBreakdownSheet), findsOneWidget);
       expect(find.text('精听'), findsOneWidget);
-      expect(find.text('单词复习'), findsOneWidget);
+      expect(find.byIcon(Icons.subject), findsOneWidget);
+      expect(find.byIcon(Icons.menu_book_outlined), findsOneWidget);
+      expect(find.text('词汇复习'), findsOneWidget);
+      expect(find.text('单词复习'), findsNothing);
       expect(find.text(label == '日' ? '2分' : '4分'), findsOneWidget);
       expect(find.text('3分'), findsOneWidget);
       expect(
@@ -223,6 +231,7 @@ void main() {
       expect(find.text('输出'), findsNothing);
     });
   }
+
 }
 
 /// 用可控结果覆盖错误与迟到响应，无需任意延时。

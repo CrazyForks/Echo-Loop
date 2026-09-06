@@ -367,8 +367,8 @@ IconData _stageIcon(StudyStage stage) => switch (stage) {
   StudyStage.listenAndRepeat => Icons.record_voice_over,
   StudyStage.retell => Icons.chat_bubble_outline,
   StudyStage.reviewDifficultPractice => Icons.fitness_center,
-  StudyStage.savedSentencesReview => Icons.bookmark,
-  StudyStage.savedVocabularyReview => Icons.style,
+  StudyStage.savedSentencesReview => Icons.subject,
+  StudyStage.savedVocabularyReview => Icons.menu_book_outlined,
 };
 
 /// 阶段对应的 i18n 名称
