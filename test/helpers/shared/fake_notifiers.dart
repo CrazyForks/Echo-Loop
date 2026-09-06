@@ -2312,6 +2312,13 @@ class FakeOfflineAsrSettings extends OfflineAsrSettingsNotifier {
 
 /// 无操作 StudyTimeService — 所有写入静默忽略，查询返回零值
 class FakeStudyTimeService implements StudyTimeService {
+  /// 阶段明细查询在无操作 fake 中返回空结果，避免测试夹具引入数据库副作用。
+  @override
+  Future<List<DailyStageStudyRecordData>> getStageBreakdownInRange(
+    DateTime start,
+    DateTime end,
+  ) async => [];
+
   @override
   Future<int> getStudyTime(DateTime date) async => 0;
   @override
