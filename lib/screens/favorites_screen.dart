@@ -1321,6 +1321,69 @@ class _VocabularyPhrase extends _VocabularyItem {
 }
 
 /// 收藏意群列表项（可展开，样式与 _SavedWordTile 一致）
+/// 收藏单词、词组和意群共用的发音行，保证各平台的水平位置一致。
+class _FavoritePronunciationRow extends StatelessWidget {
+  const _FavoritePronunciationRow({
+    required this.rowKey,
+    required this.buttonKey,
+    required this.text,
+    this.phonetic,
+    this.speakKey,
+  });
+
+  final Key rowKey;
+  final Key buttonKey;
+  final String text;
+  final String? phonetic;
+  final String? speakKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedPhonetic = phonetic?.trim();
+    final speakButton = SpeakButton(
+      key: buttonKey,
+      text: text,
+      speakKey: speakKey,
+      size: 20,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.standard,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(36),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+
+    return SizedBox(
+      key: rowKey,
+      width: double.infinity,
+      height: 44,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: normalizedPhonetic == null || normalizedPhonetic.isEmpty
+            ? speakButton
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '/$normalizedPhonetic/',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  speakButton,
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 class _SavedPhraseTile extends ConsumerStatefulWidget {
   final SavedSenseGroup savedPhrase;
 
@@ -1639,28 +1702,12 @@ class _SavedPhraseTileState extends ConsumerState<_SavedPhraseTile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 意群同样属于收藏词汇：喇叭朗读收藏文本。
-                    SizedBox(
-                      key: const Key('favorite-phrase-pronunciation-row'),
-                      height: 44,
-                      child: Center(
-                        child: SpeakButton(
-                          key: const Key('favorite_phrase_speak'),
-                          text: phrase.displayText,
-                          speakKey: 'favorite-phrase:${phrase.id}',
-                          size: 20,
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 36,
-                            height: 36,
-                          ),
-                          style: IconButton.styleFrom(
-                            fixedSize: const Size.square(36),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ),
-                      ),
+                    // 词组和意群没有音标，播放入口与单词卡保持左对齐。
+                    _FavoritePronunciationRow(
+                      rowKey: const Key('favorite-phrase-pronunciation-row'),
+                      buttonKey: const Key('favorite_phrase_speak'),
+                      text: phrase.displayText,
+                      speakKey: 'favorite-phrase:${phrase.id}',
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     // 来源句复用收藏句行：正文试听，箭头打开讲解。
@@ -2050,42 +2097,11 @@ class _SavedWordTileState extends ConsumerState<_SavedWordTile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 播放入口不依赖本地词典命中，固定跟随音标左侧排列。
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      child: Row(
-                        key: const Key('favorite-word-pronunciation-row'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
-                            Flexible(
-                              child: Text(
-                                '/${widget.dictEntry!.phonetic}/',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          if (widget.dictEntry?.phonetic.isNotEmpty ?? false)
-                            const SizedBox(width: AppSpacing.xs),
-                          SpeakButton(
-                            key: const Key('favorite_speak'),
-                            text: word.word,
-                            size: 20,
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 36,
-                              height: 36,
-                            ),
-                            style: IconButton.styleFrom(
-                              fixedSize: const Size.square(36),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                        ],
-                      ),
+                    _FavoritePronunciationRow(
+                      rowKey: const Key('favorite-word-pronunciation-row'),
+                      buttonKey: const Key('favorite_speak'),
+                      text: word.word,
+                      phonetic: widget.dictEntry?.phonetic,
                     ),
                     // 完整释义仅在本地词典精确命中时展示。
                     if (widget.dictEntry != null) ...[

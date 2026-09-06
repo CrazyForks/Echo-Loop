@@ -1195,6 +1195,7 @@ void main() {
         );
         expect(speakRect.width, closeTo(36, 0.01));
         expect(speakRect.height, closeTo(36, 0.01));
+        expect(speakRect.left, closeTo(contentRect.left + AppSpacing.m, 0.01));
         expect(
           sourceRect.top - pronunciationRect.bottom,
           closeTo(AppSpacing.xs, 0.01),
