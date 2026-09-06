@@ -6,9 +6,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/database/providers.dart';
+import 'package:echo_loop/features/review_statistics/review_statistics_repository.dart';
 import 'package:echo_loop/screens/review_statistics_screen.dart';
 import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/theme/app_theme.dart';
+import 'package:echo_loop/widgets/common/app_segmented_button.dart';
 
 void main() {
   testWidgets('统计页按时间口径展示范围筛选、分区和说明', (tester) async {
@@ -31,6 +33,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byType(AppSegmentedButton<ReviewStatisticsScope>),
+      findsOneWidget,
+    );
     expect(find.text('全部'), findsOneWidget);
     expect(find.text('收藏句子'), findsAtLeastNWidgets(1));
     expect(find.text('收藏词汇'), findsAtLeastNWidgets(1));

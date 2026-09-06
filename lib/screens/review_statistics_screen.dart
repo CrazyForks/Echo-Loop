@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../features/review_statistics/review_statistics_provider.dart';
 import '../features/review_statistics/review_statistics_repository.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/common/app_segmented_button.dart';
 
 /// 收藏复习统计页，将当天行动、近期表现与历史记录按时间口径分层展示。
 class ReviewStatisticsScreen extends ConsumerWidget {
@@ -134,43 +135,25 @@ class _ScopeSelector extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => SegmentedButton<ReviewStatisticsScope>(
-    showSelectedIcon: false,
-    style: ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44)),
-      visualDensity: VisualDensity.standard,
-      backgroundColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return Theme.of(context).colorScheme.primaryContainer;
-        }
-        return Theme.of(context).colorScheme.surface;
-      }),
-      side: WidgetStatePropertyAll(
-        BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      textStyle: WidgetStatePropertyAll(
-        Theme.of(
-          context,
-        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
-    ),
-    segments: [
-      ButtonSegment(
-        value: ReviewStatisticsScope.all,
-        label: Text(l10n.reviewStatisticsAll),
-      ),
-      ButtonSegment(
-        value: ReviewStatisticsScope.sentences,
-        label: Text(l10n.reviewStatisticsSentences),
-      ),
-      ButtonSegment(
-        value: ReviewStatisticsScope.vocabulary,
-        label: Text(l10n.reviewStatisticsVocabulary),
-      ),
-    ],
-    selected: {selected},
-    onSelectionChanged: (value) => onChanged(value.first),
-  );
+  Widget build(BuildContext context) =>
+      AppSegmentedButton<ReviewStatisticsScope>(
+        segments: [
+          ButtonSegment(
+            value: ReviewStatisticsScope.all,
+            label: Text(l10n.reviewStatisticsAll),
+          ),
+          ButtonSegment(
+            value: ReviewStatisticsScope.sentences,
+            label: Text(l10n.reviewStatisticsSentences),
+          ),
+          ButtonSegment(
+            value: ReviewStatisticsScope.vocabulary,
+            label: Text(l10n.reviewStatisticsVocabulary),
+          ),
+        ],
+        selected: {selected},
+        onSelectionChanged: (value) => onChanged(value.first),
+      );
 }
 
 enum _SectionAccent { primary, secondary, tertiary, surface, error }

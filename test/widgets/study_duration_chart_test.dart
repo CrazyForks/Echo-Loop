@@ -1,8 +1,11 @@
 import 'package:echo_loop/providers/study_duration_provider.dart';
+import 'package:echo_loop/widgets/common/app_segmented_button.dart';
 import 'package:echo_loop/widgets/study/study_duration_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:echo_loop/l10n/app_localizations.dart';
 
 void main() {
   final currentWeek = StudyDurationBucket(
@@ -22,7 +25,17 @@ void main() {
           StudyDurationGranularity.week,
         ).overrideWith((ref) async => [currentWeek]),
       ],
-      child: const MaterialApp(home: Scaffold(body: StudyDurationChart())),
+      child: const MaterialApp(
+        locale: Locale('zh'),
+        supportedLocales: [Locale('zh')],
+        localizationsDelegates: [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(body: StudyDurationChart()),
+      ),
     );
   }
 
@@ -66,11 +79,27 @@ void main() {
     await tester.pumpWidget(buildChart());
     await tester.pumpAndSettle();
 
-    final selector = tester.widget<SegmentedButton<StudyDurationGranularity>>(
-      find.byType(SegmentedButton<StudyDurationGranularity>),
+    expect(
+      find.byType(AppSegmentedButton<StudyDurationGranularity>),
+      findsOneWidget,
     );
-    expect(selector.selected, {StudyDurationGranularity.week});
-    expect(selector.showSelectedIcon, isFalse);
+    expect(
+      find.byType(SegmentedButton<StudyDurationGranularity>),
+      findsNothing,
+    );
+    expect(
+      tester
+          .getSize(find.byType(AppSegmentedButton<StudyDurationGranularity>))
+          .height,
+      30,
+    );
+    expect(
+      tester
+          .getSize(find.byType(AppSegmentedButton<StudyDurationGranularity>))
+          .width,
+      200,
+    );
+    expect(find.text('周'), findsOneWidget);
     expect(find.text('1h5m'), findsOneWidget);
 
     await tester.tap(find.text('1h5m'));

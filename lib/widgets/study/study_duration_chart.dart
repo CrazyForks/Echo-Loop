@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/study_duration_provider.dart';
 import '../../theme/app_theme.dart';
+import '../common/app_segmented_button.dart';
 import 'day_stage_breakdown_sheet.dart';
 import 'study_stats_header.dart';
 
@@ -40,8 +41,10 @@ class _StudyDurationChartState extends ConsumerState<StudyDurationChart> {
             ),
             const SizedBox(height: 8),
             Center(
-              child: SegmentedButton<StudyDurationGranularity>(
-                showSelectedIcon: false,
+              child: AppSegmentedButton<StudyDurationGranularity>(
+                minimumHeight: 30,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: EdgeInsets.zero,
                 segments: [
                   ButtonSegment(
                     value: StudyDurationGranularity.day,
