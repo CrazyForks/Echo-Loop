@@ -198,6 +198,7 @@
 
 ## 稳定性与核心流程
 
+- [x] 修复 Android 14 冷启动系统 Splash 使用完整品牌图导致的 logo 尺寸跳变：为 Android 12+ 使用带安全区的专用 icon 资源。**完成时间**: 2026-09-06
 - [x] 修复数据库迁移 11 个单测的测试 fixture 缺表问题（`audio_items` / `bookmarks`）。**完成时间**: 2026-08-28
 - [ ] Android 离线 ASR 结束录音闪退：获取真机 `logcat` 与 `/data/tombstones`，定位并修复 Silero VAD native 崩溃。
 - [ ] 段落复述页面复用统一录音识别模块。
