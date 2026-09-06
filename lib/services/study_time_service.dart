@@ -222,6 +222,32 @@ class StudyTimeService {
 
   // ========== 阶段明细查询 ==========
 
+  /// 按阶段累加日期范围（含首尾）的原始秒数，按枚举顺序输出。
+  /// 格式化和显示裁剪留给弹窗，避免逐日取整造成累计误差。
+  Future<List<DailyStageStudyRecordData>> getStageBreakdownInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final records = await _stageDao.getInDateRange(start, end);
+    final totals = <StudyStage, DailyStageStudyRecordData>{};
+    for (final record in records) {
+      final previous = totals[record.stage];
+      totals[record.stage] = DailyStageStudyRecordData(
+        stage: record.stage,
+        studyTimeSeconds:
+            (previous?.studyTimeSeconds ?? 0) + record.studyTimeSeconds,
+        inputTimeSeconds:
+            (previous?.inputTimeSeconds ?? 0) + record.inputTimeSeconds,
+        outputTimeSeconds:
+            (previous?.outputTimeSeconds ?? 0) + record.outputTimeSeconds,
+      );
+    }
+    return [
+      for (final stage in StudyStage.values)
+        if (totals[stage] case final record?) record,
+    ];
+  }
+
   /// 获取指定日期的阶段明细列表
   ///
   /// 返回该日期所有有记录的阶段，按阶段序号排序。

@@ -94,20 +94,33 @@ class _ActivityCalendarScreenState
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 4),
-                    child: recordsAsync.when(
-                      data: (records) =>
-                          _buildCalendar(records, locale, service, isZh),
-                      loading: () => _buildCalendar({}, locale, service, isZh),
-                      error: (_, __) =>
-                          _buildCalendar({}, locale, service, isZh),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        recordsAsync.when(
+                          data: (records) =>
+                              _buildCalendar(records, locale, service, isZh),
+                          loading: () =>
+                              _buildCalendar({}, locale, service, isZh),
+                          error: (_, __) =>
+                              _buildCalendar({}, locale, service, isZh),
+                        ),
+                        // 图例与对应的日历保持在同一张卡片内。
+                        recordsAsync.whenOrNull(
+                              data: (records) => records.isNotEmpty
+                                  ? _buildLegend(theme, isZh)
+                                  : const SizedBox.shrink(),
+                            ) ??
+                            const SizedBox.shrink(),
+                      ],
                     ),
                   ),
                 ),
-                // 颜色深浅图例 / 空月份提示
+                // 空月份提示
                 recordsAsync.whenOrNull(
-                      data: (records) => records.isNotEmpty
-                          ? _buildLegend(theme, isZh)
-                          : _buildEmptyHint(theme, l10n),
+                      data: (records) => records.isEmpty
+                          ? _buildEmptyHint(theme, l10n)
+                          : const SizedBox.shrink(),
                     ) ??
                     const SizedBox.shrink(),
                 const SizedBox(height: AppSpacing.s),
@@ -120,7 +133,7 @@ class _ActivityCalendarScreenState
     );
   }
 
-  /// 构建日历组件
+  /// 构建月视图日历，仅接管横向切月手势，将纵向滚动交给页面。
   Widget _buildCalendar(
     Map<int, MonthDayRecord> records,
     String locale,
@@ -135,6 +148,7 @@ class _ActivityCalendarScreenState
       lastDay: DateTime.now(),
       locale: locale,
       calendarFormat: CalendarFormat.month,
+      availableGestures: AvailableGestures.horizontalSwipe,
       availableCalendarFormats: const {CalendarFormat.month: 'Month'},
       startingDayOfWeek: StartingDayOfWeek.monday,
       headerStyle: HeaderStyle(

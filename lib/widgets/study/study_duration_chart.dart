@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../providers/study_duration_provider.dart';
+import '../../database/providers.dart';
+import '../../services/study_time_service.dart';
 import '../../theme/app_theme.dart';
 import '../common/app_segmented_button.dart';
 import 'day_stage_breakdown_sheet.dart';
@@ -92,6 +95,8 @@ class _StudyDurationChartState extends ConsumerState<StudyDurationChart> {
                       granularity: _granularity,
                     ),
             ),
+            const SizedBox(height: 12),
+            const _ChartLegend(),
           ],
         ),
       ),
@@ -115,7 +120,66 @@ class _ErrorState extends StatelessWidget {
   );
 }
 
-class _BucketList extends StatefulWidget {
+/// 历史学习时长柱状图的听、说、其它颜色图例。
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return const SizedBox.shrink();
+
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        runSpacing: 8,
+        spacing: 16,
+        children: [
+          _LegendItem(color: kInputColor, label: l10n.chartLegendListening),
+          _LegendItem(color: kOutputColor, label: l10n.chartLegendSpeaking),
+          _LegendItem(
+            color: kOtherColor,
+            label: '${l10n.chartLegendOther} (${l10n.chartLegendOtherHint})',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontSize: 10,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BucketList extends ConsumerStatefulWidget {
   final List<StudyDurationBucket> buckets;
   final ScrollController controller;
   final StudyDurationGranularity granularity;
@@ -127,10 +191,11 @@ class _BucketList extends StatefulWidget {
   });
 
   @override
-  State<_BucketList> createState() => _BucketListState();
+  ConsumerState<_BucketList> createState() => _BucketListState();
 }
 
-class _BucketListState extends State<_BucketList> {
+class _BucketListState extends ConsumerState<_BucketList> {
+  bool _sheetOpen = false;
   @override
   void initState() {
     super.initState();
@@ -203,20 +268,82 @@ class _BucketListState extends State<_BucketList> {
     );
   }
 
-  void _showTooltip(BuildContext context, StudyDurationBucket bucket) {
-    showStudyDurationBreakdownSheet(
-      context: context,
-      periodLabel: formatStudyDurationBucketLabel(
-        bucket: bucket,
-        granularity: widget.granularity,
-        now: DateTime.now(),
-        isZh: Localizations.localeOf(context).languageCode == 'zh',
-      ),
-      totalSeconds: bucket.totalSeconds,
-      inputSeconds: bucket.inputSeconds,
-      outputSeconds: bucket.outputSeconds,
-      otherSeconds: bucket.otherSeconds,
-    );
+  /// 立即打开唯一面板；FutureBuilder 随面板销毁，迟到查询不会另开弹窗。
+  Future<void> _showTooltip(
+    BuildContext context,
+    StudyDurationBucket bucket,
+  ) async {
+    if (_sheetOpen) return;
+    _sheetOpen = true;
+    final service = ref.read(studyTimeServiceProvider);
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final start = bucket.periodStart;
+    final end = bucket.periodEnd;
+    debugPrint('[StudyDurationChart] 加载阶段明细：$start — $end');
+    final title = switch (widget.granularity) {
+      StudyDurationGranularity.day => null,
+      StudyDurationGranularity.week =>
+        '${start.year}/${start.month}/${start.day} – ${end.year}/${end.month}/${end.day}',
+      StudyDurationGranularity.month =>
+        isZh ? '${start.year}年${start.month}月' : '${start.year}/${start.month}',
+      StudyDurationGranularity.year =>
+        isZh ? '${start.year}年' : '${start.year}',
+    };
+    var query = service.getStageBreakdownInRange(start, end);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (_) => StatefulBuilder(
+          builder: (context, setSheetState) =>
+              FutureBuilder<List<DailyStageStudyRecordData>>(
+                future: query,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const SafeArea(
+                      child: SizedBox(
+                        height: 150,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    debugPrint(
+                      '[StudyDurationChart] 阶段明细加载失败：${snapshot.error}',
+                    );
+                    return SafeArea(
+                      child: _ErrorState(
+                        onRetry: () {
+                          setSheetState(() {
+                            query = service.getStageBreakdownInRange(
+                              start,
+                              end,
+                            );
+                          });
+                        },
+                      ),
+                    );
+                  }
+                  return DayStageBreakdownSheet(
+                    date: start,
+                    periodTitle: title,
+                    stageRecords: snapshot.data ?? const [],
+                    totalData: DailyTotalData(
+                      studyTimeSeconds: bucket.totalSeconds,
+                      inputTimeSeconds: bucket.inputSeconds,
+                      outputTimeSeconds: bucket.outputSeconds,
+                    ),
+                  );
+                },
+              ),
+        ),
+      );
+    } finally {
+      _sheetOpen = false;
+    }
   }
 }
 

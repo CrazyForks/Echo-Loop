@@ -60,6 +60,17 @@ class DailyStageStudyRecordDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// 查询日期范围内的阶段记录，包含首尾日期并忽略时分秒。
+  Future<List<DailyStageStudyRecord>> getInDateRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    return (select(dailyStageStudyRecords)..where(
+          (t) => t.date.isBetweenValues(_dateOnly(start), _dateOnly(end)),
+        ))
+        .get();
+  }
+
   /// 获取指定日期的所有阶段学习记录
   Future<List<DailyStageStudyRecord>> getByDate(DateTime date) {
     final dateOnly = _dateOnly(date);

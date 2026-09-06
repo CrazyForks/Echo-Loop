@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:echo_loop/database/app_database.dart';
 import 'package:echo_loop/services/study_time_service.dart';
+import 'package:echo_loop/models/study_stage.dart';
 
 AppDatabase _createTestDb() {
   return AppDatabase(
@@ -28,6 +29,42 @@ void main() {
   });
 
   group('StudyTimeService', () {
+    test('阶段范围包含首尾日期、排除范围外记录并按阶段分别累加', () async {
+      for (final day in [1, 2, 3, 4]) {
+        await db.dailyStageStudyRecordDao.upsertAdd(
+          DateTime(2026, 9, day),
+          StudyStage.intensiveListen,
+          studyTime: 61,
+          inputTime: 20,
+          outputTime: 10,
+        );
+      }
+      await db.dailyStageStudyRecordDao.upsertAdd(
+        DateTime(2026, 9, 3),
+        StudyStage.savedVocabularyReview,
+        studyTime: 180,
+        inputTime: 30,
+      );
+      final rows = await service.getStageBreakdownInRange(
+        DateTime(2026, 9, 2, 12),
+        DateTime(2026, 9, 3, 23),
+      );
+      expect(rows.map((r) => r.stage), [
+        StudyStage.intensiveListen,
+        StudyStage.savedVocabularyReview,
+      ]);
+      expect(rows.map((r) => r.studyTimeSeconds), [122, 180]);
+      expect(rows.map((r) => r.inputTimeSeconds), [40, 30]);
+      expect(rows.map((r) => r.outputTimeSeconds), [20, 0]);
+      expect(
+        await service.getStageBreakdownInRange(
+          DateTime(2025),
+          DateTime(2025, 12, 31),
+        ),
+        isEmpty,
+      );
+    });
+
     test('首次调用 getTodayStudyTime 返回 0', () async {
       final result = await service.getTodayStudyTime();
       expect(result, 0);

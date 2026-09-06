@@ -1,5 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,7 +12,6 @@ import 'package:echo_loop/l10n/app_localizations.dart';
 import 'package:echo_loop/providers/monthly_study_records_provider.dart';
 import 'package:echo_loop/providers/study_stats_provider.dart';
 import 'package:echo_loop/screens/activity_calendar_screen.dart';
-import 'package:echo_loop/services/study_time_service.dart';
 import 'package:echo_loop/theme/app_theme.dart';
 
 AppDatabase _createTestDb() {
@@ -82,6 +83,74 @@ void main() {
     await db.close();
   });
 
+  for (final useTrackpad in [true, false]) {
+    testWidgets('指针位于日历日期上时可通过${useTrackpad ? '触控板' : '鼠标滚轮'}滚动页面', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_createTestApp(db: db, records: const {}));
+      await tester.pumpAndSettle();
+
+      final calendar = find.byType(TableCalendar<void>);
+      final position = tester.getCenter(
+        find.descendant(of: calendar, matching: find.byType(PageView)),
+      );
+      final pageScroll = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(ListView).first,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(pageScroll.position.maxScrollExtent, greaterThan(0));
+      final initialOffset = pageScroll.position.pixels;
+      final initialMonth = tester
+          .widget<TableCalendar<void>>(calendar)
+          .focusedDay;
+
+      if (useTrackpad) {
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(position);
+        await gesture.panZoomUpdate(position, pan: const Offset(0, -40));
+        await gesture.panZoomUpdate(position, pan: const Offset(0, -120));
+        await gesture.panZoomEnd();
+      } else {
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: position,
+            kind: PointerDeviceKind.mouse,
+            scrollDelta: const Offset(0, 120),
+          ),
+        );
+      }
+      await tester.pumpAndSettle();
+
+      expect(pageScroll.position.pixels, greaterThan(initialOffset));
+      expect(
+        tester.widget<TableCalendar<void>>(calendar).focusedDay,
+        initialMonth,
+      );
+    });
+  }
+
+  testWidgets('日历仍支持横向滑动切换月份', (tester) async {
+    await tester.pumpWidget(_createTestApp(db: db, records: const {}));
+    await tester.pumpAndSettle();
+    final calendar = find.byType(TableCalendar<void>);
+    final initial = tester.widget<TableCalendar<void>>(calendar).focusedDay;
+    await tester.drag(
+      find.descendant(of: calendar, matching: find.byType(PageView)),
+      const Offset(400, 0),
+    );
+    await tester.pumpAndSettle();
+    final focused = tester.widget<TableCalendar<void>>(calendar).focusedDay;
+    final previous = DateTime(initial.year, initial.month - 1);
+    expect(focused.year, previous.year);
+    expect(focused.month, previous.month);
+  });
+
   testWidgets('日历页面正确渲染', (tester) async {
     await tester.pumpWidget(_createTestApp(db: db, records: const {}));
     await tester.pumpAndSettle();
@@ -127,6 +196,31 @@ void main() {
 
     // 今天的日期数字应该存在
     expect(find.text('${now.day}'), findsWidgets);
+  });
+
+  testWidgets('日历颜色图例显示在日历卡片内部', (tester) async {
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      _createTestApp(
+        db: db,
+        records: {
+          now.day: const MonthDayRecord(
+            studyTimeSeconds: 1800,
+            inputTimeSeconds: 0,
+            outputTimeSeconds: 0,
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.ancestor(
+        of: find.text('Less study time'),
+        matching: find.byType(Card),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('月度摘要卡片显示正确标签', (tester) async {
