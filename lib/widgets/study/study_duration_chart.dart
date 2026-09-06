@@ -20,13 +20,6 @@ class StudyDurationChart extends ConsumerStatefulWidget {
 
 class _StudyDurationChartState extends ConsumerState<StudyDurationChart> {
   StudyDurationGranularity _granularity = StudyDurationGranularity.week;
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +84,6 @@ class _StudyDurationChartState extends ConsumerState<StudyDurationChart> {
                   : _BucketList(
                       key: ValueKey(_granularity),
                       buckets: buckets,
-                      controller: _scrollController,
                       granularity: _granularity,
                     ),
             ),
@@ -181,12 +173,10 @@ class _LegendItem extends StatelessWidget {
 
 class _BucketList extends ConsumerStatefulWidget {
   final List<StudyDurationBucket> buckets;
-  final ScrollController controller;
   final StudyDurationGranularity granularity;
   const _BucketList({
     super.key,
     required this.buckets,
-    required this.controller,
     required this.granularity,
   });
 
@@ -195,15 +185,13 @@ class _BucketList extends ConsumerStatefulWidget {
 }
 
 class _BucketListState extends ConsumerState<_BucketList> {
+  final ScrollController _scrollController = ScrollController();
   bool _sheetOpen = false;
+
   @override
-  void initState() {
-    super.initState();
-    // 每个粒度创建一次列表，在首帧布局完成后定位到当前周期。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !widget.controller.hasClients) return;
-      widget.controller.jumpTo(widget.controller.position.maxScrollExtent);
-    });
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -215,13 +203,15 @@ class _BucketListState extends ConsumerState<_BucketList> {
     return SizedBox(
       height: 150,
       child: ListView.builder(
-        controller: widget.controller,
+        controller: _scrollController,
+        // 从最新周期端开始布局，避免首帧先绘制最早周期再跳转到末端。
+        reverse: true,
         scrollDirection: Axis.horizontal,
         itemExtent: 58,
         cacheExtent: 58 * 8,
         itemCount: widget.buckets.length,
         itemBuilder: (context, index) {
-          final bucket = widget.buckets[index];
+          final bucket = widget.buckets[widget.buckets.length - index - 1];
           final height = bucket.totalSeconds == 0
               ? 3.0
               : 90 * bucket.totalSeconds / maxValue;
@@ -348,10 +338,13 @@ class _BucketListState extends ConsumerState<_BucketList> {
 }
 
 /// 使用紧凑的小时和分钟格式展示学习时长。
+///
+/// 分钟统一向上取整，确保柱状图标签与学习时长明细使用相同的显示口径。
 String formatStudyDurationCompact(int seconds) {
   if (seconds > 0 && seconds < 60) return '<1m';
-  final hours = seconds ~/ 3600;
-  final minutes = (seconds % 3600) ~/ 60;
+  final totalMinutes = seconds <= 0 ? 0 : (seconds + 59) ~/ 60;
+  final hours = totalMinutes ~/ 60;
+  final minutes = totalMinutes % 60;
   if (hours > 0) return minutes > 0 ? '${hours}h${minutes}m' : '${hours}h';
   return '${minutes}m';
 }

@@ -32,7 +32,11 @@ void main() {
     isCurrentPeriod: true,
   );
 
-  Widget buildChart({StudyTimeService? service}) {
+  Widget buildChart({
+    StudyTimeService? service,
+    int totalSeconds = 3900,
+    List<StudyDurationBucket>? buckets,
+  }) {
     return ProviderScope(
       overrides: [
         studyTimeServiceProvider.overrideWithValue(
@@ -44,24 +48,26 @@ void main() {
         ),
         for (final granularity in StudyDurationGranularity.values)
           studyDurationBucketsProvider(granularity).overrideWith(
-            (ref) async => [
-              StudyDurationBucket(
-                periodStart: switch (granularity) {
-                  StudyDurationGranularity.day => DateTime(2026, 9, 1),
-                  StudyDurationGranularity.week => currentWeek.periodStart,
-                  StudyDurationGranularity.month => DateTime(2026, 9),
-                  StudyDurationGranularity.year => DateTime(2026),
-                },
-                periodEnd: granularity == StudyDurationGranularity.day
-                    ? DateTime(2026, 9, 1)
-                    : currentWeek.periodEnd,
-                totalSeconds: 3900,
-                inputSeconds: 1800,
-                outputSeconds: 1200,
-                otherSeconds: 900,
-                isCurrentPeriod: true,
-              ),
-            ],
+            (ref) async =>
+                buckets ??
+                [
+                  StudyDurationBucket(
+                    periodStart: switch (granularity) {
+                      StudyDurationGranularity.day => DateTime(2026, 9, 1),
+                      StudyDurationGranularity.week => currentWeek.periodStart,
+                      StudyDurationGranularity.month => DateTime(2026, 9),
+                      StudyDurationGranularity.year => DateTime(2026),
+                    },
+                    periodEnd: granularity == StudyDurationGranularity.day
+                        ? DateTime(2026, 9, 1)
+                        : currentWeek.periodEnd,
+                    totalSeconds: totalSeconds,
+                    inputSeconds: 1800,
+                    outputSeconds: 1200,
+                    otherSeconds: 900,
+                    isCurrentPeriod: true,
+                  ),
+                ],
           ),
       ],
       child: const MaterialApp(
@@ -81,7 +87,21 @@ void main() {
   test('紧凑时长使用小时和分钟', () {
     expect(formatStudyDurationCompact(3900), '1h5m');
     expect(formatStudyDurationCompact(3600), '1h');
+    expect(formatStudyDurationCompact(1321), '23m');
+    expect(formatStudyDurationCompact(661), '12m');
+    expect(formatStudyDurationCompact(1320), '22m');
     expect(formatStudyDurationCompact(30), '<1m');
+  });
+
+  testWidgets('柱状图与点击明细对同一秒数使用相同的分钟显示', (tester) async {
+    await tester.pumpWidget(buildChart(totalSeconds: 1321));
+    await tester.pumpAndSettle();
+
+    expect(find.text('23m'), findsOneWidget);
+    await tester.tap(find.text('23m'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('23分'), findsOneWidget);
   });
 
   testWidgets('加载失败可重试，关闭后迟到结果不会重新打开弹窗', (tester) async {
@@ -181,6 +201,32 @@ void main() {
     expect(find.text('详细分布数据从此版本开始记录'), findsOneWidget);
   });
 
+  testWidgets('首次渲染从最新周期开始且视觉顺序保持时间正序', (tester) async {
+    final buckets = List.generate(
+      8,
+      (index) => StudyDurationBucket(
+        periodStart: DateTime(2026, 7, 20 + index * 7),
+        periodEnd: DateTime(2026, 7, 26 + index * 7),
+        totalSeconds: index == 7 ? 3900 : 60,
+        inputSeconds: index == 7 ? 3900 : 60,
+        outputSeconds: 0,
+        otherSeconds: 0,
+        isCurrentPeriod: index == 7,
+      ),
+    );
+    await tester.pumpWidget(buildChart(buckets: buckets));
+    await tester.pumpAndSettle();
+
+    final list = tester.widget<ListView>(find.byType(ListView).first);
+    expect(list.reverse, isTrue);
+    expect(list.controller!.position.pixels, 0);
+    expect(find.text('本周'), findsOneWidget);
+
+    final earliest = tester.getCenter(find.text('7/20-26'));
+    final latest = tester.getCenter(find.text('本周'));
+    expect(earliest.dx, lessThan(latest.dx));
+  });
+
   for (final label in ['日', '周', '月', '年']) {
     testWidgets('$label柱体使用阶段明细并保留独立总量', (tester) async {
       await tester.runAsync(() async {
@@ -231,7 +277,6 @@ void main() {
       expect(find.text('输出'), findsNothing);
     });
   }
-
 }
 
 /// 用可控结果覆盖错误与迟到响应，无需任意延时。
